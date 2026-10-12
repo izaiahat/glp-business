@@ -13,9 +13,23 @@ import time
 
 PROC = Path('/proc')
 SYMLINK_ROOTS = tuple(map(Path, ('/home/ubuntu', '/root', '/etc', '/tmp')))
-SCHEDULE_ROOTS = tuple(map(Path, ('/run/systemd', '/usr/lib/systemd',
-                                '/usr/local/lib/systemd', '/var/spool/cron')))
+CRON_ROOTS = tuple(map(Path, ('/etc/crontab', '/etc/anacrontab', '/etc/cron.d',
+                            '/etc/cron.hourly', '/etc/cron.daily', '/etc/cron.weekly',
+                            '/etc/cron.monthly', '/var/spool/cron')))
+# Unit load directories, not systemd's executable/library or runtime-data trees.
+SYSTEMD_ROOTS = tuple(map(Path, (
+    '/etc/systemd/system', '/etc/systemd/user',
+    '/etc/systemd/system.control', '/etc/systemd/user.control', '/etc/systemd/system.attached',
+    '/run/systemd/system', '/run/systemd/user', '/run/systemd/transient',
+    '/run/systemd/system.control', '/run/systemd/user.control', '/run/systemd/system.attached',
+    '/run/systemd/generator', '/run/systemd/generator.early', '/run/systemd/generator.late',
+    '/usr/lib/systemd/system', '/usr/lib/systemd/user',
+    '/usr/local/lib/systemd/system', '/usr/local/lib/systemd/user',
+)))
+SCHEDULE_ROOTS = CRON_ROOTS + SYSTEMD_ROOTS
 REQUIRED_FILES = (Path('/home/ubuntu/.hermes/cron/jobs.json'),)
+UNIT_SUFFIXES = {'.service', '.socket', '.device', '.mount', '.automount',
+                 '.swap', '.target', '.path', '.timer', '.slice', '.scope'}
 
 
 def declared_directory(path, root):
@@ -43,9 +57,34 @@ def _identity(path):
     return (s.st_dev, s.st_ino, s.st_mode, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
 
 
+def _user_systemd_source(path):
+    parts = path.parts
+    if parts[:2] == ('/', 'home') and len(parts) >= 3:
+        tail = parts[3:]
+    elif parts[:2] == ('/', 'root'):
+        tail = parts[2:]
+    else:
+        return False
+    return (tail[:3] == ('.config', 'systemd', 'user') or
+            tail[:4] == ('.local', 'share', 'systemd', 'user'))
+
+
+def _systemd_source(path):
+    return _user_systemd_source(path) or any(_under(path, root) for root in SYSTEMD_ROOTS)
+
+
 def _schedule(path):
-    return any(part == 'systemd' or part == 'cron' or part == 'crontab'
-               or part.startswith('cron.') for part in path.parts)
+    # An arbitrary package named cron/systemd is not a registered scheduler.
+    return (path in REQUIRED_FILES or _systemd_source(path) or
+            any(_under(path, root) for root in CRON_ROOTS))
+
+
+def _masked_unit(source, target, linked):
+    return (source.suffix in UNIT_SUFFIXES and _systemd_source(source) and
+            target == Path('/dev/null') and os.readlink(source) == '/dev/null' and
+            linked is not None and
+            stat.S_ISCHR(linked.st_mode) and
+            (os.major(linked.st_rdev), os.minor(linked.st_rdev)) == (1, 3))
 
 
 def _text_reference(text, path):
@@ -95,7 +134,15 @@ def _reference_scan(path, deadline, inodes):
                 raise ValueError('symlink inode tmp custody: ' + str(source))
             # Unit/crontab symlinks may point outside the scanned trees.
             if schedule or _schedule(source):
-                stack.append((target, True, True))
+                if _masked_unit(source, target, linked):
+                    # A real masked unit has no executable scheduler content.
+                    # Keep the null-device identity in the final drift check.
+                    null_identity = _identity(target)
+                    if target in identities and identities[target] != null_identity:
+                        raise ValueError('masked unit target identity changed')
+                    identities[target] = null_identity
+                else:
+                    stack.append((target, True, True))
         elif stat.S_ISDIR(mode):
             if source == path:
                 continue  # Caller inventories the candidate without following links.
