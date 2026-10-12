@@ -9,7 +9,7 @@
     "scripts/glp_release_search_notify.py": {
       "callers": ["scripts/glp_release_main.py"],
       "kind": "script",
-      "sha256": "507b798ff7de2dc9c420da60254a37bfbeef6166982a4d3171a18947c684939f"
+      "sha256": "cdcbe1e771f4e0d4f2dac82e753b47ca3a01a7916b66c6568bcf527245dd6052"
     },
     "tests/test_article_review_recovery.py": {
       "callers": [".github/workflows/business-source-ci.yml"],
@@ -19,7 +19,7 @@
     "tests/test_glp_release_search_notify.py": {
       "callers": [".github/workflows/business-source-ci.yml"],
       "kind": "test",
-      "sha256": "4945c07015711186d927764f182751d7a692a077909a03de60724e0a224f5433"
+      "sha256": "3a616147f2d99299ee7307c46fc6a8e7aba4367a63bde4d8fc805ba86dbc0e34"
     },
     "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py": {
       "callers": [

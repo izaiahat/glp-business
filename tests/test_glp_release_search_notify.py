@@ -9,6 +9,22 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import glp_release_search_notify as notify
 
 
+def test_live_default_callbacks_are_refused_before_any_io(monkeypatch):
+    def forbidden(*a, **kw):
+        raise AssertionError('live_transport_or_file_io_reached')
+    monkeypatch.setattr(notify.urllib.request, 'urlopen', forbidden)
+    monkeypatch.setattr(Path, 'read_bytes', forbidden)
+    with pytest.raises(RuntimeError, match='live_search_effect_refused'):
+        notify.submit_deployment({'deployment_id':'real-looking-id'}, Path('/unused'))
+    with pytest.raises(RuntimeError, match='live_search_effect_refused'):
+        notify.post('https://api.indexnow.org/indexnow', {})
+    with pytest.raises(RuntimeError, match='live_search_effect_refused'):
+        notify.gsc_submit(b'<urlset/>')
+    monkeypatch.delenv('PYTEST_CURRENT_TEST', raising=False)
+    with pytest.raises(RuntimeError, match='source_not_installed'):
+        notify.submit_deployment({'deployment_id':'id'}, Path('/unused'))
+
+
 def test_release_changed_set_deployment_ledger_and_replay(tmp_path, monkeypatch):
     import glp_release_main as release
     old, new = tmp_path/'old', tmp_path/'new'

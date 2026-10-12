@@ -26,6 +26,14 @@ REPORTS = ROOT/'reports/glp-clinic-scout/seo-machine/search-notifications'
 LEDGER = ROOT/'reports/glp-clinic-scout/seo-machine/indexnow-submission-ledger.jsonl'
 
 
+def require_installed_effect():
+    if os.environ.get('PYTEST_CURRENT_TEST'):
+        raise RuntimeError('live_search_effect_refused:pytest')
+    expected = Path('/home/ubuntu/business/scripts/glp_release_search_notify.py')
+    if Path(__file__).resolve() != expected.resolve():
+        raise RuntimeError('live_search_effect_refused:source_not_installed')
+
+
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -54,12 +62,14 @@ def live_sitemap():
 
 
 def post(endpoint,payload):
+    require_installed_effect()
     req=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','User-Agent':'GLPClinicScoutSearchNotify/1.0'},method='POST')
     with urllib.request.urlopen(req,timeout=60) as r:
         return r.status,r.read()
 
 
 def gsc_submit(xml):
+    require_installed_effect()
     # Direct canonical SA only: no user-OAuth fallback, mailbox impersonation,
     # new credentials or quarantined historical submit helpers.
     sys.path.insert(0,str(ROOT/'systems/seo-blog-machine/scripts'))
@@ -108,8 +118,13 @@ def append_rows(ledger, rows):
         f.flush();os.fsync(f.fileno())
 
 
+LIVE_POST, LIVE_GSC_SUBMIT = post, gsc_submit
+
+
 def submit_deployment(pointer, predecessor, *, root=ROOT, report_root=REPORTS,
                       ledger=LEDGER, poster=post, gsc_submit=gsc_submit):
+    if poster is LIVE_POST or gsc_submit is LIVE_GSC_SUBMIT:
+        require_installed_effect()
     deployment=pointer.get('deployment_id','')
     if not re.fullmatch(r'[a-zA-Z0-9-]+',deployment): raise RuntimeError('deployment_id_invalid')
     final=pointer['final_receipt']; raw=Path(final['path']).read_bytes();terminal=json.loads(raw)
