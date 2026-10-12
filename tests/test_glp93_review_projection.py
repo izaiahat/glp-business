@@ -169,6 +169,42 @@ class ReviewProjectionTests(unittest.TestCase):
             env['append_calculator_inventory_test_ids'](f, ['new'])
         self.assertEqual(f.read_bytes(), before)
 
+    def test_internal_operator_notes_never_reach_reader_inputs(self):
+        tyde = ("Reported information: Tyde's current official state list contains all 50 US states. "
+                "The MaxBounty offer separately excludes California for campaign targeting; preserve that commercial exclusion.")
+        instarx = ('UNKNOWN consumer service-state list: the captured homepage shows this question without an answer. '
+                   'Network traffic-state restrictions are separate from clinical eligibility.')
+        spec = {'program_id': 'fixture-review', 'page_copy': {'bottom_line': 'Clinician review. OPERATOR: hold link.'},
+                'row_contract': {'medications': 'Compounded options', 'pros': ['Clear terms', 'Keep the Katalys row dark.']}}
+        research = {'fields': {'states_served': {'value': tyde, 'quote': 'states'}, 'eligibility': {'value': instarx}}}
+        actual, revised = builder.project_review_inputs(spec, research)
+        self.assertEqual(revised['fields']['states_served']['value'],
+                         "Reported information: Tyde's current official state list contains all 50 US states.")
+        self.assertEqual(revised['fields']['eligibility']['value'],
+                         'UNKNOWN consumer service-state list: the captured homepage shows this question without an answer.')
+        self.assertEqual(actual['page_copy']['bottom_line'], 'Clinician review.')
+        self.assertEqual(actual['row_contract']['pros'], ['Clear terms'])
+        self.assertEqual(actual['row_contract']['medications'], 'Compounded options')
+        self.assertEqual(len(actual['internal_notes']), 4)  # retained off-page, not discarded
+        self.assertIn('MaxBounty', research['fields']['states_served']['value'])  # historical packet unmutated
+        rendered = json.dumps([actual['page_copy'], actual['row_contract'],
+                               {k: v['value'] for k, v in revised['fields'].items()}])
+        self.assertIsNone(projection.INTERNAL_NOTE.search(rendered))
+        self.assertEqual(builder.project_review_inputs(actual, revised)[1], revised)
+        with self.assertRaisesRegex(RuntimeError, 'review_internal_note_emptied_copy:page_copy.title'):
+            projection.project_internal_notes({'page_copy': {'title': 'Awin'}, 'row_contract': {}}, {'fields': {}})
+
+    def test_feelgood_medications_follow_visible_product_labels(self):
+        url = projection.FEELGOOD_WEIGHT_LOSS
+        research = {'captured_at_utc': '2026-10-10T00:00:00Z', 'fields': {},
+                    'first_party_source_captures': self.bundle({url: 'Compounded Injections Compounded Tablets Original Injections'})}
+        spec = {'program_id': 'feelgood-review', 'page_copy': {}, 'row_contract': {'medications': 'Compounded semaglutide and tirzepatide'}}
+        actual, _ = builder.project_review_inputs(spec, research)
+        self.assertEqual(actual['row_contract']['medications'], projection.FEELGOOD_MEDICATIONS)
+        research['first_party_source_captures'] = self.bundle({url: 'Compounded Injections only'})
+        with self.assertRaisesRegex(RuntimeError, 'official_quote_missing'):
+            builder.project_review_inputs(spec, research)
+
     def test_willow_products_qualified_and_pharmacy_claims_attributed(self):
         spec = {'program_id':'willow-review','page_copy':{'description':'oral and injectable GLP-1','bottom_line':'Willow offers semaglutide and tirzepatide'},
                 'row_contract':{'best_for':'oral and injectable semaglutide and tirzepatide','medications':'Semaglutide and tirzepatide','starting_price':'Semaglutide from $299; tirzepatide from $399','pros':['Oral and injectable options']}}

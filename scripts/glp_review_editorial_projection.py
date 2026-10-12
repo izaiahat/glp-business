@@ -9,6 +9,103 @@ from pathlib import Path
 import re
 
 
+# Operator/commercial notes (network campaign restrictions, traffic-state
+# rules, "preserve that ..." directives, explicit internal markers) belong in
+# registry/hold data, never in reader copy. A matching sentence is removed from
+# every consumed text input and retained under ``internal_notes``; any match
+# that survives projection refuses the whole contract.
+AFFILIATE_NETWORKS = (
+    'MaxBounty', 'Katalys', 'XenTraffic', 'Awin', 'ShareASale', 'FlexOffers',
+    'ClickDealer', 'Partnerize', 'Trackdesk', 'Everflow', 'Affiliati',
+    'impact.com', 'Impact Radius', 'CJ Affiliate', 'Commission Junction',
+    'Rakuten Advertising', 'Refersion', 'PartnerStack',
+)
+INTERNAL_NOTE = re.compile(
+    r'\b(?:' + '|'.join(re.escape(name) for name in AFFILIATE_NETWORKS) + r')\b'
+    r'|\btraffic[- ]states?\b'
+    r'|\bcommercial exclusions?\b'
+    r'|\bpreserve (?:that|this|these|the) [^.;]*\b(?:exclusions?|restrictions?|holds?)\b'
+    r'|\b(?:internal|operator)[- ](?:notes?|directives?|only)\b'
+    r'|\b(?:treatment|taxonomy) tags\b|\bmust not be (?:used|promoted|linked)\b'
+    r'|(?:^|\s)\[?(?:INTERNAL|OPERATOR|TODO)\]?:',
+    re.IGNORECASE)
+_SENTENCE = re.compile(r'(?<=[.!?])(\s+)')
+COPY_KEYS = ('title', 'description', 'bottom_line')
+ROW_KEYS = ('best_for', 'cons', 'insurance', 'medications', 'pros', 'starting_price')
+
+
+def strip_internal_notes(text):
+    """Return (reader_text, removed_sentences); unflagged text is byte-identical."""
+    if not isinstance(text, str) or not INTERNAL_NOTE.search(text):
+        return text, []
+    parts = _SENTENCE.split(text)
+    kept, removed = [], []
+    for index in range(0, len(parts), 2):
+        sentence = parts[index]
+        if INTERNAL_NOTE.search(sentence):
+            removed.append(sentence)
+            continue
+        if kept:
+            kept.append(parts[index - 1])
+        kept.append(sentence)
+    return ''.join(kept).strip(), removed
+
+
+def _consumed_text(spec, research):
+    copy, row = spec.get('page_copy') or {}, spec.get('row_contract') or {}
+    for key in COPY_KEYS:
+        yield 'page_copy.' + key, copy.get(key)
+    for key in ROW_KEYS:
+        values = row.get(key)
+        for value in values if isinstance(values, list) else [values]:
+            yield 'row_contract.' + key, value
+    for name, item in (research.get('fields') or {}).items():
+        if isinstance(item, dict):
+            yield 'fields.' + name, item.get('value')
+
+
+def project_internal_notes(spec, research):
+    """Move internal notes out of every consumed reader input, then refuse leaks."""
+    notes = []
+    copy, row = spec.get('page_copy') or {}, spec.get('row_contract') or {}
+    for key in COPY_KEYS:
+        if key in copy:
+            copy[key], removed = strip_internal_notes(copy[key])
+            notes += [{'field': 'page_copy.' + key, 'text': text} for text in removed]
+            if removed and not copy[key]:
+                raise RuntimeError('review_internal_note_emptied_copy:page_copy.' + key)
+    for key in ROW_KEYS:
+        values = row.get(key)
+        if isinstance(values, list):
+            cleaned = []
+            for value in values:
+                value, removed = strip_internal_notes(value)
+                notes += [{'field': 'row_contract.' + key, 'text': text} for text in removed]
+                if value != '':
+                    cleaned.append(value)
+            row[key] = cleaned
+        elif key in row:
+            row[key], removed = strip_internal_notes(values)
+            notes += [{'field': 'row_contract.' + key, 'text': text} for text in removed]
+    for name, item in (research.get('fields') or {}).items():
+        if isinstance(item, dict) and 'value' in item:
+            item['value'], removed = strip_internal_notes(item['value'])
+            if removed:
+                item.setdefault('internal_notes', []).extend(removed)
+                notes += [{'field': 'fields.' + name, 'text': text} for text in removed]
+    for where, value in _consumed_text(spec, research):
+        if isinstance(value, str) and INTERNAL_NOTE.search(value):
+            raise RuntimeError('review_internal_note_render_refused:' + where)
+    if notes:
+        spec['internal_notes'] = spec.get('internal_notes', []) + notes
+    return spec, research
+
+
+FEELGOOD_WEIGHT_LOSS = 'https://www.feelgoodmeds.com/weight-loss'
+FEELGOOD_MEDICATIONS = ('Compounded GLP-1 injections and tablets, plus a branded option (provider-reported); '
+                        'the specific medication per product is UNKNOWN from captured pages.')
+
+
 def captured_review_sources(research):
     """A URL/date is not evidence; authenticate stored raw captures first."""
     binding = research.get('first_party_source_captures') or {}
@@ -33,7 +130,9 @@ def captured_review_sources(research):
             'binding': {
                 'bundle_path': binding['path'], 'bundle_sha256': binding['sha256'],
                 'raw_capture_path': str(path), 'raw_capture_sha256': capture['raw_capture_sha256'],
-                'captured_at_utc': research['captured_at_utc'],
+                # A supplemental capture keeps its own clock; never restamp it
+                # with the packet's older research date.
+                'captured_at_utc': capture.get('captured_at_utc') or research['captured_at_utc'],
             },
         }
     return captures
@@ -43,8 +142,14 @@ def project_review_inputs(spec, research):
     """Correct only named consumed inputs, without mutating historical packets."""
     spec, research = deepcopy(spec), deepcopy(research)
     pid = spec['program_id']
+    if pid == 'feelgood-review':
+        markdown = captured_review_sources(research).get(FEELGOOD_WEIGHT_LOSS, {}).get('markdown', '')
+        for label in ('Compounded Injections', 'Compounded Tablets', 'Original Injections'):
+            if label not in markdown:
+                raise RuntimeError('review_correction_official_quote_missing:' + FEELGOOD_WEIGHT_LOSS)
+        spec['row_contract']['medications'] = FEELGOOD_MEDICATIONS
     if pid not in {'rightwell-review', 'willow-review', 'ivim-health-review'}:
-        return spec, research
+        return project_internal_notes(spec, research)
     captures = captured_review_sources(research)
     copy, row, fields = spec['page_copy'], spec['row_contract'], research['fields']
     if pid == 'rightwell-review':
@@ -94,7 +199,7 @@ def project_review_inputs(spec, research):
                 binding.update(source_url=offer_url, evidence_text=offer_quote,
                                evidence_sha256=hashlib.sha256(offer_quote.encode()).hexdigest())
         spec['provider_dynamic_profile'] = deepcopy(profile)
-    return spec, research
+    return project_internal_notes(spec, research)
 
 
 OLD_SCORE = '''function scoreBlock(row, provider) {

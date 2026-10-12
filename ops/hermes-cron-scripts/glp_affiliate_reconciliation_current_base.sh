@@ -106,7 +106,7 @@ declare -A b2_pins=(
   ['/home/ubuntu/business/scripts/glp_provider_dynamic_profile_activation.mjs']='598a7d4c9b1a261471569e9c69df6ae45d6fb6572807f801ccd958f6f0acd5a0'
   ['/home/ubuntu/business/scripts/glp_go_runtime_manifest_refresh.mjs']='a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e'
   ['/home/ubuntu/business/scripts/build_glp_affiliate_wirein_incremental_v2.py']='cbe43edb08ca45b580a09508f3609139b1ddfaf699b32bd465a047f61ac8b9fd'
-  ['/home/ubuntu/business/scripts/glp_review_editorial_projection.py']='6c9a7831568c9eaff82f6899381d49d2b512dfe2b5cc5e736525d4faf330ce33'
+  ['/home/ubuntu/business/scripts/glp_review_editorial_projection.py']='cb1b750c9e83813f8d3ea71e94a955ba6075a6944a8114eb717b1f9030f424fc'
 )
 for b2_path in "${!b2_pins[@]}"; do
   actual_b2_sha256="$(sha256sum "$b2_path" | cut -d' ' -f1)"
