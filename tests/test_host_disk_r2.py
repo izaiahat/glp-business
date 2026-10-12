@@ -243,7 +243,7 @@ def test_real_site_authority_requires_disjoint_current_refs(tmp_path,monkeypatch
     import host_disk_authorized_retirement as authorized
     site=tmp_path/'site';root=site/'candidates/sealed-old';root.mkdir(parents=True)
     monkeypatch.setattr(authorized,'SITE',site)
-    monkeypatch.setattr(authorized,'fresh_pins',lambda:())
+    monkeypatch.setattr(authorized,'fresh_pins',lambda:(site,site/'candidates'))
     authority=authorized.SiteAuthority(root,object())
     assert authority.admit(root,0)['scope']=='superseded_site'
     monkeypatch.setattr(authorized,'fresh_pins',lambda:(root,))

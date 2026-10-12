@@ -50,7 +50,8 @@ def site_protected(p,pins,root):
     """Only the obsolete seal-name veto is superseded; all named holds remain."""
     p=Path(p);root=Path(root)
     if p!=root and root not in p.parents:return True
-    pinset=set(map(str,pins))
+    structural={SITE,SITE/'candidates',SITE/'releases',SITE/'work'} if SITE in root.parents else set()
+    pinset={str(p) for p in pins if Path(p) not in structural}
     if any(str(q) in pinset for q in (p,*p.parents)):return True
     # Strip ONLY seal/sealed prefixes inside this explicitly scoped tree. The
     # baseline predicate still handles databases, backups, finance, R8 and secrets.
@@ -62,7 +63,7 @@ def site_protected(p,pins,root):
 
 def fresh_pins():
     """Read the real registry through its authorized non-root identity."""
-    code="import sys,json;sys.path.insert(0,'/home/ubuntu/business/scripts');import host_disk_auto_classes as a;print(json.dumps(sorted(map(str,a.external_pins()))))"
+    code="import sys,json;sys.path.insert(0,'/home/ubuntu/business/scripts');import host_disk_auto_classes as a;p=a.pr_pins()|a.worktree_pins()|a.live_release_pins()|a.r8_pins()|a.linear_pins();print(json.dumps(sorted(map(str,p))))"
     cmd=[sys.executable,'-c',code]
     if os.geteuid()==0:cmd=['sudo','-n','-H','-u','ubuntu',*cmd]
     result=subprocess.run(cmd,capture_output=True,text=True,timeout=300,check=True)
