@@ -80,12 +80,14 @@ def test_refill_plan_order_once_per_scope_and_idle_only(tmp_path):
         dict(id='first', issue='GLP-253', dots=['rook','finch'], effect='public_research',
              coordinator_authorized=True, brief='Public sources only; no sends.', files=[])])
     issues = [dict(identifier='GLP-328', priority=1, state={'type':'started'}),
-              dict(identifier='GLP-253', priority=0, state={'type':'backlog'})]
+              dict(identifier='GLP-253', priority=0, state={'type':'unstarted'})]
     plan = {'issues':[{'issue':'GLP-253','order':6}, {'issue':'GLP-328','order':17}]}
     assert lane.select('rook', issues, plan, policy, {}, [])[0]['id'] == 'first'
     assert lane.select('rook', issues, plan, policy, {'first':{}}, [])[0]['id'] == 'later'
     assert lane.select('rook', issues, plan, policy, {}, [dict(dot='rook', state='sent', issue='GLP-93')]) is None
     assert lane.select('finch', issues, plan, policy, {}, [dict(dot='rook', state='sent', issue='GLP-253')])[0]['id'] == 'later'
+    issues[1]['state']['type'] = 'backlog'
+    assert lane.select('rook',issues,plan,policy,{},[])[0]['id'] == 'later'
     policy['scopes'][0]['effect'] = 'send'
     assert lane.select('finch', issues, plan, policy, {'first':{}}, []) is None
     policy['scopes'][0]['effect'] = 'independent_pr'

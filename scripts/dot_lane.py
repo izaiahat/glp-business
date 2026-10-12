@@ -259,7 +259,8 @@ def select(dot, issues, plan, policy, claims, tickets):
                 or reserved_files.intersection(files)):
                 continue
         issue = next((row for row in issues if row['identifier'] == scope['issue']), None)
-        if not issue or issue['state']['type'] not in {'backlog','unstarted','started'}:
+        if (not issue or issue['state']['type'] not in {'unstarted','started'}
+            or issue['state'].get('name', 'Todo' if issue['state']['type']=='unstarted' else 'In Progress') not in {'Todo','In Progress','In Review'}):
             continue
         # An explicit held scope is never rescued by text/name inference.
         if scope.get('held') or scope.get('protected_effects'):
@@ -275,7 +276,7 @@ def live_issues():
     TEAM = 'd349d8ab-67cb-4a91-a0b0-2ab1a4daeb5b'
     rows, after = [], None
     while True:
-        data = gql('query($filter:IssueFilter,$after:String){issues(first:100,after:$after,filter:$filter){nodes{id identifier title description priority state{type}} pageInfo{hasNextPage endCursor}}}',
+        data = gql('query($filter:IssueFilter,$after:String){issues(first:100,after:$after,filter:$filter){nodes{id identifier title description priority state{name type}} pageInfo{hasNextPage endCursor}}}',
                    {'filter':{'team':{'id':{'eq':TEAM}}}, 'after':after})['issues']
         rows.extend(data['nodes'])
         if not data['pageInfo']['hasNextPage']:
