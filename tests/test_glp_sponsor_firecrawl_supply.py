@@ -156,3 +156,20 @@ def test_nonregistry_sponsors_require_current_us_fit_and_preserve_all_exclusions
     for row in organizations['nutrition.example']['scope_evidence']:
         row['observed_utc'] = '2020-01-01T00:00:00+00:00'
     assert not campaign.recipients(values, {'organizations':organizations}, local)['recipients']
+
+
+def test_daily_cap_counts_legacy_and_installed_callers_without_reset(monkeypatch, tmp_path):
+    import firecrawl_client
+    import glp_firecrawl_jobs as jobs
+    class Client:
+        def __init__(self, *a, **kw): pass
+        def request(self, *a, **kw): return {'data': {'remainingCredits': 10000}}
+    monkeypatch.setattr(firecrawl_client, 'FirecrawlClient', Client)
+    seen = []
+    def spent(callers):
+        seen.extend(callers)
+        return 3833
+    monkeypatch.setattr(jobs, 'spent_today', spent)
+    p = supply.Producer(state_dir=tmp_path)
+    assert 'fc71_sponsor_supply' in seen and 'fc71_sponsor_alexandria' in seen
+    assert p.budget.cap == 0 and not p.budget.allow(1)

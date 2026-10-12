@@ -260,7 +260,8 @@ class Producer:
         self.alex = FirecrawlClient(ALEX_CALLER, run_id=self.run)
         usage = self.client.request('team/credit-usage', method='GET').get('data') or {}
         from glp_firecrawl_jobs import spent_today
-        self.start_spent = spent_today((CALLER, ALEX_CALLER))
+        # Caller renames do not reset the same daily sponsor job allowance.
+        self.start_spent = spent_today((CALLER, ALEX_CALLER, 'fc71_sponsor_supply', 'fc71_sponsor_alexandria'))
         self.budget = Budget(int(usage.get('remainingCredits') or 0),
                              cap=max(0, min(run_cap, RUN_CREDIT_CAP) - self.start_spent))
         self.match_cap = match_cap
