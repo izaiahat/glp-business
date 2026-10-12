@@ -315,6 +315,7 @@ def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypa
             from test_glp_sponsor_unattended import decisions
             decisions(tmp_path,monkeypatch)
             accepted['canonical_inbox_sha256']=c.digest(tmp_path/'inbox_control_plane/control_plane.py')
+            accepted['firecrawl_client_sha256']=c.digest(tmp_path/'scripts/firecrawl_client.py')
             review_path=r.OPERATOR_SOURCE_REVIEW
             monkeypatch.setattr(r,'require_coordinator_execution',lambda:pytest.fail('NO TUI CUSTODY FOR AUTOMATION'))
             monkeypatch.setattr(r,'current_authority',lambda *a,**kw:pytest.fail('NO TUI CUSTODY FOR AUTOMATION'))

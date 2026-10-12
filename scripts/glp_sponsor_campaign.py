@@ -825,7 +825,8 @@ def run(config,dry_run=False,*,transport_preflight=False,preflight_at=None):
   finance_hosts=invoice_provider_hosts(values,local) if reply_readiness['status']=='read_complete' else ()
   finance_hosts={host for host in finance_hosts if not any(same(host,row.get('host',email.split('@')[-1]))
                  and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items())}
-  payment_readiness=refresh_paypal_orders(config,at,dry_run=dry_run or transport_preflight,finance_hosts=finance_hosts,ledger=ledger)
+  payment_readiness=(dict(status='not_requested_transport_preflight',financial_writes=0,financial_write_attempts=0) if transport_preflight
+                     else refresh_paypal_orders(config,at,dry_run=dry_run,finance_hosts=finance_hosts,ledger=ledger))
   if enabled and config.get('require_canonical_reply_coverage') is True and reply_readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
   sent_today=sum(dt.datetime.fromisoformat(s['sent_at']).astimezone(PT).date()==pt.date() for entry in ledger.values() for s in entry.get('sent',[]))
   # An outstanding claim may already have delivered despite failed readback.

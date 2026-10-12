@@ -248,7 +248,7 @@ def packet_binding(c, packet, config, *, require_installed_manifest=True):
 SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/S1/SOURCE-REVIEW.json'
 SUCCESSOR_SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/RV-S2/RECEIVER-SOURCE-REVIEW.json'
 RENEWABLE_SOURCES = {'scripts/glp_sponsor_campaign.py', 'scripts/glp_sponsor_current_receiving.py',
-                     'inbox_control_plane/sponsor_replies.py', 'inbox_control_plane/control_plane.py'}
+                     'inbox_control_plane/sponsor_replies.py', 'inbox_control_plane/control_plane.py', 'scripts/firecrawl_client.py'}
 
 
 def refresh_source_packet(c, predecessor_sha256, output):
@@ -298,6 +298,7 @@ def reviewed_source_head(c, *, recorded_operator=False):
         pins['sponsor_replies_sha256'] = 'inbox_control_plane/sponsor_replies.py'
     if recorded_operator:
         pins['canonical_inbox_sha256'] = 'inbox_control_plane/control_plane.py'
+        pins['firecrawl_client_sha256'] = 'scripts/firecrawl_client.py'
     head = review.get('reviewed_source_head', '')
     if (review.get('status') != 'PASS' or not review.get('reviewer') or review['reviewer'] in ('S1', 'RV-S2', 'S3')
         or not re.fullmatch('[0-9a-f]{40}', head)
@@ -383,6 +384,9 @@ def receive(c, packet_sha256, source_head, result, *, successor_packet=None, rep
                 raise RuntimeError('current_renewal_predecessor_changed')
             before = c.technical_packet_members(packet)
             after = c.technical_packet_members(io.BytesIO(candidate))
+            if (not recorded_operator and any(before.get(name)!=after.get(name)
+                for name in ('inbox_control_plane/control_plane.py','scripts/firecrawl_client.py'))):
+                raise RuntimeError('current_renewal_extended_source_requires_recorded_review')
             if set(before)!=set(after) or any(before[name]!=after[name]
                 for name in before if name not in RENEWABLE_SOURCES|{MANIFEST}):
                 raise RuntimeError('current_renewal_outward_bytes_changed')

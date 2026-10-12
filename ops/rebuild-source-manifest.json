@@ -3213,7 +3213,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "53602c0c1338d6b774533362957dd2d4f0d003d87497a9a15ce048a6aab18e1b"
+      "sha256": "5735f04a6552948bee7d6586fa7bddd8ac2aa5f10fe3d1d8903516a86cd26706"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -6951,7 +6951,7 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "b848654d546bdf63b97e10e1cb598891c402a2766e20bc7fb23ae7ef5ecb82fc"
+      "sha256": "5296cf5d36019cad855fd9d991e6c44aeb617d6c21a953399a0e6a72e9bd7ccd"
     },
     "tests/test_glp_sponsor_unattended.py": {
       "kind": "test",
@@ -6963,7 +6963,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "ae8ab4752c830f3e4ec8a4230af7c3f0f06f02a607296292b6bee69a168f4709"
+      "sha256": "5174fe5af6bd4d292b9a77d40f3b1c7c0ea6b5e7bab8efb2eb70180a6850cfc8"
     },
     "scripts/glp_surface_unification.py": {
       "kind": "script",
