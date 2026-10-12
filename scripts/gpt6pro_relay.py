@@ -2852,7 +2852,7 @@ def _terminal_unsent_pin(job, report=None):
     if len(matching) != 1:
         raise ValueError('REPORT')
     row = matching[0]
-    if row.get('disposition') != 'terminal_unsent_preinsert' or row.get('reason') not in ('WRONG_MODEL', 'SECURITY_INTERSTITIAL'):
+    if row.get('disposition') != 'terminal_unsent_preinsert' or row.get('reason') not in ('WRONG_MODEL', 'SECURITY_INTERSTITIAL', 'CHAT_SURFACE_REFUSED'):
         raise ValueError('DISPOSITION')
     c = {'job': job, 'held': row['job_sha256'], 'message': row['message_sha256'],
          'manifest': row['manifest_sha256'], 'drive_prompt': row['drive_prompt_sha256'],
@@ -2890,7 +2890,13 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
                 log_bytes != ('SEND_FAILED TAB_CAP ' + json.dumps(error) + '\n').encode()):
             raise ValueError('ATTEMPT_LOG')
         attempt_custody[lp] = log_bytes
-    readiness_invalid = (not c.get('pretarget') and
+    mode_refusal = c.get('generic') and c['reason'] == 'CHAT_SURFACE_REFUSED'
+    if mode_refusal and error != {'error': 'CHAT_SURFACE_REFUSED', 'typed': False,
+                                 'sent': False, 'tab': c['tab']}:
+        raise ValueError('MODE_RECEIPT')
+    # This gate's exact pre-input receipt carries its own target, but no state.
+    # Never borrow this exception for readiness/model failures or missing tabs.
+    readiness_invalid = (not c.get('pretarget') and not mode_refusal and
         (observed.get('url') != 'https://chatgpt.com/' or observed.get('stop') is not False or
          observed.get('assistant_count') != 0 or observed.get('last_len') != 0))
     if (sha(preimage) != c['held'] or json.loads(preimage) != st or
@@ -2980,7 +2986,8 @@ def _generic_terminal_unsent_evidence(st, c, rows, custody):
             not start.timestamp()*1000 <= c['time_origin'] <= end.timestamp()*1000):
         raise ValueError('DOCUMENT_INTERVAL')
     records = {}
-    for key in ('preflight', 'observation'):
+    explicit_mode_target = c['reason'] == 'CHAT_SURFACE_REFUSED'
+    for key in (('observation',) if explicit_mode_target else ('preflight', 'observation')):
         pin = c['target_evidence'][key]
         ep = (BUSINESS / pin['path']).resolve()
         if Path(pin['path']).is_absolute() or not ep.is_relative_to(BUSINESS.resolve()):
@@ -2989,9 +2996,10 @@ def _generic_terminal_unsent_evidence(st, c, rows, custody):
         if sha(custody[ep]) != pin['sha256']:
             raise ValueError('EVIDENCE')
         records[key] = json.loads(custody[ep])
-    before = {t['target_id'] for t in records['preflight']['targets']}
+    before = set() if explicit_mode_target else {t['target_id'] for t in records['preflight']['targets']}
     observed = records['observation']['browser']
-    candidates = [t for t in observed['metadata'] if t['target_id'] not in before and
+    candidates = [t for t in observed['metadata'] if
+        (t['target_id'] == st['error']['tab'] if explicit_mode_target else t['target_id'] not in before) and
         t['url'] == 'https://chatgpt.com/' and start.timestamp()*1000 <= t['time_origin'] <= end.timestamp()*1000]
     if (len(candidates) != 1 or candidates[0]['target_id'] != c['tab'] or
             candidates[0]['time_origin'] != c['time_origin'] or
