@@ -167,6 +167,19 @@ def test_verified_legacy_archive_migrates_after_full_pair_readback(tmp_path,monk
     assert not dest.exists() and Path(str(dest)+'.retirement.jsonl').exists()
 
 
+def test_legacy_migration_upload_parent_alias_is_not_retired(tmp_path,monkeypatch):
+    root,dest=setup(tmp_path,monkeypatch)
+    m.cold_archive(API(),root,dest,dry_run=False,cold_days=30,deadline=time.monotonic()+60)
+    held=tmp_path/'held'
+    class Mutating(Remote):
+        def store(self,a,b,d):
+            receipt=super().store(a,b,d)
+            a.parent.rename(held);a.parent.symlink_to(held,target_is_directory=True)
+            return receipt
+    rows=r2.migrate_archives(API(),m,tmp_path,Mutating(),pins=(),deadline=time.monotonic()+60,dry_run=False)
+    assert rows[0]['status']=='REFUSED' and (held/dest.name).exists()
+
+
 def test_private_bucket_object_expiry_is_refused():
     control=r2.Control({'CLOUDFLARE_ACCOUNT_ID':'fixture','CLOUDFLARE_API_TOKEN':'fixture'})
     def request(method,suffix,**kwargs):

@@ -7028,14 +7028,14 @@
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "script",
-      "sha256": "e1aa965929fba02ae1121d94a5078989d1d02a885e9eeeb029c8decd0a44bc7e"
+      "sha256": "b7f4057b1b691e909835d7f730226defd59d4fc167c2e9b83a111a044aad6f21"
     },
     "tests/test_host_disk_r2.py": {
       "callers": [
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "test",
-      "sha256": "ea827e685c5e3662f661a213e53ca6f451e603d4d5c48a71bcb55309d0c815b4"
+      "sha256": "e0376c5916c083187e47039a65bf7f66d689794eda244f0e926cd49fc85f4777"
     }
   },
   "omitted_runtime_inputs": [

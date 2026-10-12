@@ -220,8 +220,10 @@ def migrate_archives(api,m,prune_root,destination,*,pins,deadline,dry_run=True):
             if pair['archive']['sha256']!=info['archive_sha256'] or pair['manifest']['sha256']!=info['manifest_sha256'] or pair['archive']['bytes']!=archive.stat().st_size or pair['manifest']['bytes']!=manifest.stat().st_size or any(r.get('verified') is not True for r in pair.values()):
                 raise ValueError('remote binding drift')
             fresh=m.custody_pins(pins)
-            if m.signature(archive)!=identity or any(archive==q or q in archive.parents for q in fresh) or not m.inactive(api,archive):
-                raise ValueError('new archive custody/drift')
+            if m.protected(archive.parent,fresh) or any(m.protected(source/r['name'],fresh) for r in members):
+                raise ValueError('new source/reference custody')
+            if archive.parent.resolve()!=archive.parent.absolute() or m.signature(archive)!=identity or any(archive==q or q in archive.parents for q in fresh) or not m.inactive(api,archive):
+                raise ValueError('new archive scope/custody/drift')
             info['remote']=receipt;m.write_json(verified,info)
             amount=archive.stat().st_blocks*512
             archive.unlink()
