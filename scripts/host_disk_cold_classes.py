@@ -33,14 +33,16 @@ def live_symlink_targets(home=None,max_depth=3):
     Never follow directory symlinks while discovering. Permission/scan failures
     propagate: incomplete live-target inventory cannot authorize any effects.
     """
-    home=Path(home or LIVE_HOME);stack=[(home,0)];targets=set()
-    while stack:
-        p,depth=stack.pop()
+    home=Path(home or LIVE_HOME);targets=set()
+    def walk(p,depth):
         if p.is_symlink():
-            targets.add(p.resolve(strict=False));continue
-        if depth>=max_depth or not p.is_dir():continue
-        with os.scandir(p) as es:
-            stack.extend((Path(e.path),depth+1) for e in es)
+            targets.add(p.resolve(strict=False));return
+        if depth>=max_depth or not p.is_dir():return
+        with os.scandir(p) as entries:
+            for entry in entries:
+                if entry.is_symlink() or entry.is_dir(follow_symlinks=False):
+                    walk(Path(entry.path),depth+1)
+    walk(home,0)
     return targets
 
 def existing_pins(pins):
@@ -61,10 +63,15 @@ def existing_pins(pins):
 
 def custody_pins(pins):
     from host_disk_custody import collect
-    live=existing_pins(set(pins)|collect())
-    # Resolve current alias chains again at every gate, not from cached prose.
-    live.update(p.resolve(strict=False) for p in tuple(live))
-    return tuple(live)+tuple(live_symlink_targets())
+    from itertools import chain
+    live=set()
+    for value in chain(pins,collect()):
+        p=Path(value)
+        try:p.lstat()
+        except FileNotFoundError:continue
+        live.add(p);live.add(p.resolve(strict=False))
+    live.update(live_symlink_targets())
+    return tuple(live)
 
 _PIN_CACHE={}
 
@@ -74,6 +81,7 @@ def protected(p, pins=()):
     key=id(pins)
     cached=_PIN_CACHE.get(key)
     if cached is None or cached[0] is not pins:
+        if len(_PIN_CACHE)>=32:_PIN_CACHE.clear()
         cached=(pins,frozenset(map(str,pins))); _PIN_CACHE[key]=cached
     pinset=cached[1]
     referenced=any(str(a) in pinset for a in [p,*p.parents])
