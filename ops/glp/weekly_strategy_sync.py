@@ -25,7 +25,8 @@ def atomic(path, doc):
     return {'path':str(path.resolve()),'sha256':sha(raw)}
 
 
-def build_updates(topics, modules, bindings, *, source_observations):
+def build_updates(topics, modules, bindings, *, source_observations, gap_volume=None,
+                  held_routes=(), live_routes=()):
     rows=[];refresh={}
     for original in topics['recommendations']:
         row={k:v for k,v in original.items() if k!='queue_eligible'}
@@ -39,13 +40,25 @@ def build_updates(topics, modules, bindings, *, source_observations):
         entry['queries'].append(row['query'])
     gap=modules['modules']['keyword_gap']
     extension=gap.get('output',{}).get('ws_s_extension',{})
-    gaps=extension.get('new_observations') if gap['status']=='PASS_ANALYSIS_ONLY' else None
+    # GLP-44: keyword_gaps are this week's demand-qualified supply decisions.
+    # A failed/held footprint keeps the module UNKNOWN and gaps null (never []).
+    from ops.glp.weekly_keyword_plan import plan_keyword_gaps, update_plan, POLICY
+    gaps,gap_exclusions=(None,[])
+    if gap['status']=='PASS_ANALYSIS_ONLY':
+        gaps,gap_exclusions=plan_keyword_gaps(gap.get('output',{}),gap_volume,
+            held_routes=held_routes,live_routes=live_routes)
+    discoveries=extension.get('new_observations') if gap['status']=='PASS_ANALYSIS_ONLY' else None
     captured=dt.datetime.now(dt.timezone.utc)
     return {'schema':'glp-weekly-strategy-updates-v1','week_start':topics['week_start'],
         'generated_at_utc':captured.isoformat(),
         'expires_at_utc':(captured+dt.timedelta(days=8)).isoformat(),
         'topic_priorities':rows,'page2_targets':rows,'refresh_list':list(refresh.values()),
         'keyword_gaps':gaps,'keyword_gap_status':gap['status'],
+        'keyword_gap_exclusions':gap_exclusions,
+        'keyword_gap_discoveries_held':None if discoveries is None else discoveries[:50],
+        'keyword_gap_discoveries_count':None if discoveries is None else len(discoveries),
+        'update_plan':update_plan(list(refresh.values())),
+        'weekly_policy':POLICY,
         'keyword_gap_required_artifact':gap.get('required_artifact'),
         'source_observations':source_observations,'evidence_bindings':bindings,
         'consumer':'GLP-73 existing topic/refill single writer',

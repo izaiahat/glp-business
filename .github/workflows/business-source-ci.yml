@@ -90,7 +90,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_weekly_strategy_updater_adoption.py tests/test_glp44_strategy_sync.py systems/seo-blog-machine/tests/test_learning_loop_actions.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_weekly_strategy_updater_adoption.py tests/test_glp44_strategy_sync.py tests/test_glp44_weekly_keyword_budget.py systems/seo-blog-machine/tests/test_learning_loop_actions.py
       - name: Host disk automatic pruner classes and registry clone retention (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
