@@ -35,6 +35,56 @@ class SurfaceInputTests(unittest.TestCase):
         self.assertEqual(u.eligibility_with_retained_holds(rows, ['live']), rows[:2])
         self.assertEqual(held['live_link_allowed'], False)
 
+    def test_explicit_editorial_hold_keeps_missing_tracker_dark(self):
+        p={'program_id':'held','display_name':'Held','review_path':'/reviews/held/','affiliate_relationship_snapshot':{'promotion_denied':True}}
+        c={'network_contract':{'network':'MaxBounty','tracking_url':None,'promotion_authorized_in_this_artifact':False},'row_contract':{'live_link_allowed':False,'promotion_authorized':False,'pros':['Clinician review described'],'cons':['Price unknown','Pharmacy unknown']}}
+        tracking=u.tracking_for(p,c,{})
+        self.assertEqual(tracking,{'url':None,'host':None,'network':'MaxBounty','held':True})
+        entry={'source_url':'https://provider.example/','starting_price':'UNKNOWN'}
+        row=u.build_row(p,entry,c,None,tracking,{'logos':[]},'a'*64,'2026-10-10')
+        self.assertIsNone(row['affiliate_href'])
+        self.assertFalse(row['live_link_allowed'])
+        self.assertFalse(row['promotion_authorized'])
+        p['affiliate_relationship_snapshot']['promotion_denied']=False
+        with self.assertRaisesRegex(SystemExit,'tracking_url_missing'):u.tracking_for(p,c,{})
+        c['row_contract']['pros']=[]
+        with self.assertRaisesRegex(SystemExit,'row_evidence_too_thin'):u.build_row(p,entry,c,None,tracking,{'logos':[]},'a'*64,'2026-10-10')
+
+    def test_denial_outranks_retained_tracking_url(self):
+        p={'program_id':'held','affiliate_relationship_snapshot':{'promotion_denied':True}}
+        c={'network_contract':{'network':'MaxBounty','tracking_url':'https://network.example/track'},'row_contract':{}}
+        with self.assertRaisesRegex(SystemExit,'held_tracking_url_present'):
+            u.tracking_for(p,c,{})
+
+    def test_held_eligibility_has_no_borrowed_grant_or_review_identity(self):
+        p={'program_id':'held','display_name':'Held','review_path':'/reviews/held/'}
+        template={'program_id':'unrelated','review_path':'/reviews/unrelated/',
+                  'status':'live_operator_approved_transparent_direct',
+                  'operator_selection_receipt_sha256':'a'*64,'tracking_present_private':True}
+        held={'url':None,'host':None,'network':'MaxBounty','held':True}
+        actual=u.build_eligibility_entry(p,template,held,'b'*64)
+        self.assertEqual(actual['review_path'],'/reviews/held/')
+        self.assertIsNone(actual['operator_selection_receipt_sha256'])
+        self.assertFalse(actual['tracking_present_private'])
+        self.assertFalse(actual['live_link_allowed'])
+        self.assertFalse(actual['promotion_authorized'])
+        self.assertEqual(actual['status'],'held_editorial_only')
+        self.assertEqual(template['program_id'],'unrelated')
+
+    def test_shipping_pro_requires_exact_bound_first_party_quote(self):
+        import tempfile, json, hashlib
+        with tempfile.TemporaryDirectory() as d:
+            raw=Path(d)/'capture.json'
+            raw.write_text(json.dumps({'data':{'markdown':'Provider advertises free shipping.'}}))
+            bind={'raw_capture_path':str(raw),'raw_capture_sha256':hashlib.sha256(raw.read_bytes()).hexdigest()}
+            field={'source_url':'https://provider.example/','quote':'free shipping'}
+            contract={'source_capture_bindings':{field['source_url']:bind}}
+            note=u.captured_shipping_pro({'research_shipping_wait':field},contract)
+            self.assertIn('Provider advertises free shipping',note)
+            self.assertIn('unknown',note)
+            field['quote']='free 2-day shipping'
+            with self.assertRaises(SystemExit):u.captured_shipping_pro({'research_shipping_wait':field},contract)
+
     def test_invalid_medication_values_refuse(self):
         for meds in [{'compounded': True}, ['oral', {'injectable': True}], 1]:
             with self.assertRaisesRegex(SystemExit, 'meds_offered_type_invalid'):

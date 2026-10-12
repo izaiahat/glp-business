@@ -909,6 +909,18 @@ def require_zero_review_pending_invariant(
     text = path.read_text()
     numeric = list(re.finditer(numeric_pattern, text))
     dynamic = list(re.finditer(dynamic_pattern, text))
+    modern = 'assert.equal(rated + pending + deliberatelyUnscored.length, routes.length);'
+    if dynamic and modern in text:
+        raise RuntimeError('review_rating_partition_ambiguous')
+    if not dynamic and text.count(modern) == 1:
+        # Site main separates deliberately unscored new editorial pages from
+        # legacy pending scores. Preserve its exact partition, never treat a
+        # missing guard as authority to increase pending.
+        for guard in ('assert.deepEqual(deliberatelyUnscored.sort(),appendedRoutes);',
+                      'assert.ok(rated > 0);'):
+            if text.count(guard) != 1:
+                raise RuntimeError('review_rating_modern_partition_guard_missing')
+        dynamic = [modern]
     if len(numeric) != 1 or len(dynamic) != 1:
         raise RuntimeError(
             f"review_rating_invariant_match_count:{path.name}:"
@@ -922,9 +934,33 @@ def require_zero_review_pending_invariant(
     return pending
 
 
+def append_deliberately_unscored_review_routes(path: Path, ids: list[str]) -> None:
+    """Extend the current site's exact new-route partition, not its legacy set."""
+    text = path.read_text()
+    if 'deliberatelyUnscored' not in text:
+        return  # historical zero-pending fixture has no editorial partition
+    pattern = r'assert\.deepEqual\(appendedRoutes\.sort\(\),(\[[^\]]*\])\);'
+    matches = list(re.finditer(pattern, text))
+    if len(matches) != 1:
+        raise RuntimeError('review_appended_routes_partition_missing')
+    import ast
+    routes = ast.literal_eval(matches[0].group(1))
+    additions = [f'/reviews/{pid}/' for pid in ids]
+    if (not isinstance(routes, list) or len(set(routes)) != len(routes)
+            or len(set(additions)) != len(additions) or set(routes) & set(additions)
+            or any(not re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', pid) for pid in ids)):
+        raise RuntimeError('review_appended_routes_partition_invalid')
+    value = repr(sorted(routes + additions))
+    path.write_text(text[:matches[0].start(1)] + value + text[matches[0].end(1):])
+
+
 def write_provider_add_merit_binding_test(target: Path) -> Path:
-    """Install a data-driven regression for every fast-path/provider-add row."""
+    """Install the legacy regression or retain exact accepted modern custody."""
     path = target / "tests/provider-add-merit-binding.test.mjs"
+    if path.exists() and "explicitlyUnscoredReview" in path.read_text():
+        if file_sha(path) != 'c492aeaf80479739f29617f59e8108f54a2d42b91f2d899152a413ad1f05f085':
+            raise RuntimeError('provider_add_modern_merit_test_drift')
+        return path
     body = '''import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -1074,9 +1110,22 @@ def validate_checked_as_of(spec: dict) -> None:
         raise RuntimeError(f"spec_checked_as_of_{reason}:record={record}") from None
 
 
-def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
+def editorial_hold_reason(spec: dict) -> str | None:
+    """An explicit editorial-only input can deny promotion, never grant it."""
+    if 'editorial_hold' not in spec:
+        return None
+    value = spec['editorial_hold']
+    if not isinstance(value, str) or not value.strip() or len(value) > 1000:
+        raise RuntimeError('editorial_hold_reason_invalid')
+    return value
+
+
+def build_contract(spec: dict, research: dict, tracking_url: str | None, logo: dict,
                    publisher_id: str) -> dict:
     validate_checked_as_of(spec)
+    hold = editorial_hold_reason(spec)
+    if hold and tracking_url is not None:
+        raise RuntimeError('editorial_held_tracking_forbidden')
     spec, research = project_review_inputs(spec, research)
     pid = spec["program_id"]
     price = quote(research, "first_month_price")
@@ -1122,11 +1171,11 @@ def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
             "sha256": logo["sha256"],
         },
         "network_contract": {
-            "activation_blocker": None,
+            "activation_blocker": hold,
             "immutable_offer_id": spec["advertiser_id"],
             "local_evidence_checked_through": spec["checked_as_of"],
             "network": spec["network"],
-            "promotion_authorized_in_this_artifact": True,
+            "promotion_authorized_in_this_artifact": not bool(hold),
             "publisher_id": publisher_id,
             "relationship_state": "approved_or_active",
             "sheet_status": "approved_active_tracking_ready",
@@ -1158,11 +1207,11 @@ def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
             "cons": row["cons"],
             "criteria_scores": {},
             "insurance": row["insurance"],
-            "live_link_allowed": True,
+            "live_link_allowed": not bool(hold),
             "logo": logo["path"],
             "medications": row["medications"],
             "program_id": pid,
-            "promotion_authorized": True,
+            "promotion_authorized": not bool(hold),
             "pros": row["pros"],
             "provider": spec["display_name"],
             "review_path": f"/reviews/{pid}/",
@@ -1178,8 +1227,9 @@ def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
 
 
 def build_integration(spec: dict, logo: dict, activation_at_utc: str) -> dict:
+    hold = editorial_hold_reason(spec)
     return {
-        "affiliate_cta_state": "ACTIVE_PROVIDER_ISSUED_DIRECT",
+        "affiliate_cta_state": "HOLD_EDITORIAL_ONLY" if hold else "ACTIVE_PROVIDER_ISSUED_DIRECT",
         "activation_at_utc": activation_at_utc,
         "checked_as_of": spec["checked_as_of"],
         "field_bindings": dict(FIELD_BINDINGS),
@@ -1194,7 +1244,7 @@ def build_integration(spec: dict, logo: dict, activation_at_utc: str) -> dict:
             "width": logo["width"],
         },
         "program_id": spec["program_id"],
-        "route_state": "LIVE_EDITORIAL_AFFILIATE_ACTIVE",
+        "route_state": "READY_EDITORIAL_LINK_DARK" if hold else "LIVE_EDITORIAL_AFFILIATE_ACTIVE",
     }
 
 
@@ -1263,6 +1313,21 @@ def build_registry_entry(spec: dict) -> dict:
         embedded = json.loads(json.dumps(evidence_record))
         embedded["source"] = evidence_projection["source"]
         entry["registry_evidence"] = embedded
+    hold = editorial_hold_reason(spec)
+    if hold:
+        entry['go']['entry_state'] = 'held'
+        entry['profiles']['glp-clinic-scout']['surface_membership'] = 'review_only'
+        # Register only native surfaces. Editorial-only membership also keeps
+        # recommendation/guide projections out; an invented `guides` surface
+        # cannot carry a valid native exception and breaks the coverage contract.
+        for surface in ('compare', 'quiz', 'calculator', 'go'):
+            entry['profiles']['glp-clinic-scout']['surfaces'][surface] = False
+            entry['profiles']['glp-clinic-scout']['exceptions'][surface] = {
+                'enabled': True, 'reason': hold,
+                'surface_restriction_basis': 'editorial_only_hold'}
+        entry['affiliate_relationship_snapshot'] = {
+            'promotion_denied': True, 'reason': hold,
+            'source_kind': 'explicit_editorial_only_source_authority'}
     return entry
 
 
@@ -1298,6 +1363,8 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
     # Direct writer callers also refuse the complete batch before any mutation.
     for spec in specs:
         validate_checked_as_of(spec)
+        if editorial_hold_reason(spec) and tracking.get(spec['program_id']) is not None:
+            raise RuntimeError('editorial_held_tracking_forbidden')
     notes: dict = {}
     n = len(specs)
     ids = [s["program_id"] for s in specs]
@@ -1435,6 +1502,8 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
         manifest = read_json(path)
         present = {p["program_id"] for p in manifest["programs"]}
         for spec in specs:
+            if editorial_hold_reason(spec):
+                continue  # editorial pages do not register a commercial redirect
             pid = spec["program_id"]
             if pid in present:
                 raise RuntimeError(f"go_manifest_already_present:{rel}:{pid}")
@@ -1452,6 +1521,8 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
         raise RuntimeError("approvals_schema_invalid")
     present = {p["existing_release_alias"] for p in approvals["programs"]}
     for spec in specs:
+        if editorial_hold_reason(spec):
+            continue  # no invented wire-ready/activation approval for held pages
         pid = spec["program_id"]
         if pid in present:
             raise RuntimeError(f"approvals_already_present:{pid}")
@@ -1525,8 +1596,10 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
     )
 
     quoted = "".join(f', "{pid}"' for pid in ids)
-    sub_once(fp_test, r'(const activeIds = new Set\(\[[^\]]*)\]\)',
-             lambda m: m.group(1) + quoted + "])")
+    active_quoted = "".join(f', "{s["program_id"]}"' for s in specs if not editorial_hold_reason(s))
+    if active_quoted:
+        sub_once(fp_test, r'(const activeIds = new Set\(\[[^\]]*)\]\)',
+                 lambda m: m.group(1) + active_quoted + "])")
     append_calculator_inventory_test_ids(fp_test, ids)
     sub_once(
         fp_test,
@@ -1578,6 +1651,7 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
         r"assert\.equal\(pending, (\d+)\);",
         r"assert\.equal\(rated \+ pending, routes\.length\);",
     )
+    append_deliberately_unscored_review_routes(wave2, ids)
     routes_after = read_json(target / "data/program-registry.json")  # noqa: F841 (readability)
     sub_once(wave2, r'test\("all (\d+) legacy review pages',
              lambda m: m.group(0).replace(m.group(1), str(int(m.group(1)) + n)))

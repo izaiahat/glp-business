@@ -1097,7 +1097,7 @@
       ],
       "kind": "script",
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "f0b5f11f1d1ed4011cd56d6719e4b4c5d7b99cbe1940f0dadcb6d219c3c95df4"
+      "sha256": "15fbbde76a0bc6441ad80311004eb14dbb9c9c243d171fa40d31122d1eeb80cc"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
@@ -2345,7 +2345,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "54a765e7246bf1b4e80bb3e9666ff04793d3a10ece48724102962cb49daf1134"
+      "sha256": "c5cef691ddaf5d5e80a9337ed2181a68b430e0808301707847d3efe98dc6b506"
     },
     "scripts/glp93_current_base_binding.py": {
       "kind": "script",
@@ -2353,7 +2353,7 @@
         "tests/test_glp331_carrier_closure.py",
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "f007154f1fd127de948e5306ab42ab71645589b84e59e1ac44b3be78a7793fee"
+      "sha256": "73f4e0ce5b9bde9bcfdfa5237fc438c03e372c2773b467fe09d37b6d4bf6ebae"
     },
     "tests/test_glp93_capture_roots.py": {
       "kind": "test",
@@ -2368,7 +2368,7 @@
         "tests/test_glp331_carrier_closure.py",
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "d4bd8a4863e65691106cc20aad9cc31c7920a116edcb2c032ea0c4dc0f170507"
+      "sha256": "28b02ed8ca25567522486022c31f7921162c5c3fcda94c3d7b17f7e9c6324848"
     },
     "scripts/glp_review_editorial_projection.py": {
       "kind": "script",
@@ -5154,7 +5154,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "2b41279f091e920202ed393837f2cfe873975641ae0a138748675e5bd217abaa"
+      "sha256": "775a55585e961b95047ea335a8bab9544fd84bc7cada53b98c13e19b54bcd4d6"
     },
     "tests/test_glp186_binding_diagnostics.py": {
       "callers": [],
@@ -7016,14 +7016,14 @@
       "callers": [
         "scripts/build_glp_affiliate_wirein_incremental_v2.py"
       ],
-      "sha256": "9d07af2bbaae0c7d7191b67f9839ccb50b124062bb32430f6e3d818a6d83ab06"
+      "sha256": "ffb9604a965618b1c54880da5a831c8320ee0abfe9a12aca194ca9548194e407"
     },
     "tests/test_glp93_surface_inputs.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "30be8c7a390411d3e70d2d673c47c8c5056886a12fc2c6badc237a716a4b0afb"
+      "sha256": "cc7207ece91e306ec24020cbaa4af8831df9317ef2e7f860e4e000d30cfed965"
     },
     "tests/test_article_weekday_cadence.py": {
       "kind": "test",
