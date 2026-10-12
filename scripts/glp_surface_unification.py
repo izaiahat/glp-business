@@ -472,6 +472,8 @@ def tracking_for(program: dict, contract: dict | None, approved: dict) -> dict:
         network_contract = contract.get("network_contract") or {}
         url = network_contract.get("tracking_url")
         network = network_contract.get("network") or "Direct affiliate"
+        if (program.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True and url:
+            fail(f'held_tracking_url_present:{pid}')
         if not url:
             row = contract.get('row_contract') or {}
             if ((program.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True
@@ -569,9 +571,14 @@ def _unify_in_place(release: Path) -> dict:
     # monthly figure, under "insurance support" only if it publishes active
     # insurance help, and so on. An answer a provider's evidence cannot speak to
     # excludes it rather than matching it on a guess.
+    denied_ids = {render_id(p) for p in live
+                  if (p.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True}
+    quiz['candidates'] = [c for c in quiz['candidates'] if c['program_id'] not in denied_ids]
     quiz_present = {c["program_id"] for c in quiz["candidates"]}
     for program in live:
         pid = render_id(program)
+        if pid in denied_ids:
+            continue
         if pid in quiz_present:
             continue
         entry = ledger_by_id[pid]
@@ -661,7 +668,8 @@ def _unify_in_place(release: Path) -> dict:
             for surface in ("compare", "quiz", "calculator"):
                 exception = exceptions.get(surface) or {}
                 documented_restriction = (
-                    surface in {"quiz", "calculator"}
+                    (surface in {"quiz", "calculator"}
+                     or (program.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True)
                     and exception.get("enabled") is True
                     and bool(str(exception.get("surface_restriction_basis") or "").strip())
                 )

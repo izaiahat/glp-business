@@ -50,6 +50,12 @@ class SurfaceInputTests(unittest.TestCase):
         c['row_contract']['pros']=[]
         with self.assertRaisesRegex(SystemExit,'row_evidence_too_thin'):u.build_row(p,entry,c,None,tracking,{'logos':[]},'a'*64,'2026-10-10')
 
+    def test_denial_outranks_retained_tracking_url(self):
+        p={'program_id':'held','affiliate_relationship_snapshot':{'promotion_denied':True}}
+        c={'network_contract':{'network':'MaxBounty','tracking_url':'https://network.example/track'},'row_contract':{}}
+        with self.assertRaisesRegex(SystemExit,'held_tracking_url_present'):
+            u.tracking_for(p,c,{})
+
     def test_held_eligibility_has_no_borrowed_grant_or_review_identity(self):
         p={'program_id':'held','display_name':'Held','review_path':'/reviews/held/'}
         template={'program_id':'unrelated','review_path':'/reviews/unrelated/',

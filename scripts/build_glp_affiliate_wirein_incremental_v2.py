@@ -1316,9 +1316,11 @@ def build_registry_entry(spec: dict) -> dict:
     hold = editorial_hold_reason(spec)
     if hold:
         entry['go']['entry_state'] = 'held'
-        entry['profiles']['glp-clinic-scout']['surfaces']['go'] = False
-        entry['profiles']['glp-clinic-scout']['exceptions']['go'] = {
-            'enabled': True, 'reason': hold, 'surface_restriction_basis': 'editorial_only_hold'}
+        for surface in ('compare', 'quiz', 'calculator', 'go', 'guides'):
+            entry['profiles']['glp-clinic-scout']['surfaces'][surface] = False
+            entry['profiles']['glp-clinic-scout']['exceptions'][surface] = {
+                'enabled': True, 'reason': hold,
+                'surface_restriction_basis': 'editorial_only_hold'}
         entry['affiliate_relationship_snapshot'] = {
             'promotion_denied': True, 'reason': hold,
             'source_kind': 'explicit_editorial_only_source_authority'}
