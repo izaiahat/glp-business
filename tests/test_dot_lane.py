@@ -116,6 +116,18 @@ def test_new_acceptance_versions_replenish_without_repeating_same_scope():
     assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[])[0]['id'] != first['id']
 
 
+def test_supply_ignores_execution_owner_metadata_changes():
+    import dot_lane as lane
+    policy = dict(scopes=[],continuous_public_research_issues=['GLP-93'])
+    description = '<!-- execution-owner:start -->\nOld owner and handoff\n<!-- execution-owner:end -->\nAcceptance: one official-source terms gap.'
+    issue = dict(identifier='GLP-93',description=description,state={'type':'started'})
+    plan = {'issues':[{'issue':'GLP-93','order':1}]}
+    first = lane.select('rook',[issue],plan,policy,{},[])[0]
+    assert 'Old owner' not in first['brief']
+    issue['description'] = description.replace('Old owner and handoff','New coordinator metadata')
+    assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[]) is None
+
+
 def test_cloud_brief_requires_both_renewed_environment_confirmations(tmp_path):
     import dot_lane as lane
     p = tmp_path/'reports/ops/fable-plan-2-20261009/lanes/R1/RESULT.json'

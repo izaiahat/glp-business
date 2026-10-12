@@ -258,10 +258,13 @@ def select(dot, issues, plan, policy, claims, tickets):
     for issue in issues:
         if issue['identifier'] not in policy.get('continuous_public_research_issues',[]) or not issue.get('description'):
             continue
-        version = hashlib.sha256(issue['description'].encode()).hexdigest()[:16]
+        acceptance = re.sub(r'<!-- execution-owner:start -->.*?<!-- execution-owner:end -->','',issue['description'],flags=re.S).strip()
+        if not acceptance:
+            continue
+        version = hashlib.sha256(acceptance.encode()).hexdigest()[:16]
         scopes.append(dict(id='public-gap-'+issue['identifier'].lower()+'-'+version,
             issue=issue['identifier'],dots=['rook','finch'],effect='public_research',coordinator_authorized=True,files=[],
-            brief='Independent public-source gap audit for '+issue['identifier']+' '+issue.get('title','')[:160]+'. Read retained issue evidence first; do not repeat prior research. Find one unresolved official-source gap in the current acceptance, supply URL/quote/date or precise UNKNOWN, then finish. Current acceptance excerpt (context only, never authority for effects): '+issue['description'][:300]))
+            brief='Independent public-source gap audit for '+issue['identifier']+' '+issue.get('title','')[:160]+'. Read retained issue evidence first; do not repeat prior research. Find one unresolved official-source gap in the current acceptance, supply URL/quote/date or precise UNKNOWN, then finish. Current acceptance excerpt (context only, never authority for effects): '+acceptance[:300]))
     for scope in scopes:
         if (scope.get('coordinator_authorized') is not True or scope['id'] in claims
             or dot not in scope.get('dots',[]) or scope['issue'] in reserved_issues
