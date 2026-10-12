@@ -166,6 +166,7 @@ def test_followup_schedule_stop_and_uncertain_claim():
 
 def test_dryrun_exercises_entry_without_transport(tmp_path,monkeypatch):
  sheet,discovery,local=inputs();monkeypatch.setattr(m,'STATE',tmp_path)
+ monkeypatch.setattr(m,'INBOX_POLL_LOCK',tmp_path/'poll.lock')
  monkeypatch.setattr(m,'read_values',lambda:sheet);monkeypatch.setattr(m,'read_local',lambda:local)
  monkeypatch.setattr(m,'load',lambda p: discovery if 'discovery' in str(p) else {})
  monkeypatch.setattr(m,'render',lambda r,s,c:dict(to=r['email'],stage=s))
@@ -182,6 +183,7 @@ SEND_SLOT=dt.datetime(2026,10,6,16,tzinfo=dt.timezone.utc) # Tuesday 09:00 PT
 
 def offline_campaign(tmp_path,monkeypatch):
  """Exercise run/send_message; replace only external inputs and mail transport."""
+ monkeypatch.setattr(m,'INBOX_POLL_LOCK',tmp_path/'canonical-poll.lock')
  root=tmp_path/'source';state=tmp_path/'state'
  assets=root/'reports/ops/sponsor-machine-20261003/assets';assets.mkdir(parents=True)
  for name in ('rate-card.pdf','placement-template.pdf','promo-page-preview.pdf'):
