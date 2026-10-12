@@ -54,7 +54,7 @@ def suppression():
 
 def run(send=False):
     require_schedule()  # Before auth, readback, draft mutation or a claim.
-    with (c.STATE/'run.lock').open('a') as lock:
+    with c.inbox_poll_boundary(alert=send,job='Nu Image queued reply'), (c.STATE/'run.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
         queue = c.load(QUEUE)
         if (queue.get('artifact_sha256') != ARTIFACT_SHA or queue.get('body_sha256') != BODY_SHA
