@@ -1,6 +1,41 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "ops/systemd/H349-cold-swap-repair.md": {
+      "kind": "operations",
+      "callers": [
+        "manual:H349 scoped install"
+      ],
+      "sha256": "f0212694e9d1c8e0001e666d7de35369168ecf6f28b3e90026e6292b418bd441"
+    },
+    "scripts/host_swap_cleaner.py": {
+      "kind": "script",
+      "callers": [
+        "native cron:f33f1b27fde6 via pinned launcher"
+      ],
+      "sha256": "3752a13cfc1422f47cb8e8ac905a82ce29f5ae1da7ab771984bad15de3ad8174"
+    },
+    "tests/test_host_swap_cleaner.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp349-memory-cleaner.yml"
+      ],
+      "sha256": "499916feb52da50061938b8131d54b436136b5bd091a0f86509359c8e59c6793"
+    },
+    "ops/hermes-cron-scripts/host_swap_cleaner.py": {
+      "kind": "script",
+      "callers": [
+        "native cron:f33f1b27fde6"
+      ],
+      "sha256": "a4f1b0bd26eb15feb1e6d51a150bc76eb77d271bca8a1342aaea8a375f59f05f"
+    },
+    ".github/workflows/glp349-memory-cleaner.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "GitHub exact-head CI"
+      ],
+      "sha256": "6973aa8f0aa57500785b1e7e6262c9ea0cf1ed61b8386186b227d9c152c3917e"
+    },
     "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py": {
       "callers": [
         "systemd:user:codex-evidence.service"
@@ -7101,6 +7136,21 @@
       "kind": "test",
       "sha256": "6ab6903f69f4d47fdc05b24e7505720f0a12f83663869532464e2b17a9b7f262"
     },
+    "tests/test_glp_sponsor_poll_lock.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "5d3c5a346715f9a680c25a0b211e1d90e8fd1e37ea5b21a39ad8b476171e3a36"
+    },
+    "scripts/host_disk_authorized_retirement.py": {
+      "callers": [
+        "explicit D1b expanded operator-authority CLI"
+      ],
+      "kind": "script",
+      "scope": "Completed verified archives and superseded site members; shared singleton and fresh production/rollback/PR/scheduler custody; verified R2 pair before retirement; not scheduled.",
+      "sha256": "108d2f5d869321dc9e7ebedbce922ec6b14d79dafa2aff5f7c88c41be01f57eb"
+    },
     "ops/glp/seo_weekly_budget.py": {
       "callers": [
         "scripts/glp_weekly_strategy_report.py",
@@ -7122,21 +7172,6 @@
       ],
       "kind": "test",
       "sha256": "8ffe4aebfa7deb61185632b9da4fccaf343f0090c17e75caf086f21cad5655a3"
-    },
-    "scripts/host_disk_authorized_retirement.py": {
-      "callers": [
-        "explicit D1b expanded operator-authority CLI"
-      ],
-      "kind": "script",
-      "scope": "Completed verified archives and superseded site members; shared singleton and fresh production/rollback/PR/scheduler custody; verified R2 pair before retirement; not scheduled.",
-      "sha256": "108d2f5d869321dc9e7ebedbce922ec6b14d79dafa2aff5f7c88c41be01f57eb"
-    },
-    "tests/test_glp_sponsor_poll_lock.py": {
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "kind": "test",
-      "sha256": "5d3c5a346715f9a680c25a0b211e1d90e8fd1e37ea5b21a39ad8b476171e3a36"
     }
   },
   "omitted_runtime_inputs": [
@@ -7147,5 +7182,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1050
+  "tracked_count": 1055
 }
