@@ -6,6 +6,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import affiliate_reporting_eden_portal_j7 as eden
 from glp_affiliate_weekly_reporting_j6 import windows
 
+pytestmark = pytest.mark.usefixtures('j7_financial_clock')
+
 
 def test_eden_fresh_zero_financial_intake_has_own_account_not_xentraffic(tmp_path):
     def fake(expression):
