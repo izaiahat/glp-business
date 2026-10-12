@@ -6956,7 +6956,7 @@
     "tests/test_glp_sponsor_unattended.py": {
       "kind": "test",
       "callers": [".github/workflows/business-source-ci.yml"],
-      "sha256": "3ee03534e77f3514f843902ee6ebec953d1e4ee71863659836e096d4c9b5f7ce"
+      "sha256": "5e48c76f7186649539108df6a529e9d9cb41a370afe98195aa8a367ef1094882"
     },
     "tests/test_glp_sponsor_current_receiving.py": {
       "kind": "test",

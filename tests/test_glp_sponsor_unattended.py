@@ -15,6 +15,10 @@ def helper(name):
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 h=helper('campaign')
 
+@pytest.fixture(autouse=True)
+def isolate_canonical_reader(tmp_path,monkeypatch):
+    monkeypatch.setattr(c,'INBOX_DB',tmp_path/'canonical-fixture.sqlite3')
+
 def decisions(tmp_path,monkeypatch):
     monkeypatch.setattr(c,'ROOT',tmp_path)
     text=('6. GLP-328: GO at 25/day\n'
@@ -39,6 +43,15 @@ def test_preflight_final_transport_no_claim_or_send(tmp_path,monkeypatch):
     assert result['would_send']==25 and result['sent']==0 and not client.deliveries
     assert not (c.STATE/'ledger.json').exists()
     assert result['denominators']['final_admission_checked'] is True
+
+def test_preflight_has_no_business_writes_or_paid_calls(tmp_path,monkeypatch):
+    config,client,rows=h.offline_campaign(tmp_path,monkeypatch)
+    config.update(apollo_read_only_discovery=True,professional_enrichment_enabled=True,bouncer_debits_enabled=True)
+    def forbidden(*a,**kw):pytest.fail('PREFLIGHT BUSINESS EFFECT FORBIDDEN')
+    for name in ('refresh_apollo_sources','refresh_professional_sources','refresh_paypal_orders','save'):
+        monkeypatch.setattr(c,name,forbidden)
+    assert c.run(config,transport_preflight=True)['would_send']==25
+    assert not client.deliveries
 
 def test_preflight_requires_approval(tmp_path,monkeypatch):
     config,client,rows=h.offline_campaign(tmp_path,monkeypatch)
