@@ -1032,7 +1032,7 @@
         "crontab:10"
       ],
       "kind": "script",
-      "sha256": "1061caac91653c9328e66634983fb713f84d7c1148e960d2ad86babd07755e4c"
+      "sha256": "2bc27ff0fdfd02a2de2f94a1678b1ddadb04def5cbe5ddadc8cc75cdb438fe7d"
     },
     "ops/hermes-cron-scripts/fleet_ingest_cron.sh": {
       "callers": [
@@ -6322,7 +6322,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "f0897b0e1c3c4b288b46a7310ef0e1afb644ef3c1653b562d7b3bec6e4b266c5"
+      "sha256": "d91b372745a8add822605e3c4c3e3254cdefb5885979e5266f6de8c8c65789f8"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [
