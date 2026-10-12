@@ -195,6 +195,14 @@ def test_singleton_lease_inode_and_exclusion(tmp_path):
     finally:os.close(fd)
 
 
+def test_site_ranking_keeps_largest_direct_child_first(tmp_path,monkeypatch):
+    import host_disk_authorized_retirement as a
+    from types import SimpleNamespace
+    text=f'1\t{tmp_path}/small\n900\t{tmp_path}/big\n901\t{tmp_path}\n99999\t/outside\n'
+    monkeypatch.setattr(a.subprocess,'run',lambda *args,**kwargs:SimpleNamespace(stdout=text))
+    assert a.ranked_roots(tmp_path)==[tmp_path/'big',tmp_path/'small']
+
+
 def test_private_bucket_object_expiry_is_refused():
     control=r2.Control({'CLOUDFLARE_ACCOUNT_ID':'fixture','CLOUDFLARE_API_TOKEN':'fixture'})
     def request(method,suffix,**kwargs):
@@ -246,6 +254,9 @@ def test_real_site_authority_requires_disjoint_current_refs(tmp_path,monkeypatch
     monkeypatch.setattr(authorized,'fresh_pins',lambda:(site,site/'candidates'))
     authority=authorized.SiteAuthority(root,object())
     assert authority.admit(root,0)['scope']=='superseded_site'
+    monkeypatch.setattr(authorized,'_CANONICAL_ROOTS',(site,))
+    with pytest.raises(ValueError,match='custody'):authority.admit(root,0)
+    monkeypatch.setattr(authorized,'_CANONICAL_ROOTS',())
     monkeypatch.setattr(authorized,'fresh_pins',lambda:(root,))
     with pytest.raises(ValueError,match='custody'):authority.admit(root,0)
     with pytest.raises(ValueError,match='scope'):authority.admit(root,30)

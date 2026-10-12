@@ -23,6 +23,7 @@ BUS=Path('/home/ubuntu/business')
 SITE=BUS/'site-system/flagship-v2'
 BASE=BUS/'reports/glp-clinic-scout/seo-machine/current-content-base.json'
 AUTHORITY='D1b-expanded-operator-retirement-20261012'
+_CANONICAL_ROOTS=()
 
 
 def store_pair(destination, archive, manifest, deadline):
@@ -63,6 +64,7 @@ def site_protected(p,pins,root):
 
 def fresh_pins():
     """Read the real registry through its authorized non-root identity."""
+    global _CANONICAL_ROOTS
     code="import sys,json;sys.path.insert(0,'/home/ubuntu/business/scripts');import host_disk_auto_classes as a;p=a.pr_pins()|a.worktree_pins()|a.live_release_pins()|a.r8_pins()|a.linear_pins();print(json.dumps(sorted(map(str,p))))"
     cmd=[sys.executable,'-c',code]
     if os.geteuid()==0:cmd=['sudo','-n','-H','-u','ubuntu',*cmd]
@@ -74,10 +76,12 @@ def fresh_pins():
         or canonical.get('environment')!='production'
         or (canonical.get('latest_stage') or {}).get('status')!='success'
         or BASE.read_bytes()!=before):raise ValueError('canonical/base custody')
+    roles=[]
     for record in (base,base.get('supersedes') or {}):
         root=Path(record.get('release_root',''))
         if not root.is_absolute() or not root.is_dir():raise ValueError('production/rollback root missing')
-        pins.add(root.parent.parent)
+        roles.append(root);pins.add(root);pins.add(root.parent.parent)
+    _CANONICAL_ROOTS=tuple(roles)
     return cold.custody_pins(pins)
 
 
@@ -88,6 +92,8 @@ class SiteAuthority:
         if root!=self.root or days!=0 or root.parent not in tuple(SITE/k for k in ('candidates','releases','work')):
             raise ValueError('site authority scope')
         pins=fresh_pins()
+        if any(root==p or root in p.parents or p in root.parents for p in _CANONICAL_ROOTS):
+            raise ValueError('current production or rollback custody')
         if root.is_symlink() or root.resolve()!=root.absolute() or site_protected(root,pins,root):
             raise ValueError('current rollback PR scheduler or named custody')
         return {'scope':'superseded_site','authority':AUTHORITY,'root':str(root)}
@@ -130,6 +136,15 @@ def completed_archive(api,p,destination,report,deadline,dry_run):
     proof['remote']=remote;cold.write_json(verified,proof)
     amount=p.stat().st_blocks*512;p.unlink()
     return dict(row,status='MIGRATED_R2_VERIFIED',bytes_freed=amount,remote=remote)
+
+
+def ranked_roots(parent):
+    result=subprocess.run(['du','-x','-B1','-d','1',str(parent)],capture_output=True,text=True,timeout=180,check=True)
+    rows=[]
+    for line in result.stdout.splitlines():
+        size,sep,name=line.partition('\t');path=Path(name)
+        if sep and size.isdigit() and path.parent==parent:rows.append((int(size),path))
+    return [p for size,p in sorted(rows,reverse=True)]
 
 
 def cleanup_lease(path,inherited=None):
@@ -177,7 +192,10 @@ def main():
     for kind in ('candidates','releases','work'):
         parent=SITE/kind
         if not parent.is_dir():continue
-        for root in sorted(parent.iterdir()):
+        try:roots=ranked_roots(parent)
+        except Exception as error:
+            rows.append({'rule':'authorized_site_ranking','path':str(parent),'bytes_freed':0,'status':'REFUSED','reason':str(error)});save();continue
+        for root in roots:
             fs=os.statvfs('/')
             if args.apply and fs.f_bavail/fs.f_blocks>=0.15:break
             if time.monotonic()+120>=deadline:break
