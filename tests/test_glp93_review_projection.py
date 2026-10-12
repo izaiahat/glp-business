@@ -196,25 +196,121 @@ class ReviewProjectionTests(unittest.TestCase):
 
     def test_feelgood_medications_follow_visible_product_labels(self):
         url = projection.FEELGOOD_WEIGHT_LOSS
-        research = {'captured_at_utc': '2026-10-10T00:00:00Z', 'fields': {},
-                    'first_party_source_captures': self.bundle({url: 'Compounded Injections Compounded Tablets Original Injections'})}
+        research = {'captured_at_utc': '2026-10-10T00:00:00Z', 'fields': {'pharmacy_type': {'value': 'Pharmacy UNKNOWN.'}},
+                    'first_party_source_captures': self.bundle({url: 'Compounded Injections Compounded Tablets Original Injections',
+                                                                projection.FDA_UNAPPROVED_GLP1: self.FDA_MD})}
         spec = {'program_id': 'feelgood-review', 'page_copy': {}, 'row_contract': {'medications': 'Compounded semaglutide and tirzepatide'}}
         actual, _ = builder.project_review_inputs(spec, research)
         self.assertEqual(actual['row_contract']['medications'], projection.FEELGOOD_MEDICATIONS)
-        research['first_party_source_captures'] = self.bundle({url: 'Compounded Injections only'})
+        research['first_party_source_captures'] = self.bundle({url: 'Compounded Injections only',
+                                                               projection.FDA_UNAPPROVED_GLP1: self.FDA_MD})
         with self.assertRaisesRegex(RuntimeError, 'official_quote_missing'):
             builder.project_review_inputs(spec, research)
 
-    def test_retaclinic_fda_risk_note_requires_captured_sources(self):
+    def test_feelgood_original_injections_label_never_becomes_brand_supply(self):
+        # RV13 PR424-RV13-02: a generic "Original Injections" product label is
+        # not evidence of a branded medication.
+        url = projection.FEELGOOD_WEIGHT_LOSS
+        research = {'captured_at_utc': '2026-10-10T00:00:00Z', 'fields': {'pharmacy_type': {'value': 'Pharmacy UNKNOWN.'}},
+                    'first_party_source_captures': self.bundle({
+                        url: '### Compounded Injections\n\n### Compounded Tablets\n\n### Original Injections\n\nQuantities are limited.',
+                        projection.FDA_UNAPPROVED_GLP1: self.FDA_MD})}
+        spec = {'program_id': 'feelgood-review', 'page_copy': {}, 'row_contract': {'medications': 'x'}}
+        medications = builder.project_review_inputs(spec, research)[0]['row_contract']['medications']
+        self.assertNotRegex(medications.lower(), r'brand')
+        for label in ('Compounded Injections', 'Compounded Tablets', 'Original Injections'):
+            self.assertIn(label, medications)
+        self.assertIn('UNKNOWN', medications)
+
+    def test_feelgood_compounded_warning_is_bound_to_fda_capture_not_feelgood_terms(self):
+        # RV13 feelgood-review-regulatory: the nonapproval warning is FDA's
+        # statement; FeelGood terms may support only the pharmacy-role claims.
+        terms, fda = 'https://www.feelgoodmeds.com/terms-of-use', projection.FDA_UNAPPROVED_GLP1
+        pharmacy = ('Reported information: FeelGood states it is not acting as a pharmacy. The captured pages do not '
+                    'identify the assigned dispensing pharmacy or establish independent pharmacy licensing. '
+                    'Compounded medications are not FDA-approved.')
+        labels = 'Compounded Injections Compounded Tablets Original Injections'
+        research = {'captured_at_utc': '2026-10-10T00:00:00Z',
+                    'fields': {'pharmacy_type': {'value': pharmacy, 'source_url': terms}},
+                    'first_party_source_captures': self.bundle({
+                        projection.FEELGOOD_WEIGHT_LOSS: labels, terms: 'FeelGood is not acting as a pharmacy',
+                        fda: self.FDA_MD})}
+        spec = {'program_id': 'feelgood-review', 'page_copy': {}, 'row_contract': {'medications': 'x'},
+                'field_sources': {'regulatory': [terms], 'pricing_and_inclusions': [terms], 'cancellation_and_roles': [terms]}}
+        actual, revised = builder.project_review_inputs(spec, research)
+        value = revised['fields']['pharmacy_type']['value']
+        self.assertNotIn('Compounded medications are not FDA-approved.', value)
+        self.assertTrue(value.endswith(projection.FEELGOOD_FDA_COMPOUNDED_NOTE), value)
+        self.assertTrue(projection.FEELGOOD_FDA_COMPOUNDED_NOTE.startswith('FDA states'))
+        self.assertEqual(builder.canonical_field_sources(actual, revised)['regulatory'], [terms, fda])
+        self.assertEqual(builder.project_review_inputs(actual, revised), (actual, revised))
+        self.assertIn('Compounded medications are not FDA-approved.', research['fields']['pharmacy_type']['value'])
+        for missing in (self.FDA_MD.replace('compounded drugs are not FDA approved', 'compounded drugs vary'),
+                        self.FDA_MD.replace('does not review compounded drugs', 'reviews some drugs')):
+            research['first_party_source_captures'] = self.bundle({
+                projection.FEELGOOD_WEIGHT_LOSS: labels, terms: 'FeelGood is not acting as a pharmacy', fda: missing})
+            with self.assertRaisesRegex(RuntimeError, 'official_quote_missing:' + fda):
+                builder.project_review_inputs(spec, research)
+        research['first_party_source_captures'] = self.bundle({
+            projection.FEELGOOD_WEIGHT_LOSS: labels, terms: 'FeelGood is not acting as a pharmacy'})
+        with self.assertRaisesRegex(RuntimeError, 'official_quote_missing:' + fda):
+            builder.project_review_inputs(spec, research)
+
+    # Retained FDA capture structure (markdown link, list marker, line breaks).
+    FDA_MD = ('## Concerns with compounded versions of these drugs\n\nA [compounded drug](https://www.fda.gov/q "Q") '
+              'might be appropriate if a patient\u2019s medical need cannot be met. However, compounded drugs are not '
+              'FDA approved. This means the agency does not review compounded drugs for safety, effectiveness or '
+              'quality before they are marketed.\n\n### Retatrutide and cagrilintide cannot be used in compounding\n\n'
+              'Retatrutide and cagrilintide cannot be used in compounding under federal law. Additionally, these are '
+              'not components of FDA-approved drugs and have not been found safe and effective for any condition.\n\n'
+              'The agency has [warned](https://www.fda.gov/w "Warning Letters"):\n\n- Telehealth companies for '
+              'marketing unapproved drugs such as retatrutide, including instances of direct marketing to consumers.\n')
+    RETA_PRODUCTS_MD = ('ruo![Retatrutide research use only](https://cdn.example/reta.png)\n\nRetatrutide\n\n'
+                        'Research Use Only (RUO). Triple-receptor peptide. Not for human consumption.')
+
+    def retaclinic_case(self, fda_md=None, products_md=None):
         fda, products = projection.FDA_UNAPPROVED_GLP1, projection.RETACLINIC_PRODUCTS
-        fda_md = ('Retatrutide and cagrilintide cannot be used in compounding under federal law. Additionally, these '
-                  'have not been found safe and effective for any condition. The agency has warned: - Telehealth '
-                  'companies for marketing unapproved drugs such as retatrutide, including direct marketing.')
         research = {'captured_at_utc': '2026-10-10T00:00:00Z',
                     'fields': {'pharmacy_type': {'value': 'Compounded medications are not FDA-approved.'}},
-                    'first_party_source_captures': self.bundle({fda: fda_md, products: 'Retatrutide Research Use Only'})}
+                    'first_party_source_captures': self.bundle({
+                        fda: self.FDA_MD if fda_md is None else fda_md,
+                        products: self.RETA_PRODUCTS_MD if products_md is None else products_md})}
         spec = {'program_id': 'retaclinic-review', 'page_copy': {}, 'row_contract': {},
                 'field_sources': {'regulatory': ['https://retaclinic.com/']}}
+        return spec, research
+
+    def test_retaclinic_risk_note_refuses_rv13_probe_without_retatrutide_ruo_product(self):
+        # RV13 synthetic_no_retatrutide_product: "Research Use Only" without a
+        # contiguous retatrutide product label must not emit the note.
+        spec, research = self.retaclinic_case(products_md=(
+            'Research Use Only materials are not medications. No prescription product offer is asserted by this '
+            'synthetic fixture.'))
+        with self.assertRaisesRegex(RuntimeError, 'official_quote_missing:' + projection.RETACLINIC_PRODUCTS):
+            builder.project_review_inputs(spec, research)
+        spec, research = self.retaclinic_case(products_md='Retatrutide (prescription). Semaglutide Research Use Only (RUO).')
+        with self.assertRaisesRegex(RuntimeError, 'official_quote_missing:' + projection.RETACLINIC_PRODUCTS):
+            builder.project_review_inputs(spec, research)
+
+    def test_retaclinic_risk_note_refuses_rv13_probe_without_fda_component_clause(self):
+        # RV13 synthetic_missing_fda_approval_clause: every emitted FDA clause is required.
+        spec, research = self.retaclinic_case(fda_md=self.FDA_MD.replace(
+            'these are not components of FDA-approved drugs and ', 'these '))
+        with self.assertRaisesRegex(RuntimeError, 'official_quote_missing:' + projection.FDA_UNAPPROVED_GLP1):
+            builder.project_review_inputs(spec, research)
+
+    def test_retaclinic_risk_note_refuses_without_fda_warning_context(self):
+        for fda_md in (self.FDA_MD.replace('The agency has [warned](https://www.fda.gov/w "Warning Letters"):\n\n',
+                                           'Related topics:\n\n'),
+                       self.FDA_MD.replace('Telehealth companies for marketing unapproved drugs such as retatrutide',
+                                           'Telehealth companies'),
+                       self.FDA_MD.replace('cannot be used in compounding under federal law.', 'are under review.')):
+            spec, research = self.retaclinic_case(fda_md=fda_md)
+            with self.assertRaisesRegex(RuntimeError, 'official_quote_missing:' + projection.FDA_UNAPPROVED_GLP1):
+                builder.project_review_inputs(spec, research)
+
+    def test_retaclinic_fda_risk_note_requires_captured_sources(self):
+        fda, products = projection.FDA_UNAPPROVED_GLP1, projection.RETACLINIC_PRODUCTS
+        spec, research = self.retaclinic_case()
         actual, revised = builder.project_review_inputs(spec, research)
         self.assertTrue(revised['fields']['pharmacy_type']['value'].endswith(projection.RETACLINIC_RISK_NOTE))
         self.assertEqual(actual['field_sources']['regulatory'], ['https://retaclinic.com/', fda])

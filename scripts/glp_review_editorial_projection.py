@@ -102,18 +102,35 @@ def project_internal_notes(spec, research):
 
 
 FEELGOOD_WEIGHT_LOSS = 'https://www.feelgoodmeds.com/weight-loss'
-FEELGOOD_MEDICATIONS = ('Compounded GLP-1 injections and tablets, plus a branded option (provider-reported); '
-                        'the specific medication per product is UNKNOWN from captured pages.')
+FEELGOOD_PRODUCT_LABELS = ('Compounded Injections', 'Compounded Tablets', 'Original Injections')
+# Exact visible labels only: a generic "Original Injections" label is not
+# evidence of a branded medication, so no brand/molecule identity is projected.
+FEELGOOD_MEDICATIONS = ('Product labels on the provider\u2019s weight-loss page: Compounded Injections, Compounded '
+                        'Tablets and Original Injections (provider-reported); the medication in each product is '
+                        'UNKNOWN from captured pages.')
 
 
 FDA_UNAPPROVED_GLP1 = ('https://www.fda.gov/drugs/drug-alerts-and-statements/'
                        'fdas-concerns-unapproved-glp-1-drugs-used-weight-loss')
+# The compounded-drug warning is FDA's statement: bind it to the FDA capture,
+# never to a provider page that does not contain it.
+FEELGOOD_PROVIDER_FDA_SENTENCE = 'Compounded medications are not FDA-approved.'
+FEELGOOD_FDA_QUOTES = (
+    (FDA_UNAPPROVED_GLP1, 'However, compounded drugs are not FDA approved.'),
+    (FDA_UNAPPROVED_GLP1, 'This means the agency does not review compounded drugs for safety, effectiveness or '
+                          'quality before they are marketed.'),
+)
+FEELGOOD_FDA_COMPOUNDED_NOTE = ('FDA states that compounded drugs are not FDA approved and that it does not review '
+                                'them for safety, effectiveness or quality before they are marketed.')
 RETACLINIC_PRODUCTS = 'https://retaclinic.com/products'
+# Every clause the note emits has a required contiguous source excerpt.
 RETACLINIC_FDA_QUOTES = (
-    (FDA_UNAPPROVED_GLP1, 'Retatrutide and cagrilintide cannot be used in compounding under federal law.'),
-    (FDA_UNAPPROVED_GLP1, 'have not been found safe and effective for any condition'),
-    (FDA_UNAPPROVED_GLP1, 'Telehealth companies for marketing unapproved drugs such as retatrutide'),
-    (RETACLINIC_PRODUCTS, 'Research Use Only'),
+    (FDA_UNAPPROVED_GLP1, 'Retatrutide and cagrilintide cannot be used in compounding under federal law. '
+                          'Additionally, these are not components of FDA-approved drugs and have not been found '
+                          'safe and effective for any condition.'),
+    (FDA_UNAPPROVED_GLP1, 'The agency has warned: Telehealth companies for marketing unapproved drugs such as '
+                          'retatrutide'),
+    (RETACLINIC_PRODUCTS, 'Retatrutide Research Use Only (RUO).'),
 )
 RETACLINIC_RISK_NOTE = (
     'FDA risk note: RetaClinic\u2019s pages also list retatrutide, which its product page labels '
@@ -121,20 +138,52 @@ RETACLINIC_RISK_NOTE = (
     'is not a component of any FDA-approved drug and has not been found safe and effective for any '
     'condition, and that it has warned telehealth companies for marketing unapproved drugs such as '
     'retatrutide. This review does not cover or recommend retatrutide.')
+_MD_IMAGE = re.compile(r'!\[[^\]]*\]\([^)]*\)')
+_MD_LINK = re.compile(r'\[([^\]]*)\]\([^)\s]*(?:\s+"[^"]*")?\)')
+_MD_LIST = re.compile(r'(?m)^\s*[-*]\s+')
+
+
+def visible_capture_text(markdown):
+    """Reader-visible capture text: images dropped, link text kept, whitespace collapsed."""
+    text = _MD_LIST.sub('', _MD_LINK.sub(r'\1', _MD_IMAGE.sub(' ', markdown or '')))
+    return ' '.join(text.split())
+
+
+def require_captured_quotes(research, quotes):
+    """Refuse unless every (url, excerpt) is contiguous in an authenticated 200 capture."""
+    captures = captured_review_sources(research)
+    for url, text in quotes:
+        if text not in visible_capture_text((captures.get(url) or {}).get('markdown')):
+            raise RuntimeError('review_correction_official_quote_missing:' + url)
+    return captures
+
+
+def cite(spec, group, url):
+    sources = spec.setdefault('field_sources', {}).setdefault(group, [])
+    if url not in sources:
+        sources.append(url)
+
+
+def project_feelgood(spec, research):
+    """Exact visible product labels; FDA-bound compounded-drug warning."""
+    require_captured_quotes(research, [(FEELGOOD_WEIGHT_LOSS, label) for label in FEELGOOD_PRODUCT_LABELS])
+    spec['row_contract']['medications'] = FEELGOOD_MEDICATIONS
+    require_captured_quotes(research, FEELGOOD_FDA_QUOTES)
+    item = research['fields']['pharmacy_type']
+    if FEELGOOD_FDA_COMPOUNDED_NOTE not in item['value']:
+        value = ' '.join(item['value'].replace(FEELGOOD_PROVIDER_FDA_SENTENCE, ' ').split())
+        item['value'] = value + ' ' + FEELGOOD_FDA_COMPOUNDED_NOTE
+    cite(spec, 'regulatory', FDA_UNAPPROVED_GLP1)
+    return spec, research
 
 
 def project_retaclinic_risk(spec, research):
-    """Attach the FDA retatrutide risk note only when its exact sources are captured."""
-    captures = captured_review_sources(research)
-    for url, text in RETACLINIC_FDA_QUOTES:
-        if text not in ' '.join((captures.get(url) or {}).get('markdown', '').split()):
-            raise RuntimeError('review_correction_official_quote_missing:' + url)
+    """Attach the FDA retatrutide risk note only when every emitted clause is captured."""
+    require_captured_quotes(research, RETACLINIC_FDA_QUOTES)
     item = research['fields']['pharmacy_type']
     if RETACLINIC_RISK_NOTE not in item['value']:
         item['value'] = item['value'].rstrip() + ' ' + RETACLINIC_RISK_NOTE
-    sources = spec.setdefault('field_sources', {}).setdefault('regulatory', [])
-    if FDA_UNAPPROVED_GLP1 not in sources:
-        sources.append(FDA_UNAPPROVED_GLP1)
+    cite(spec, 'regulatory', FDA_UNAPPROVED_GLP1)
     return spec, research
 
 
@@ -175,11 +224,7 @@ def project_review_inputs(spec, research):
     spec, research = deepcopy(spec), deepcopy(research)
     pid = spec['program_id']
     if pid == 'feelgood-review':
-        markdown = captured_review_sources(research).get(FEELGOOD_WEIGHT_LOSS, {}).get('markdown', '')
-        for label in ('Compounded Injections', 'Compounded Tablets', 'Original Injections'):
-            if label not in markdown:
-                raise RuntimeError('review_correction_official_quote_missing:' + FEELGOOD_WEIGHT_LOSS)
-        spec['row_contract']['medications'] = FEELGOOD_MEDICATIONS
+        spec, research = project_feelgood(spec, research)
     if pid == 'retaclinic-review':
         spec, research = project_retaclinic_risk(spec, research)
     if pid not in {'rightwell-review', 'willow-review', 'ivim-health-review'}:
