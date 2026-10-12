@@ -1,15 +1,101 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "scripts/glp_sponsor_firecrawl_supply.py": {"callers": ["ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"], "kind": "script", "sha256": "5241c5c2076941ab85a6e1912a5b85cae11d8ca6dd15cdf4daab9fdb632657b2"},
-    "tests/test_glp_sponsor_firecrawl_supply.py": {"callers": ["scripts/run_tests.sh", "business-source-ci", "firecrawl-integration"], "kind": "test", "sha256": "86ff5ea288b0c256c0d1b5e0b04f3d807834c94862c38593189c3ea310d0262e"},
-    "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {"callers": ["hermes cron sponsor supply refresh"], "kind": "source_control", "sha256": "9300de9f5dece996ba05330c713b672f8bef2a92f6597ca5792925856ade5da2"},
-    "scripts/glp_firecrawl_jobs.py": {"callers": ["ops/hermes-cron-scripts/glp_firecrawl_{provider_research,provider_discovery,seo_signals,budget}.sh"], "kind": "script", "sha256": "2275077e4ab754e8c3a40263c6a8662124183f664be0a8e6c1c017d1a84094a4"},
-    "tests/test_glp_firecrawl_jobs.py": {"callers": ["scripts/run_tests.sh", "firecrawl-integration"], "kind": "test", "sha256": "d10a5dd5d578dbc949ac0eedb3f2851c5780ca854c519639330878ed6b10ac48"},
-    "ops/hermes-cron-scripts/glp_firecrawl_provider_research.sh": {"callers": ["hermes cron FC71 provider research"], "kind": "source_control", "sha256": "c9649be66d9fea1860a714ef802b7ff32e2cdc5dfa4ad9d29d3a0e28a7a9254b"},
-    "ops/hermes-cron-scripts/glp_firecrawl_provider_discovery.sh": {"callers": ["hermes cron FC71 provider discovery"], "kind": "source_control", "sha256": "4a5608679083b04e11a8038bf98e90f770d7fbbcde7012a4b7073df781adc62c"},
-    "ops/hermes-cron-scripts/glp_firecrawl_seo_signals.sh": {"callers": ["hermes cron FC71 SEO signals"], "kind": "source_control", "sha256": "ec7865a39f1cd43df65db00b8dc844330b1e27132a3fba99c688b8d937d88064"},
-    "ops/hermes-cron-scripts/glp_firecrawl_budget.sh": {"callers": ["hermes cron FC71 budget readback"], "kind": "source_control", "sha256": "46d1dab59655e40fe3b3667539034ffb5e645e0fe9814275946375e6f6bca8d3"},
+    "scripts/auto_coordinator_receipt.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/auto_coordinator_runner.py",
+        "manual:GLP-358 read-only verifier"
+      ],
+      "sha256": "c5d3c356795588fdda28000d44282c5589237fe38df0ab460dec9b3df1f9bafa"
+    },
+    "tests/test_auto_coordinator_receipt.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "e095e6e47ec10d50fc0c8fa5b8f5a86670fc7b428da44da2fe46117412ef0f21"
+    },
+    ".github/workflows/coordinator-receipt-ci.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "GitHub exact-head CI"
+      ],
+      "sha256": "27b2cc55f06e9a94091aeafe2f5f6adf59b09a8a178aa96936b4a6803c876eac"
+    },
+    "ops/linear/GLP358-CAUSAL-RECEIPTS.md": {
+      "kind": "operations",
+      "callers": [
+        "GLP-358 coordinator source handoff"
+      ],
+      "sha256": "5b5f52520a81014f9818e00c8e37262a8f287a85d1055be69b35087f76651507"
+    },
+    "scripts/glp_sponsor_firecrawl_supply.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
+      ],
+      "kind": "script",
+      "sha256": "5241c5c2076941ab85a6e1912a5b85cae11d8ca6dd15cdf4daab9fdb632657b2"
+    },
+    "tests/test_glp_sponsor_firecrawl_supply.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        "business-source-ci",
+        "firecrawl-integration"
+      ],
+      "kind": "test",
+      "sha256": "86ff5ea288b0c256c0d1b5e0b04f3d807834c94862c38593189c3ea310d0262e"
+    },
+    "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
+      "callers": [
+        "hermes cron sponsor supply refresh"
+      ],
+      "kind": "source_control",
+      "sha256": "9300de9f5dece996ba05330c713b672f8bef2a92f6597ca5792925856ade5da2"
+    },
+    "scripts/glp_firecrawl_jobs.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_firecrawl_{provider_research,provider_discovery,seo_signals,budget}.sh"
+      ],
+      "kind": "script",
+      "sha256": "2275077e4ab754e8c3a40263c6a8662124183f664be0a8e6c1c017d1a84094a4"
+    },
+    "tests/test_glp_firecrawl_jobs.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        "firecrawl-integration"
+      ],
+      "kind": "test",
+      "sha256": "d10a5dd5d578dbc949ac0eedb3f2851c5780ca854c519639330878ed6b10ac48"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_provider_research.sh": {
+      "callers": [
+        "hermes cron FC71 provider research"
+      ],
+      "kind": "source_control",
+      "sha256": "c9649be66d9fea1860a714ef802b7ff32e2cdc5dfa4ad9d29d3a0e28a7a9254b"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_provider_discovery.sh": {
+      "callers": [
+        "hermes cron FC71 provider discovery"
+      ],
+      "kind": "source_control",
+      "sha256": "4a5608679083b04e11a8038bf98e90f770d7fbbcde7012a4b7073df781adc62c"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_seo_signals.sh": {
+      "callers": [
+        "hermes cron FC71 SEO signals"
+      ],
+      "kind": "source_control",
+      "sha256": "ec7865a39f1cd43df65db00b8dc844330b1e27132a3fba99c688b8d937d88064"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_budget.sh": {
+      "callers": [
+        "hermes cron FC71 budget readback"
+      ],
+      "kind": "source_control",
+      "sha256": "46d1dab59655e40fe3b3667539034ffb5e645e0fe9814275946375e6f6bca8d3"
+    },
     "ops/systemd/H349-cold-swap-repair.md": {
       "kind": "operations",
       "callers": [
@@ -1431,7 +1517,7 @@
     "ops/linear/AUTO-COORDINATOR.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "adb4f47a550fd3d83c66d93d62101db5c7d37c4f49d72eeb32724065579f9f2b"
+      "sha256": "a681fb7222a9ceed517e2543160fee1c80029943a00f5a35a9b86d711a4767b5"
     },
     "ops/linear/CONVENTIONS.md": {
       "callers": [],
@@ -2298,7 +2384,7 @@
         "ops/hermes-cron-scripts/glp_auto_coordinator.sh"
       ],
       "kind": "script",
-      "sha256": "bdd3ae35c63d2403b8e176bc913b1091c9545e58ef8c59c5928fe0bf7b340f1d"
+      "sha256": "4cae62230a7fee1e4fdf70b69f86d89c86653537b09710bde27ee642144d0bcf"
     },
     "scripts/awin_fresh_preflight.py": {
       "callers": [
@@ -7191,5 +7277,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1064
+  "tracked_count": 1068
 }

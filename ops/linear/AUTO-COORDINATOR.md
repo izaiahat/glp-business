@@ -27,6 +27,30 @@ In this mode these rules supersede the maintenance/support actions below:
   individual executors, unassigned support tickets, publishing, ad changes or sends.
   A PLAN-assigned Rook/Finch dispatch is permitted only under its existing ticket,
   owner/correlation, standing authorization and duplicate-send guard.
+* Causal retention (source contract `scripts/auto_coordinator_receipt.py`): the
+  runner supplies `GLP_AUTO_COORDINATOR_RECEIPT_DIR` with immutable INPUT.json
+  containing exact PLAN/inbox bytes and the previous retained decision. Do not
+  alter it or reconstruct missing historical fields. Before an action, retain
+  actual Linear, dependency/hold and live-owner readbacks in this directory.
+  Write one exclusive-create DECISION.json using schema `glp-coordinator-causal-v1`:
+  `input_sha256`, `plan_sha256`, `execution_id`, `coordinator_session`,
+  `native_output`, `linear_readback` (issue-keyed actual board), `readbacks`
+  (path/sha256/native_message_id), and complete numeric-order `eligibility`
+  (order, issue, disposition, live_owner, dependencies_met, held, reason,
+  evidence_paths). Allowed dispositions are SELECT, SKIP_DONE, SKIP_HOLD,
+  SKIP_DEPENDENCY, SKIP_LIVE_OWNER, SKIP_RECONCILED; no invented S5/S6 rows.
+  `actions` bind issue/owner/kind/fingerprint/inbox_sha256, pre-effect guard and
+  guard_message_id, and `effect` with native message_id plus dispatch call_id,
+  exact brief and child_session, or closure done_readback. Include this receipt
+  directory in every dispatched brief. Retain unknown/uncertain effects as
+  failures; never repeat them to fill the receipt. `reconciliation` covers each
+  preceding action's exact [issue,owner,kind,fingerprint] logical_key and
+  prior_effect, actual readback_path and UNCHANGED_NO_REPEAT only when observed.
+  A failed task continuation is NOT unchanged-output idempotence. Changed inputs
+  require a new decision, not a manufactured unchanged receipt. Print this
+  directory and the genuine coordinator session ID in the final native output.
+  Missing native/readback bindings leave acceptance incomplete. This retention
+  contract does not grant new action authority or weaken the closer.
 * Output at most ten lines for the registered ops-alerts delivery. Only the TUI
   parent writes shared STATE. Empty eligible PLAN/inbox means IDLE, not filler.
 Cron may remain enabled in this guarded mode while TUI children are live; such a
