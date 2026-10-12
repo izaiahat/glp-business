@@ -561,8 +561,8 @@ def scrape(client, url, formats):
         return client.scrape(payload, timeout=150)
     except urllib.error.HTTPError as exc:
         # One completed, explicit engine refusal, not an ambiguous timeout.
-        # Current Firecrawl docs bill enhanced at the same base rate; the
-        # account PAYG cap remains $0. Do not escalate arbitrary 5xx errors.
+        # Allow Firecrawl's documented auto routing at the base scrape rate;
+        # never force a proxy tier. PAYG remains off. Do not retry arbitrary 5xx.
         if exc.code != 500:
             raise
         try:
@@ -571,11 +571,11 @@ def scrape(client, url, formats):
             raise exc
         if refusal.get('code') != 'SCRAPE_ALL_ENGINES_FAILED':
             raise exc
-        response = client.scrape({**payload, 'proxy': 'enhanced', 'waitFor': 2000}, timeout=150)
+        response = client.scrape({**payload, 'proxy': 'auto', 'waitFor': 2000}, timeout=150)
         response = copy.deepcopy(response)
         response['transport_recovery'] = {'first_http_status': 500,
                 'first_error_code': 'SCRAPE_ALL_ENGINES_FAILED', 'attempts': 2,
-                'retry_options': {'proxy': 'enhanced', 'waitFor': 2000}}
+                'retry_options': {'proxy': 'auto', 'waitFor': 2000}}
         return response
 
 
@@ -722,10 +722,10 @@ def batch_monitor(client, urls, out, concurrency):
                     or error.get('code') != 'SCRAPE_ALL_ENGINES_FAILED'):
                 continue
             response = client.scrape({'url': url, 'formats': ['markdown'], 'onlyMainContent': False,
-                'maxAge': 0, 'timeout': 120000, 'proxy': 'enhanced', 'waitFor': 2000}, timeout=150)
+                'maxAge': 0, 'timeout': 120000, 'proxy': 'auto', 'waitFor': 2000}, timeout=150)
             response = copy.deepcopy(response)
             response['transport_recovery'] = {'first_error_code': error['code'],
-                'batch_id': start['id'], 'attempts': 2, 'retry_options': {'proxy': 'enhanced', 'waitFor': 2000}}
+                'batch_id': start['id'], 'attempts': 2, 'retry_options': {'proxy': 'auto', 'waitFor': 2000}}
             monitored[url] = response
     return monitored
 

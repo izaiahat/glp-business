@@ -91,5 +91,5 @@ def test_batch_recovers_only_explicit_terminal_engine_failure(tmp_path):
     assert len(calls) == 1
     assert calls[0]['url'] == failed
     assert calls[0]['formats'] == ['markdown']
-    assert calls[0]['proxy'] == 'enhanced'
+    assert calls[0]['proxy'] == 'auto'
     assert result[failed]['transport_recovery']['first_error_code'] == 'SCRAPE_ALL_ENGINES_FAILED'
