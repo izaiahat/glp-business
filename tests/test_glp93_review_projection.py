@@ -205,6 +205,24 @@ class ReviewProjectionTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'official_quote_missing'):
             builder.project_review_inputs(spec, research)
 
+    def test_retaclinic_fda_risk_note_requires_captured_sources(self):
+        fda, products = projection.FDA_UNAPPROVED_GLP1, projection.RETACLINIC_PRODUCTS
+        fda_md = ('Retatrutide and cagrilintide cannot be used in compounding under federal law. Additionally, these '
+                  'have not been found safe and effective for any condition. The agency has warned: - Telehealth '
+                  'companies for marketing unapproved drugs such as retatrutide, including direct marketing.')
+        research = {'captured_at_utc': '2026-10-10T00:00:00Z',
+                    'fields': {'pharmacy_type': {'value': 'Compounded medications are not FDA-approved.'}},
+                    'first_party_source_captures': self.bundle({fda: fda_md, products: 'Retatrutide Research Use Only'})}
+        spec = {'program_id': 'retaclinic-review', 'page_copy': {}, 'row_contract': {},
+                'field_sources': {'regulatory': ['https://retaclinic.com/']}}
+        actual, revised = builder.project_review_inputs(spec, research)
+        self.assertTrue(revised['fields']['pharmacy_type']['value'].endswith(projection.RETACLINIC_RISK_NOTE))
+        self.assertEqual(actual['field_sources']['regulatory'], ['https://retaclinic.com/', fda])
+        self.assertEqual(builder.project_review_inputs(actual, revised), (actual, revised))
+        research['first_party_source_captures'] = self.bundle({products: 'Retatrutide Research Use Only'})
+        with self.assertRaisesRegex(RuntimeError, 'official_quote_missing'):
+            builder.project_review_inputs(spec, research)
+
     def test_willow_products_qualified_and_pharmacy_claims_attributed(self):
         spec = {'program_id':'willow-review','page_copy':{'description':'oral and injectable GLP-1','bottom_line':'Willow offers semaglutide and tirzepatide'},
                 'row_contract':{'best_for':'oral and injectable semaglutide and tirzepatide','medications':'Semaglutide and tirzepatide','starting_price':'Semaglutide from $299; tirzepatide from $399','pros':['Oral and injectable options']}}

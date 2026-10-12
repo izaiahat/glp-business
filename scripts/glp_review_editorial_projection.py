@@ -106,6 +106,38 @@ FEELGOOD_MEDICATIONS = ('Compounded GLP-1 injections and tablets, plus a branded
                         'the specific medication per product is UNKNOWN from captured pages.')
 
 
+FDA_UNAPPROVED_GLP1 = ('https://www.fda.gov/drugs/drug-alerts-and-statements/'
+                       'fdas-concerns-unapproved-glp-1-drugs-used-weight-loss')
+RETACLINIC_PRODUCTS = 'https://retaclinic.com/products'
+RETACLINIC_FDA_QUOTES = (
+    (FDA_UNAPPROVED_GLP1, 'Retatrutide and cagrilintide cannot be used in compounding under federal law.'),
+    (FDA_UNAPPROVED_GLP1, 'have not been found safe and effective for any condition'),
+    (FDA_UNAPPROVED_GLP1, 'Telehealth companies for marketing unapproved drugs such as retatrutide'),
+    (RETACLINIC_PRODUCTS, 'Research Use Only'),
+)
+RETACLINIC_RISK_NOTE = (
+    'FDA risk note: RetaClinic\u2019s pages also list retatrutide, which its product page labels '
+    'Research Use Only. FDA states that retatrutide cannot be used in compounding under federal law, '
+    'is not a component of any FDA-approved drug and has not been found safe and effective for any '
+    'condition, and that it has warned telehealth companies for marketing unapproved drugs such as '
+    'retatrutide. This review does not cover or recommend retatrutide.')
+
+
+def project_retaclinic_risk(spec, research):
+    """Attach the FDA retatrutide risk note only when its exact sources are captured."""
+    captures = captured_review_sources(research)
+    for url, text in RETACLINIC_FDA_QUOTES:
+        if text not in ' '.join((captures.get(url) or {}).get('markdown', '').split()):
+            raise RuntimeError('review_correction_official_quote_missing:' + url)
+    item = research['fields']['pharmacy_type']
+    if RETACLINIC_RISK_NOTE not in item['value']:
+        item['value'] = item['value'].rstrip() + ' ' + RETACLINIC_RISK_NOTE
+    sources = spec.setdefault('field_sources', {}).setdefault('regulatory', [])
+    if FDA_UNAPPROVED_GLP1 not in sources:
+        sources.append(FDA_UNAPPROVED_GLP1)
+    return spec, research
+
+
 def captured_review_sources(research):
     """A URL/date is not evidence; authenticate stored raw captures first."""
     binding = research.get('first_party_source_captures') or {}
@@ -148,6 +180,8 @@ def project_review_inputs(spec, research):
             if label not in markdown:
                 raise RuntimeError('review_correction_official_quote_missing:' + FEELGOOD_WEIGHT_LOSS)
         spec['row_contract']['medications'] = FEELGOOD_MEDICATIONS
+    if pid == 'retaclinic-review':
+        spec, research = project_retaclinic_risk(spec, research)
     if pid not in {'rightwell-review', 'willow-review', 'ivim-health-review'}:
         return project_internal_notes(spec, research)
     captures = captured_review_sources(research)

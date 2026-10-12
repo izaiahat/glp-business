@@ -1039,7 +1039,7 @@
       ],
       "kind": "script",
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "61f57f38bdcb420f3b962442494b1e4effd601054df05e6147091dc23c0623be"
+      "sha256": "2f9b237c11906954517665fd3a9e09f1b11aaf5082c4cfeec76df8756feb70b8"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
@@ -2295,7 +2295,7 @@
         "tests/test_glp331_carrier_closure.py",
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "91e4881fd12dedbebb4a9608611eeefdc6ab3b7c9d8681931284dbe8d456e140"
+      "sha256": "5b93daac0488a394320b94abd34151a71d26ce9e27ffccae8aed98d90580050e"
     },
     "tests/test_glp93_capture_roots.py": {
       "kind": "test",
@@ -2317,14 +2317,14 @@
       "callers": [
         "scripts/build_glp_affiliate_wirein_incremental_v2.py"
       ],
-      "sha256": "cb1b750c9e83813f8d3ea71e94a955ba6075a6944a8114eb717b1f9030f424fc"
+      "sha256": "126616183e208ddfc2f0520729afaf3b07c66d4542e8bb40dffe4afbdd84e804"
     },
     "tests/test_glp93_review_projection.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "f4e24020f9104098e9a7c72b95f08fb450f793d19b19bc042646c777e74f6400"
+      "sha256": "9409d46a899dbd62013ff27ff4221e2538d84ebcf8e126c7a04550525ccec300"
     },
     "scripts/business_output_health_sensor.py": {
       "callers": [
