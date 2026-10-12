@@ -180,6 +180,21 @@ def test_legacy_migration_upload_parent_alias_is_not_retired(tmp_path,monkeypatc
     assert rows[0]['status']=='REFUSED' and (held/dest.name).exists()
 
 
+def test_singleton_lease_inode_and_exclusion(tmp_path):
+    import os
+    from host_disk_authorized_retirement import cleanup_lease
+    lock=tmp_path/'lock';fd=cleanup_lease(lock)
+    try:
+        assert cleanup_lease(lock,fd)==fd
+        with pytest.raises(BlockingIOError):cleanup_lease(lock)
+        other=tmp_path/'other';other.write_text('')
+        wrong=os.open(other,os.O_RDWR)
+        try:
+            with pytest.raises(ValueError):cleanup_lease(lock,wrong)
+        finally:os.close(wrong)
+    finally:os.close(fd)
+
+
 def test_private_bucket_object_expiry_is_refused():
     control=r2.Control({'CLOUDFLARE_ACCOUNT_ID':'fixture','CLOUDFLARE_API_TOKEN':'fixture'})
     def request(method,suffix,**kwargs):

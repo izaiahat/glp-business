@@ -11,9 +11,11 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import time
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 import host_disk_cold_classes as cold
 from host_disk_r2 import BUCKET, PREFIX, Destination, Control, credentials, digest
 
@@ -129,15 +131,30 @@ def completed_archive(api,p,destination,report,deadline,dry_run):
     return dict(row,status='MIGRATED_R2_VERIFIED',bytes_freed=amount,remote=remote)
 
 
+def cleanup_lease(path,inherited=None):
+    path=Path(path)
+    fd=inherited if inherited is not None else os.open(path,os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+    try:
+        held=os.fstat(fd);expected=path.lstat()
+        if not stat.S_ISREG(held.st_mode) or (held.st_dev,held.st_ino)!=(expected.st_dev,expected.st_ino):
+            raise ValueError('singleton lease identity')
+        fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        return fd
+    except Exception:
+        if inherited is None:os.close(fd)
+        raise
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--operator-authority',required=True,choices=[AUTHORITY])
     parser.add_argument('--report',required=True)
     parser.add_argument('--apply',action='store_true')
     parser.add_argument('--budget',type=int,default=7200)
+    parser.add_argument('--lease-fd',type=int,help='inherited singleton descriptor for preview/apply custody')
     args=parser.parse_args();report=Path(args.report)
-    lock=open('/home/ubuntu/.hermes/runstate/host-disk-cleanup.lock','a+')
-    fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    lock_path=Path('/home/ubuntu/.hermes/runstate/host-disk-cleanup.lock')
+    lock_fd=cleanup_lease(lock_path,args.lease_fd)
     report.mkdir(parents=True,exist_ok=False)
     import evidence_preserving_pruner as api
     destination=Destination.from_environment();deadline=time.monotonic()+args.budget
