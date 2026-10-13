@@ -58,6 +58,7 @@ def test_dispatch_never_retries_ambiguous_send(tmp_path, monkeypatch):
 def test_effect_defers_when_heavy_is_held_without_acquire(tmp_path, monkeypatch):
     from types import SimpleNamespace
     m = route(); monkeypatch.setattr(m, 'ROOT', tmp_path)
+    monkeypatch.setattr(m.relay, 'BUSINESS', ROOT)  # committed ruling, never installed custody
     calls = []
     def run(argv, **kwargs):
         calls.append(argv)
@@ -177,6 +178,7 @@ def test_singleton_contention_returns_busy_not_second_owner(tmp_path, monkeypatc
 def test_changed_packet_cannot_reach_heavy_or_transport(tmp_path, monkeypatch):
     import pytest
     m=route();monkeypatch.setattr(m.relay,'JOBS',tmp_path)
+    monkeypatch.setattr(m.relay, 'BUSINESS', ROOT)  # committed ruling, never installed custody
     d=tmp_path/'job';d.mkdir()
     for n in ['PROMPT.md','MANIFEST.json']:(d/n).write_text(n)
     row={'job':'job','packet_sha256':{n:m.hash_file(d/n) for n in ['PROMPT.md','MANIFEST.json']}}

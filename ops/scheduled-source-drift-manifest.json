@@ -306,7 +306,7 @@
         {
           "path": "/home/ubuntu/business/scripts/glp_price_freshness.py",
           "source": "scripts/glp_price_freshness.py",
-          "reviewed_sha256": "dc4cf6af13abb59b5d417340a780aa4c5449453bcf799d63d174a1903f28beaa"
+          "reviewed_sha256": "c114803b4cd8b544f99815aedc0f04b1d78abac1f1cde593b96c8046f32dabfe"
         }
       ],
       "payloads": []
