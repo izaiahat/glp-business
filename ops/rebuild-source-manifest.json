@@ -13,7 +13,7 @@
       "callers": [
         "GitHub exact-head focused relay CI"
       ],
-      "sha256": "db915bfa0b9e5530ff068d521cd999798cdcd35ddcd13c06e76a005140715d91"
+      "sha256": "83b78f62bbb5121063ddc2d46702bda3f018e600ca8ddd40a2e9dc5730dd3842"
     },
     "scripts/auto_coordinator_receipt.py": {
       "kind": "script",

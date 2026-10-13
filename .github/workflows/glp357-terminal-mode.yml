@@ -19,11 +19,15 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - name: Install isolated fixture dependency
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5'
       - name: Exact-head synthetic custody and emitted refusal
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          python3 -B -m unittest tests.test_terminal_mode_receipt -v
+          .venv/bin/python -B -m unittest tests.test_terminal_mode_receipt -v
           git diff --check
