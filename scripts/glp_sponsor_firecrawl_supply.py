@@ -252,7 +252,7 @@ class Budget:
 
 
 class Producer:
-    def __init__(self, state_dir=None, run_cap=RUN_CREDIT_CAP, match_cap=MATCH_CAP):
+    def __init__(self, state_dir=None, run_cap=RUN_CREDIT_CAP, match_cap=MATCH_CAP, *, import_only=False):
         import glp_sponsor_campaign as campaign
         from firecrawl_client import FirecrawlClient
         self.c = campaign
@@ -261,6 +261,11 @@ class Producer:
         self.cache = self.state / 'firecrawl-supply-alexandria'
         self.discovery = campaign.ROOT / 'reports/ops/sponsor-machine-20261003/contact-discovery.private.json'
         self.run = 'sponsor-supply-' + now().strftime('%Y%m%dT%H%M')
+        self.import_only = import_only
+        if import_only:
+            self.report = {'run': self.run, 'started_utc': now().isoformat(), 'sends': 0,
+                           'import_only': True, 'paid_calls': 0}
+            return  # No client, credit probe, reservation, enrichment or verification.
         self.client = FirecrawlClient(CALLER, run_id=self.run)
         self.alex = FirecrawlClient(ALEX_CALLER, run_id=self.run)
         usage = self.client.request('team/credit-usage', method='GET').get('data') or {}
@@ -371,21 +376,138 @@ class Producer:
                                   'credits': sum(r.get('credits', 0) for r in results)}
 
     # -- merge -------------------------------------------------------------
-    def merge(self):
+    def retained_pages(self, path, expected_sha):
+        """Import-only decoded receipts. Never populate capture/effect caches.
+
+        The caller pins the reviewed manifest's bytes; the installed operation
+        ledger independently corroborates the exact requested URL and terminal
+        effect. A decoded receipt hash is NOT raw HTTP response provenance.
+        """
+        from firecrawl_client import LEDGER
+        import urllib.parse
+        import glp_sponsor_readiness as readiness
+        import glp328_outreach_policy as policy
+        path = Path(path).resolve()
+        raw = path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != expected_sha:
+            raise RuntimeError('retained_cohort_hash_mismatch')
+        manifest = json.loads(raw)
+        rows = manifest.get('pages')
+        if manifest.get('schema') != 'sponsor-retained-cohort-v1' or not isinstance(rows, list) or not 1 <= len(rows) <= 200:
+            raise RuntimeError('retained_cohort_shape')
+        receipt_base = (path.parent / manifest.get('receipt_base', '.')).resolve()
+        operations = [json.loads(line) for line in LEDGER.read_text().splitlines() if line]
+        live = self.c.read_local()
+        if not live['suppression']['complete'] or live['faults']:
+            raise RuntimeError('suppression_or_local_sources_incomplete')
+        values = self.c.read_values()
+        if not values or tuple(values[0]) != policy.EXPECTED_HEADERS:
+            raise RuntimeError('registry_schema_drift')
+        registry = [policy.classify_row(i, r) for i, r in enumerate(values[1:], 2)]
+        blocked = {x['domain'] for x in live['suppression']['entries']} | {x['domain'] for x in live['conversations']}
+        blocked |= {r['host'] for r in registry if r.get('blocks_org') and r.get('host')}
+        grouped = {}
+        for row in rows:
+            host = row['host']
+            requested, source = row['requested_url'], row['source_url']
+            def owned(url):
+                u = urllib.parse.urlsplit(url)
+                return (u.scheme == 'https' and not u.fragment and
+                        self.c.source_on_provider(url, host) and
+                        (u.hostname or '').lower().removeprefix('www.') == host)
+            if (not re.fullmatch(r'[a-z0-9-]+(?:\.[a-z0-9-]+)+', host) or 'fella' in host
+                    or host.endswith(self.c.PLATFORMS) or not owned(requested) or not owned(source)):
+                raise RuntimeError('retained_source_mismatch')
+            stem = self.c.normalize(host.split('.')[0])
+            if (any(policy._same_adverse_org(host, h) for h in blocked) or
+                    any(stem == self.c.normalize(r.get('program', '')) and r.get('host') != host for r in registry)):
+                raise RuntimeError('retained_org_held_or_named')
+            receipt_path = (receipt_base / row['receipt']).resolve()
+            if not receipt_path.is_relative_to(receipt_base):
+                raise RuntimeError('retained_receipt_path')
+            receipt_raw = receipt_path.read_bytes()
+            if hashlib.sha256(receipt_raw).hexdigest() != row['receipt_sha256']:
+                raise RuntimeError('retained_receipt_hash_mismatch')
+            receipt = json.loads(receipt_raw)
+            if receipt.get('host') != host:
+                raise RuntimeError('retained_source_mismatch')
+            # Successful exact terminal receipt; an outstanding started/ambiguous
+            # effect on this URL remains held even if a different ID succeeded.
+            url_sha = hashlib.sha256(requested.encode()).hexdigest()
+            attempts = {}
+            for op in operations:
+                if op.get('caller') == CALLER and url_sha in op.get('url_hash', []) and op.get('endpoint') == '/v2/scrape':
+                    attempts.setdefault(op['operation_id'], []).append(op)
+            if not attempts or any(len(v) != 2 or v[0].get('outcome') != 'started' or
+                    v[-1].get('outcome') != 'success' or v[-1].get('http_status') != 200 for v in attempts.values()):
+                raise RuntimeError('retained_effect_uncertain')
+            terminal = (attempts.get(row['operation_id']) or [{}])[-1]
+            if terminal.get('outcome') != 'success':
+                raise RuntimeError('retained_effect_mismatch')
+            response = receipt.get('response')
+            if response is not None:
+                data = response.get('data') or {}
+                meta = data.get('metadata') or {}
+                if (receipt.get('requested_url') != requested or response.get('success') is not True
+                        or meta.get('statusCode') != 200 or not owned(meta.get('url', ''))
+                        or not owned(meta.get('sourceURL', '')) or meta['url'] != source or meta['sourceURL'] != source
+                        or receipt.get('observed_at') != row['observed_utc']
+                        or not meta.get('scrapeId') or terminal.get('scrape_search_id') !=
+                        'sha256:' + hashlib.sha256(meta['scrapeId'].encode()).hexdigest()):
+                    raise RuntimeError('retained_source_mismatch')
+                html = data.get('rawHtml')
+                provenance_kind = 'retained_decoded_firecrawl_receipt'
+            else:
+                # Legacy producer capture receipts lack the raw envelope and
+                # requested URL. Require their exact page and terminal time join;
+                # preserve this limitation rather than inventing HTTP metadata.
+                capture = receipt.get('capture') or {}
+                pages = [p for p in capture.get('pages', []) if p.get('final_url') == source and
+                         p.get('sha256') == row['sha256'] and p.get('fetched_at_utc') == row['observed_utc']]
+                if capture.get('host') != host or len(pages) != 1:
+                    raise RuntimeError('retained_source_mismatch')
+                html = pages[0]['html']
+                provenance_kind = 'retained_producer_capture'
+            if (not isinstance(html, str) or not html or len(html) > 2_000_000 or
+                    hashlib.sha256(html.encode('utf-8', 'replace')).hexdigest() != row['sha256']):
+                raise RuntimeError('retained_page_hash_mismatch')
+            if not readiness.current_evidence({'captured_at_utc': row['observed_utc'], 'evidence_sha256': row['sha256']}, now()):
+                raise RuntimeError('retained_evidence_expired')
+            delta = dt.datetime.fromisoformat(row['observed_utc']) - dt.datetime.fromisoformat(terminal['at_utc'])
+            if not dt.timedelta(0) <= delta <= dt.timedelta(seconds=120):
+                raise RuntimeError('retained_effect_mismatch')
+            page = {'url': requested, 'final_url': source, 'html': html, 'sha256': row['sha256'],
+                    'fetched_at_utc': row['observed_utc'], 'bytes': len(html.encode('utf-8', 'replace')),
+                    'source': provenance_kind, 'provenance': {
+                        'cohort_sha256': expected_sha, 'receipt_path': str(receipt_path),
+                        'receipt_sha256': row['receipt_sha256'], 'operation_id': row['operation_id'],
+                        'requested_url': requested, 'source_url': source, 'raw_http_provenance': False}}
+            grouped.setdefault(host, []).append(page)
+        for host, pages in grouped.items():
+            scope = [r for p in pages for r in evidence(host, p['final_url'], p['html'], p['sha256'], p['fetched_at_utc'],
+                self.c.public_page_hits, self.c.BUSINESS_LOCALS, self.c.same, sponsor=True)[0]]
+            qualified = self.c.sponsor_scope_current(host, {'scope_evidence': scope, 'discovery': {'_markup': pages}}, self.c, now())
+            if not (any(r.get('sponsor_category') for r in qualified) and any(r.get('country') == 'US' for r in qualified)):
+                raise RuntimeError('retained_scope_refused')
+        return [{'host': h, 'pages': pages} for h, pages in sorted(grouped.items())]
+
+    def merge(self, *, retained_cohort=None, cohort_sha256=None):
         lock = self.locked()
         try:
             disc = self.c.load(self.discovery)
-            ours = {p['sha256'] for f in self.pages.glob('*.json') for p in self.c.load(f)['pages']}
+            captures = [self.c.load(f) for f in sorted(self.pages.glob('*.json'))] if not getattr(self, 'import_only', False) else []
+            if retained_cohort:
+                captures.extend(self.retained_pages(retained_cohort, cohort_sha256))
+            ours = {p['sha256'] for res in captures for p in res['pages']} if not retained_cohort else set()
             for org in disc['organizations'].values():
                 d0 = org.get('discovery') or {}
                 if isinstance(d0.get('_markup'), list):
-                    d0['_markup'] = [m for m in d0['_markup'] if m.get('sha256') not in ours]
+                    d0['_markup'] = [m for m in d0['_markup'] if m.get('sha256') not in ours or m.get('provenance') or m.get('retained_provenance')]
                 if isinstance(d0.get('candidates'), list):
-                    d0['candidates'] = [x for x in d0['candidates'] if not (isinstance(x, dict) and x.get('page_sha256') in ours)]
-                org['scope_evidence'] = [r for r in (org.get('scope_evidence') or []) if r.get('sha256') not in ours]
+                    d0['candidates'] = [x for x in d0['candidates'] if not (isinstance(x, dict) and x.get('page_sha256') in ours and not x.get('provenance') and not x.get('retained_provenance'))]
+                org['scope_evidence'] = [r for r in (org.get('scope_evidence') or []) if r.get('sha256') not in ours or r.get('provenance') or r.get('retained_provenance')]
             added = {'hosts': 0, 'scope_rows': 0, 'contacts': 0}
-            for f in sorted(self.pages.glob('*.json')):
-                res = self.c.load(f)
+            for res in captures:
                 host = res['host']
                 if not res['pages']:
                     continue
@@ -396,9 +518,26 @@ class Producer:
                 d.setdefault('candidates', [])
                 org.setdefault('scope_evidence', [])
                 for p in res['pages']:
+                    existing = max((m for m in d['_markup'] if m.get('final_url', m.get('url')) == p['final_url'] and m.get('sha256') == p['sha256']),
+                                   key=lambda m: dt.datetime.fromisoformat(m['fetched_at_utc']), default=None)
+                    # A later independently captured observation gets its own
+                    # evidence rows; retain the original receipt-bearing records.
+                    if existing is not None and dt.datetime.fromisoformat(p['fetched_at_utc']) <= dt.datetime.fromisoformat(existing['fetched_at_utc']):
+                        if p.get('provenance') and p['fetched_at_utc'] == existing['fetched_at_utc']:
+                            bound = [existing] + [r for r in org['scope_evidence'] if r.get('source_url') == p['final_url'] and r.get('sha256') == p['sha256'] and r.get('observed_utc') == p['fetched_at_utc']]
+                            bound += [r for r in d['candidates'] if isinstance(r, dict) and r.get('page_sha256') == p['sha256'] and r.get('captured_at_utc') == p['fetched_at_utc']]
+                            for record in bound:
+                                if record.get('provenance') != p['provenance'] and p['provenance'] not in record.get('retained_provenance', []):
+                                    record.setdefault('retained_provenance', []).append(p['provenance'])
+                        continue  # Keep original source and any different-content conflicts.
                     rows, contacts = evidence(host, p['final_url'], p['html'], p['sha256'], p['fetched_at_utc'],
                                               self.c.public_page_hits, self.c.BUSINESS_LOCALS, self.c.same, sponsor=True)
-                    d['_markup'].append({k: p[k] for k in ('url', 'final_url', 'html', 'sha256', 'fetched_at_utc', 'bytes', 'source')})
+                    d['_markup'].append({k: p[k] for k in ('url', 'final_url', 'html', 'sha256', 'fetched_at_utc', 'bytes', 'source', 'provenance') if k in p})
+                    if 'provenance' in p:
+                        for row in rows:
+                            row['provenance'] = p['provenance']
+                        for contact in contacts:
+                            contact['provenance'] = p['provenance']
                     org['scope_evidence'].extend(rows)
                     d['candidates'].extend(contacts)
                     added['scope_rows'] += len(rows)
@@ -588,13 +727,21 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('phase', choices=('daily', 'merge', 'apollo', 'verify'))
     ap.add_argument('--run-cap', type=int, default=RUN_CREDIT_CAP)
+    ap.add_argument('--retained-cohort', type=Path, help='Pinned exact first-party receipt manifest; import-only merge, never recapture')
+    ap.add_argument('--cohort-sha256', help='SHA256 of independently reviewed manifest bytes')
     args = ap.parse_args(argv)
+    if bool(args.retained_cohort) != bool(args.cohort_sha256) or (args.retained_cohort and args.phase != 'merge'):
+        ap.error('retained cohort and hash are required together, only for merge')
     import glp_sponsor_campaign as campaign
     campaign.STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (campaign.STATE / 'firecrawl-supply-budget.lock').open('a') as budget_lock:
         fcntl.flock(budget_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        producer = Producer(run_cap=args.run_cap)
-        report = producer.daily() if args.phase == 'daily' else (getattr(producer, args.phase)() or producer.report)
+        producer = Producer(run_cap=args.run_cap, import_only=bool(args.retained_cohort))
+        if args.retained_cohort:
+            producer.merge(retained_cohort=args.retained_cohort, cohort_sha256=args.cohort_sha256)
+            report = producer.report
+        else:
+            report = producer.daily() if args.phase == 'daily' else (getattr(producer, args.phase)() or producer.report)
         path = producer.state / 'firecrawl-supply-latest.json'
         producer.c.save(path, report)
         print(json.dumps({k: v for k, v in report.items() if k != 'verify'} | {'verify': {k: v for k, v in (report.get('verify') or {}).items() if k != 'mail_refused'}}))

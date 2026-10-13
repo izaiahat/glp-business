@@ -36,8 +36,8 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
     # successor bound separately; the producer must still stage the original.
     successor = {'scripts/affiliate_approval_auto_reconciler.py': (
         '26df9de611b1eeb02443abc60912cd784c5c0d49d41b1e8cfd2ba97b73220c46',
-        # Preserve original adoption; bind the actionable-cap inbox successor.
-        '21e3c1de1e90b999d648ca19b3f687caabe4c1e1d51c84afaf93144ecfb5e315'),
+        # Preserve original adoption; bind the renderer-only inbox successor.
+        'e1f5f7628e5030023efe1f60d31bc780a1f70e2438a8efdc32818dad456cb9f2'),
         # GLP347 preserves the historical adoption producer and binds the current denial-only successors.
         'scripts/affiliate_sheet_batch_writer.py': (
             '0fd0453ed5ce2c696befb7687a15b35223fad97889a90f93e0b4286f7c563d66',
@@ -48,6 +48,12 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
         'ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh': (
             '45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9',
             '99bcc4cca7c63f41e3546bb0e470976907027557bf1e7b89d1a0dbb8aaebcfb4')}
+    # Retain the exact prior current-source custody as well as the original
+    # adoption blob. GLP93 permits only the missing-key renderer expression.
+    prior = p.git(ROOT, 'show', 'a3e189e:scripts/affiliate_approval_auto_reconciler.py')
+    assert p.sha_bytes(prior) == '21e3c1de1e90b999d648ca19b3f687caabe4c1e1d51c84afaf93144ecfb5e315'
+    assert prior.replace(b"str(x['blocker'])[:180]",
+                         b"str(x.get('blocker') or x.get('disposition') or 'blocker details unavailable')[:180]") == (ROOT/'scripts/affiliate_approval_auto_reconciler.py').read_bytes()
     for name in expected:
         original = p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+name)
         if name in successor:

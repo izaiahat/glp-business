@@ -329,6 +329,10 @@ def affiliate_response_disposition(parsed: dict[str, Any], classification: dict[
         return "auto_process_rejection"
     if AFFILIATE_OPERATOR_PREREQUISITE_RE.search(text):
         return "operator_prerequisite_card"
+    # An automated marketplace invitation is not a human direct-email route.
+    # Keep it with the provider-backed consumer, even if it names a contact.
+    if classification.get("reason_code") == "affiliate_network_automated_invitation":
+        return "other_affiliate_response"
     if AFFILIATE_APPLICATION_INVITATION_RE.search(text):
         return "auto_process_application_invitation"
     if AFFILIATE_APPROVAL_ACCEPTANCE_RE.search(text):

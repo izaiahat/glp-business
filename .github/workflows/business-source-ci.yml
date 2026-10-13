@@ -97,7 +97,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git config --global user.email ci@example.invalid && git config --global user.name ci
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_host_disk_auto_classes.py tests/test_host_disk_pin_protocol.py tests/test_host_disk_linear_inventory.py tests/test_host_disk_large_guards.py tests/test_host_disk_custody.py tests/test_host_disk_report_caches.py tests/test_host_disk_r2.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_host_disk_auto_classes.py tests/test_host_disk_pin_protocol.py tests/test_host_disk_linear_inventory.py tests/test_host_disk_large_guards.py tests/test_host_disk_custody.py tests/test_host_disk_report_caches.py tests/test_host_disk_r2.py tests/test_host_disk_completed_dependencies.py
       - name: GLP335 registered current-contract reconciliation (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -167,7 +167,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONPATH=ops:scripts:. .venv/bin/python -m pytest -q tests/test_cleanup_maxbounty_capture.py tests/test_maxbounty_identity_capture_transport.py tests/test_affiliate_cancellation_intake.py tests/test_katalys_contract_terms_notice.py
+          PYTHONPATH=ops:scripts:. .venv/bin/python -m pytest -q tests/test_cleanup_maxbounty_capture.py tests/test_maxbounty_identity_capture_transport.py tests/test_affiliate_cancellation_intake.py tests/test_katalys_contract_terms_notice.py tests/test_affiliate_approval_discord_render.py
       - name: Daily source drift exact-head fixtures (no job execution)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
