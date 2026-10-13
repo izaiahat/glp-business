@@ -6,7 +6,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "115563062cd4c8fd4838deae1a52131d54ea3bf6aefc16dcd819386f048dac26"
+      "sha256": "60604f7e78056db8633cdf8d3d9470c4080d376b087a381760b8be73bba2c435"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -15,7 +15,7 @@
         "firecrawl-integration"
       ],
       "kind": "test",
-      "sha256": "280ec5fea9c350fa5121abd440a560c78471098001e7a80de64c069e5d0cb98c"
+      "sha256": "1bf46a60e083548c83225cd92028a3473f5b77209d20491bc7692aabcb8324d0"
     },
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
       "callers": [
@@ -3314,7 +3314,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "09621d6599721421564d69aa400ece0974c6ab947712f2567e35b9e57fe2c76a"
+      "sha256": "030549a737083bfb7501904b336704e92efd3df537ae352e4519918602afbc17"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [

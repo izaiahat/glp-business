@@ -101,7 +101,7 @@ def sponsor_fit(text):
     for category, pattern in CATEGORY.items():
         for match in pattern.finditer(text):
             excerpt = text[max(0, match.start()-120):match.end()+180].strip()
-            if COMMERCIAL.search(excerpt) and not re.search(r"\b(?:not|never|cannot|no longer|\w+n['’]t)\b", excerpt, re.I):
+            if COMMERCIAL.search(excerpt) and not re.search(r"\b(?:no|not|never|cannot|no longer|\w+n['’]t)\b", excerpt, re.I):
                 return category, excerpt
     return None
 

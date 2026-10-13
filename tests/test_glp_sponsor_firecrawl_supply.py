@@ -185,6 +185,35 @@ def test_sponsor_fit_refuses_negated_product_claims():
     assert supply.sponsor_fit('We offer protein shakes for our customers.')[0] == 'nutrition_protein'
 
 
+def test_no_product_quantifier_refused_by_producer_and_sealed_census():
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    host = 'negative.example'
+    local = {'suppression': {'complete': True, 'entries': []}, 'conversations': []}
+    for statement, category in (('We offer no protein shakes.', 'nutrition_protein'),
+                                ('We provide no meal delivery service.', 'meals')):
+        assert supply.sponsor_fit(statement) is None
+        assert campaign.sponsor_fit(statement) is None
+        # Even a proposed category row anchored to real first-party negative text
+        # must not authorize the organization through the actual sender census.
+        text = statement + ' We ship to customers across the United States. Partnerships partners@negative.example.'
+        html = '<p>' + text + '</p>'
+        sha = hashlib.sha256(html.encode()).hexdigest()
+        url = 'https://' + host + '/'
+        rows, contacts = supply.evidence(host, url, html, sha, at.isoformat(),
+            campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+        rows.append({'source_url': url, 'sponsor_category': category,
+                     'sponsor_category_excerpt': statement, 'observed_utc': at.isoformat(), 'sha256': sha})
+        org = {'provider': host, 'scope_evidence': rows, 'discovery': {'candidates': contacts,
+            '_markup': [{'url': url, 'final_url': url, 'html': html, 'sha256': sha}]}}
+        assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+            {'organizations': {host: org}}, local)['recipients'] == []
+    assert supply.sponsor_fit('We offer protein shakes.')[0] == 'nutrition_protein'
+    assert campaign.sponsor_fit('We provide meal delivery service.')[0] == 'meals'
+
+
 def test_failed_capture_reserves_credits_and_next_run_cannot_reset(monkeypatch, tmp_path):
     import firecrawl_client
     import glp_firecrawl_jobs as jobs
