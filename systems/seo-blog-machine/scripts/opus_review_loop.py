@@ -18,6 +18,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
+from article_review_physical_lines import physical_lines  # noqa: E402
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from selection_receipt import (  # noqa: E402
     load_selection_receipt,
@@ -305,7 +308,7 @@ def seal_subjects(job: dict[str, Any], round_number: int, history: Path) -> tupl
         rows.append({
             "path": path.relative_to(packet).as_posix(),
             "bytes": len(data),
-            "lines": len(data.decode("utf-8", errors="replace").splitlines()),
+            "lines": len(physical_lines(data)),
             "sha256": sha_bytes(data),
         })
     manifest = {
@@ -329,7 +332,7 @@ def build_context_bundle(job: dict[str, Any], manifest: dict[str, Any], round_nu
     for path in subject_paths(job):
         rel = path.relative_to(packet).as_posix()
         chunks.append(f"===== {rel} =====")
-        chunks.extend(f"{number:04d}|{line}" for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1))
+        chunks.extend(f"{number:04d}|{line}" for number, line in enumerate(physical_lines(path.read_bytes()), 1))
         chunks.append("")
     path = history / f"round-{round_number:02d}-context-bundle.md"
     path.write_text("\n".join(chunks) + "\n", encoding="utf-8")

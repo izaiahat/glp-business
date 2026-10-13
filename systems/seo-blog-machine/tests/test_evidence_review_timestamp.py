@@ -14,7 +14,9 @@ def test_explicit_evidence_review_timestamp_survives_real_compilation(tmp_path):
 
 import pytest
 
-@pytest.mark.parametrize('value', ['not-a-timestamp','2026-09-04T19:42:11Z','2026-09-05T19:42:11'])
+@pytest.mark.parametrize('value', ['not-a-timestamp','2026-09-04T19:42:11Z',
+                                 '2026-09-06T19:42:11Z','2026-09-05T19:42:11',
+                                 '2026-09-05T19:42:11+01:00'])
 def test_explicit_evidence_timestamp_refuses_invalid_or_wrong_day(tmp_path,value):
     p=packet(tmp_path); draft=p/'04-draft.md'
     draft.write_text(draft.read_text().replace("dateModified: '2026-09-05'",f"dateModified: '2026-09-05'\nevidenceReviewedAt: '{value}'"))

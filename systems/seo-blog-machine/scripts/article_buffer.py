@@ -1479,11 +1479,17 @@ def _inactive_inbound_quarantine(root: Path, path: Path, entry: dict[str, Any]) 
         return False
 
 
+def _held_successor_duplicates(root: Path, predecessor_id: str,
+                               duplicates: list[tuple[Path, dict[str, Any]]]) -> list[tuple[Path, dict[str, Any]]]:
+    """Use one authenticated duplicate set through preflight and admission."""
+    return [(p, e) for p, e in duplicates if e.get('entry_id') == predecessor_id
+            or not _inactive_inbound_quarantine(root, p, e)]
+
+
 def _held_successor_predecessor(root: Path, predecessor_id: str,
                                 duplicates: list[tuple[Path, dict[str, Any]]],
                                 evidence: dict[str, Any], closure: str) -> dict[str, Any]:
-    duplicates = [(p, e) for p, e in duplicates if e.get('entry_id') == predecessor_id
-                  or not _inactive_inbound_quarantine(root, p, e)]
+    duplicates = _held_successor_duplicates(root, predecessor_id, duplicates)
     if ENTRY_ID_PATTERN.fullmatch(predecessor_id) is None or len(duplicates) not in (1, 2):
         raise BufferAdmissionError("buffer_successor_predecessor_not_exact")
     path, entry = duplicates[0] if len(duplicates) == 1 else next(
@@ -1573,6 +1579,7 @@ def admit(
         on_page_successor_of = None
         predecessor = None
         if predecessor_entry_id is not None:
+            duplicates = _held_successor_duplicates(root, predecessor_entry_id, duplicates)
             predecessor = _held_successor_predecessor(
                 root, predecessor_entry_id, duplicates, evidence, closure)
             _successor_publication_date(today_pt or pt_date_now(), control_files)
