@@ -101,7 +101,7 @@ def sponsor_fit(text):
     for category, pattern in CATEGORY.items():
         for match in pattern.finditer(text):
             excerpt = text[max(0, match.start()-120):match.end()+180].strip()
-            if COMMERCIAL.search(excerpt) and not re.search(r'\b(?:do not|never|cannot)\b', excerpt, re.I):
+            if COMMERCIAL.search(excerpt) and not re.search(r"\b(?:not|never|cannot|no longer|\w+n['’]t)\b", excerpt, re.I):
                 return category, excerpt
     return None
 
@@ -262,11 +262,29 @@ class Producer:
         from glp_firecrawl_jobs import spent_today
         # Caller renames do not reset the same daily sponsor job allowance.
         self.start_spent = spent_today((CALLER, ALEX_CALLER, 'fc71_sponsor_supply', 'fc71_sponsor_alexandria'))
+        self.budget_day = now().date().isoformat()
+        self.reservations = self.state / 'firecrawl-supply-budget.json'
+        if self.reservations.exists():
+            prior = self.c.load(self.reservations)
+            if prior['day'] == self.budget_day:
+                self.start_spent = max(self.start_spent, int(prior['reserved']))
         self.budget = Budget(int(usage.get('remainingCredits') or 0),
                              cap=max(0, min(run_cap, RUN_CREDIT_CAP) - self.start_spent))
         self.match_cap = match_cap
         self.report = {'run': self.run, 'started_utc': now().isoformat(), 'remaining_at_start': self.budget.remaining,
                        'daily_spent_at_start': self.start_spent, 'daily_cap': RUN_CREDIT_CAP, 'sends': 0}
+
+    def reserve(self, credits):
+        # The entrypoint holds a purpose-specific budget flock across the run.
+        # Persist before each paid call; failure/timeout never refunds a claim.
+        if now().date().isoformat() != self.budget_day or not self.budget.allow(credits):
+            raise RuntimeError('sponsor_daily_credit_cap')
+        self.budget.charge(credits)
+        self.c.save(self.reservations, {'day':self.budget_day, 'reserved':self.start_spent+self.budget.spent})
+
+    def paid_match(self, payload):
+        self.reserve(30)
+        return self.alex.scrape(payload)
 
     # -- locking -----------------------------------------------------------
     def locked(self, seconds=420):
@@ -304,6 +322,7 @@ class Producer:
             return {'host': host, 'pages': [], 'skipped': 'budget'}
         res = {'host': host, 'pages': [], 'errors': [], 'credits': 0, 'captured_utc': now().isoformat()}
         try:
+            self.reserve(1)
             m = self.client.request('map', {'url': 'https://' + host, 'limit': 200, 'includeSubdomains': False, 'sitemap': 'include'}, timeout=90)
             res['credits'] += 1
             links = [x.get('url') if isinstance(x, dict) else x for x in m.get('links', [])]
@@ -318,6 +337,7 @@ class Producer:
                                                      not bool(re.search(r'about|terms', u, re.I)), u))
         for u in picks[:max_pages]:
             try:
+                self.reserve(1)
                 s = self.client.scrape({'url': u, 'formats': ['rawHtml'], 'onlyMainContent': False, 'maxAge': 0, 'blockAds': True,
                                         'location': {'country': 'US', 'languages': ['en-US']}, 'timeout': 45000}, timeout=90)
             except Exception as exc:  # noqa: BLE001
@@ -330,7 +350,6 @@ class Producer:
             html = data.get('rawHtml') or ''
             if html and meta.get('statusCode') in (200, None) and self.c.source_on_provider(final, host) and len(html) <= 2_000_000:
                 res['pages'].append(self._page(final, html, meta, 'firecrawl_v2_scrape_rawHtml'))
-        self.budget.charge(res['credits'])
         self.pages.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.c.save(out, res)
         return res
@@ -415,9 +434,8 @@ class Producer:
                         out['empty'] += 1
                         continue
                     matched = alexandria.observe(self.cache, host, 'people/match', {'id': people[0]['id'], 'reveal_personal_emails': False,
-                                                 'reveal_phone_number': False}, self.alex.scrape, at)
+                                                 'reveal_phone_number': False}, self.paid_match, at)
                     out['matches'] += 1
-                    self.budget.charge(30)
                     row = apollo_contact(host, matched.get('person') or {}, people[0]['id'], alexandria.business_title, at, matched)
                     if not row:
                         out['unknown'] += 1
@@ -501,11 +519,15 @@ def main(argv=None):
     ap.add_argument('phase', choices=('daily', 'merge', 'apollo', 'verify'))
     ap.add_argument('--run-cap', type=int, default=RUN_CREDIT_CAP)
     args = ap.parse_args(argv)
-    producer = Producer(run_cap=args.run_cap)
-    report = producer.daily() if args.phase == 'daily' else (getattr(producer, args.phase)() or producer.report)
-    path = producer.state / 'firecrawl-supply-latest.json'
-    producer.c.save(path, report)
-    print(json.dumps({k: v for k, v in report.items() if k != 'verify'} | {'verify': {k: v for k, v in (report.get('verify') or {}).items() if k != 'mail_refused'}}))
+    import glp_sponsor_campaign as campaign
+    campaign.STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with (campaign.STATE / 'firecrawl-supply-budget.lock').open('a') as budget_lock:
+        fcntl.flock(budget_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        producer = Producer(run_cap=args.run_cap)
+        report = producer.daily() if args.phase == 'daily' else (getattr(producer, args.phase)() or producer.report)
+        path = producer.state / 'firecrawl-supply-latest.json'
+        producer.c.save(path, report)
+        print(json.dumps({k: v for k, v in report.items() if k != 'verify'} | {'verify': {k: v for k, v in (report.get('verify') or {}).items() if k != 'mail_refused'}}))
     return 0
 
 
