@@ -1,6 +1,16 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/__init__.py": {
+      "callers": ["tests/conftest.py", "scripts/run_tests.sh"],
+      "kind": "repository_control",
+      "sha256": "3087da905ec2a7762561d88dfc771cf3bde2daf59fcbfff7f9e3cc676dd05d64"
+    },
+    "tests/test_ci_source_isolation.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "a5f2ddb0f33c8b59f4b8332c2ced211ee62d8e8d60ecb6fa3c8261ef7a1a5856"
+    },
     "scripts/glp_sponsor_firecrawl_supply.py": {
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
@@ -1749,7 +1759,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "160768dd78c3a748ecf4b99644db0672b55c6d8f578ec1082cc8a5abf69041d4"
+      "sha256": "9757d9c0119a393950a9dbcf5f0bc92661cc8887701b3f651c683c8414af0539"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3833,7 +3843,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0aef3b8e16c09c6258b01ad503043bfc7585deebffa8d2a11ec8e06c8739dfb3"
+      "sha256": "061cbe3ea1f0dc9df83f2780490e4ee76e5c431b694b241eb8c75b9fcded277b"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -4364,7 +4374,7 @@
         "all pytest workflows (fixture-only ledger isolation)"
       ],
       "kind": "test",
-      "sha256": "0f01a9e9d7ceed45e4ffb0d185e391e29df617164f95144449d09ea46fc66e32"
+      "sha256": "f7b4432aeed35e47c8b7a3058eb4e4e8642f17fa8bf83ae40b5ef0d312d6d807"
     },
     "tests/finch_cabx_acceptance.py": {
       "callers": [
@@ -6365,7 +6375,7 @@
         "python3 -m unittest discover -s tests -p test_hermes_active_work_gate.py"
       ],
       "kind": "test",
-      "sha256": "82b6660b671f1a3c4bec13221f687eaffd894a984358e4a232e26b55dcf9e0f9"
+      "sha256": "dcfa94d51d959997c0462dba24c80acd795cddd9d666f6e048793b5d52302a3d"
     },
     "tests/test_host_custody.py": {
       "callers": [
@@ -6872,7 +6882,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "75559498cec037e418e360b01787ccf3f209cf2ca53ab44856c5a54b6ced3769"
+      "sha256": "e96de10d8184f94c8a01ddbe34b72445906bae1b5590a9025343a86c04bff9db"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
