@@ -64,5 +64,5 @@ jobs:
           python-version: '3.12'
       - run: |
           python -m pip install pytest==8.3.5 requests==2.32.5 beautifulsoup4==4.13.5 pypdf==6.1.1
-          PYTHONPATH=scripts FIRECRAWL_OPERATION_LEDGER="$RUNNER_TEMP/firecrawl-fixture-ops.jsonl" python -m pytest -q tests/test_firecrawl_integration.py tests/test_firecrawl_credit_loops.py tests/test_therapeutic_taxonomy_refresh.py tests/test_glp80_taxonomy_correction.py tests/test_glp_sponsor_firecrawl_supply.py tests/test_glp_firecrawl_jobs.py $(git ls-files 'tests/test_firecrawl_glp350_*.py')
+          PYTHONPATH=scripts python -m pytest -q tests/test_firecrawl_integration.py tests/test_firecrawl_credit_loops.py tests/test_therapeutic_taxonomy_refresh.py tests/test_glp80_taxonomy_correction.py tests/test_glp_sponsor_firecrawl_supply.py tests/test_glp_firecrawl_jobs.py $(git ls-files 'tests/test_firecrawl_glp350_*.py')
           git diff --exit-code

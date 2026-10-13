@@ -235,7 +235,7 @@
         "GitHub pull_request exact-head integration"
       ],
       "kind": "workflow",
-      "sha256": "de5a5b36711f45cef4b311f4f1eb2869b2b95be5d9e49ce510fbcbbcf1e39a69"
+      "sha256": "ae0ba773157eb84af7f79f955b9df23719be09a057308291f2039995c692bc83"
     },
     ".github/workflows/fleet-ingest.yml": {
       "callers": [
