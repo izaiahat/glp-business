@@ -6387,7 +6387,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "11dc3a65ab442605b8fbfa0d3c2f99b1028d0321aab693282bb9c3d35f5f25fb"
+      "sha256": "4cd000925c108ac168ebc69210f8c09e0016438364beb53968d79252a4eb4b22"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [

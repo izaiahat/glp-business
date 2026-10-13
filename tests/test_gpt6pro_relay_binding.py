@@ -2879,6 +2879,10 @@ console.log(JSON.stringify(fixtures.map(f => {
         self.assertEqual(actual['work'], {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
         self.assertEqual(actual['chat'], {'value': {'switched': False}, 'clicks': 0})
         for kind in ('draft','stop','transcript','duplicate','disabled','unknown','wrong_path','hidden'):
+            evidence = actual[kind]['value'].pop('diagnostics')
+            self.assertTrue(evidence['main_present'])
+            self.assertEqual(evidence['chat']['raw_count'], 2 if kind == 'duplicate' else 1)
+            self.assertEqual(evidence['chat']['filtered_count'], 0 if kind in ('disabled', 'hidden') else 2 if kind == 'duplicate' else 1)
             reason = 'mode_ambiguous' if kind in ('duplicate','disabled','hidden') else 'work_selected'
             self.assertEqual(actual[kind], {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': reason}, 'clicks': 0})
         original_js = self.browser.js
