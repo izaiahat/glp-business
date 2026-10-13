@@ -176,4 +176,21 @@ class CompletedDependencyTests(unittest.TestCase):
         self.assertEqual(self.run_row(False)['status'],'REFUSED');self.assertEqual(self.api.removed,[])
 
 
+    def test_maintained_policy_preserves_restored_wrangler_deny(self):
+        policy=json.loads((Path(__file__).resolve().parents[1]/'ops/disk-retention-policy.json').read_text())
+        self.assertIn('/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13',policy['protected_roots'])
+        # Current combined-build donors are not members of the finite retirement class.
+        admitted={row['path'] for row in policy['completed_ci_dependencies']}
+        self.assertEqual(admitted,{'/home/ubuntu/business/.worktrees/m93-site-ci/node_modules','/home/ubuntu/business/.worktrees/m93b-site-ci/node_modules'})
+
+
+    def test_receiving_pointer_binds_genuine_current_policy_qualification(self):
+        policy=json.loads((Path(__file__).resolve().parents[1]/'ops/disk-retention-policy.json').read_text())
+        self.assertEqual(policy['rule_D']['dry_run_receipt'],{
+            'path':'/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/host-receive-20261013T222522Z/dry-run-images.json',
+            'sha256':'bcdf81715e862f2ddc6d1c0c025fac6aaf383e25ef6ff42b69b1fd55ff468663'})
+        self.assertEqual(policy['rule_D']['cold_days'],30)
+        self.assertEqual(policy['rule_D']['approval']['sha256'],'3ac87b3d008a214b11df4fa540817435d6962e82a5887076c2ab9486cf390c3b')
+
+
 if __name__=='__main__':unittest.main()

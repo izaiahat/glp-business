@@ -612,7 +612,7 @@
     "ops/disk-retention-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "57ab552256e98cd724adc5c73e056005a8974b5954bc870b58ce66edb557e48f"
+      "sha256": "2e8622c3c8167bd0b97830c8d1de717e6a5ea087c51d720225c2527fa33ec59b"
     },
     "ops/fable-mention-recovery.md": {
       "callers": [],
@@ -7471,7 +7471,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "19822da26ebae81f8ae04371d5630e81835ecc20a551006351f6ca0dcc030b15"
+      "sha256": "fcaefbf4ac3ac020b585be5242470c73b057eeccd03b7ea9d317d78df55b2873"
     }
   },
   "omitted_runtime_inputs": [
