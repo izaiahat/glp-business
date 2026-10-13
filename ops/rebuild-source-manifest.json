@@ -1,6 +1,27 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_cf_editorial_share.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "56ba57d20f52de309030ff40a67c99b303ad7c87804411fa65de167227a88545"
+    },
+    "tests/fixtures/cf-editorial-share/expected.html.gz": {
+      "kind": "data",
+      "callers": [
+        "tests/test_cf_editorial_share.py"
+      ],
+      "sha256": "57cdad00b2e1cee8d1db0c417ff8b63a64ed10f981b6abb47a82613c797959fa"
+    },
+    "tests/fixtures/cf-editorial-share/observed.html.gz": {
+      "kind": "data",
+      "callers": [
+        "tests/test_cf_editorial_share.py"
+      ],
+      "sha256": "f7c26114833c41a14c011689054e775694c752525a58148a8cec77911a44c8e0"
+    },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
       "callers": [
@@ -7559,5 +7580,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1108
+  "tracked_count": 1111
 }
