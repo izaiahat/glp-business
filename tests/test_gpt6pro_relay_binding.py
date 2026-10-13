@@ -1806,7 +1806,8 @@ console.log(JSON.stringify(fixtures.map(f => {
         """Exact typed=false mode receipt releases only distinct-ID admission."""
         self._proof_bound_preinsert_terminal_actual_cli('CHAT_SURFACE_REFUSED')
 
-    def _proof_bound_preinsert_terminal_actual_cli(self, reason):
+    def _proof_bound_preinsert_terminal_actual_cli(self, reason, *, error_receipt=None,
+                                                   default_only=False, expect_valid=True):
         """Reusable report-bound disposition; no replay or stale UNKNOWN release."""
         sha = lambda b: relay.hashlib.sha256(b).hexdigest()
         job, tab, origin = 'unlisted-preinsert-job', 'attributed-target', 1791334401239.7
@@ -1825,6 +1826,8 @@ console.log(JSON.stringify(fixtures.map(f => {
         if reason == 'CHAT_SURFACE_REFUSED':
             # The actual mode gate emits a tab but no readiness-state snapshot.
             held['error'] = {'error': reason, 'typed': False, 'sent': False, 'tab': tab}
+        if error_receipt is not None:
+            held['error'] = error_receipt
         relay.job_write(job, held)
         preimage = (d / 'JOB.json').read_bytes()
         message = relay._failed_generation_identity(held).encode()
@@ -1873,12 +1876,20 @@ console.log(JSON.stringify(fixtures.map(f => {
              mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')), \
              mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
              mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')):
+            if default_only and not expect_valid:
+                with self.assertRaisesRegex(SystemExit, 'REFUSED_CUSTODY'):
+                    call()
+                self.assertEqual((d/'JOB.json').read_bytes(), preimage)
+                self.assertEqual(ledger.read_bytes(), before_ledger)
+                return {'decision': 'REFUSED_CUSTODY', 'job_unchanged': True, 'ledger_unchanged': True}
             code, text = call()
             self.assertEqual(code, 0)
             self.assertIn('WOULD_TERMINALIZE_UNSENT', text)
             self.assertEqual((d/'JOB.json').read_bytes(), preimage)
             self.assertEqual(ledger.read_bytes(), before_ledger)
             witness.assert_called_with(tab, origin, disposition_only=True)
+            if default_only:
+                return {'code': code, 'stdout': text, 'job_unchanged': True, 'ledger_unchanged': True}
             mutations = [('typed', True), ('sent', 'UNKNOWN')]
             if reason == 'CHAT_SURFACE_REFUSED':
                 mutations += [('error', {k: v for k, v in held['error'].items() if k != 'tab'}),

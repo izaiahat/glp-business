@@ -1,0 +1,27 @@
+name: glp357-terminal-mode
+on:
+  pull_request:
+    paths:
+      - scripts/gpt6pro_relay.py
+      - tests/test_gpt6pro_relay_binding.py
+      - tests/test_terminal_mode_receipt.py
+      - .github/workflows/glp357-terminal-mode.yml
+permissions:
+  contents: read
+jobs:
+  focused-default-cli:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact-head synthetic custody and emitted refusal
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest tests.test_terminal_mode_receipt -v
+          git diff --check

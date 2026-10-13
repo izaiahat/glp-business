@@ -3219,6 +3219,80 @@ def _terminal_unsent_pin(job, report=None):
     return c
 
 
+def _terminal_mode_receipt_valid(error, tab):
+    """Closed legacy/current pretyping schemas; never normalize factual receipts."""
+    base = {'error', 'typed', 'sent', 'tab'}
+    if (not isinstance(error, dict) or error.get('error') != 'CHAT_SURFACE_REFUSED' or
+            error.get('typed') is not False or error.get('sent') is not False or
+            not isinstance(tab, str) or not tab or error.get('tab') != tab):
+        return False
+    if set(error) == base:
+        return True  # Historical four-field gate, still bound to full custody.
+    if set(error) != base | {'mode_observation', 'mode_evidence'}:
+        return False
+    observation = error['mode_observation']
+    if type(observation) is not int or not 1 <= observation <= 11:
+        return False
+    evidence = error['mode_evidence']
+    reasons = {'mode_missing', 'mode_ambiguous', 'mode_unverified', 'work_selected'}
+    if (not isinstance(evidence, dict) or
+            set(evidence) not in ({'error', 'reason'}, {'error', 'reason', 'diagnostics'}) or
+            evidence.get('error') != 'CHAT_SURFACE_REFUSED' or
+            not isinstance(evidence.get('reason'), str) or evidence['reason'] not in reasons):
+        return False
+    if 'diagnostics' not in evidence:
+        return True  # Earlier current gate before diagnostic sampling.
+    d = evidence['diagnostics']
+    excluded = {None, 'no_rect', 'hidden', 'inert', 'disabled', 'aria_hidden',
+                'aria_disabled', 'display_none', 'visibility_hidden'}
+    def enum(value, choices):
+        return (value is None or isinstance(value, str)) and value in choices
+    def count(value):
+        return type(value) is int and 0 <= value <= 9007199254740991
+    if (not isinstance(d, dict) or set(d) != {'main_present', 'main_count', 'group_count',
+            'scope', 'group_excluded', 'chat', 'work'} or
+            type(d['main_present']) is not bool or
+            not (d['main_count'] is None or count(d['main_count'])) or
+            not count(d['group_count']) or
+            not enum(d['scope'], {'composer_mode', 'first_main', 'none'}) or
+            not enum(d['group_excluded'], excluded)):
+        return False
+    if (d['scope'] != ('composer_mode' if d['group_count'] == 1 else
+                      'first_main' if d['main_present'] else 'none') or
+            (d['main_count'] is not None and d['main_present'] != (d['main_count'] > 0)) or
+            (not d['main_present'] and d['group_count'] != 0) or
+            (d['group_count'] != 1 and d['group_excluded'] is not None)):
+        return False
+    selected = {}
+    for label in ('chat', 'work'):
+        part = d[label]
+        if (not isinstance(part, dict) or set(part) != {'raw_count', 'filtered_count', 'overflow', 'candidates'} or
+                not count(part['raw_count']) or not count(part['filtered_count']) or
+                part['filtered_count'] > part['raw_count'] or type(part['overflow']) is not bool or
+                part['overflow'] != (part['raw_count'] > 8) or
+                not isinstance(part['candidates'], list) or
+                len(part['candidates']) != min(8, part['raw_count'])):
+            return False
+        visible = []
+        for candidate in part['candidates']:
+            if (not isinstance(candidate, dict) or set(candidate) != {'pressed', 'excluded'} or
+                    not enum(candidate['pressed'], {'true', 'false', 'mixed', 'missing', 'other'}) or
+                    candidate['pressed'] is None or not enum(candidate['excluded'], excluded)):
+                return False
+            if candidate['excluded'] is None:
+                visible.append(candidate['pressed'])
+        if (len(visible) > part['filtered_count'] or
+                (not part['overflow'] and len(visible) != part['filtered_count'])):
+            return False
+        selected[label] = visible
+    # Reject a success-shaped diagnostic snapshot, not just a success error tag.
+    if (d['main_present'] and d['group_count'] <= 1 and d['group_excluded'] is None and
+            d['chat']['filtered_count'] == d['work']['filtered_count'] == 1 and
+            selected['chat'] == ['true'] and selected['work'] == ['false']):
+        return False
+    return True
+
+
 def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
     """Exact no-resume incidents; no inference from an error's stale sent flag."""
     c = c or TERMINAL_UNSENT_CURRENT[st['job']]
@@ -3241,8 +3315,7 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
             raise ValueError('ATTEMPT_LOG')
         attempt_custody[lp] = log_bytes
     mode_refusal = c.get('generic') and c['reason'] == 'CHAT_SURFACE_REFUSED'
-    if mode_refusal and error != {'error': 'CHAT_SURFACE_REFUSED', 'typed': False,
-                                 'sent': False, 'tab': c['tab']}:
+    if mode_refusal and not _terminal_mode_receipt_valid(error, c['tab']):
         raise ValueError('MODE_RECEIPT')
     # This gate's exact pre-input receipt carries its own target, but no state.
     # Never borrow this exception for readiness/model failures or missing tabs.

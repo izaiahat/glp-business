@@ -1,6 +1,16 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_terminal_mode_receipt.py": {
+      "kind": "test",
+      "callers": ["glp357-terminal-mode"],
+      "sha256": "0338290df87a7dc7607cf96c51b8f8eb717df8c8ccec9d4690f199bb1615120e"
+    },
+    ".github/workflows/glp357-terminal-mode.yml": {
+      "kind": "repository_control",
+      "callers": ["GitHub exact-head focused relay CI"],
+      "sha256": "7edbb530bfba49e528856c5a06b2fb8ed36141c0c2b7afabcfc1e79ac80dd08a"
+    },
     "scripts/auto_coordinator_receipt.py": {
       "kind": "script",
       "callers": [
@@ -3458,7 +3468,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "df2a2d33768285dddcec46ce10ab3cb2a461160ed7820a5a16e5795ae1ae27bd"
+      "sha256": "64a5c4481216ef05d69bff012c8c2d5ae1d9a6facecf1c4f70560e17cbc341da"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -6387,7 +6397,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "4cd000925c108ac168ebc69210f8c09e0016438364beb53968d79252a4eb4b22"
+      "sha256": "ba452a4a0e87b5cdc8e980baf4fb9457d84937766a4484a5cc1bbf25d3dab0ef"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -7383,5 +7393,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1083
+  "tracked_count": 1085
 }
