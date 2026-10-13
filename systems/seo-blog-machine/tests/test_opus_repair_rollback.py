@@ -50,6 +50,20 @@ def test_context_bundle_keeps_long_json_quote_on_its_physical_line(tmp_path, sep
     assert all((packet / name).read_text(encoding="utf-8") == text for name in subjects)
 
 
+@pytest.mark.parametrize("raw, expected", [
+    (b'', []),
+    (b'\n', ['']),
+    (b'{\r"a":1}\n', ['{\r"a":1}']),
+    (b'first\rsecond\nthird\r\nfourth\r', ['first\rsecond', 'third', 'fourth\r']),
+    (b'first\nsecond', ['first', 'second']),
+    (b'first\nsecond\n', ['first', 'second']),
+    (b'first\r\nsecond\r\n', ['first', 'second']),
+    (b'\r', ['\r']),
+])
+def test_physical_line_split_preserves_raw_non_delimiter_cr(raw, expected):
+    assert review.physical_source_lines(raw) == expected
+
+
 @pytest.fixture
 def repair_case(tmp_path):
     packet = tmp_path / "packet"

@@ -20,6 +20,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from review_source_lines import physical_source_lines
+
 TARGET_PROVIDER = "openai-codex"
 TARGET_MODEL = "gpt-6-astra-900k"
 TARGET_EFFORT = "high"
@@ -367,12 +369,7 @@ def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_
                  'Every source line is prefixed with its original 1-based line number.']
         for row in manifest['subject_files']:
             parts.extend(['', f"## FILE: {row['path']}", ''])
-            text = (packet / row['path']).read_text(encoding='utf-8')
-            # Only physical LF lines are prefixed by the registered controller.
-            # NEL/U+2028/U+2029 inside JSON quotes are not record boundaries.
-            lines = text.split('\n')
-            if lines[-1] == '':
-                lines.pop()
+            lines = physical_source_lines((packet / row['path']).read_bytes())
             parts.extend(f'{i}|{line}' for i, line in enumerate(lines, 1))
         expected_context = '\n'.join(parts) + '\n'
         if len(captured['context_files']) != 1 or captured['context_files'][0]['content'] != expected_context:

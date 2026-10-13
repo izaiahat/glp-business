@@ -24,6 +24,8 @@ from selection_receipt import (  # noqa: E402
     selection_binding,
     validate_authority_selection_binding,
 )
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+from review_source_lines import physical_source_lines  # noqa: E402
 import review_transports  # noqa: E402
 
 BUSINESS = Path("/home/ubuntu/business")
@@ -295,22 +297,6 @@ def subject_paths(job: dict[str, Any]) -> list[Path]:
 
 def subject_snapshot(packet: Path, paths: list[Path]) -> dict[str, str]:
     return {path.relative_to(packet).as_posix(): sha_file(path) for path in paths}
-
-
-def physical_source_lines(data: bytes) -> list[str]:
-    """Split only physical LF/CRLF lines, never Unicode inside JSON strings.
-
-    str.splitlines() treats NEL and Unicode line/paragraph separators as line
-    endings, even though they are legal unescaped JSON string characters.
-    Keep those characters in their original record for reviewer fidelity.
-    """
-    text = data.decode("utf-8", errors="strict")
-    if not text:
-        return []
-    lines = text.split("\n")
-    if lines[-1] == "":
-        lines.pop()
-    return [line.removesuffix("\r") for line in lines]
 
 
 def seal_subjects(job: dict[str, Any], round_number: int, history: Path) -> tuple[dict[str, Any], Path]:

@@ -23,10 +23,11 @@ def test_fixture_matches_native_registered_context_builder(tmp_path, text):
     nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef)
              and n.name in {'physical_source_lines', 'build_context_bundle'}]
     namespace = {'Path': Path, 'os': os, 'Any': object,
+                 'physical_source_lines': review.physical_source_lines,
                  'subject_paths': lambda job: [Path(job['packet_dir'])/'04-draft.md']}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
     subject = tmp_path/'04-draft.md'
-    subject.write_text(text)
+    subject.write_bytes(text if isinstance(text, bytes) else text.encode())
     manifest = {'manifest_sha256': 'a'*64}
     result = namespace['build_context_bundle']({'packet_dir':str(tmp_path)}, manifest, 1, tmp_path)
     assert result.read_text() == native_context(subject, manifest)
@@ -38,7 +39,7 @@ def native_context(subject, manifest):
               f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
               'Every source line is prefixed with its original 1-based line number.',
               '', f'## FILE: {subject.name}', '']
-    lines = subject.read_text().split('\n')
+    lines = subject.read_bytes().decode('utf-8').replace('\r\n', '\n').split('\n')
     if lines[-1] == '':
         lines.pop()
     chunks.extend(f'{n}|{s}' for n, s in enumerate(lines, 1))
@@ -49,7 +50,7 @@ def fixture(tmp_path, monkeypatch, text='Source-backed draft.\n'):
     packet = tmp_path / 'packet'
     packet.mkdir()
     subject = packet / '04-draft.md'
-    subject.write_text(text)
+    subject.write_bytes(text if isinstance(text, bytes) else text.encode())
     manifest = {'manifest_sha256': 'a' * 64, 'subject_files': [{'path': subject.name}]}
     context = tmp_path / 'context.txt'
     context.write_text(native_context(subject, manifest))
@@ -121,7 +122,10 @@ def fixture(tmp_path, monkeypatch, text='Source-backed draft.\n'):
     return args, inputs, db, packet, manifest, handle, closed
 
 
-@pytest.mark.parametrize('text', ['Source-backed draft.\n', '{"quote":"a\u2028b\u0085c\u2029d"}\n'])
+@pytest.mark.parametrize('text', ['Source-backed draft.\n', '{"quote":"a\u2028b\u0085c\u2029d"}\n',
+                                b'{\r"a":1}\n', b'first\rsecond\nthird\r\nfourth\r',
+                                b'', b'\n', b'first\nsecond', b'first\nsecond\n',
+                                b'first\r\nsecond\r\n', b'\r'])
 def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch, text):
     args, inputs, db, packet, manifest, handle, closed = fixture(tmp_path, monkeypatch, text)
     captured = {}

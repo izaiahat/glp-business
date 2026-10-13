@@ -380,7 +380,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e9b54079224907f0403d13ed5df0549c63d17e616ca94f2a31d68e7f7f9e73e3"
+      "sha256": "0d3832bbdcbd47fb65998245e03e5951f005db1f0b101f37d90b4e3628dcb66c"
     },
     ".hermes.md": {
       "callers": [],
@@ -3445,12 +3445,20 @@
       "kind": "source",
       "sha256": "381b08fd0261a57532b4c85f726c16336d29bc3eb88db5b9a04510ca71712858"
     },
+    "scripts/review_source_lines.py": {
+      "callers": [
+        "systems/seo-blog-machine/scripts/opus_review_loop.py",
+        "scripts/hermes_sol_article_review.py"
+      ],
+      "kind": "script",
+      "sha256": "b2585e5a788e037ee055b8f94bf027568df60e51fd4d86fb4f1c94e93cce2f06"
+    },
     "scripts/hermes_sol_article_review.py": {
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
       "kind": "review_transport",
-      "sha256": "1175e298a6e4726fdc59c2285888a17f21798c2f2c15d62e7178481de0bc402b"
+      "sha256": "eecf460cbb7d1004d680cbc7dc019b80013f027fe5651584aa5fa298e40b2b05"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
@@ -4148,7 +4156,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "64a9aec96eec2304c42c349d63fce026a052a3427d41078b84d73737eb8c9156"
+      "sha256": "80958b10a273fb20b94188c61e53d895c29d55ceb50c80ac87874b783054be9a"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [
@@ -4304,7 +4312,7 @@
         "GLP-7 packet repair rollback and no-replay regression"
       ],
       "kind": "test",
-      "sha256": "25d4e422bfe7450d78010c444b28c06c75f93e40e6dd2e3a3259f4c8fc6d7209"
+      "sha256": "9bada96cd7d1aeca47b9e7c6c14dd21ac2fdbc50f68c7ff32d500a24837f59f1"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
       "callers": [
@@ -4786,7 +4794,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "c22402d0465a2f9b6fc592e038d13c17eeb17730d2dbe3275b2d70d32613f8af"
+      "sha256": "8626ba06ef8d8f714e0af5cf0935b872c7719df08f712761355b7379d0568d25"
     },
     "tests/test_article_source_carrier.py": {
       "callers": [
@@ -7382,5 +7390,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1083
+  "tracked_count": 1084
 }

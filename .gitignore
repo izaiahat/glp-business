@@ -15,6 +15,7 @@
 !/scripts/
 /scripts/*
 !/scripts/article_source_carrier.py
+!/scripts/review_source_lines.py
 !/scripts/agent_exec.py
 !/scripts/glp_affiliate_postback_n8n_sync.py
 !/scripts/glp_postback_authority.py
