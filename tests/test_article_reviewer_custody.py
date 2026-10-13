@@ -14,16 +14,19 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import hermes_sol_article_review as review
 
 
-def test_fixture_matches_native_registered_context_builder(tmp_path):
+@pytest.mark.parametrize('text', ['Actual native line.\nSecond line.\n',
+                                '{"quote":"before\u2028after\u0085end\u2029"}\n', ''])
+def test_fixture_matches_native_registered_context_builder(tmp_path, text):
     import ast, os
     source = ROOT / 'systems/seo-blog-machine/scripts/opus_review_loop.py'
     tree = ast.parse(source.read_text())
-    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'build_context_bundle')
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef)
+             and n.name in {'physical_source_lines', 'build_context_bundle'}]
     namespace = {'Path': Path, 'os': os, 'Any': object,
                  'subject_paths': lambda job: [Path(job['packet_dir'])/'04-draft.md']}
-    exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
     subject = tmp_path/'04-draft.md'
-    subject.write_text('Actual native line.\nSecond line.\n')
+    subject.write_text(text)
     manifest = {'manifest_sha256': 'a'*64}
     result = namespace['build_context_bundle']({'packet_dir':str(tmp_path)}, manifest, 1, tmp_path)
     assert result.read_text() == native_context(subject, manifest)
@@ -35,15 +38,18 @@ def native_context(subject, manifest):
               f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
               'Every source line is prefixed with its original 1-based line number.',
               '', f'## FILE: {subject.name}', '']
-    chunks.extend(f'{n}|{s}' for n, s in enumerate(subject.read_text().splitlines(), 1))
+    lines = subject.read_text().split('\n')
+    if lines[-1] == '':
+        lines.pop()
+    chunks.extend(f'{n}|{s}' for n, s in enumerate(lines, 1))
     return '\n'.join(chunks) + '\n'
 
 
-def fixture(tmp_path, monkeypatch):
+def fixture(tmp_path, monkeypatch, text='Source-backed draft.\n'):
     packet = tmp_path / 'packet'
     packet.mkdir()
     subject = packet / '04-draft.md'
-    subject.write_text('Source-backed draft.\n')
+    subject.write_text(text)
     manifest = {'manifest_sha256': 'a' * 64, 'subject_files': [{'path': subject.name}]}
     context = tmp_path / 'context.txt'
     context.write_text(native_context(subject, manifest))
@@ -115,8 +121,9 @@ def fixture(tmp_path, monkeypatch):
     return args, inputs, db, packet, manifest, handle, closed
 
 
-def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch):
-    args, inputs, db, packet, manifest, handle, closed = fixture(tmp_path, monkeypatch)
+@pytest.mark.parametrize('text', ['Source-backed draft.\n', '{"quote":"a\u2028b\u0085c\u2029d"}\n'])
+def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch, text):
+    args, inputs, db, packet, manifest, handle, closed = fixture(tmp_path, monkeypatch, text)
     captured = {}
     payload = review.build_payload(args, captured)
     response, usage, execution = review.run_hermes(payload, args)

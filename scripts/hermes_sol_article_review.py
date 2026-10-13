@@ -368,7 +368,12 @@ def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_
         for row in manifest['subject_files']:
             parts.extend(['', f"## FILE: {row['path']}", ''])
             text = (packet / row['path']).read_text(encoding='utf-8')
-            parts.extend(f'{i}|{line}' for i, line in enumerate(text.splitlines(), 1))
+            # Only physical LF lines are prefixed by the registered controller.
+            # NEL/U+2028/U+2029 inside JSON quotes are not record boundaries.
+            lines = text.split('\n')
+            if lines[-1] == '':
+                lines.pop()
+            parts.extend(f'{i}|{line}' for i, line in enumerate(lines, 1))
         expected_context = '\n'.join(parts) + '\n'
         if len(captured['context_files']) != 1 or captured['context_files'][0]['content'] != expected_context:
             raise ValueError('runtime input is not this sealed packet')

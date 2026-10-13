@@ -3450,7 +3450,7 @@
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
       "kind": "review_transport",
-      "sha256": "fe0a3a3f742bd43bf0158918bbe8207dcd5faa954602136c0249627007134e16"
+      "sha256": "1175e298a6e4726fdc59c2285888a17f21798c2f2c15d62e7178481de0bc402b"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
@@ -4148,7 +4148,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "602cead8781db2b2a459d8fad7258d6564e5a741d851664203a53e9f854b6092"
+      "sha256": "64a9aec96eec2304c42c349d63fce026a052a3427d41078b84d73737eb8c9156"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [
@@ -4304,7 +4304,7 @@
         "GLP-7 packet repair rollback and no-replay regression"
       ],
       "kind": "test",
-      "sha256": "3951b5ce124548b74dcb409d5e438b28c8d038ac05a70f17360ac2c8dae9c781"
+      "sha256": "25d4e422bfe7450d78010c444b28c06c75f93e40e6dd2e3a3259f4c8fc6d7209"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
       "callers": [
@@ -4786,7 +4786,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "ffb70151dbfbd82a2ef568c1546247dd4998230fbe713eb1b81c4b1d377f147d"
+      "sha256": "c22402d0465a2f9b6fc592e038d13c17eeb17730d2dbe3275b2d70d32613f8af"
     },
     "tests/test_article_source_carrier.py": {
       "callers": [
