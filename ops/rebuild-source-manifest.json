@@ -121,7 +121,7 @@
         "DOT1 exact-head CI"
       ],
       "kind": "repository_control",
-      "sha256": "4ffe4dbf63404fbd318bd137eb64d96301cfb2cb76bd9f4a344434289ca548fd"
+      "sha256": "76b85ad1bd328a6293a68c3565b1adf1c10d31b4d69d8bb6e7d8fb4493151c85"
     },
     "ops/dots/requirements.txt": {
       "callers": [
@@ -142,7 +142,7 @@
         "manual:DOTS coordinator"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "deffff1b910d2839e09108392d4b301ecbf6a3dc0a07aaba59b00f374b9a853d"
+      "sha256": "d2153314e17ad8d7e93565194784e0a749a2cb65fb409f90d901479a18764a12"
     },
     "ops/cron.d/glp-dot-refill": {
       "callers": [
@@ -2572,7 +2572,7 @@
         "manual:authorized-dot-ticket"
       ],
       "kind": "script",
-      "sha256": "eedeb2728028dcaa9d1e54c4cbef225551002621da714eb81f3a045a3fe51c62"
+      "sha256": "780e52f271b6db78bd3d362641238a054e9158bd1f1956ac1fe33cc2263fdf05"
     },
     "scripts/evidence_preserving_pruner.py": {
       "callers": [
@@ -4965,6 +4965,11 @@
       "kind": "test",
       "sha256": "41c1406515baa32434f18c5f1d7975ea7d4554aa6663cf00ac4b526b13fcbe80"
     },
+    "tests/test_dot_dispatch_recovery.py": {
+      "callers": [".github/workflows/dot-lane.yml"],
+      "kind": "test",
+      "sha256": "6b1519a1a0ec11f99171c8ef9cb810a67c31083ef7fa1301f1c695aa9fb04857"
+    },
     "tests/test_f07_registered_weekly_entry.py": {
       "callers": [
         "scripts/run_tests.sh",
@@ -7297,5 +7302,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1071
+  "tracked_count": 1072
 }
