@@ -28,6 +28,14 @@ class API:
 
 REAL_TIME = time.time
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_scheduler_custody(monkeypatch):
+    import host_disk_custody
+    monkeypatch.setattr(host_disk_custody, 'collect', lambda: set())
+
 
 def shift(monkeypatch, days):
     """ctime cannot be backdated; advance the clock instead (time module is shared)."""
@@ -67,6 +75,7 @@ def test_registry_clone_retention_bounds_hourly_regrowth(tmp_path, monkeypatch):
     old_fail = clone_run(root, '20261001T011701Z')
     custody = clone_run(root, '20261001T021701Z', 'PASS_PRODUCTION_TERMINAL', extra=('PUBLISH.json',))
     pinned = clone_run(root, '20261001T031701Z', 'PASS_ALREADY_CURRENT')
+    (pinned / 'prepared/release').mkdir(parents=True)
     dirty = clone_run(root, '20261001T041701Z', 'PASS_ALREADY_CURRENT'); (dirty / 'candidate/new.txt').write_text('x')
     newest = [clone_run(root, f'20261009T0{i}1701Z', 'PASS_ALREADY_CURRENT') for i in range(3)]
     rows = job.retire_disposable_clones(root, pins=[pinned / 'prepared/release'])
@@ -203,6 +212,155 @@ def test_bare_registry_root_reference_does_not_pin_every_run(tmp_path, monkeypat
     pins = set(sweep.references(report))
     assert bus / runs not in pins and bus / 'reports/glp-clinic-scout/affiliate-machine' not in pins
     assert bus / runs / '20261003T030854Z/prepared/release' in pins
+
+
+def test_removed_registered_worktree_is_not_a_live_pin(tmp_path):
+    repo = tmp_path / 'repo'; repo.mkdir(); git(repo, 'init', '-q')
+    (repo / 'f').write_text('x'); git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'x')
+    wts = tmp_path / '.worktrees'; wts.mkdir()
+    live = wts / 'live'; stale = wts / 'stale'
+    git(repo, 'worktree', 'add', '-q', str(live))
+    git(repo, 'worktree', 'add', '-q', str(stale))
+    import shutil
+    shutil.rmtree(stale)  # Coordinator removal can precede git's administrative prune.
+    pins = auto.worktree_pins(roots=(wts,))
+    assert stale not in pins
+    assert {repo, live} <= pins
+
+
+def test_external_inventory_discards_absent_paths_but_keeps_symlinks(tmp_path, monkeypatch):
+    import host_disk_large_sweep as sweep
+    live = tmp_path / 'live'; live.mkdir()
+    stale = tmp_path / 'gone'
+    link = tmp_path / 'link'; link.symlink_to(tmp_path / 'unavailable-target')
+    payload = tmp_path / 'external.json'
+    payload.write_text(json.dumps({'schema': 'host-disk-external-pins-v1',
+                                  'collected_at': REAL_TIME(), 'pins': list(map(str, (live, stale, link)))}))
+    assert sweep.load_external_pins(payload) == {live, link}
+
+
+def test_archive_savings_gate_rolls_back_even_inside_pinned_report(tmp_path, monkeypatch):
+    root = tmp_path / 'evidence'; root.mkdir()
+    (root / 'proof.bin').write_bytes(os.urandom(65536)); shift(monkeypatch, 10)
+    report = tmp_path / 'pruner-report'; report.mkdir()
+    dest = report / 'a.tar.zst'
+    row = m.cold_archive(API(), root, dest, pins=(report,), dry_run=False,
+                         min_bytes=65536, deadline=time.monotonic() + 60)
+    assert row['status'] == 'GATED_NO_NET_SAVINGS'
+    assert (root / 'proof.bin').exists()
+    assert not list(report.iterdir())  # No repeated space-consuming partial or sidecar.
+    assert row['bytes_freed'] == 0
+
+
+def test_failed_archive_verification_rolls_back_before_publish(tmp_path, monkeypatch):
+    import pytest
+    root = tmp_path / 'evidence'; root.mkdir(); (root / 'proof').write_bytes(b'x' * 8192)
+    shift(monkeypatch, 10); dest = tmp_path / 'output/a.tar.zst'
+    def fail(archive, rows, listing):
+        assert archive.name.endswith('.partial') and not dest.exists()
+        raise ValueError('injected verification failure')
+    monkeypatch.setattr(m, 'verify_archive', fail)
+    with pytest.raises(ValueError, match='injected verification'):
+        m.cold_archive(API(), root, dest, dry_run=False, deadline=time.monotonic() + 60)
+    assert (root / 'proof').exists() and not list(dest.parent.iterdir())
+
+
+def abandoned_fixture(tmp_path):
+    root = tmp_path / 'evidence'; root.mkdir(); (root / 'proof').write_bytes(b'proof')
+    archive = tmp_path / 'prune/old/large/archives/a.tar.zst'; archive.parent.mkdir(parents=True)
+    partial = Path(str(archive) + '.partial'); partial.write_bytes(b'uncommitted compressed bytes')
+    manifest = Path(str(archive) + '.manifest.json')
+    manifest.write_text(json.dumps({'source': str(root), 'members': [
+        {'name': 'proof', 'signature': m.signature(root / 'proof'), 'sha256': m.sha(root / 'proof')}]}))
+    return root, archive, partial, manifest
+
+
+def test_abandoned_partial_cleanup_proves_all_originals_still_exist(tmp_path):
+    root, archive, partial, manifest = abandoned_fixture(tmp_path)
+    rows = m.cleanup_abandoned_archives(API(), tmp_path / 'prune', source_roots=(root,),
+                                       dry_run=False, deadline=time.monotonic() + 60)
+    assert rows[0]['status'] == 'ABANDONED_STAGING_REMOVED'
+    assert rows[0]['bytes_freed'] > 0 and (root / 'proof').exists()
+    assert not partial.exists() and not manifest.exists()
+
+
+def test_partial_retirement_or_changed_original_is_never_discarded(tmp_path):
+    root, archive, partial, manifest = abandoned_fixture(tmp_path)
+    ledger = Path(str(archive) + '.retirement.jsonl'); ledger.write_text('')
+    rows = m.cleanup_abandoned_archives(API(), tmp_path / 'prune', source_roots=(root,),
+                                       dry_run=False, deadline=time.monotonic() + 60)
+    assert partial.exists() and rows[0]['bytes_freed'] == 0
+    ledger.unlink(); (root / 'proof').write_bytes(b'changed')
+    rows = m.cleanup_abandoned_archives(API(), tmp_path / 'prune', source_roots=(root,),
+                                       dry_run=False, deadline=time.monotonic() + 60)
+    assert partial.exists() and manifest.exists() and rows[0]['bytes_freed'] == 0
+
+
+def test_pressure_net_floor_is_separate_from_candidate_size(tmp_path, monkeypatch):
+    root = tmp_path / 'evidence'; root.mkdir()
+    (root / 'proof.bin').write_bytes(b'x' * 32768 + os.urandom(32768))
+    shift(monkeypatch, 10)
+    row = m.cold_archive(API(), root, tmp_path / 'out/a.tar.zst', dry_run=False,
+                         min_bytes=65536, min_net_bytes=4096, deadline=time.monotonic() + 60)
+    assert row['status'] == 'ARCHIVED_VERIFIED_RETIRED' and row['bytes_freed'] > 4096
+    assert not (root / 'proof.bin').exists()
+
+
+def test_disk_monitor_triggers_cleanup_even_when_alert_is_unchanged(tmp_path, monkeypatch):
+    import types
+    source = (Path(__file__).resolve().parents[1] / 'ops/hermes-cron-scripts/disk_monitor.sh').read_text()
+    body = source.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    body = body.replace("Path('/home/ubuntu/.hermes')", f"Path({str(tmp_path / 'hermes')!r})")
+    ns = {'__name__': 'fixture'}; exec(compile(body, 'disk_monitor.sh', 'exec'), ns)
+    state = tmp_path / 'state'; state.write_text('critical')
+    calls = []; posts = []
+    monkeypatch.setitem(sys.modules, 'host_capacity_observer', types.SimpleNamespace(notify_state_store=lambda *a: 0))
+    ns.update(STATE_FILE=state, log=lambda *a: None, read_df=lambda: (96, '581G', '555G', '26G'), post=posts.append)
+    # The retained low-disk producer has its own threshold/duplicate regression.
+    def main():
+        calls.append('cleanup'); return ''  # Existing service owner => silent duplicate.
+    ns['run_low_disk_trigger'] = main
+    assert ns['main']() == 0
+    assert calls == ['cleanup'] and posts == []
+
+
+def test_compressor_failure_rolls_back_all_uncommitted_outputs(tmp_path, monkeypatch):
+    import pytest
+    root = tmp_path / 'evidence'; root.mkdir(); (root / 'proof').write_bytes(b'x' * 8192)
+    shift(monkeypatch, 10); dest = tmp_path / 'output/a.tar.zst'
+    real_popen = m.subprocess.Popen
+    def fail_compressor(command, **kwargs):
+        return real_popen([sys.executable, '-c', 'import sys;sys.stdin.buffer.read();sys.exit(1)'], **kwargs)
+    monkeypatch.setattr(m.subprocess, 'Popen', fail_compressor)
+    with pytest.raises(ValueError, match='compression failed'):
+        m.cold_archive(API(), root, dest, dry_run=False, deadline=time.monotonic() + 60)
+    assert (root / 'proof').exists() and not list(dest.parent.iterdir())
+
+
+def test_pressure_enrolls_cold_publisher_reports_without_enrolling_live_pins(tmp_path, monkeypatch):
+    import host_disk_large_sweep as sweep
+    bus = tmp_path / 'business'
+    ops = bus / 'reports/ops'; ops.mkdir(parents=True)
+    old = ops / 'old-20260901'; old.mkdir()
+    reports = bus / 'reports/glp-clinic-scout'; reports.mkdir()
+    cold = reports / 'evidence-refresh'; cold.mkdir()
+    live = reports / 'live'; live.mkdir()
+    link = reports / 'link'; link.symlink_to(cold, target_is_directory=True)
+    monkeypatch.setattr(sweep, 'BUS', bus)
+    assert sweep.cold_report_roots((live,), pressure=False) == [old]
+    assert set(sweep.cold_report_roots((live,), pressure=True)) == {old, cold}
+
+
+def test_report_ranking_does_not_silently_drop_large_slow_roots(tmp_path,monkeypatch):
+    import host_disk_large_sweep as sweep
+    from types import SimpleNamespace
+    monkeypatch.setattr(sweep.time,'monotonic',lambda:100)
+    def du(*args,**kwargs):
+        assert kwargs['timeout']>=30
+        return SimpleNamespace(returncode=0,stdout='50000000000 root\n',stderr='')
+    monkeypatch.setattr(sweep.subprocess,'run',du)
+    ranking,refusals=sweep.rank_reports([tmp_path],400)
+    assert ranking==[(50000000000,tmp_path)] and refusals==[]
 
 
 def test_release_toolchains_are_protected_roots():

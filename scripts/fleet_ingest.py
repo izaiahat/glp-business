@@ -391,6 +391,65 @@ def revoke_stale(root, current_items):
     return revoked
 
 
+def admission_observation(proc=Path('/proc'), budget=None):
+    """Read host counters, never reserve/reclaim slots or call a spawn gate.
+
+    A poll snapshot is not an admission decision or proof of continuous workload.
+    Unknown measurements remain null; lease rows are not a live executor census.
+    """
+    budget = budget or Path('/home/ubuntu/.hermes/cache/delegation-host-budget.json')
+    result = {'observed_at_utc': now(), 'mem_available_kb': None,
+              'swap_free_kb': None, 'psi_full_avg10': None,
+              'swap_io_pages': None, 'swappiness': None,
+              'reserved_slots_unvalidated': None,
+              'actual_memory_gate_refusals': None, 'errors': []}
+    def text(path):
+        try:
+            return path.read_text()
+        except OSError as exc:
+            result['errors'].append(str(exc))
+            return ''
+    try:
+        mem = {line.split(':', 1)[0]: int(line.split()[1])
+               for line in text(proc / 'meminfo').splitlines() if ':' in line}
+        result['mem_available_kb'] = mem.get('MemAvailable')
+        result['swap_free_kb'] = mem.get('SwapFree')
+        for line in text(proc / 'pressure/memory').splitlines():
+            if line.startswith('full '):
+                result['psi_full_avg10'] = float(next(x.split('=')[1] for x in line.split() if x.startswith('avg10=')))
+        counters = dict(line.split() for line in text(proc / 'vmstat').splitlines())
+        if 'pswpin' in counters and 'pswpout' in counters:
+            result['swap_io_pages'] = int(counters['pswpin']) + int(counters['pswpout'])
+        value = text(proc / 'sys/vm/swappiness').strip()
+        result['swappiness'] = int(value) if value else None
+        rows = json.loads(text(budget))
+        if not isinstance(rows, list) or not all(isinstance(r, dict) and {'pid', 'start', 'token'} <= r.keys() for r in rows):
+            raise ValueError('host budget schema invalid')
+        result['reserved_slots_unvalidated'] = len(rows)
+    except (ValueError, IndexError, StopIteration) as exc:
+        result['errors'].append(str(exc))
+    return result
+
+
+def admission_metrics(previous, observation):
+    """Retain actual poll observations in the existing receipt, not a new ledger."""
+    cutoff = datetime.fromisoformat(observation['observed_at_utc']).timestamp() - 86400
+    samples = []
+    for row in previous.get('admission_metrics', {}).get('observations', []):
+        try:
+            if cutoff <= datetime.fromisoformat(row['observed_at_utc']).timestamp() <= cutoff + 86400:
+                samples.append(row)
+        except (ValueError, KeyError, TypeError):
+            continue
+    samples.append(observation)
+    return {'schema': 'fleet-admission-observations-v1',
+            'observations': samples[-300:], 'full_acceptance': 'UNPROVEN',
+            'missing_evidence': ['actual admission decisions/refusals',
+                                 '24h genuine eight-slot workload',
+                                 'supported pruner and scheduled audit disposition',
+                                 'continuous swap guard outcome']}
+
+
 def poll(root, live, plan_path, config_path, timeout=30, retry=False):
     inbox = root / 'reports/ops/fleet-inbox'
     inbox.mkdir(parents=True, exist_ok=True)
@@ -441,7 +500,8 @@ def poll(root, live, plan_path, config_path, timeout=30, retry=False):
             rows.append(str(path))
         summary = {'schema': 'fleet-ingest-run-v1', 'status': 'COMPLETE', 'finished_at_utc': now(),
                    'sources': counts, 'statuses': statuses, 'row_count': len(rows), 'changed': changed,
-                   'rows': rows, 'errors': errors, 'linear_mutations': 0, 'revoked': revoked}
+                   'rows': rows, 'errors': errors, 'linear_mutations': 0, 'revoked': revoked,
+                   'admission_metrics': admission_metrics(read(inbox / 'LAST-RUN.json'), admission_observation())}
         atomic(inbox / 'LAST-RUN.json', summary)
         return summary
 

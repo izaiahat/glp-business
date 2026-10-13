@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Registered F04/F06 affiliate synchronization: sole-writer read -> source -> CI -> native release.
+"""F03 source-only affiliate synchronization: read -> source PR -> exact-head CI -> merge.
 
-A singleton and durable publication intent prevent overlap or ambiguous retries.
-All source changes go through an exact-head GitHub PR. No Sheet writes or tracker visits.
+Hourly glp_release_main.py is the production publisher and explicitly uses the
+shared gated release library. This command never builds or publishes, including
+when an old installed cron still supplies --publish. No Sheet writes or tracker visits.
 """
 from __future__ import annotations
 import argparse
@@ -181,23 +182,59 @@ writeFileSync('artifacts/ops/affiliate-sync-census.json',JSON.stringify(census))
     save(report/'GATE.json',gate)
 
 
-def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
+def prepare_sync_source(source, report, changed):
+    """Bind a source branch to its parent AND complete intended tree.
+
+    A registry-only key collides when an accepted article advances main. On an
+    uncertain prior push, authenticate the remote tree/parent and reuse that
+    exact commit; never force-push or mint a timestamp-dependent replacement.
+    """
+    base = run(['git','rev-parse','HEAD'],cwd=source)
+    run(['git','add',*changed],cwd=source)
+    tree = run(['git','write-tree'],cwd=source)
+    branch = 'automation/affiliate-sync-' + hashlib.sha256((base+'\n'+tree).encode()).hexdigest()[:24]
+    ref = 'refs/heads/' + branch
+    remote = run(['git','ls-remote','--heads','origin',ref],cwd=source)
+    if remote:
+        rows = [line.split() for line in remote.splitlines()]
+        if len(rows)!=1 or len(rows[0])!=2 or rows[0][1]!=ref:
+            raise RuntimeError('sync_remote_source_identity_ambiguous')
+        head = rows[0][0]
+        run(['git','fetch','origin',head],cwd=source,log=report/'source-resume-fetch.log')
+        if (run(['git','rev-parse','FETCH_HEAD^{tree}'],cwd=source)!=tree
+                or run(['git','show','-s','--format=%P','FETCH_HEAD'],cwd=source)!=base):
+            raise RuntimeError('sync_remote_source_identity_drift')
+        run(['git','checkout','--detach',head],cwd=source)
+        save(report/'source-intent.json',{'branch':branch,'head':head,'base':base,'tree':tree,'reused_remote':True})
+    else:
+        run(['git','checkout','-b',branch],cwd=source)
+        run(['git','commit','-m','Sync authenticated affiliate terms and deny adverse selected relationships'],cwd=source,log=report/'commit.log')
+        save(report/'source-intent.json',{'branch':branch,'head':run(['git','rev-parse','HEAD'],cwd=source),'base':base,'tree':tree})
+        run(['git','push','-u','origin',branch],cwd=source,log=report/'push.log')
+    return branch
+
+
+def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_only=True):
+    """Default to source production; hourly main must explicitly own publication."""
     from glp_affiliate_registry_sync import sync
-    from glp_affiliate_release import package_and_publish
     source=report/'candidate'
     run(['git','clone','--quiet','--single-branch','git@github.com:'+REPO+'.git',str(source)])
     if source_ref:
         run(['git','fetch','origin',source_ref],cwd=source,log=report/'resume-fetch.log')
         run(['git','checkout','--detach',source_ref],cwd=source)
     outcome=sync(source,report/'registry',True)
-    prior=read(ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json')
-    prior_root=Path(prior['release_root'])
+    if source_only and not source_ref and not source_pr and outcome['changed']==0:
+        result={'status':'PASS_SOURCE_NO_CHANGE','registry_changed':0,'deployed':False,
+                'production_publisher':'glp_release_main.py','run_type':os.environ.get('GLP_RUN_TYPE','manual')}
+        save(report/'RESULT.json',result);return result
+    prior={} if source_only else read(ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json')
+    prior_root=Path(prior.get('release_root',report))
     surfaces=['data/program-registry.json','src/affiliate-relationship-sync.mjs','src/go-runtime-selection.mjs','scripts/build-staging.mjs','functions/go/program-manifest.js']
     # The registry no-change shortcut describes only affiliate surfaces. An
     # explicit source PR/ref can add accepted guides or other site source while
     # those surfaces are identical; it must traverse exact-head CI/build/release.
     # glp_release_main.py owns the complete-source already-current check.
-    if not source_ref and not source_pr and outcome['changed']==0 and rebuild_inputs_complete(prior_root) and all((prior_root/p).is_file() and sha(prior_root/p)==sha(source/p) for p in surfaces):
+    if not source_only and not source_ref and not source_pr and outcome['changed']==0 and rebuild_inputs_complete(prior_root) and all((prior_root/p).is_file() and sha(prior_root/p)==sha(source/p) for p in surfaces):
         from glp_affiliate_absence_audit import audit
         absence=audit(source,outcome,read(report/'registry/sheet-snapshot.json'),public=prior_root/'public')
         save(report/'ADVERSE-ABSENCE.json',absence)
@@ -209,14 +246,13 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
         run(argv+['node','scripts/regenerate-go-runtime-manifest.mjs','--current-holds-only'],log=report/'regenerate.log')
         changed=run(['git','diff','--name-only'],cwd=source).splitlines()
         if not set(changed)<= {'data/program-registry.json','functions/go/program-manifest.js'}:raise RuntimeError('sync_source_scope_expanded')
-        branch='automation/affiliate-sync-'+sha(source/'data/program-registry.json')[:16]
-        run(['git','checkout','-b',branch],cwd=source)
-        run(['git','add',*changed],cwd=source)
-        run(['git','commit','-m','Sync authenticated affiliate terms and deny adverse selected relationships'],cwd=source,log=report/'commit.log')
-        # Deterministic branch identity makes an uncertain push inspectable.
-        save(report/'source-intent.json',{'branch':branch,'head':run(['git','rev-parse','HEAD'],cwd=source)})
-        run(['git','push','-u','origin',branch],cwd=source,log=report/'push.log')
-        source_pr=run(['gh','pr','create','--repo',REPO,'--base','main','--head',branch,'--title','Automatic F03 affiliate terms and relationship sync','--body','Exact sole-writer readback; denial-only relationship changes and authenticated-capture terms. No activation or tracker visits. Operator-approved F04/F06 propagation.'])
+        branch=prepare_sync_source(source,report,changed)
+        prs=json.loads(run(['gh','pr','list','--repo',REPO,'--head',branch,'--state','all','--json','url,state,headRefOid']))
+        if len(prs)>1 or (prs and prs[0]['state']=='CLOSED'):
+            raise RuntimeError('sync_source_pr_ambiguous_or_closed')
+        if prs and prs[0]['headRefOid']!=run(['git','rev-parse','HEAD'],cwd=source):
+            raise RuntimeError('sync_source_pr_head_drift')
+        source_pr=prs[0]['url'] if prs else run(['gh','pr','create','--repo',REPO,'--base','main','--head',branch,'--title','Automatic F03 affiliate terms and relationship sync','--body','Exact sole-writer readback; denial-only relationship changes and authenticated-capture terms. No activation or tracker visits. Operator-approved F04/F06 propagation.'])
         save(report/'PR.json',{'url':source_pr})
     if not source_pr:raise RuntimeError('merged_exact_head_pr_required')
     evidence=ci(source_pr,report)
@@ -230,6 +266,13 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
     if run(['git','rev-parse','origin/main^{tree}'],cwd=source)!=run(['git','rev-parse','HEAD^{tree}'],cwd=source):raise RuntimeError('main_advanced_rebase_required')
     save(report/'MERGE.json',merged)
     save(report/'CI.json',{**evidence,**merged})
+    if source_only:
+        result={'status':'PASS_SOURCE_MERGED','source_pr':source_pr,'source_head':head,
+                'merge_head':merged['mergeCommit']['oid'],'registry_changed':outcome['changed'],
+                'deployed':False,'production_publisher':'glp_release_main.py',
+                'run_type':os.environ.get('GLP_RUN_TYPE','manual')}
+        save(report/'RESULT.json',result);return result
+    from glp_affiliate_release import package_and_publish
     lock=[sys.executable,'-B',str(ROOT/'scripts/candidate_build_lock.py')]
     state=json.loads(run(lock+['status']))
     if state['status']!='FREE':raise RuntimeError('build_slot_busy:'+state.get('holder','unknown'))
@@ -361,6 +404,7 @@ def main():
     p.add_argument('--provision-from',type=Path)
     p.add_argument('--output',type=Path);p.add_argument('--source-ref');p.add_argument('--source-pr');p.add_argument('--publish',action='store_true')
     a=p.parse_args()
+    if a.resume_report:raise ValueError('hourly_main_release_only: use glp_release_main.py')
     if a.provision_from:print(json.dumps(provision(a.provision_from)));return 0
     config=read(a.config)
     root=ROOT/'reports/glp-clinic-scout/affiliate-machine/registry-site-sync';root.mkdir(parents=True,exist_ok=True)
@@ -380,14 +424,14 @@ def main():
             pending=[]
             for intent in sorted(root.glob('*/source-intent.json')):
                 data=read(intent);pr_path=intent.parent/'PR.json'
-                if data['head'] not in completed and pr_path.is_file() and not superseded(data['head']):
+                if data['head'] not in completed and not (intent.parent/'MERGE.json').is_file() and pr_path.is_file() and not superseded(data['head']):
                     pending.append((data['head'],read(pr_path)['url']))
             if pending:a.source_ref,a.source_pr=pending[-1]
-        if a.resume_report:
-            print(json.dumps(resume_prepared(a.resume_report.resolve(),config,a.publish)));return 0
+        # F03 never resumes prepared releases; hourly main owns that effect.
         report=a.output or root/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         report.mkdir(parents=True,exist_ok=False)
-        try:result=execute(config,report,source_ref=a.source_ref,source_pr=a.source_pr,publish=a.publish)
+        # Legacy installed --publish remains accepted but cannot grant publication.
+        try:result=execute(config,report,source_ref=a.source_ref,source_pr=a.source_pr,publish=False,source_only=True)
         except Exception as e:
             save(report/'FAILURE.json',{'status':'FAIL','error':str(e),'run_type':os.environ.get('GLP_RUN_TYPE','manual')});raise
         finally:

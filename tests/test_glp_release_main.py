@@ -8,6 +8,23 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import glp_release_main as rm  # noqa: E402
+from test_codex_cloud_vpn_renewal import (
+    test_vpn_renewal_14day_threshold_and_no_remint,
+    test_vpn_private_reader_refuses_symlink_and_hardlink,
+    test_vpn_cloud_proof_requires_new_task_nonce_allowed_and_denied,
+    test_vpn_pending_proof_never_revokes_old_key,
+)
+from test_codex_evidence_alias import test_exact_readonly_alias_and_denials
+from test_codex_cloud_key_renewal import (
+    test_renewal_monitor_deadline_and_exact_readback,
+    test_renewal_monitor_uncertain_post_reconciles_without_repost,
+    test_renewal_registry_preserves_existing_scope,
+)
+from test_glp_single_publisher import (
+    test_registered_f03_ignores_legacy_publish_flag,
+    test_f03_merge_handoff_is_selected_by_hourly_release,
+    test_f03_resume_cannot_publish,
+)
 import glp_affiliate_sync_job as job  # noqa: E402
 
 
@@ -173,7 +190,7 @@ def test_explicit_main_source_never_shortcuts_on_unchanged_affiliate_surfaces(tm
     def ci(*args):
         raise RuntimeError('exact-head-ci-gate-reached')
     monkeypatch.setattr(job, 'ci', ci)
-    assert job.execute({},tmp_path / 'auto')['status'] == 'PASS_ALREADY_CURRENT'
+    assert job.execute({},tmp_path / 'auto',source_only=False)['status'] == 'PASS_ALREADY_CURRENT'
     for ref, pr in [('guide-head','guide-pr'), (None,'guide-pr')]:
         with pytest.raises(RuntimeError,match='exact-head-ci-gate-reached'):
             job.execute({},tmp_path / 'explicit',source_ref=ref,source_pr=pr,publish=True)
@@ -259,3 +276,80 @@ def test_main_release_base_skips_stale_prepared_chain_but_requires_terminal_poin
     assert carrier_module.main_release_fresh(runs / '20261003T030854Z/prepared') is False
     assert carrier_module.main_release_fresh(runs / 'main-20261009T045825Z/other') is False
     assert carrier_module.main_release_fresh(Path('/tmp/main-20261009T045825Z/prepared')) is False
+
+
+def test_sync_branch_identity_and_retry_use_real_git(tmp_path, monkeypatch):
+    """Identical registry on different article bases must not collide or replay."""
+    import subprocess
+    def git(*args, cwd=tmp_path):
+        return subprocess.check_output(['git', *map(str,args)], cwd=cwd, text=True).strip()
+    remote = tmp_path/'remote.git'
+    git('init','--bare',remote)
+    seed = tmp_path/'seed'; git('clone',remote,seed)
+    git('config','user.email','fixture@example.invalid',cwd=seed)
+    git('config','user.name','Offline fixture',cwd=seed)
+    (seed/'registry.json').write_text('old'); (seed/'guide.json').write_text('first guide')
+    git('add','.',cwd=seed);git('commit','-m','base',cwd=seed);git('push','origin','HEAD:main',cwd=seed)
+    bases = [git('rev-parse','HEAD',cwd=seed)]
+    (seed/'guide.json').write_text('second guide')
+    git('add','.',cwd=seed);git('commit','-m','second guide',cwd=seed)
+    bases.append(git('rev-parse','HEAD',cwd=seed));git('push','origin','HEAD:main',cwd=seed)
+    branches=[];heads=[]
+    for n,base in enumerate([bases[0],bases[1],bases[1]]):
+        source=tmp_path/('source'+str(n));git('clone','--branch','main',remote,source)
+        git('checkout','--detach',base,cwd=source)
+        git('config','user.email','fixture@example.invalid',cwd=source)
+        git('config','user.name','Offline fixture',cwd=source)
+        (source/'registry.json').write_text('same authenticated registry')
+        report=tmp_path/('report'+str(n));report.mkdir()
+        branch=job.prepare_sync_source(source,report,['registry.json'])
+        branches.append(branch);heads.append(git('rev-parse','HEAD',cwd=source))
+        assert git('show','HEAD:registry.json',cwd=source)=='same authenticated registry'
+        assert git('rev-parse','HEAD^',cwd=source)==base
+        assert json.loads((report/'source-intent.json').read_text())['head']==heads[-1]
+    assert branches[0]!=branches[1]  # original registry-only identity collided
+    assert branches[1]==branches[2] and heads[1]==heads[2]  # remote commit reused, no force push
+
+
+def test_sync_branch_existing_ref_drift_refuses(tmp_path, monkeypatch):
+    calls=[]
+    def run(argv,**kw):
+        calls.append(argv)
+        if argv==['git','rev-parse','HEAD']:return 'a'*40
+        if argv==['git','write-tree']:return 'b'*40
+        if argv[:2]==['git','ls-remote']:return 'c'*40+'\t'+argv[-1]
+        if argv==['git','rev-parse','FETCH_HEAD^{tree}']:return 'd'*40
+        return ''
+    monkeypatch.setattr(job,'run',run)
+    with pytest.raises(RuntimeError,match='sync_remote_source_identity_drift'):
+        job.prepare_sync_source(tmp_path,tmp_path,['registry.json'])
+    assert not any(c[:2] in (['git','push'],['git','commit']) for c in calls)
+
+
+@pytest.mark.parametrize('prior,reason', [
+    ([{'url':'existing-pr','state':'OPEN','headRefOid':'H'}], 'reached-existing-pr-ci'),
+    ([{'url':'closed-pr','state':'CLOSED','headRefOid':'H'}], 'sync_source_pr_ambiguous_or_closed'),
+    ([{'url':'one'},{'url':'two'}], 'sync_source_pr_ambiguous_or_closed'),
+    ([{'url':'existing-pr','state':'OPEN','headRefOid':'OTHER'}], 'sync_source_pr_head_drift'),
+])
+def test_sync_existing_pr_reconciled_before_create(tmp_path, monkeypatch, prior, reason):
+    import glp_affiliate_registry_sync as registry
+    monkeypatch.setattr(registry,'sync',lambda *a: {'changed':1})
+    monkeypatch.setattr(job,'namespace',lambda *a: [])
+    monkeypatch.setattr(job,'prepare_sync_source',lambda *a: 'automation/fixture')
+    monkeypatch.setattr(job,'save',lambda *a: None)
+    calls=[]
+    def run(argv,**kw):
+        calls.append(argv)
+        if argv[:3]==['git','diff','--name-only']:return 'data/program-registry.json'
+        if argv==['git','rev-parse','HEAD']:return 'H'
+        if argv[:3]==['gh','pr','list']:return json.dumps(prior)
+        if argv[:3]==['gh','pr','create']:raise AssertionError('duplicate PR mutation')
+        return ''
+    monkeypatch.setattr(job,'run',run)
+    def ci(pr, report):
+        assert pr=='existing-pr'
+        raise RuntimeError('reached-existing-pr-ci')
+    monkeypatch.setattr(job,'ci',ci)
+    with pytest.raises(RuntimeError,match=reason):job.execute({},tmp_path,source_only=True)
+    assert not any(c[:3]==['gh','pr','create'] for c in calls)

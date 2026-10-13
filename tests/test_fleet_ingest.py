@@ -183,6 +183,41 @@ class FleetTest(unittest.TestCase):
             row = m.read(root / 'reports/ops/fleet-inbox/GLP-44/sol/INGEST.json')
             self.assertEqual(row['status'], 'REDISPATCH')
             self.assertIn('source evidence changed', row['failure_text'])
+    def test_poll_records_real_metrics_without_claiming_admission(self):
+        from unittest.mock import patch
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proc = root / 'proc'
+            (proc / 'pressure').mkdir(parents=True)
+            (proc / 'sys/vm').mkdir(parents=True)
+            (proc / 'meminfo').write_text('MemAvailable: 8000000 kB\nSwapFree: 2000000 kB\n')
+            (proc / 'pressure/memory').write_text('full avg10=0.20 avg60=0.10\n')
+            (proc / 'vmstat').write_text('pswpin 12\npswpout 34\n')
+            (proc / 'sys/vm/swappiness').write_text('10\n')
+            budget = root / 'budget.json'
+            budget.write_text('[{"pid": 1, "start": "2", "token": "x"}]')
+            obs = m.admission_observation(proc, budget)
+            self.assertEqual(obs['swap_io_pages'], 46)
+            self.assertEqual(obs['reserved_slots_unvalidated'], 1)
+            self.assertIsNone(obs['actual_memory_gate_refusals'])
+            self.assertEqual(obs['errors'], [])
+            with patch.object(m, 'run', return_value={'rc': 0, 'stdout': '[]', 'stderr': ''}), patch.object(m, 'admission_observation', return_value=obs):
+                row = m.poll(root, root / 'live', root / 'plan', root / 'config')
+                metrics = row['admission_metrics']
+                self.assertEqual(metrics['full_acceptance'], 'UNPROVEN')
+                self.assertEqual(metrics['observations'], [obs])
+                row = m.poll(root, root / 'live', root / 'plan', root / 'config')
+                self.assertEqual(len(row['admission_metrics']['observations']), 2)
+            budget.write_text('{}')
+            unknown = m.admission_observation(root / 'missing', budget)
+            self.assertIsNone(unknown['mem_available_kb'])
+            self.assertIsNone(unknown['reserved_slots_unvalidated'])
+            self.assertTrue(unknown['errors'])
+            stale = dict(obs, observed_at_utc='2000-01-01T00:00:00+00:00')
+            metrics = m.admission_metrics({'admission_metrics': {'observations': [stale]}}, obs)
+            self.assertEqual(metrics['observations'], [obs])
+
     def test_stat_thresholds_are_checked_not_just_exit_zero(self):
         m = self.load()
         with tempfile.TemporaryDirectory() as d:

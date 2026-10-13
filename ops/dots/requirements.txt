@@ -1,0 +1,5 @@
+# Dispatcher/consumer imports, installed with uv into the exact approved venv.
+# Adapter service requirements remain in ops/rook-mcp/requirements.txt.
+PyJWT[crypto]==2.13.0
+cryptography==46.0.3
+standardwebhooks==1.0.0

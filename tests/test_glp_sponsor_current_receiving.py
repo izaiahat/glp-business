@@ -16,7 +16,7 @@ def test_current_coordinator_receiving_is_not_a_historical_session(tmp_path, mon
     monkeypatch.setattr(c, 'STATE', root / 'runtime')
     monkeypatch.setattr(r, 'reviewed_source_head', lambda campaign: '1'*40, raising=False)
     monkeypatch.setattr(r, 'packet_binding', lambda campaign, packet, config: {'source': 'a'*64})
-    monkeypatch.setattr(r, 'current_authority', lambda campaign: {'plan_sha256': 'b'*64, 'decision_sha256': 'd'*64,
+    monkeypatch.setattr(r, 'current_authority', lambda campaign, coordinator=None: {'plan_sha256': 'b'*64, 'decision_sha256': 'd'*64,
                                                                        'coordinator': {'session_id':'current-parent-session'}})
     packet = root / 'reports/ops/sponsor-machine-20261003/sponsor-review-packet.zip'
     packet.parent.mkdir(parents=True)
@@ -108,6 +108,7 @@ def test_current_root_coordinator_and_adverse_launch_metadata(coordinator_runtim
     with pytest.raises(RuntimeError, match='current_coordinator_execution_required'):
         r.require_coordinator_execution()
     # A stale receipt cannot survive backend PID reuse or a session switch.
+    put(101,100,['/bin/bash','-c','receiver'],dict(env,HERMES_SESSION_ID='current-parent-session'))
     put(100,1,[str(r.HOME/'hermes-agent/venv/bin/python'),'-m','tui_gateway.entry'],env,start='9999')
     assert r.live_coordinator() != original
     active.write_text(json.dumps({'session_id':'leaf-session'}))
@@ -116,6 +117,107 @@ def test_current_root_coordinator_and_adverse_launch_metadata(coordinator_runtim
     active.write_text(json.dumps({'session_id':'unknown-historical-session'}))
     with pytest.raises(RuntimeError, match='current_coordinator_execution_required'):
         r.live_coordinator()
+
+
+def test_multiple_tuis_resolve_receiving_by_kernel_ancestry(coordinator_runtime):
+    r, put, env, active = coordinator_runtime
+    other = active.with_name('other.json')
+    other.write_text(active.read_text())
+    put(200,1,[str(r.HOME/'hermes-agent/venv/bin/python'),'-m','tui_gateway.entry'],
+        dict(env,HERMES_TUI_ACTIVE_SESSION_FILE=str(other)))
+    assert r.require_coordinator_execution() == 'current-parent-session'
+    assert r.live_coordinator()['pid'] == 100
+
+
+def test_scheduled_readback_selects_exact_received_tui(coordinator_runtime, monkeypatch):
+    r, put, env, active = coordinator_runtime
+    received = r.live_coordinator()
+    other = active.with_name('other.json'); other.write_text(active.read_text())
+    put(200,1,[str(r.HOME/'hermes-agent/venv/bin/python'),'-m','tui_gateway.entry'],
+        dict(env,HERMES_TUI_ACTIVE_SESSION_FILE=str(other)))
+    # A scheduled consumer has no TUI ancestry; the existing receipt selects,
+    # but never creates, exact live custody. A PID/session restart still refuses.
+    monkeypatch.setattr(r.os,'getppid',lambda:1)
+    assert r.live_coordinator(received) == received
+    put(100,1,[str(r.HOME/'hermes-agent/venv/bin/python'),'-m','tui_gateway.entry'],env,start='9999')
+    with pytest.raises(RuntimeError,match='current_coordinator_execution_required'):
+        r.live_coordinator(received)
+
+
+def test_source_only_packet_refresh_preserves_outward_bytes(tmp_path, monkeypatch):
+    import zipfile
+    import glp_sponsor_current_receiving as r
+    monkeypatch.setattr(c, 'ROOT', tmp_path)
+    blobs = {name: name.encode() for name in set(r.SOURCE_PATHS)|set(r.ASSETS)|{r.REVIEW,r.SUPPLY,r.ASSET_REVIEW}}
+    manifest = {name:hashlib.sha256(blob).hexdigest() for name,blob in blobs.items()}
+    blobs[r.MANIFEST] = json.dumps(manifest).encode()
+    packet = tmp_path/r.PACKET; packet.parent.mkdir(parents=True)
+    with zipfile.ZipFile(packet,'w') as z:
+        for name, blob in blobs.items(): z.writestr(name,blob)
+    for name in r.SOURCE_PATHS:
+        path=tmp_path/name; path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_bytes(blobs[name])
+    (tmp_path/'scripts/glp_sponsor_campaign.py').write_bytes(b'reviewed successor sender')
+    before=packet.read_bytes()
+    out=tmp_path/'proposal.zip'
+    r.refresh_source_packet(c,c.digest(packet),out)
+    assert packet.read_bytes()==before
+    with zipfile.ZipFile(out) as z:
+        assert set(z.namelist())==set(blobs)
+        for name,blob in blobs.items():
+            if name not in (r.MANIFEST,'scripts/glp_sponsor_campaign.py'):
+                assert z.read(name)==blob
+    with pytest.raises(RuntimeError,match='source_packet_output_exists'):
+        r.refresh_source_packet(c,c.digest(packet),out)
+    (tmp_path/r.COPY).write_bytes(b'unauthorized changed copy')
+    with pytest.raises(RuntimeError,match='source_packet_nontechnical_drift'):
+        r.refresh_source_packet(c,c.digest(packet),tmp_path/'bad.zip')
+
+
+def test_receive_renewal_requires_exact_predecessor_and_archives(tmp_path, monkeypatch):
+    import contextlib
+    import zipfile
+    import glp_sponsor_current_receiving as r
+    import sync_from_repo as sync
+    monkeypatch.setattr(c,'ROOT',tmp_path)
+    monkeypatch.setattr(c,'STATE',tmp_path/'runtime');c.STATE.mkdir()
+    monkeypatch.setattr(c,'CONFIG',tmp_path/r.CONFIG)
+    c.save(c.CONFIG,{'send_enabled':False,'packet_sha256':None})
+    monkeypatch.setattr(r,'require_coordinator_execution',lambda:'root-session')
+    monkeypatch.setattr(r,'current_authority',lambda *a,**kw:{'coordinator':{'session_id':'root-session'}})
+    monkeypatch.setattr(r,'reviewed_source_head',lambda _: 'a'*40)
+    monkeypatch.setattr(r,'packet_binding',lambda *a,**kw:{'source':'reviewed'})
+    monkeypatch.setattr(c,'approval_ready',lambda _:True)
+    monkeypatch.setattr(sync,'source_lock',lambda _:contextlib.nullcontext())
+    def packet(path,sender=b'old',copy=b'unchanged'):
+        path.parent.mkdir(parents=True,exist_ok=True)
+        with zipfile.ZipFile(path,'w') as z:
+            z.writestr('scripts/glp_sponsor_campaign.py',sender)
+            z.writestr(r.COPY,copy)
+            z.writestr(r.MANIFEST,b'{}')
+    packet(tmp_path/r.PACKET)
+    old=dict(packet_sha256=c.digest(tmp_path/r.PACKET),schema=r.SCHEMA)
+    c.save(c.STATE/r.RECEIPT,old);c.save(c.STATE/'approval.json',old)
+    c.save(c.STATE/'activation.json',dict(send_enabled=True,packet_sha256=old['packet_sha256']))
+    old_receipt=(c.STATE/r.RECEIPT).read_bytes();old_packet=(tmp_path/r.PACKET).read_bytes()
+    old_sha=c.digest(c.STATE/r.RECEIPT)
+    candidate=tmp_path/'candidate.zip';packet(candidate,b'new')
+    result=tmp_path/'result.json'
+    with pytest.raises(RuntimeError,match='current_renewal_predecessor_changed'):
+        r.receive(c,c.digest(candidate),'a'*40,result,successor_packet=candidate,replace_receipt_sha256='0'*64)
+    packet(candidate,b'new',b'changed commercial copy')
+    with pytest.raises(RuntimeError,match='current_renewal_outward_bytes_changed'):
+        r.receive(c,c.digest(candidate),'a'*40,result,successor_packet=candidate,replace_receipt_sha256=old_sha)
+    assert (c.STATE/r.RECEIPT).read_bytes()==old_receipt
+    assert (tmp_path/r.PACKET).read_bytes()==old_packet
+    packet(candidate,b'new')
+    outcome=r.receive(c,c.digest(candidate),'a'*40,result,successor_packet=candidate,replace_receipt_sha256=old_sha)
+    assert outcome['status']=='CURRENT_PACKET_RECEIVED'
+    archived=list((tmp_path/'canonical-preimages').iterdir())
+    assert any(p.read_bytes()==old_receipt for p in archived)
+    assert any(p.read_bytes()==old_packet for p in archived)
+    assert (tmp_path/r.PACKET).read_bytes()==candidate.read_bytes()
+    assert c.load(c.STATE/r.RECEIPT)==c.load(c.STATE/'approval.json')
 
 
 @pytest.mark.parametrize('organization',['altRx - GLP1 - US - CPS','ShedRX - GLP-1 Microdosing - CPS (US)','Brand‐Name','Brand‑Name','Brand‒Name','Brand–Name','Brand—Name','Brand―Name'])
@@ -163,7 +265,7 @@ def test_source_acceptance_binds_installed_bytes(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('damage',['none','asset','source','pricing','address','send_guard','art_pending','extra_member','supply_count'])
-def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypatch,damage):
+def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypatch,damage,recorded_operator=False):
     import zipfile
     import glp_sponsor_current_receiving as r
     source=Path(__file__).resolve().parents[1]
@@ -190,6 +292,50 @@ def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypa
     packet=tmp_path/'fixture.zip'
     with zipfile.ZipFile(packet,'w') as z:
         for name,blob in blobs.items():z.writestr(name,blob)
-    if damage=='none':assert r.packet_binding(c,packet,config)==manifest
+    if damage=='none':
+        assert r.packet_binding(c,packet,config)==manifest
+        # Real closed-packet, installed-review, renewal writer and approval reader
+        # together. Only coordinator process identity/source lock are offline seams.
+        import contextlib
+        import sync_from_repo as sync
+        monkeypatch.setattr(c,'STATE',tmp_path/'runtime'); c.STATE.mkdir()
+        monkeypatch.setattr(c,'CONFIG',tmp_path/r.CONFIG)
+        monkeypatch.setattr(r,'require_coordinator_execution',lambda:'test-root')
+        monkeypatch.setattr(r,'current_authority',lambda *a,**kw:{'coordinator':{'session_id':'test-root'}})
+        monkeypatch.setattr(sync,'source_lock',lambda _:contextlib.nullcontext())
+        nuimage=tmp_path/'scripts/glp_sponsor_nuimage_reply.py'; nuimage.write_bytes(b'unchanged reviewed nuimage')
+        accepted=dict(status='PASS',reviewer='Independent fixture reviewer',reviewed_source_head='a'*40)
+        for key,name in {'campaign_sender_sha256':'scripts/glp_sponsor_campaign.py',
+                         'current_receiver_sha256':'scripts/glp_sponsor_current_receiving.py',
+                         'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py',
+                         'sponsor_replies_sha256':'inbox_control_plane/sponsor_replies.py'}.items():
+            accepted[key]=c.digest(tmp_path/name)
+        review_path=r.SUCCESSOR_SOURCE_REVIEW
+        if recorded_operator:
+            from test_glp_sponsor_unattended import decisions
+            decisions(tmp_path,monkeypatch)
+            accepted['canonical_inbox_sha256']=c.digest(tmp_path/'inbox_control_plane/control_plane.py')
+            accepted['firecrawl_client_sha256']=c.digest(tmp_path/'scripts/firecrawl_client.py')
+            review_path=r.OPERATOR_SOURCE_REVIEW
+            monkeypatch.setattr(r,'require_coordinator_execution',lambda:pytest.fail('NO TUI CUSTODY FOR AUTOMATION'))
+            monkeypatch.setattr(r,'current_authority',lambda *a,**kw:pytest.fail('NO TUI CUSTODY FOR AUTOMATION'))
+        c.save(tmp_path/review_path,accepted)
+        installed=tmp_path/r.PACKET; installed.parent.mkdir(parents=True,exist_ok=True)
+        old=dict(blobs); old['scripts/glp_sponsor_campaign.py']=b'predecessor source'
+        old_manifest=dict(manifest,**{'scripts/glp_sponsor_campaign.py':hashlib.sha256(b'predecessor source').hexdigest()})
+        old[r.MANIFEST]=json.dumps(old_manifest).encode()
+        (tmp_path/r.MANIFEST).write_bytes(old[r.MANIFEST])
+        with zipfile.ZipFile(installed,'w') as z:
+            for name,blob in old.items(): z.writestr(name,blob)
+        previous=dict(schema=r.SCHEMA,packet_sha256=c.digest(installed))
+        c.save(c.STATE/r.RECEIPT,previous); c.save(c.STATE/'approval.json',previous)
+        c.save(c.STATE/'activation.json',dict(send_enabled=True,packet_sha256=c.digest(installed)))
+        result=r.receive(c,c.digest(packet),'a'*40,tmp_path/'receiving.json',successor_packet=packet,
+                         replace_receipt_sha256=c.digest(c.STATE/r.RECEIPT),recorded_operator=recorded_operator)
+        assert result['status']=='CURRENT_PACKET_RECEIVED'
+        assert c.approval_ready(c.campaign_config()) is True
+        accepted['reviewer']='RV-S2'; c.save(tmp_path/review_path,accepted)
+        with pytest.raises(RuntimeError,match='independent_installed_source_review_required'):
+            c.approval_ready(c.campaign_config())
     else:
         with pytest.raises(RuntimeError):r.packet_binding(c,packet,config)

@@ -40,6 +40,23 @@ that flag and return 2. Both checks must return 0 and the source must be valid f
 A Pro advisory alone cannot satisfy closure. An explicit coordinator policy may join the advisory
 with an independently completed worker RESULT, whose issue and byte hash are checked.
 
+## S1 host observations (GLP-349)
+
+Each successful poll now records `admission_metrics.observations` in the existing
+`LAST-RUN.json`: UTC clock, MemAvailable, SwapFree, memory PSI, cumulative swap
+pages, swappiness and the existing host-budget row count. Retention is the last
+24 hours, capped at 300 actual observations. Nothing is backfilled. The lease
+count is explicitly unvalidated, not a live executor census; no PID polling,
+reservation/reclamation, gate invocation or configuration mutation occurs.
+Missing/malformed measurements stay null with errors. Actual admission refusals
+stay null because the installed admission producer has no decision journal.
+Poll snapshots cannot prove continuous eight-slot workload or quiet swap between
+samples. `full_acceptance=UNPROVEN` does not alter proof/closure decisions. A full
+GLP-349 proof still needs genuine admission decision/refusal coverage, 24-hour
+workload, supported-pruner evidence, scheduled audit disposition and swap-guard
+outcome; there is currently no complete producer schema to bind that proof.
+Distinct reviewer and authorized installation are required before live use.
+
 ## Registration
 
 Install merged source with scoped sync_from_repo dry-run/apply/dry-run. Install the maintained

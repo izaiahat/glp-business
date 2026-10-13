@@ -960,9 +960,8 @@ COMPOSER_TEXT_JS = r'''function composerText(e){
 }'''
 
 
-# The root surface remembers Chat/Work independently of the Pro model. Work
-# offers Sol even when last Chat model is Pro. Only use its supported idle UI
-# toggle; never rewrite cookies, account defaults, or Codex Cloud state.
+# Chat/Work is independent of selectedModel. The sender verifies only; idle
+# mode correction is a separately authorized UI action, never a send fallback.
 PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
     const visible=e=>{
         if(!e.getClientRects().length)return false;
@@ -977,21 +976,15 @@ PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
     const buttons=[...main.querySelectorAll('button')].filter(visible);
     const chat=buttons.filter(e=>e.innerText.trim()==='Chat');
     const work=buttons.filter(e=>e.innerText.trim()==='Work');
-    // Legacy Chat-only surface still passes the exact Pro admission below.
-    if(chat.length===0&&work.length===0)return {switched:false};
     if(chat.length!==1||work.length!==1)return {error:'CHAT_SURFACE_REFUSED'};
     if(chat[0].getAttribute('aria-pressed')==='true'&&work[0].getAttribute('aria-pressed')==='false')return {switched:false};
-    const editors=[...document.querySelectorAll('#prompt-textarea,[data-composer-markdown][contenteditable=true]')].filter(visible);
-    if(chat[0].getAttribute('aria-pressed')!=='false'||work[0].getAttribute('aria-pressed')!=='true'||
-       location.pathname!=='/'||editors.length!==1||editors[0].textContent.trim()!==''||
-       document.querySelector('button[data-testid=stop-button],[data-message-author-role],[data-chatgpt-selection-message-id]'))return {error:'CHAT_SURFACE_REFUSED'};
-    chat[0].click();return {switched:true};
+    return {error:'CHAT_SURFACE_REFUSED'};
 }'''
 
 
 # Current picker visibility belongs to its active view ancestor, not the row.
 # Keep the complete label, maximum badge, exact scale and actionable menu proof.
-MODEL_PICKER_JS = r'''function pickerActionable(e,visualThumb=false){
+MODEL_PICKER_JS = PRO_CHAT_SURFACE_JS + r'''function pickerActionable(e,visualThumb=false){
         if(!e||!e.getClientRects().length)return false;
         for(let p=e;p;p=p.parentElement){
             const s=getComputedStyle(p);
@@ -1013,6 +1006,9 @@ function pickerMenu(){
     return menus.length===1&&pickerActionable(menus[0])&&menus[0].getAttribute('role')==='menu'?menus[0]:null;
 }
 function committed6ProMaximum(){
+    // Revalidate Chat at every existing initial/chunk/Send admission, including
+    // retained atomic Send. A stale Pro selection never authorizes Work quota.
+    if(ensureProChatSurface().error)return false;
     const trigger=pickerTrigger();
     // The trigger's candidate effort also labels staged state. Only the closed
     // selection owner's incoming selectedModel is a parent-acceptance witness.
@@ -1286,12 +1282,13 @@ for readiness_observations in range(1, 47):
     time.sleep(min(2, remaining))
 # Do not touch a model picker on a replacement document after the readiness wait.
 if RETAINED: _fresh()
-# Resolve the independent Work/Sol composer preference before the picker.
-# This account-agnostic supported UI action precedes all prompt focus/input.
+# Verify the independent composer mode before every path's picker. The sender
+# never changes Work to Chat; unverified/ambiguous mode refuses before input.
 chat_surface=_bound_js(tab['targetId'],fresh,{json.dumps('(()=>{' + PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()')})
 if not isinstance(chat_surface,dict) or chat_surface.get('error'):
     print('RELAY_JSON:'+json.dumps({{'error':'CHAT_SURFACE_REFUSED','typed':False,'sent':False,'tab':tab['targetId']}})); raise SystemExit(0)
-if chat_surface.get('switched'):time.sleep(0.5)
+if chat_surface.get('switched') is not False:
+    _binding_error('CHAT_SURFACE_REFUSED', tab=tab['targetId'])
 # All paths must commit supported 6 Pro maximum explicitly, even when
 # button text or an open preview already says 6 Pro/maximum. Those are not
 # authoritative selected effort and must never skip this same gate.
@@ -2855,7 +2852,7 @@ def _terminal_unsent_pin(job, report=None):
     if len(matching) != 1:
         raise ValueError('REPORT')
     row = matching[0]
-    if row.get('disposition') != 'terminal_unsent_preinsert' or row.get('reason') not in ('WRONG_MODEL', 'SECURITY_INTERSTITIAL'):
+    if row.get('disposition') != 'terminal_unsent_preinsert' or row.get('reason') not in ('WRONG_MODEL', 'SECURITY_INTERSTITIAL', 'CHAT_SURFACE_REFUSED'):
         raise ValueError('DISPOSITION')
     c = {'job': job, 'held': row['job_sha256'], 'message': row['message_sha256'],
          'manifest': row['manifest_sha256'], 'drive_prompt': row['drive_prompt_sha256'],
@@ -2893,7 +2890,13 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
                 log_bytes != ('SEND_FAILED TAB_CAP ' + json.dumps(error) + '\n').encode()):
             raise ValueError('ATTEMPT_LOG')
         attempt_custody[lp] = log_bytes
-    readiness_invalid = (not c.get('pretarget') and
+    mode_refusal = c.get('generic') and c['reason'] == 'CHAT_SURFACE_REFUSED'
+    if mode_refusal and error != {'error': 'CHAT_SURFACE_REFUSED', 'typed': False,
+                                 'sent': False, 'tab': c['tab']}:
+        raise ValueError('MODE_RECEIPT')
+    # This gate's exact pre-input receipt carries its own target, but no state.
+    # Never borrow this exception for readiness/model failures or missing tabs.
+    readiness_invalid = (not c.get('pretarget') and not mode_refusal and
         (observed.get('url') != 'https://chatgpt.com/' or observed.get('stop') is not False or
          observed.get('assistant_count') != 0 or observed.get('last_len') != 0))
     if (sha(preimage) != c['held'] or json.loads(preimage) != st or
@@ -2983,7 +2986,8 @@ def _generic_terminal_unsent_evidence(st, c, rows, custody):
             not start.timestamp()*1000 <= c['time_origin'] <= end.timestamp()*1000):
         raise ValueError('DOCUMENT_INTERVAL')
     records = {}
-    for key in ('preflight', 'observation'):
+    explicit_mode_target = c['reason'] == 'CHAT_SURFACE_REFUSED'
+    for key in (('observation',) if explicit_mode_target else ('preflight', 'observation')):
         pin = c['target_evidence'][key]
         ep = (BUSINESS / pin['path']).resolve()
         if Path(pin['path']).is_absolute() or not ep.is_relative_to(BUSINESS.resolve()):
@@ -2992,9 +2996,10 @@ def _generic_terminal_unsent_evidence(st, c, rows, custody):
         if sha(custody[ep]) != pin['sha256']:
             raise ValueError('EVIDENCE')
         records[key] = json.loads(custody[ep])
-    before = {t['target_id'] for t in records['preflight']['targets']}
+    before = set() if explicit_mode_target else {t['target_id'] for t in records['preflight']['targets']}
     observed = records['observation']['browser']
-    candidates = [t for t in observed['metadata'] if t['target_id'] not in before and
+    candidates = [t for t in observed['metadata'] if
+        (t['target_id'] == st['error']['tab'] if explicit_mode_target else t['target_id'] not in before) and
         t['url'] == 'https://chatgpt.com/' and start.timestamp()*1000 <= t['time_origin'] <= end.timestamp()*1000]
     if (len(candidates) != 1 or candidates[0]['target_id'] != c['tab'] or
             candidates[0]['time_origin'] != c['time_origin'] or
@@ -3735,6 +3740,44 @@ def reconcile_no_reply(job: str) -> int:
     return 3
 
 
+def _record_generation_observation(job: str, cfg: dict, st: dict, result: dict,
+                                   started: str, finished: str) -> None:
+    """Append v1 point evidence to the existing ledger, never interval qualification.
+
+    Caller has validated the exact bound read. UI authentication evidence means
+    an explicit non-login/non-challenge state and the full registered user marker;
+    it does not identify the signed-in email or prove continuous generation.
+    Missing booleans remain null. This receipt changes no admission/terminal gate.
+    Provenance covers this assigned job only, not the existence of fresh backlog.
+    """
+    state = result['state']
+    fields = ('stop', 'logged_out', 'security_interstitial', 'human_challenge',
+              'rate_limited', 'drive_reconnect', 'thinking_failed', 'user_identity_matched')
+    observed = {key: state.get(key) if type(state.get(key)) is bool else None
+                for key in fields}
+    expected = {key: key in ('stop', 'user_identity_matched') for key in fields}
+    if any(observed[key] is not None and observed[key] != value
+           for key, value in expected.items()):
+        generating = False
+    elif any(value is None for value in observed.values()):
+        generating = None
+    else:
+        generating = True
+    # Legacy bound jobs can lack a token; never fabricate its identity hash.
+    reply_token = st.get('reply_token')
+    reply_token_sha256 = (hashlib.sha256(reply_token.encode()).hexdigest()
+                          if isinstance(reply_token, str) and reply_token else None)
+    ledger_append(cfg, {'event': 'generation_observation',
+        'schema': 'gpt6pro-generation-observation-v1',
+        'coverage': 'single_bound_read_only', 'read_started_at': started,
+        'read_finished_at': finished, 'job': job, 'account': st['account'],
+        'conversation_url': binding_url(st), 'conversation_id': st['conversation_id'],
+        'binding_version': st['binding_version'], 'tab': result['tab'],
+        'observed': observed, 'authenticated_generation_observed': generating,
+        'reply_token_sha256': reply_token_sha256,
+        **{key: st.get(key) for key in (*PROVENANCE_FIELDS, 'job_class', 'input_sha256')}})
+
+
 def _poll_once(job: str, cfg: dict, interval: int) -> tuple[int, int]:
     st = job_state(job)
     if not st:
@@ -3754,10 +3797,13 @@ def _poll_once(job: str, cfg: dict, interval: int) -> tuple[int, int]:
     prev = st.get("last_text_sha")
     # Missing Stop/assistant nodes can be virtualized generation, not completion.
     # No poll count or elapsed time permits navigation of a nonterminal binding.
+    read_started = now_iso()
     r = read_reply(conv, st.get("tab"), existing_only=True, protected=protected_tabs(st),
                    expected_identity=_failed_generation_identity(st),
                    capture_mode=st.get('reply_render_mode'))
+    read_finished = now_iso()
     require_binding(st, r)
+    _record_generation_observation(job, cfg, st, r, read_started, read_finished)
     if _record_failed_generation(job, cfg, st, r):
         print(f"poll job={job} GENERATION_FAILED reason=THINKING_FAILED; no resend", flush=True)
         return 5, 0

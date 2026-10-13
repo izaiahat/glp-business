@@ -1,0 +1,26 @@
+name: GLP93 review tracking successor
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/build_glp_affiliate_wirein_incremental_v2.py
+      - scripts/glp_review_tracking_rebind.py
+      - tests/test_review_tracking_successor.py
+      - .github/workflows/review-tracking-successor.yml
+permissions:
+  contents: read
+jobs:
+  bounded-successor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact-head successor regressions
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m pip install requests
+          python3 -m unittest discover -s tests -p test_review_tracking_successor.py -v

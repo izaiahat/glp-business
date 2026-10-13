@@ -19,8 +19,9 @@ import review_transports
 from carrier_lock import carrier_lock
 from selection_receipt import load_selection_receipt
 
-READY_MIN = 3
-READY_TARGET = 4
+# Five weekday publications require a five-article independently accepted reserve.
+READY_MIN = 5
+READY_TARGET = 5
 READY_MAX = 5
 PT = ZoneInfo("America/Los_Angeles")
 REQUIRED_SUBJECTS = {
@@ -147,7 +148,12 @@ def _resolve_topic_authority(spec: dict[str, Any], packet: Path) -> Path:
     live = Path(str(spec.get("path") or "")).resolve()
     if live.is_file() and not live.is_symlink() and _sha(live) == expected:
         return live
-    for candidate in sorted(packet.resolve().parent.glob(TOPIC_QUEUE_SNAPSHOT_GLOB)):
+    # Admission retains the exact queue under the immutable entry evidence.
+    # Carrier validation runs on that copied packet after the mutable live queue
+    # may regenerate. Digest equality is still mandatory, never path authority.
+    snapshots = list(packet.resolve().parent.glob(TOPIC_QUEUE_SNAPSHOT_GLOB))
+    snapshots.append(packet.resolve().parent / 'evidence/topic_authority.json')
+    for candidate in sorted(snapshots):
         if candidate.is_file() and not candidate.is_symlink() and _sha(candidate) == expected:
             return candidate.resolve()
     raise RuntimeError("buffer_topic_authority_pin_invalid")
@@ -2203,7 +2209,7 @@ def refill_review_only(
     control_files: dict[str, str],
     admitted_at_utc: str,
 ) -> dict[str, Any]:
-    """Refill to four by invoking the standard Opus loop with apply=False."""
+    """Refill to five by invoking the standard Opus loop with apply=False."""
     admitted: list[str] = []
     failures: list[dict[str, str]] = []
     for candidate in candidates:

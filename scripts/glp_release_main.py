@@ -6,7 +6,7 @@
 Authority: ops/linear/approvals/OPERATOR-DECISION-20261009-workflow-v3.md — merged
 `main` is published by this scheduled command, followed by a live readback.
 
-It wraps the existing registered path (glp_affiliate_sync_job.execute(..., publish=True)):
+It wraps the shared gated release library (execute(..., publish=True, source_only=False)):
 exact merged PR + green CI on its head, native build, raw held-provider/ended-program
 census (Fella included), adverse-absence audit, package, prepare, Cloudflare publish with
 rollback, and the pointer CAS. Nothing here relaxes those gates. It adds only:
@@ -224,7 +224,7 @@ def main(argv=None):
         install_cache_convergence(carrier, make_purger(carrier.read_token, log), log)
         try:
             result = job.execute(job.read(job.CONFIG), report, source_ref=pr['headRefOid'], source_pr=pr['url'],
-                                 publish=not a.prepare_only)
+                                 publish=not a.prepare_only, source_only=False)
         except Exception as exc:
             job.save(report / 'FAILURE.json', {'status': 'FAIL', 'scope': SCOPE, 'error': str(exc)[:2000],
                                                'run_type': os.environ.get('GLP_RUN_TYPE', 'manual')})

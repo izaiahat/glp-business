@@ -355,7 +355,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
             seen.append(row['id'])
     assert sorted(seen) == sorted(allowed)
     launcher = 'scripts/cron_bridge_action.py'
-    launcher_pin = '96ce46bedf9b08f5da5ee33259a1d67615671b2718a5a7b527f483d4370765c8'
+    launcher_pin = 'fc1146a502f250c267c3460e8171bde678be7ee20ca773304aa9f0ffbfbfbd4b'
     assert sha((ROOT/launcher).read_bytes()) == launcher_pin
     shared = 0
     for row in expected['jobs']:
@@ -380,7 +380,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert repinned == 1
     # GLP-320: exact isolated TEST entry and repaired native Python payload.
     sensor = 'ops/hermes-cron-scripts/glp_seo_publish_failure_alert.py'
-    sensor_pin = '09b2eff03246bb74f90b753e25d4a7584a5385a9fad37aecc8747f234f273a7e'
+    sensor_pin = 'b51af360d690ed6fc9039bcfcdf5a31fc7080e25270051a07c78c2e0ab81d9d0'
     assert sha((ROOT/sensor).read_bytes()) == sensor_pin
     sensor_rows = [row for row in expected['jobs'] if row['id'] == '76de44046a9b']
     assert len(sensor_rows) == 1 and sensor_rows[0]['payloads'] == []
@@ -409,6 +409,15 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
     pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
         'source': pricing_source, 'reviewed_sha256': pricing_pin}
+    # D1: only the retained disk monitor launcher pin changes; cron identity and
+    # all other source/payload metadata remain equal to the historical cohort.
+    monitor = 'ops/hermes-cron-scripts/disk_monitor.sh'
+    monitor_pin = '1061caac91653c9328e66634983fb713f84d7c1148e960d2ad86babd07755e4c'
+    assert sha((ROOT/monitor).read_bytes()) == monitor_pin
+    monitor_rows = [r for r in expected['jobs'] if r['id'] == 'crontab:d1449753b8c4b011']
+    assert len(monitor_rows) == 1 and len(monitor_rows[0]['sources']) == 1
+    assert monitor_rows[0]['sources'][0]['reviewed_sha256'] == '1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447'
+    monitor_rows[0]['sources'][0]['reviewed_sha256'] = monitor_pin
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 

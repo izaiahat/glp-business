@@ -12,7 +12,8 @@ def test_weekly_governance_only_keeps_named_route_and_bounds_cadence():
     rows = [{'route': '/guides/other/'}, {'route': '/guides/allowed/'}, {'route': '/guides/fella-health/'}]
     assert g.refresh_candidates(rows, strategy) == [rows[1]]
     assert g.refresh_candidates(rows, None) == []
-    assert g.CADENCE == {'new_target_per_day': 1, 'new_ceiling_per_day': 3,
+    assert g.CADENCE == {'new_target_per_day': 1, 'new_ceiling_per_day': 1,
+                        'research_ceiling_per_day': 3, 'publication_weekdays': [0, 1, 2, 3, 4],
                         'meaningful_updates_min_per_week': 2, 'meaningful_updates_max_per_week': 4,
                         'no_op_allowed': True}
 

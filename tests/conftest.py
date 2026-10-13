@@ -2,6 +2,26 @@
 import os
 from pathlib import Path
 import tempfile
+from datetime import datetime, timezone
+import pytest
+
+
+@pytest.fixture
+def j7_financial_clock(monkeypatch, request):
+    """Keep portal closure, intake freshness and fake browser time coherent."""
+    import affiliate_reporting_eden_portal_j7 as eden
+    import affiliate_reporting_xentraffic_j7 as xentraffic
+
+    class Clock(datetime):
+        current = datetime(2026, 10, 12, 6, tzinfo=timezone.utc)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current.astimezone(tz) if tz else cls.current.replace(tzinfo=None)
+
+    for module in (eden, xentraffic, request.module):
+        monkeypatch.setattr(module, 'datetime', Clock)
+    return Clock
 
 SCRATCH = Path(os.environ.get('TMPDIR', str(Path.home()/'.cache/glp-tests')))
 SCRATCH.mkdir(parents=True, exist_ok=True)

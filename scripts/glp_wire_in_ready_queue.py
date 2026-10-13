@@ -474,7 +474,8 @@ def quote_binds_capture_bytes(quote: str, body: str) -> bool:
 
 
 def load_identity_captures(
-    directory: Path | None, *, recursive: bool = False
+    directory: Path | None, *, recursive: bool = False,
+    additional_directories: tuple[Path, ...] = ()
 ) -> dict[str, dict[str, Any]]:
     """Load hash-bound identity captures without deriving identity from a link.
 
@@ -483,8 +484,11 @@ def load_identity_captures(
     descriptors keep their original quote-in-cited-bytes validation.
     """
     out: dict[str, dict[str, Any]] = {}
-    if not directory or not Path(directory).is_dir():
-        return out
+    # Approval-chain captures are retained outside affiliate-machine. Explicit
+    # additional roots extend discovery, never the evidence validation contract.
+    roots = ([Path(directory)] if directory else []) + list(additional_directories)
+    candidates = sorted({path for root in roots if Path(root).is_dir()
+                         for path in _capture_candidates(Path(root), recursive)})
 
     def reject(path: Path, reason: str, link_sha: str = "") -> None:
         out.setdefault("_rejected", {"schema": "rejected"})
@@ -494,7 +498,7 @@ def load_identity_captures(
             out.setdefault("_rejected_by_link_sha256", {})[link_sha] = {
                 "reason": reason, "_path": repo_rel(path), "_sha256": sha256_file(path)}
 
-    for path in _capture_candidates(Path(directory), recursive):
+    for path in candidates:
         if path.name.startswith("_"):
             continue
         try:
@@ -1198,8 +1202,10 @@ def run(values: list[list[Any]], *, apply: bool, only_row: int | None,
         captures_dir: Path | None, receipt_dir: Path,
         reactivation_capture: Path | None = None,
         recursive_captures: bool = False,
+        additional_captures_dirs: tuple[Path, ...] = (),
         fit_manifests: tuple[Path, ...] = ()) -> dict[str, Any]:
-    captures = load_identity_captures(captures_dir, recursive=recursive_captures)
+    captures = load_identity_captures(captures_dir, recursive=recursive_captures,
+                                     additional_directories=additional_captures_dirs)
     rejected = captures.pop("_rejected", None)
     reactivation = load_reactivation_capture(reactivation_capture)
     decisions = plan_rows(values, only_row=only_row, captures=captures,
@@ -1300,6 +1306,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--row", type=int, default=None, help="assess ONE sheet row")
     ap.add_argument("--captures", default="",
                     help="directory containing identity or generic rail captures")
+    ap.add_argument("--additional-captures", action="append", default=[],
+                    help="additional explicit capture directory; repeatable; same validation")
     ap.add_argument("--recursive-captures", action="store_true",
                     help="discover hash-bound rail captures below --captures")
     ap.add_argument("--fail-on-stuck", action="store_true",
@@ -1322,6 +1330,7 @@ def main(argv: list[str] | None = None) -> int:
     receipt_dir = Path(args.output) if args.output else RECEIPT_ROOT / f"run-{stamp}"
     result = run(values, apply=bool(args.apply), only_row=args.row,
                  captures_dir=Path(args.captures) if args.captures else None,
+                 additional_captures_dirs=tuple(Path(p) for p in args.additional_captures),
                  receipt_dir=receipt_dir,
                  fit_manifests=tuple(Path(p) for p in args.fit_manifest),
                  reactivation_capture=(Path(args.reactivation_capture)
