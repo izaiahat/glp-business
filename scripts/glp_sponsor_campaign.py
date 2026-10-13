@@ -810,7 +810,7 @@ def refresh_paypal_orders(config,at,dry_run=False,finance_hosts=(),ledger=None):
      # is only initial admission (and an offline fixture seam), not a final
      # permission surviving merchant authentication or other slow reads.
      current_hosts=invoice_provider_hosts(read_values(),read_local()) if ledger is not None else finance_hosts
-     with canonical_send_boundary(ledger if ledger is not None else {},now(),ledger is not None):
+     with canonical_send_boundary(ledger if ledger is not None else {},now(),ledger is not None,allow_poll_refresh=not dry_run):
       host=order['provider_host']
       if host not in current_hosts:raise ValueError('sponsor_invoice_provider_held')
       if ledger is not None:
@@ -877,7 +877,7 @@ def send_interested_next_steps(ledger,config,finance_hosts,capacity):
   # Authentication can take time. Re-read current registry and suppression at
   # the same final boundary as invoice admission; canonical opt-outs win next.
   current_hosts=invoice_provider_hosts(read_values(),read_local())
-  with canonical_send_boundary(ledger,now(),True):
+  with canonical_send_boundary(ledger,now(),True,allow_poll_refresh=True):
    if entry.get('stopped')!='interested' or entry.get('stop_event_id')!=event or entry['host'] not in current_hosts:continue
    entry['next_step_claim']={'event_id':event,'at':stamp(),'packet_sha256':config['packet_sha256']}
    save(STATE/'ledger.json',ledger)

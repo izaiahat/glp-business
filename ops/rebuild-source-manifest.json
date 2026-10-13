@@ -3257,7 +3257,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "1a0adbffb07aab495182a902c0724f96fa39fd90dff3934c5c9ce2c09bce59da"
+      "sha256": "595ac6b1e9cf8203be613ca3e2aceb7049b745b1921582f9f68e10edd74f0a4b"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -7150,7 +7150,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "4af2e30b8bcd46d57d114b4c4d175ac62fc41467c147de1d7ecc8755ca061771"
+      "sha256": "70d8cedec58145a3158c67ba60752b21964d0484ded259f91ab27fecc206c51a"
     },
     "scripts/host_disk_authorized_retirement.py": {
       "callers": [

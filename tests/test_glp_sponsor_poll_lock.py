@@ -295,6 +295,61 @@ def test_future_cursor_does_not_trigger_refresh_or_send(tmp_path, monkeypatch):
     assert client.deliveries == []
 
 
+@pytest.mark.parametrize('stop', [False, True])
+def test_interested_effect_renews_expired_proof_and_rechecks_stop(tmp_path, monkeypatch, stop):
+    config, client, rows, clock = freshness_campaign(tmp_path, monkeypatch)
+    row = rows[0]
+    ledger = {row['email']: {'host':row['host'], 'organization':'Fixture',
+        'stopped':'interested', 'stop_event_id':'original',
+        'sent':[{'sent_at':h.SEND_SLOT.isoformat(), 'thread_id':'old', 'rfc_message_id':'<old>'}]}}
+    c.save(c.ROOT/'ops/sponsor-machine/copy.json', {'interested_next_step': {'subject':'Fixture', 'body':'Hello {organization}'}})
+    monkeypatch.setattr(c, 'invoice_provider_hosts', lambda *a: {row['host']})
+    clock[0] += dt.timedelta(seconds=500)
+    stops = [{'kind':'opt_out','event_id':'new','provider_hosts':[row['host']], 'enrolled_addresses':[row['email']]}] if stop else []
+    polls = []
+    def refresh():
+        polls.append(True)
+        complete_fixture_poll(clock, stops)
+    monkeypatch.setattr(c, 'refresh_canonical_poll', refresh)
+    with c.inbox_poll_boundary():
+        count = c.send_interested_next_steps(ledger, config, {row['host']}, 1)
+    assert polls == [True]
+    assert count == (0 if stop else 1)
+    assert len(client.deliveries) == count
+    assert not ledger[row['email']].get('next_step_claim')
+
+
+def test_invoice_effect_renews_expired_proof_before_write(tmp_path, monkeypatch):
+    import glp_sponsor_paypal as paypal
+    config, client, rows, clock = freshness_campaign(tmp_path, monkeypatch)
+    row = rows[0]
+    c.save(c.STATE/'orders.json', {'fixture': {'order_id':'fixture', 'provider_host':row['host'], 'invoice_action':'draft'}})
+    config.update(paypal_read_only_polling=True, paypal_invoice_drafts_enabled=True)
+    clock[0] += dt.timedelta(seconds=500)
+    polls, writes = [], []
+    def refresh():
+        polls.append(True)
+        complete_fixture_poll(clock)
+    class Payment:
+        def merchant(self, at): pass
+        def invoice_write(self, *a):
+            writes.append(True)
+            raise RuntimeError('synthetic uncertain effect')
+    monkeypatch.setattr(c, 'refresh_canonical_poll', refresh)
+    monkeypatch.setattr(c, 'invoice_provider_hosts', lambda *a: {row['host']})
+    monkeypatch.setattr(paypal, 'PayPalClient', Payment)
+    monkeypatch.setattr(paypal, 'authorize_order', lambda *a: 'synthetic-approval')
+    monkeypatch.setattr(paypal, 'poll_order', lambda *a: paypal.unknown('fixture'))
+    with c.inbox_poll_boundary():
+        result = c.refresh_paypal_orders(config, clock[0], finance_hosts={row['host']}, ledger={})
+    assert polls == [True] and writes == [True]
+    assert result['financial_write_attempts'] == 1
+    assert c.load(c.STATE/'orders.json')['fixture']['invoice_claim']
+    with c.inbox_poll_boundary():
+        c.refresh_paypal_orders(config, clock[0], finance_hosts={row['host']}, ledger={})
+    assert writes == [True]  # uncertain effect remains unreplayable
+
+
 def test_failed_job_missing_ledger_reports_unknown_not_zero(tmp_path, monkeypatch, capsys):
     config, client, rows, clock = freshness_campaign(tmp_path, monkeypatch)
     monkeypatch.setattr(c,'campaign_config',lambda:config)
