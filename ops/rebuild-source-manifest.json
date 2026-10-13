@@ -4233,7 +4233,7 @@
         "topic supply refresh"
       ],
       "kind": "script",
-      "sha256": "4fecf29ec9bda8e6422aa32255ade3823029f36707330e9e04582514a2da42c3"
+      "sha256": "ca2ff9acbaf3f7061636292dcc16cb9b9290b33767f46f1b6ff8429054c812ba"
     },
     "systems/seo-blog-machine/scripts/repair_opus_packet.py": {
       "callers": [
@@ -5191,7 +5191,7 @@
         ".github/workflows/firecrawl-integration.yml"
       ],
       "kind": "test",
-      "sha256": "011143d2fcaac3ab62be57ce35d4dcc38d504c6e1756ce6bdb534a19a7107fb4"
+      "sha256": "ef422327a1250bd657c4df833d8aabf1c0a7df10f3d9f7e25ec4764d56b29db0"
     },
     "tests/test_fleet_ingest.py": {
       "callers": [
