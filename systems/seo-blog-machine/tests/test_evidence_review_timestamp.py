@@ -125,3 +125,54 @@ def test_historic_date_fallback_is_not_replaced_with_capture_or_current_time(tmp
     assert article['evidence_review']['reviewed_at'] == '2026-09-05T00:00:00Z'
     assert article['prices_checked_date'] == article['source_checked_through'] == '2026-09-05'
     assert {f: f.read_bytes() for f in p.iterdir()} == before
+
+
+@pytest.mark.parametrize('reviewed_at, checked_at, clock_us', [
+    ('2026-09-05T18:00:00.5000000Z', '2026-09-05T18:00:00.5000001Z', 600000),
+    ('2026-09-05T18:00:00.5000001Z', '2026-09-05T18:00:00.400000Z', 500000),
+    ('2026-09-05T18:00:00.500000000Z', '2026-09-05T18:00:00.500000001+00:00', 600000),
+    ('2026-09-05T18:00:00.500000001Z', '2026-09-05T18:00:00.400000Z', 500000),
+    # Ledger-only precision cannot evade the lower bound with a supported review.
+    ('2026-09-05T18:00:00.500000Z', '2026-09-05T18:00:00.5000001Z', 600000),
+    ('2026-09-05T18:00:00.500000Z', '2026-09-05T18:00:00.500000001+00:00', 600000),
+    # Unsupported precision also refuses inside the bounds, even trailing zeros.
+    ('2026-09-05T18:00:00.5000000Z', '2026-09-05T18:00:00.400000Z', 600000),
+    ('2026-09-05T18:00:00.500000Z', '2026-09-05T18:00:00.400000000Z', 600000),
+    ('2026-09-05T18:00:00,5000000Z', '2026-09-05T18:00:00.400000Z', 600000),
+    ('2026-09-05T18:00:00.500000Z', '2026-09-05T18:00:00,400000000+00:00', 600000),
+])
+def test_unsupported_fraction_precision_refuses_before_parsing(tmp_path, monkeypatch, reviewed_at, checked_at, clock_us):
+    import datetime as dt
+    import json
+
+    compiler = module('compile_review_packet_article')
+    clocks = []
+    class CompileClock(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            clocks.append(tz)
+            return cls(2026, 9, 5, 18, 0, 0, clock_us, tzinfo=dt.timezone.utc)
+    monkeypatch.setattr(compiler.dt, 'datetime', CompileClock)
+    p = packet(tmp_path)
+    (p / '01-evidence-ledger.json').write_text(json.dumps({'sources': [
+        {'source_id': 'S1', 'checked_at_utc': checked_at}]}))
+    draft = p / '04-draft.md'
+    draft.write_text(draft.read_text().replace("dateModified: '2026-09-05'",
+        f"dateModified: '2026-09-05'\nevidenceReviewedAt: '{reviewed_at}'"))
+    before = {f: f.read_bytes() for f in p.iterdir()}
+    with pytest.raises(RuntimeError, match='^evidence_review_timestamp_invalid$'):
+        compiler.compile_packet(p)
+    assert clocks == [dt.timezone.utc]
+    assert {f: f.read_bytes() for f in p.iterdir()} == before
+
+
+@pytest.mark.parametrize('fraction', ['', '.5', '.50', '.500', '.5000', '.50000', '.500000'])
+def test_supported_fraction_precision_preserves_inclusive_equality(fraction):
+    import datetime as dt
+
+    compiler = module('compile_review_packet_article')
+    value = f'2026-09-05T18:00:00{fraction}Z'
+    compiled_at = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+    ledger = {'sources': [{'checked_at_utc': value.replace('Z', '+00:00')}]}
+    assert compiler.evidence_review_timestamp(
+        {'dateModified': '2026-09-05', 'evidenceReviewedAt': value}, ledger, compiled_at) == value

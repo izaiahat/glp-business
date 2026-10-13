@@ -144,6 +144,9 @@ def evidence_review_timestamp(meta: dict[str, Any], ledger: dict[str, Any],
     try:
         if not isinstance(value, str) or not value.endswith('Z'):
             raise ValueError('UTC timestamp required')
+        # fromisoformat silently truncates fractions beyond microsecond precision.
+        if re.search(r'[.,]\d{7,}', value):
+            raise ValueError('unsupported timestamp precision')
         parsed = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
         if parsed.tzinfo != dt.timezone.utc or parsed.date().isoformat() != str(meta['dateModified']):
             raise ValueError('evidence revision day mismatch')
@@ -154,6 +157,8 @@ def evidence_review_timestamp(meta: dict[str, Any], ledger: dict[str, Any],
         for source in ledger['sources']:
             if 'checked_at_utc' not in source:
                 continue
+            if re.search(r'[.,]\d{7,}', source['checked_at_utc']):
+                raise ValueError('unsupported timestamp precision')
             checked = dt.datetime.fromisoformat(source['checked_at_utc'].replace('Z', '+00:00'))
             if checked.tzinfo != dt.timezone.utc or parsed < checked:
                 raise ValueError('evidence review before ledger check')
