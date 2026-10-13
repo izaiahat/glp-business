@@ -21,7 +21,8 @@ python3 -B scripts/local_ci_runner.py \
 The site repo is also registered. Source worktrees must be clean before, during,
 and after execution. Keep the receipt, command logs and exact-head worktree
 available through release/closure; do not rebase or delete their retained source.
-A new output directory is required. Failed runs write FAIL receipts and never
+A fresh set of runner-owned output files is required; an existing lane directory
+may contain RESULT/review artifacts. Failed runs write FAIL receipts and never
 register admission. Receipts are external to the tested worktree.
 
 The runner gets the PR head and changed files from GitHub. It derives the entire

@@ -259,6 +259,18 @@ def test_release_build_binding_revalidates_local_ci_and_keeps_hold_gate(tmp_path
         release.validate_build_evidence(gate(), rows)
 
 
+@pytest.mark.parametrize('glob', ['**/*.py', '*.p?', '*.py[ab]', '{a,b}.py', '!fixture.py'])
+def test_unsupported_glob_never_silently_omits_commands(tmp_path, glob):
+    ci, _, _, tree, _ = fixture_receipt(tmp_path)
+    path = tree / '.github/workflows/ci.yml'
+    text = path.read_text().replace('on: pull_request', 'on:\n  pull_request:\n    paths: [' + json.dumps(glob) + ']')
+    path.write_text(text)
+    subprocess.run(['git', '-C', str(tree), 'add', '.'], check=True)
+    subprocess.run(['git', '-C', str(tree), '-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', 'glob'], check=True, capture_output=True)
+    with pytest.raises(ValueError, match='unsupported_workflow_glob'):
+        ci.workflow_plan(tree, ci.git(tree, 'rev-parse', 'HEAD'), ['fixture.py'])
+
+
 def test_receipt_for_another_remote_head_refuses_before_fallback(tmp_path):
     ci, receipt, head, _, _ = fixture_receipt(tmp_path)
     with pytest.raises(ValueError, match='remote_head_mismatch'):

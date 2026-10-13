@@ -11,7 +11,7 @@
     "/home/ubuntu/business/systems/seo-blog-machine/scripts/build_opus_article_release.py": "de13ab5eea117225ce2a091a005ac3d21dc0c1e2b40dc29455c7374de59271e0",
     "/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": "9563bc257a9b011906bc782ab32e764fd60af010647e767bbacab6a63e31b8ed",
     "/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": "7a0f50d4858597c950d64b976158a8fb722b794631c4d7f1e1989a1c4a3a85f8",
-    "/home/ubuntu/business/scripts/glp_affiliate_release.py": "dae83fbe19de08fcf694ddce8fc908f0fdf1a990d6a4c12c373df7f7891d571e"
+    "/home/ubuntu/business/scripts/glp_affiliate_release.py": "9cfbbd93c9d29292e431892f3ebfc9581442bf11feca3678c16073a5864bab0e"
   },
   "runner_sha256": "02292f744965bd120fcd8ccf64ccdafd89585ab2c7e7615f09428ac91bcfc3ad",
   "composer_sha256": "44b1cb1284a4b971c54e6645102a8443bc901fe5223f54d808fbee2f18bbde6a",
