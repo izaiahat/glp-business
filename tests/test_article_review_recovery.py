@@ -119,20 +119,64 @@ def test_cf_normalization_is_narrow():
     assert recovery.normalize_live('<script>unsafe()</script>') == '<script>unsafe()</script>'
 
 
-def page(body, meta='Learn how'):
-    return (f'<head><meta name="description" content="{meta}"></head><main><nav class="guide-toc">x</nav>{body}'
+def page(body, meta='Learn how', answer='Start with a clinician. [S1]', disclosure='Not medical advice.',
+         h1='How to get oral GLP-1'):
+    return (f'<head><meta name="description" content="{meta}"></head><main><nav class="crumbs">shell</nav>'
+            f'<section class="guide-hero"><h1>{h1}</h1><picture>hero</picture></section>'
+            '<p class="guide-evidence-band">Sources checked 2026-10-09</p>'
+            f'<section class="answer"><div class="quick-answer"><p class="guide-lede">{answer}</p></div></section>'
+            f'<aside class="disclosure"><strong>Evidence boundary.</strong> {disclosure}</aside>'
+            f'<nav class="guide-toc">x</nav>{body}'
             '<section class="guide-sources" id="sources"><ol></ol></section><footer>shell</footer></main>')
 
 
 def test_live_projection_matches_candidate_only_on_reviewed_article_region():
     candidate = page('<p>Prices checked 2026-10-09.</p>')
-    live = page('<p>Prices current as of 2026-10-09.</p>').replace('shell', 'different shell')
+    live = page('<p>Prices current as of 2026-10-09.</p>').replace('shell', 'different shell').replace('hero', 'other hero')
     assert recovery.article_projection(live) == recovery.article_projection(candidate)
     with pytest.raises(AssertionError):
         assert recovery.article_projection(page('<p>Unreviewed claim.</p>')) == recovery.article_projection(candidate)
     assert recovery.article_projection(page('<p>x</p>', meta='other')) != recovery.article_projection(page('<p>x</p>'))
     with pytest.raises(ValueError, match='article_projection_missing'):
         recovery.article_projection('<html>no article</html>')
+
+
+def test_projection_covers_h1_quick_answer_and_disclosure():
+    """CR-03: content before the TOC is reviewed content, not shell."""
+    base = recovery.article_projection(page('<p>x</p>'))
+    assert recovery.article_projection(page('<p>x</p>', answer='Buy without a prescription. [S1]')) != base
+    assert recovery.article_projection(page('<p>x</p>', disclosure='')) != base
+    assert recovery.article_projection(page('<p>x</p>', h1='Different headline')) != base
+    banded = page('<p>x</p>').replace('Sources checked 2026-10-09', 'Sources checked 2026-01-01')
+    assert recovery.article_projection(banded) != base
+    # Removing the quick answer or the disclosure entirely fails closed.
+    no_answer = page('<p>x</p>').replace('<section class="answer">', '<section class="lead">')
+    no_disclosure = page('<p>x</p>').replace('<aside class="disclosure">', '<aside>')
+    for broken in (no_answer, no_disclosure):
+        with pytest.raises(ValueError, match='article_projection_missing'):
+            recovery.article_projection(broken)
+
+
+def test_live_quick_answer_or_disclosure_change_refuses_seal():
+    """CR-03 through the oracle's seal comparison (used by validate_documents):
+    only the live quick answer, disclosure or H1 differs => refusal."""
+    candidate = page('<p>Reviewed body.</p>')
+    recovery.require_live_matches_candidate(page('<p>Reviewed body.</p>').replace('shell', 'new shell'), candidate)
+    for live in (page('<p>Reviewed body.</p>', answer='Changed health answer.'),
+                 page('<p>Reviewed body.</p>', disclosure='Removed boundary.'),
+                 page('<p>Reviewed body.</p>', h1='Other H1')):
+        with pytest.raises(ValueError, match='live_differs_from_reviewed_candidate'):
+            recovery.require_live_matches_candidate(live, candidate)
+    source = (Path(recovery.__file__)).read_text()
+    assert 'require_live_matches_candidate(live_file.read_text(), (fresh / CANDIDATE).read_text())' in source
+
+
+def test_known_full_build_markup_mismatch_stays_fail_closed():
+    """The r2 candidate lacked full-build table wrappers; the oracle is not weakened."""
+    candidate = page('<table><tr><td>x</td></tr></table>')
+    live = page('<div class="table-scroll"><table><tr><td data-label="A">x</td></tr></table></div>')
+    with pytest.raises(ValueError, match='live_differs_from_reviewed_candidate'):
+        recovery.require_live_matches_candidate(live, candidate)
 
 
 def test_natural_cannot_be_recovered(tmp_path):

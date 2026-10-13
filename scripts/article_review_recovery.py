@@ -77,14 +77,35 @@ def site_wording(text):
 
 
 def article_projection(page):
-    """Reviewed article region: meta description plus TOC through source list."""
+    """Reviewed article region, compared as exact (normalized) markup.
+
+    Covers the meta description, the H1, and one contiguous body from the
+    article's lead content (evidence band when present, else the quick-answer
+    section) through the source list: evidence dates, quick answer, medical /
+    evidence-boundary disclosure, TOC, sections, FAQ and sources. Only the site
+    shell outside that region (navigation, hero imagery, share links, footer)
+    and the narrow Cloudflare/dated-wording normalizations are excluded.
+    """
     page = site_wording(normalize_live(page))
     meta = re.findall(r'<meta name="description" content="([^"]*)"', page)
-    start = page.find('<nav class="guide-toc"')
+    h1 = re.findall(r'<h1\b[^>]*>(.*?)</h1>', page, flags=re.S)
+    answer = page.find('<section class="answer">')
+    band = page.find('<p class="guide-evidence-band">')
+    toc = page.find('<nav class="guide-toc"')
+    disclosure = page.find('<aside class="disclosure">')
     anchor = page.find('<section class="guide-sources" id="sources">')
     end = page.find('</section>', anchor) if anchor >= 0 else -1
-    require(len(meta) == 1 and 0 <= start < anchor < end, 'article_projection_missing')
-    return {'meta_description': htmllib.unescape(meta[0]), 'body': page[start:end + len('</section>')]}
+    start = band if 0 <= band < answer else answer
+    require(len(meta) == 1 and len(h1) == 1 and page.count('<section class="answer">') == 1
+            and 0 <= start <= answer < disclosure < toc < anchor < end
+            and page.find('<h1') < start, 'article_projection_missing')
+    return {'meta_description': htmllib.unescape(meta[0]), 'h1': h1[0],
+            'body': page[start:end + len('</section>')]}
+
+
+def require_live_matches_candidate(live, candidate):
+    """The deployed article region must equal the independently reviewed candidate."""
+    require(article_projection(live) == article_projection(candidate), 'live_differs_from_reviewed_candidate')
 
 
 def successor_contract(original, fresh, rows, manifest, *, compile_packet):
@@ -186,8 +207,7 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
             and sha(live_file) == binding['deployed_sha256'] and sha(snapshot) == binding['live_sha256']
             and normalize_live(snapshot.read_text()) == live_file.read_text(),
             'reviewed_live_deployment_drift')
-    require(article_projection(live_file.read_text()) == article_projection((fresh / CANDIDATE).read_text()),
-            'live_differs_from_reviewed_candidate')
+    require_live_matches_candidate(live_file.read_text(), (fresh / CANDIDATE).read_text())
     return {'receipt': receipt, 'raw': raw, 'manifest': manifest, 'custody': custody, 'document': doc,
             'successor_authors': successor_authors}
 

@@ -33,6 +33,9 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
     buffer: list[str] = []
     table: list[str] = []
 
+    def block_order(section: dict[str, Any]) -> int:
+        return sum(len(section.get(key) or []) for key in ("paragraphs", "tables", "subheadings"))
+
     def flush() -> None:
         nonlocal buffer, table
         if current is None:
@@ -45,7 +48,11 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
             parsed = parse_table(table)
             # Position is structure, not prose: the renderer keeps each authored
             # table beside the paragraph it follows and under its H3 parent.
+            # ``order`` is the shared block sequence (paragraphs, tables, H3s)
+            # so a table and an H3 at the same paragraph offset keep their
+            # authored relative order.
             parsed["after_paragraph"] = len(current.get("paragraphs") or [])
+            parsed["order"] = block_order(current)
             current.setdefault("tables", []).append(parsed)
         buffer, table = [], []
 
@@ -76,7 +83,8 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
             # paragraph). The renderer opens it before paragraph index N.
             flush()
             current.setdefault("subheadings", []).append(
-                {"heading": line[4:].strip(), "before_paragraph": len(current["paragraphs"])})
+                {"heading": line[4:].strip(), "before_paragraph": len(current["paragraphs"]),
+                 "order": block_order(current)})
         elif re.match(r"^\d+\.\s+", line):
             flush(); current["ordered_items"].append(re.sub(r"^\d+\.\s+", "", line).strip())
         elif line.startswith("- "):
@@ -87,6 +95,7 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
         elif not line.strip():
             flush()
         else:
+            if table: flush()  # prose right after a table follows it, never precedes it
             buffer.append(line)
     flush()
     return sections, faqs

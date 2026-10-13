@@ -26,11 +26,29 @@ REPORTS = ROOT/'reports/glp-clinic-scout/seo-machine/search-notifications'
 LEDGER = ROOT/'reports/glp-clinic-scout/seo-machine/indexnow-submission-ledger.jsonl'
 
 
-def require_installed_effect():
-    if os.environ.get('PYTEST_CURRENT_TEST'):
+INSTALLED_SOURCE = Path('/home/ubuntu/business/scripts/glp_release_search_notify.py')
+
+
+def _under_test_harness():
+    """True anywhere inside a pytest process: runtest, collection or import.
+
+    PYTEST_CURRENT_TEST is only set while a test item runs, so it is not
+    sufficient on its own; a loaded pytest/_pytest module or a pytest argv
+    marks the whole process as a test harness.
+    """
+    if os.environ.get('PYTEST_CURRENT_TEST') or os.environ.get('PYTEST_VERSION'):
+        return True
+    return any(name == 'pytest' or name == '_pytest' or name.startswith('_pytest.') for name in tuple(sys.modules))
+
+
+def require_installed_effect(*, source=None):
+    """Refuse live IndexNow/GSC effects before any IO unless this process is
+    the installed checkout's module and not a test harness."""
+    if _under_test_harness():
         raise RuntimeError('live_search_effect_refused:pytest')
-    expected = Path('/home/ubuntu/business/scripts/glp_release_search_notify.py')
-    if Path(__file__).resolve() != expected.resolve():
+    here = Path(source or __file__).resolve()
+    if here != INSTALLED_SOURCE.resolve():
+        # Any worktree, CI clone, copied tree or other uninstalled checkout.
         raise RuntimeError('live_search_effect_refused:source_not_installed')
 
 
@@ -38,13 +56,42 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def _fsync_dir(path):
+    fd = os.open(path, os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0))
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def durable_mkdir(path):
+    """Create path and make every newly created directory entry durable."""
+    path = Path(path)
+    missing = []
+    probe = path
+    while not probe.exists():
+        missing.append(probe)
+        probe = probe.parent
+    path.mkdir(parents=True, exist_ok=True)
+    for created in reversed(missing):
+        _fsync_dir(created.parent)
+        _fsync_dir(created)
+
+
 def save(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Crash-durable atomic write: file fsync, rename, then directory fsync.
+
+    Callers rely on the final name surviving a power loss before any external
+    request is made, so the containing directory entry is fsynced too.
+    """
+    path = Path(path)
+    durable_mkdir(path.parent)
     raw=(json.dumps(value,sort_keys=True,indent=2)+'\n').encode()
     temp=path.with_name(path.name+'.tmp-'+str(os.getpid()))
     with temp.open('xb') as f:
         f.write(raw); f.flush(); os.fsync(f.fileno())
     os.replace(temp,path)
+    _fsync_dir(path.parent)
 
 
 def current_pointer():
@@ -112,10 +159,13 @@ def changed_urls(old,new):
 
 
 def append_rows(ledger, rows):
-    ledger.parent.mkdir(parents=True,exist_ok=True)
+    durable_mkdir(ledger.parent)
+    created = not ledger.exists()
     with ledger.open('a') as f:
         for row in rows: f.write(json.dumps(row,sort_keys=True)+'\n')
         f.flush();os.fsync(f.fileno())
+    if created:
+        _fsync_dir(ledger.parent)
 
 
 LIVE_POST, LIVE_GSC_SUBMIT = post, gsc_submit
