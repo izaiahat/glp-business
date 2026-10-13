@@ -254,7 +254,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8c5fa2d801342ed20b0bc8b9e418b9455f42fd78a9660d7a65fb26fb4120fca1"
+      "sha256": "c9ed539aae4536d8e3d8678b13c2fb15b16216514c72fe6df93659a33461461b"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3501,7 +3501,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "cd91cc7dcfa4d0a83c7bb8b8906e715ae00eacb567e22f5b7fe774fb0426c799"
+      "sha256": "71ef0190b9a88f1ff847c9988e1e525a50e70975ea6c43ccdf631fd69aee6ed6"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -7251,7 +7251,7 @@
       ],
       "kind": "script",
       "scope": "Completed verified archives and superseded site members; shared singleton and fresh production/rollback/PR/scheduler custody; verified R2 pair before retirement; not scheduled.",
-      "sha256": "9d9b778b100660f37eedfca9b7b9e4849f90910bab6b09423d29f9cb923223a3"
+      "sha256": "2414601f5ea0bf2bd104f56a5c1440775fe62e28bba7543d51a6136f3e543db8"
     },
     "ops/glp/seo_weekly_budget.py": {
       "callers": [
@@ -7433,6 +7433,13 @@
       ],
       "kind": "test",
       "sha256": "3b9d86238231a7f4c39b8817cf47d6c08255e7a10186fab676ad7e0af04f3a48"
+    },
+    "tests/test_host_disk_pin_protocol.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci host-disk exact-head offline suite"
+      ],
+      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
     }
   },
   "omitted_runtime_inputs": [
@@ -7443,5 +7450,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1091
+  "tracked_count": 1092
 }

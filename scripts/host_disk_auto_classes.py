@@ -40,6 +40,22 @@ def text_paths(text):
     return out
 
 
+def pin_inventory():
+    """Fresh all-or-nothing registry read with safe, stage-specific refusals.
+
+    Never serialize exception text: transports can include credentials or raw
+    responses. A failed collector must not expose a partial union as authority.
+    """
+    pins=set()
+    for source in ('pr_pins','worktree_pins','live_release_pins','r8_pins','linear_pins'):
+        try:
+            pins.update(globals()[source]())
+        except Exception as error:
+            return {'schema':'host-disk-pins-v1','ok':False,
+                    'source':source,'error_type':type(error).__name__}
+    return {'schema':'host-disk-pins-v1','ok':True,'pins':sorted(map(str,pins))}
+
+
 def worktree_pins(roots=(BUS / '.worktrees', BUS / 'worktrees')):
     """Every registered worktree of every repo that owns a business worktree (any location)."""
     pins = set()
