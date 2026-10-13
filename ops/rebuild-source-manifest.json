@@ -7507,6 +7507,14 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "19822da26ebae81f8ae04371d5630e81835ecc20a551006351f6ca0dcc030b15"
+    },
+    "scripts/screenshot_pruner.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/evidence_preserving_pruner.py:run_D",
+        "GLP-349 native image qualification/receipt admission"
+      ],
+      "sha256": "7c609e630e094647fb12359dbf94e3d1a9990a3240975b1a67aa15428190cd29"
     }
   },
   "omitted_runtime_inputs": [
@@ -7517,5 +7525,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1102
+  "tracked_count": 1103
 }
