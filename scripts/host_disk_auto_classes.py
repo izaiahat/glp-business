@@ -190,14 +190,19 @@ LAYOUT = {Path('/'), Path('/home/ubuntu'), Path('/home/ubuntu/.hermes'), Path('/
           SCRATCH, TMP, REGISTRY_RUNS, REGISTRY_RUNS.parent}
 
 
-def external_pins():
+def external_pins(*, include_worktrees=True):
     """All live reference sources; any failure propagates (no effects without it).
 
     Bare layout roots (a reference to '/tmp' or 'reports/ops' itself) name no
     specific artifact; they are retained, never retired, but do not pin children.
     """
     pins = set()
-    for source in (worktree_pins, prepared_pins, pr_pins, linear_pins, live_release_pins, r8_pins):
+    # False is used only by the finite completed-CI dependency class. Every
+    # legacy caller retains the blanket Git source/worktree ownership pin.
+    sources = (prepared_pins, pr_pins, linear_pins, live_release_pins, r8_pins)
+    if include_worktrees:
+        sources = (worktree_pins, *sources)
+    for source in sources:
         pins |= source()
     from host_disk_cold_classes import existing_pins
     return existing_pins(pins - LAYOUT)

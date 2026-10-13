@@ -17,6 +17,30 @@
     },
     "notes": "D alone retires allowlisted untracked images per file in top-level QA/candidate runs whose ordinary images are ALL older than 30 days. Recent text/log/index mtimes do not rejuvenate old images; any recent ordinary image still vetoes the entire run. Financial/secret/state/database/.git files and protected sibling subtrees remain untouched without vetoing safe siblings. A sealed QA name alone is not a live pointer. Live-release/deploy-pointer policy entries and script/config consumers retain protection; narrative reports and copied report current*.json are not consumers. The operator decision supersedes the blanket QA protected_root ONLY for D; keep it for every other rule. Baselines/fixtures/tests/ws-v/scripts/quarantine remain outside run scope. Keep all non-image originals, content/roundtrip-verified compressed text copies, checksum MANIFEST-DELETED-IMAGES.json, and journal every unlink. D requires a complete checksum-pinned dry receipt bound to scope and source hashes. Gross reclaim counts unique allocated inodes only when all hardlinks are eligible; manifest/text-copy overhead is not deducted."
   },
+  "completed_ci_dependencies": [
+    {
+      "path": "/home/ubuntu/business/.worktrees/m93-site-ci/node_modules",
+      "authority": "D3-completed-transient-ci-dependencies-20261013",
+      "release": "M93",
+      "owner_head": "fa7b4939b65d18028c6074af57aa2aedcf186432",
+      "receipt": "/home/ubuntu/business/reports/ops/fable-plan-2-20261009/lanes/M93/site/LOCAL-CI.json",
+      "receipt_sha256": "29300f1e03f7ec172a5547c83b9b5f01d6f72694055891a847449ce7986d56fb",
+      "lock_sha256": "ac520453d50f8e8e47bd0f15dd9320052f8314928c9322747b14a5b49e4a704e",
+      "package_sha256": "a1bf575cf243fdaae64ec264fb9467315f456f02ddcba8d45ea6f02ef20297b3",
+      "installed_lock_sha256": "130976fff5573134795ca5da91e8e0a4a192e6a2da74ac3cbaa225b9a5e639e4"
+    },
+    {
+      "path": "/home/ubuntu/business/.worktrees/m93b-site-ci/node_modules",
+      "authority": "D3-completed-transient-ci-dependencies-20261013",
+      "release": "M93b",
+      "owner_head": "3dc037e5d479fccee2d9d1bffd4ccd33e010d980",
+      "receipt": "/home/ubuntu/business/reports/ops/fable-plan-2-20261009/lanes/M93b/site/LOCAL-CI.json",
+      "receipt_sha256": "71bedd570de718f32ca0c9609252f82e3b41dcc654c24420c0936f39345504b7",
+      "lock_sha256": "ac520453d50f8e8e47bd0f15dd9320052f8314928c9322747b14a5b49e4a704e",
+      "package_sha256": "a1bf575cf243fdaae64ec264fb9467315f456f02ddcba8d45ea6f02ef20297b3",
+      "installed_lock_sha256": "130976fff5573134795ca5da91e8e0a4a192e6a2da74ac3cbaa225b9a5e639e4"
+    }
+  ],
   "superseded_candidates": [],
   "archives": [],
   "seals": [],
