@@ -21,20 +21,24 @@ revoke phases refuse; old keys remain until proof. Failure notifications use
 the existing ops-alerts route and a durable exact-readback journal.
 
 Raw HEAD HTTP403/503 is transport evidence, **not** a policy-denial verdict.
-The parser refuses `head_denial_attribution_required` before CLOUD_PROVED or
-old-key revocation unless the coordinator supplies separate `head_denial_custody`
-from the designated independent Fable review of the exact attributable denial.
-That nonsecret custody binds task_id, runtime_environment_id,
-environment_config_id, nonce, method HEAD, the exact target
-`https://hermes-01.tail9e25df.ts.net:8443/`, port, command_exit and http, plus
-enforcement `tailscale_acl`, accepted_by `designated independent Fable reviewer`
-and the accepted evidence's receipt_sha256. Proxy/origin errors, missing/stale
-bindings and native-reply attribution assertions refuse. The coordinator must
-authenticate the actual independent verdict and exact receipt bytes upstream;
-the parser checks binding, not reviewer identity or network policy itself.
-No automatic custody producer or permission to edit live state is introduced.
-Missing acceptance retains the old key; it is not permission for a new task,
-retry, publication, key change or inferred policy/version join.
+No maintained authenticated denial-witness producer/verifier or genuine approved
+positive receipt was found in the assigned source/retained inputs. The parser
+therefore refuses all denial outcomes before CLOUD_PROVED or old-key revocation:
+`head_denial_attribution_required` when custody is absent, or
+`head_denial_authenticated_witness_unavailable` for any supplied custody.
+Self-declared enforcement/reviewer labels and a 64-hex digest are not authenticated
+receipt bytes or an independent policy verdict. No supplied dictionary unlocks
+revocation, including a forged persisted CLOUD_PROVED row.
+
+The old HTTP403/503 success whitelist is removed, not replaced with a guessed
+positive contract. Genuine denial-positive compatibility remains BLOCKED until
+a genuine approved witness establishes actual raw outcomes and authentic immutable
+receipt custody, designated non-author acceptance, and exact task/config/runtime/
+nonce/HEAD/8443 target plus approved applied-policy evidence. Service, proxy, TLS,
+timeout and no-response outcomes remain UNKNOWN, not policy attribution.
+No adapter/store, new positive fixture, live-state edit or pilot replay is added.
+Missing acceptance retains the old key; this source refusal is not permission for
+a new task, retry, publication, key change or inferred policy/version join.
 
 Manual resume: use the same approved interpreter and --run. Do not edit ticket
 terminal state, delete pending secret files, or remint on a stale editor label.

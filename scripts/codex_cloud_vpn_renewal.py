@@ -198,29 +198,16 @@ def parse_proof(body, env, nonce, native_custody=None, denial_custody=None):
     except (ValueError,TypeError,AttributeError): raise ValueError('cloud_timestamp_invalid') from None
     if type(allowed.get('command_exit')) is not int or allowed.get('command_exit')!=0 or allowed.get('http')!=200 or allowed.get('schema')!='codex-evidence-v1' or not allowed.get('generated_at'):
         raise ValueError('allowed_cloud_get_not_proved')
-    if type(denied.get('command_exit')) is not int or not 0 <= denied['command_exit'] <= 255 or denied.get('port')!=8443 or denied.get('http') not in (403,503):
-        raise ValueError('denied_positive_control_not_proved')
-    # 403/503 can originate from a proxy or unhealthy service. Native status
-    # alone is not Tailscale enforcement and must not unlock old-key revocation.
-    # This separate, coordinator-held custody is populated ONLY from the
-    # designated independent Fable acceptance of the exact denial evidence.
-    # Never accept an attribution assertion from the native reply itself.
+    # No maintained authenticated denial-witness producer/verifier or genuine
+    # approved positive receipt is available in this source contract. Labels
+    # and digest syntax in a state dictionary cannot authenticate receipt bytes,
+    # a designated non-author verdict, or the exact approved applied policy.
+    # Refuse all outcomes before CLOUD_PROVED/revocation; do not invent an HTTP
+    # success whitelist (403/503, no response, proxy/TLS/service failures alike).
+    # A future success contract must derive from a genuine approved witness.
     if denial_custody is None:
         raise ValueError('head_denial_attribution_required')
-    binding={'task_id':value['task_id'],'runtime_environment_id':value['environment_id'],
-             'environment_config_id':env['environment_id'],'nonce':nonce,
-             'method':'HEAD','target':'https://hermes-01.tail9e25df.ts.net:8443/',
-             'port':8443,'command_exit':denied['command_exit'],'http':denied['http']}
-    if not isinstance(denial_custody,dict) or set(denial_custody)!=set(binding)|{'enforcement','accepted_by','receipt_sha256'}:
-        raise ValueError('head_denial_attribution_invalid')
-    if any(type(denial_custody[k]) is not type(v) or denial_custody[k]!=v for k,v in binding.items()):
-        raise ValueError('head_denial_attribution_binding_mismatch')
-    if denial_custody['enforcement']!='tailscale_acl' or denial_custody['accepted_by']!='designated independent Fable reviewer' or not isinstance(denial_custody['receipt_sha256'],str) or not re.fullmatch(r'[0-9a-f]{64}',denial_custody['receipt_sha256']):
-        raise ValueError('head_denial_attribution_not_accepted')
-    value['head_denial_custody']=dict(denial_custody)
-    if native_bound:
-        value['native_creation']=native_custody
-    return value
+    raise ValueError('head_denial_authenticated_witness_unavailable')
 
 
 def proof(env, row, state):

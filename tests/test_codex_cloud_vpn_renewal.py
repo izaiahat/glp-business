@@ -15,7 +15,7 @@ def fixture_env():
 
 
 def fixture_denial_custody(value, env):
-    """Synthetic coordinator-held acceptance; never a live Fable receipt."""
+    """Forged negative input; not authenticated custody or a Fable receipt."""
     import hashlib
     return {'task_id':value['task_id'],'runtime_environment_id':value['environment_id'],
             'environment_config_id':env['environment_id'],'nonce':value['nonce'],
@@ -63,9 +63,11 @@ def test_vpn_private_reader_refuses_symlink_and_hardlink(tmp_path):
 def test_vpn_cloud_proof_requires_new_task_nonce_allowed_and_denied():
     env=fixture_env()
     value={'schema':'codex-cloud-vpn-proof-v1','nonce':'fixture-nonce','environment_id':env['environment_id'],'new_cloud_task':True,'task_id':'11111111-1111-4111-8111-111111111111','task_url':'https://chatgpt.com/local/11111111-1111-4111-8111-111111111111','allowed':{'command_exit':0,'http':200,'schema':'codex-evidence-v1','generated_at':'2026-10-11T00:00:00Z'},'denied':{'port':8443,'command_exit':0,'http':503}}
-    assert r.parse_proof(json.dumps(value),env,'fixture-nonce',denial_custody=fixture_denial_custody(value,env))['allowed']['http']==200
-    for change in ({'nonce':'wrong'},{'new_cloud_task':False},{'new_cloud_task':'true'},{'task_id':'not-a-task'},{'task_url':'http://localhost/x'},{'allowed':dict(value['allowed'],http=403)},{'allowed':dict(value['allowed'],command_exit=False)},{'denied':{'port':8443,'http':503}},{'denied':dict(value['denied'],http=200)}):
-        with pytest.raises(ValueError): r.parse_proof(json.dumps({**value,**change}),env,'fixture-nonce')
+    with pytest.raises(ValueError,match='head_denial_authenticated_witness_unavailable'):
+        r.parse_proof(json.dumps(value),env,'fixture-nonce',denial_custody=fixture_denial_custody(value,env))
+    for change,reason in (({'nonce':'wrong'},'cloud_proof_binding_mismatch'),({'new_cloud_task':False},'new_cloud_task_custody_missing'),({'new_cloud_task':'true'},'new_cloud_task_custody_missing'),({'task_id':'not-a-task'},'cloud_task_id_invalid'),({'task_url':'http://localhost/x'},'new_cloud_task_custody_missing'),({'allowed':dict(value['allowed'],http=403)},'allowed_cloud_get_not_proved'),({'allowed':dict(value['allowed'],command_exit=False)},'allowed_cloud_get_not_proved'),({'denied':{'port':8443,'http':503}},'proof_fields_not_allowlisted')):
+        with pytest.raises(ValueError,match=reason):
+            r.parse_proof(json.dumps({**value,**change}),env,'fixture-nonce',denial_custody=fixture_denial_custody(value,env))
 
 
 def test_vpn_native_runtime_id_and_null_url_require_creation_selector():
@@ -73,12 +75,14 @@ def test_vpn_native_runtime_id_and_null_url_require_creation_selector():
     value={'schema':'codex-cloud-vpn-proof-v1','nonce':'fixture-nonce','environment_id':'ccarenv_b64_fixture','new_cloud_task':True,'task_id':'11111111-1111-4111-8111-111111111111','task_url':None,'allowed':{'command_exit':0,'http':200,'schema':'codex-evidence-v1','generated_at':'2026-10-11T00:00:00Z'},'denied':{'port':8443,'command_exit':0,'http':503}}
     custody={'task_id':value['task_id'],'environment_config_id':env['environment_id'],'runtime_environment_id':value['environment_id']}
     denial=fixture_denial_custody(value,env)
-    assert r.parse_proof(json.dumps(value),env,'fixture-nonce',custody,denial)['task_url'] is None
-    assert r.parse_proof(json.dumps({**value,'native_creation':custody}),env,'fixture-nonce',denial_custody=denial)['task_url'] is None
+    with pytest.raises(ValueError,match='head_denial_authenticated_witness_unavailable'):
+        r.parse_proof(json.dumps(value),env,'fixture-nonce',custody,denial)
+    with pytest.raises(ValueError,match='head_denial_authenticated_witness_unavailable'):
+        r.parse_proof(json.dumps({**value,'native_creation':custody}),env,'fixture-nonce',denial_custody=denial)
     for change in ({'task_id':'22222222-2222-4222-8222-222222222222'}, {'environment_config_id':'foreign-env'}, {'runtime_environment_id':'foreign-runtime'}):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError,match='native_creation_selector_mismatch'):
             r.parse_proof(json.dumps(value),env,'fixture-nonce',{**custody,**change})
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError,match='cloud_proof_binding_mismatch'):
         r.parse_proof(json.dumps(value),env,'fixture-nonce')
 
 
@@ -89,15 +93,10 @@ def test_vpn_raw_head_status_is_not_policy_denial(http, tmp_path, monkeypatch):
     value={'schema':'codex-cloud-vpn-proof-v1','nonce':'fixture-nonce','environment_id':env['environment_id'],'new_cloud_task':True,'task_id':'11111111-1111-4111-8111-111111111111','task_url':'https://chatgpt.com/local/11111111-1111-4111-8111-111111111111','allowed':{'command_exit':0,'http':200,'schema':'codex-evidence-v1','generated_at':'2026-10-11T00:00:00Z'},'denied':{'port':8443,'command_exit':0,'http':http}}
     with pytest.raises(ValueError, match='head_denial_attribution_required'):
         r.parse_proof(json.dumps(value),env,'fixture-nonce')
+    # F1 regression: labels and a syntactically valid hash are not a witness.
     denial=fixture_denial_custody(value,env)
-    assert r.parse_proof(json.dumps(value),env,'fixture-nonce',denial_custody=denial)['head_denial_custody']==denial
-    for field,wrong in [('task_id','foreign-task'),('runtime_environment_id','foreign-runtime'),
-                        ('environment_config_id','foreign-config'),('nonce','foreign-nonce'),
-                        ('method','GET'),('target','https://foreign.invalid:8443/'),
-                        ('port',443),('http',200),('command_exit',False),
-                        ('enforcement','proxy'),('accepted_by','self'),('receipt_sha256','')]:
-        with pytest.raises(ValueError, match='head_denial_attribution_'):
-            r.parse_proof(json.dumps(value),env,'fixture-nonce',denial_custody={**denial,field:wrong})
+    with pytest.raises(ValueError, match='head_denial_authenticated_witness_unavailable'):
+        r.parse_proof(json.dumps(value),env,'fixture-nonce',denial_custody=denial)
     # A worker may not award itself independently accepted denial custody.
     with pytest.raises(ValueError, match='proof_fields_not_allowlisted'):
         r.parse_proof(json.dumps({**value,'head_denial_custody':denial}),env,'fixture-nonce')
@@ -116,18 +115,18 @@ def test_vpn_raw_head_status_is_not_policy_denial(http, tmp_path, monkeypatch):
         r.proof(env,row,state)
     assert row['phase']=='PROOF_PENDING' and not r.STATE.exists()
     row['head_denial_custody']=denial
-    assert r.proof(env,row,state)['head_denial_custody']==denial
-    assert row['phase']=='CLOUD_PROVED'
-    # Pre-upgrade persisted CLOUD_PROVED/raw-status rows must also refuse.
-    row.pop('head_denial_custody')
-    row.update(cloud_proof=value,key_id='fixture-new',old_key_id='fixture-old')
+    with pytest.raises(ValueError, match='head_denial_authenticated_witness_unavailable'):
+        r.proof(env,row,state)
+    assert row['phase']=='PROOF_PENDING' and not r.STATE.exists()
+    # Forged persisted custody must not unlock metadata/revocation either.
+    row.update(phase='CLOUD_PROVED',cloud_proof=value,key_id='fixture-new',old_key_id='fixture-old')
     r.atomic(r.STATE,state)
     effects=[]
     api=types.SimpleNamespace(metadata=lambda *a:effects.append('metadata'),revoke=lambda *a:effects.append('revoke'))
     monkeypatch.setattr(r,'mint_due',lambda *a,**k:{})
     monkeypatch.setattr(r,'alert_failure',lambda *a:None)
     result=r.run({'environments':[env]},r.STATE,api)
-    assert result['environments'][0]['reason']=='head_denial_attribution_required'
+    assert result['environments'][0]['reason']=='head_denial_authenticated_witness_unavailable'
     assert result['status']=='FAILED' and effects==[]
 
 
