@@ -2572,7 +2572,7 @@
         "manual:authorized-dot-ticket"
       ],
       "kind": "script",
-      "sha256": "780e52f271b6db78bd3d362641238a054e9158bd1f1956ac1fe33cc2263fdf05"
+      "sha256": "8318e51fdfabec5ddaa9f5ad424e576b5348266296f56b0974060ef1a8fe1086"
     },
     "scripts/evidence_preserving_pruner.py": {
       "callers": [
@@ -4968,7 +4968,7 @@
     "tests/test_dot_dispatch_recovery.py": {
       "callers": [".github/workflows/dot-lane.yml"],
       "kind": "test",
-      "sha256": "6b1519a1a0ec11f99171c8ef9cb810a67c31083ef7fa1301f1c695aa9fb04857"
+      "sha256": "607da8f672d1730c5a3014adba294caaa72324fbd398b1a0b63ef7c8248e0712"
     },
     "tests/test_f07_registered_weekly_entry.py": {
       "callers": [

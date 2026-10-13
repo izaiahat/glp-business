@@ -43,7 +43,7 @@ def test_bound_or_invalid_claim_refused(tmp_path,change):
     assert ledger.read_bytes()==before
 
 
-@pytest.mark.parametrize('mode',['valid','foreign_author','webhook','attachment','no_disclaimer','wrong_id','native_absent','native_live'])
+@pytest.mark.parametrize('mode',['valid','foreign_author','webhook','attachment','no_disclaimer','wrong_id','native_absent','native_live','probe_disappears','stale_audit'])
 def test_external_handoff_expiry_is_not_native_completion(tmp_path,monkeypatch,mode):
     root=tmp_path/'tickets'
     message={'id':'100','channel_id':d.DOTS['rook']['channel'],'content':'','author':{'id':d.SENDER},'mentions':[{'id':d.DOTS['rook']['user']}],'attachments':[]}
@@ -62,9 +62,13 @@ def test_external_handoff_expiry_is_not_native_completion(tmp_path,monkeypatch,m
     if mode=='no_disclaimer':fallback['content']='RESULT '+sent['ticket']
     if mode=='wrong_id':fallback['id']='102'
     native={'status':'absent' if mode=='native_absent' else 'confirmed' if mode=='native_live' else 'request_expired'}
+    sequence=iter([{'status':'request_expired'},{'status':'absent'}])
+    probe=(lambda _:next(sequence)) if mode=='probe_disappears' else (lambda _:native)
+    if mode=='stale_audit':
+        d.atomic_json(ticket/'EXPIRY.json',dict(schema='DOT_NO_REPLY_EXPIRY_V1',ticket_preimage_sha256=d.digest(d.canonical(row)),source_pins=d.source_pins(),reason='fixture',recorded_by='R2b',timeout_seconds=21600))
     if mode!='valid':
         with pytest.raises(ValueError):
-            d.expire(ticket,reason='fixture',owner='R2b',api=api,probe=lambda _:native,handoff_reply_id='101')
+            d.expire(ticket,reason='fixture',owner='R2b',api=api,probe=probe,handoff_reply_id='101')
         assert json.loads((ticket/'TICKET.json').read_text())['state']=='sent'
         return
     with pytest.raises(ValueError,match='reply_present'):

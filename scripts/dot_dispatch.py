@@ -356,7 +356,8 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
                 raise ValueError('expiry_external_handoff_binding_refused')
         elif replies:
             raise ValueError('expiry_reply_present_requires_reconciliation')
-        if probe(ticket)['status'] not in {'absent', 'request_expired'}:
+        final_native = probe(ticket)
+        if final_native['status'] not in {'absent', 'request_expired'} or (handoff is not None and final_native['status'] != 'request_expired'):
             raise ValueError('expiry_native_confirmation_or_live_effect')
         audit = dict(schema='DOT_NO_REPLY_EXPIRY_V1', ticket=state['ticket'],
             correlation=state['correlation'], reason=reason, recorded_by=owner,
@@ -372,6 +373,8 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
         audit_path = ticket / 'EXPIRY.json'
         if audit_path.exists():  # recover an interrupted audit-before-state commit
             old = json.loads(audit_path.read_text())
+            if any(old.get(k) != audit.get(k) for k in ('schema','external_handoff_sha256')) or old.get('external_handoff',{}).get('id') != handoff_reply_id:
+                raise ValueError('expiry_audit_handoff_conflict')
             if any(old[k] != audit[k] for k in ('ticket_preimage_sha256', 'reason', 'recorded_by', 'timeout_seconds', 'source_pins')):
                 raise ValueError('expiry_audit_conflict')
             audit = old
