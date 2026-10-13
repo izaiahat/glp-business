@@ -1,0 +1,24 @@
+{
+  "sources": {
+    "complete": {
+      "raw_sha256": "2a517149aff17f0c2affda57c248dbf3727112444ea6e5033f39a8be35b384af",
+      "observed_state": [
+        "complete"
+      ],
+      "projection": "Captured turn subtree, attribute allowlist; message text replaced. No synthetic terminal state."
+    },
+    "in_progress": {
+      "raw_sha256": "793cbfe791938d5d6d44f8469278161c2323d626888778e4252917f3134b4650",
+      "observed_state": [
+        "in_progress"
+      ],
+      "projection": "Captured turn subtree, attribute allowlist; message text replaced. No synthetic terminal state."
+    },
+    "chat_mode": {
+      "raw_sha256": "29c85916b382cb84810a8414ed21b0f86050da987d1065fd5768f1a60578617e",
+      "projection": "Captured semantic Composer mode group; Chat/Work labels and aria-pressed preserved."
+    }
+  },
+  "capture_receipts": "reports/ops/fable-plan-2-20261009/lanes/P14/{DOM-CAPTURE,COMPLETED-DOM-CAPTURE}.json",
+  "privacy": "No account identifiers, conversation URLs, real prompt/reply text, or credentials."
+}

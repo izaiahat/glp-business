@@ -214,6 +214,8 @@ class FakeCDP:
             # and DOM selection/Input behavior independently.
             expected, _ = json.JSONDecoder().raw_decode(expression.split('const ', 1)[1].split('=', 1)[1])
             return ('' if page.get('placeholder') else page['composer']) == expected
+        if expression.startswith('(()=>{function currentFinalReply'):
+            return {'present': False}  # Legacy DOM; captured current trees replay in test_pro_current_dom.
         if "const mb=" in expression:
             model = None if self.pro_only_trigger or self.medium_trigger else '6 Pro'
             failure_location = page.get('failure_location', 'activity-header')
@@ -2852,7 +2854,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             relay.send_message('packet')
         action = next(n.value for n in ast.walk(ast.parse(scripts[0]))
                       if isinstance(n, ast.Constant) and isinstance(n.value, str)
-                      and n.value.startswith('(()=>{function ensureProChatSurface'))
+                      and n.value.endswith('return ensureProChatSurface();})()'))
         node = r'''const vm=require('vm'),action=JSON.parse(process.argv[1]);
         const results={};for(const kind of ['work','chat','draft','stop','transcript','duplicate','disabled','unknown','wrong_path','hidden']){
             let clicks=0;const elem=(text,pressed)=>({innerText:text,textContent:'',parentElement:null,
@@ -2869,10 +2871,11 @@ console.log(JSON.stringify(fixtures.map(f => {
         }console.log(JSON.stringify(results));'''
         proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
         actual = json.loads(proc.stdout)
-        self.assertEqual(actual['work'], {'value': {'error': 'CHAT_SURFACE_REFUSED'}, 'clicks': 0})
+        self.assertEqual(actual['work'], {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
         self.assertEqual(actual['chat'], {'value': {'switched': False}, 'clicks': 0})
         for kind in ('draft','stop','transcript','duplicate','disabled','unknown','wrong_path','hidden'):
-            self.assertEqual(actual[kind], {'value': {'error': 'CHAT_SURFACE_REFUSED'}, 'clicks': 0})
+            reason = 'mode_ambiguous' if kind in ('duplicate','disabled','hidden') else 'work_selected'
+            self.assertEqual(actual[kind], {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': reason}, 'clicks': 0})
         original_js = self.browser.js
         mode = {'work': True, 'clicked': False, 'refuse': False}
         def js(expression):
@@ -2903,7 +2906,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             relay.send_message('packet')
         action = next(n.value for n in ast.walk(ast.parse(scripts[0]))
                       if isinstance(n, ast.Constant) and isinstance(n.value, str)
-                      and n.value.startswith('(()=>{function ensureProChatSurface'))
+                      and n.value.endswith('return ensureProChatSurface();})()'))
         node = r'''const vm=require('vm'),action=JSON.parse(process.argv[1]);
         let clicks=0;const elem=(text,pressed)=>({innerText:text,parentElement:null,
           getClientRects:()=>[{}],getAttribute:k=>k==='aria-pressed'?pressed:null,click:()=>{clicks++}});
@@ -2913,7 +2916,7 @@ console.log(JSON.stringify(fixtures.map(f => {
         console.log(JSON.stringify({value:vm.runInNewContext(action,{document,location:{pathname:'/'},
           getComputedStyle:()=>({display:'block',visibility:'visible'})}),clicks}));'''
         proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
-        self.assertEqual(json.loads(proc.stdout), {'value': {'error': 'CHAT_SURFACE_REFUSED'}, 'clicks': 0})
+        self.assertEqual(json.loads(proc.stdout), {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
         original_js = self.browser.js
         def js(expression):
             if expression.startswith('(()=>{function ensureProChatSurface'):

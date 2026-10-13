@@ -182,15 +182,69 @@ def write_limit(path: Path, value: int) -> bool:
         return False
 
 
+# Soft reclaim preference for the one authenticated interactive owner, not a
+# reservation or a hard minimum. H349b measured 5.6GiB resident + 2.1GiB cold
+# swap in this scope, below its unchanged 13GiB high/16GiB max. Eight GiB covers
+# that working set while leaving >23GiB of the 31GiB host unprotected.
+# vm.swappiness=10 was already persisted; lowering it cannot page in old heap.
+INTERACTIVE_LOW = 8 * GIB
+
+
+def protect_interactive_memory(scopes: list[Path]) -> list[str]:
+    """Prefer resident TUI pages over cold reclaim; never fault old swap in.
+
+    memory.low is bounded by every ancestor's effective low. Establish the
+    same budget top-down; ancestor values are a shared budget, not additive
+    reservations. No memory.min/high/max/swap/admission policy is changed.
+    Only the positive backend/node/launcher identity earns this preference;
+    legacy source-marker matches alone must never protect a worker prompt.
+    """
+    if (CGROOT.name, CGROOT.parent.name, CGROOT.parent.parent.name) != (
+            "user@1000.service", "user-1000.slice", "user.slice"):
+        return []
+
+    def authenticated(scope):
+        try:
+            pids = set((scope / "cgroup.procs").read_text().split())
+            return any(business_coordinator(pid, pids) for pid in pids)
+        except OSError:
+            return False
+
+    owners = [scope for scope in scopes if scope.parent == CGROOT and authenticated(scope)]
+    if not owners:
+        return []
+    if len(owners) != 1:
+        return ["🛑 interactive reclaim protection: duplicate owner scopes; refusing"]
+    scope = owners[0]
+    chain = [CGROOT.parent.parent, CGROOT.parent, CGROOT, scope]
+    try:
+        values = [read_int(group / "memory.low") for group in chain]
+    except (OSError, ValueError):
+        values = []
+    # Do not lower an existing owner policy or overwrite unknown controls.
+    if len(values) != len(chain) or any(v is None or not 0 <= v <= INTERACTIVE_LOW for v in values):
+        return ["🛑 interactive reclaim protection: unknown/conflicting low; refusing"]
+    for group, value in zip(chain, values):
+        if not authenticated(scope):
+            return ["🛑 interactive reclaim protection: owner changed; refusing"]
+        if value != INTERACTIVE_LOW:
+            if not write_limit(group / "memory.low", INTERACTIVE_LOW):
+                return [f"🛑 interactive reclaim protection: low write failed on {group.name}"]
+            if read_int(group / "memory.low") != INTERACTIVE_LOW:
+                return [f"🛑 interactive reclaim protection: low readback failed on {group.name}"]
+    return []
+
+
 def main() -> int:
     if not CGROOT.is_dir():
         print("cgroup root missing — not a cgroup v2 user slice")
         return 0
 
-    messages: list[str] = []
+    scopes = sorted(CGROOT.glob("tmux-spawn-*.scope"))
+    messages: list[str] = protect_interactive_memory(scopes)
     report: list[dict] = []
 
-    for scope in sorted(CGROOT.glob("tmux-spawn-*.scope")):
+    for scope in scopes:
         current = read_int(scope / "memory.current") or 0
         if current < 50 * 1024 * 1024:
             continue  # empty/dying scope, nothing to protect
