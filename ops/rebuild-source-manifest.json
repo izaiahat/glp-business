@@ -1,34 +1,6 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "scripts/host_disk_completed_dependencies.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/host_disk_large_sweep.py"
-      ],
-      "sha256": "e48c6c5f838d07aa7e7ee4e8e14602cfab2d0a1b941f4d40bf57c3ffd1155a14"
-    },
-    "tests/test_host_disk_completed_dependencies.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "19822da26ebae81f8ae04371d5630e81835ecc20a551006351f6ca0dcc030b15"
-    },
-    "ops/rook-mcp/rook_adapter_launch.py": {
-      "kind": "registered_launcher_source",
-      "callers": [
-        "systemd:user:rook-mcp-adapter.service -> /home/ubuntu/.hermes/scripts/rook_adapter_launch.py"
-      ],
-      "sha256": "b3ed8ea6ca35c98ea87cc81a313347ae32e7d3defd71f691356f764891198e72"
-    },
-    "ops/rook-mcp/ROOK_LAUNCHER_RUNBOOK.md": {
-      "kind": "runbook",
-      "callers": [
-        "manual:parent-owned exact-source Rook adapter restoration"
-      ],
-      "sha256": "f4b1d9e62320b4f65f3bd4871532d6f41fe616594e612414079857b943e89c4d"
-    },
     "scripts/auto_coordinator_receipt.py": {
       "kind": "script",
       "callers": [
@@ -70,7 +42,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "1f098c25dd6ebf7e525e2203b830befa2e4de13ef65db542cfcb9c9368352be7"
+      "sha256": "bedd63b2adcfe0f7c4b743c36036408474ec7dbb064917b48f7f19cf72167e59"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -79,7 +51,7 @@
         "firecrawl-integration"
       ],
       "kind": "test",
-      "sha256": "f12af65bdcc60753d2a258f9957589b810772e19d06b6049b5c1fc3e385c2013"
+      "sha256": "217961439a2737a32839a341289481997981872d807c5d79e128c69bed1c62a3"
     },
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
       "callers": [
@@ -296,7 +268,7 @@
         "GitHub pull_request exact-head integration"
       ],
       "kind": "workflow",
-      "sha256": "ae0ba773157eb84af7f79f955b9df23719be09a057308291f2039995c692bc83"
+      "sha256": "c7fff7ad84f711d67889eb739bbaca1e8683b50086b7a09117f8a62df0a6f341"
     },
     ".github/workflows/fleet-ingest.yml": {
       "callers": [
@@ -7402,13 +7374,6 @@
       "kind": "source_control",
       "sha256": "9b07b675be9087ea19572c476ef8d061dabebc19837cc74fd7814b08413f4b77"
     },
-    "tests/test_host_disk_pin_protocol.py": {
-      "kind": "test",
-      "callers": [
-        "business-source-ci host-disk exact-head offline suite"
-      ],
-      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
-    },
     "scripts/article_review_physical_lines.py": {
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py",
@@ -7445,6 +7410,13 @@
       ],
       "sha256": "b2585e5a788e037ee055b8f94bf027568df60e51fd4d86fb4f1c94e93cce2f06"
     },
+    "tests/test_host_disk_pin_protocol.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci host-disk exact-head offline suite"
+      ],
+      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
+    },
     "scripts/__init__.py": {
       "callers": [
         "tests/conftest.py"
@@ -7465,6 +7437,34 @@
       ],
       "kind": "test",
       "sha256": "3b9d86238231a7f4c39b8817cf47d6c08255e7a10186fab676ad7e0af04f3a48"
+    },
+    "ops/rook-mcp/rook_adapter_launch.py": {
+      "kind": "registered_launcher_source",
+      "callers": [
+        "systemd:user:rook-mcp-adapter.service -> /home/ubuntu/.hermes/scripts/rook_adapter_launch.py"
+      ],
+      "sha256": "b3ed8ea6ca35c98ea87cc81a313347ae32e7d3defd71f691356f764891198e72"
+    },
+    "ops/rook-mcp/ROOK_LAUNCHER_RUNBOOK.md": {
+      "kind": "runbook",
+      "callers": [
+        "manual:parent-owned exact-source Rook adapter restoration"
+      ],
+      "sha256": "f4b1d9e62320b4f65f3bd4871532d6f41fe616594e612414079857b943e89c4d"
+    },
+    "scripts/host_disk_completed_dependencies.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_large_sweep.py"
+      ],
+      "sha256": "e48c6c5f838d07aa7e7ee4e8e14602cfab2d0a1b941f4d40bf57c3ffd1155a14"
+    },
+    "tests/test_host_disk_completed_dependencies.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "19822da26ebae81f8ae04371d5630e81835ecc20a551006351f6ca0dcc030b15"
     }
   },
   "omitted_runtime_inputs": [
