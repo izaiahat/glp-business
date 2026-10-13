@@ -1,0 +1,29 @@
+name: coordinator-receipt-ci
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/auto_coordinator_receipt.py
+      - scripts/auto_coordinator_runner.py
+      - ops/linear/AUTO-COORDINATOR.md
+      - tests/test_auto_coordinator_receipt.py
+      - tests/test_rv451b_probes.py
+      - .github/workflows/coordinator-receipt-ci.yml
+permissions:
+  contents: read
+jobs:
+  causal-receipt-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - run: python3 -m venv .venv && .venv/bin/python -m pip install 'pytest==8.3.5'
+      - name: Offline causal acceptance contracts
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_auto_coordinator_receipt.py tests/test_rv451b_probes.py

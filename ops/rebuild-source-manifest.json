@@ -1,6 +1,42 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/auto_coordinator_receipt.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/auto_coordinator_runner.py",
+        "manual:GLP-358 read-only verifier"
+      ],
+      "sha256": "f541d4469bd33ef36dcd192ded909bf4e98330115aacf1daf5dc88b5e080339f"
+    },
+    "tests/test_auto_coordinator_receipt.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "ba9b9763021e6799c11f42d66123181a70058e6a99d6077340c349ea9b2b6cdb"
+    },
+    "tests/test_rv451b_probes.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "92c106af72662fbf02eb74511082dcb2d8d3ac9ee9f67c04126d5639e3ca2bae"
+    },
+    ".github/workflows/coordinator-receipt-ci.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "GitHub exact-head CI"
+      ],
+      "sha256": "70751291aa2d5ff3e053bf504d9dd420f9f68623ec21eae2f344cbccb2423fe1"
+    },
+    "ops/linear/GLP358-CAUSAL-RECEIPTS.md": {
+      "kind": "operations",
+      "callers": [
+        "GLP-358 coordinator source handoff"
+      ],
+      "sha256": "5b5f52520a81014f9818e00c8e37262a8f287a85d1055be69b35087f76651507"
+    },
     "scripts/glp_sponsor_firecrawl_supply.py": {
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
@@ -1488,7 +1524,7 @@
     "ops/linear/AUTO-COORDINATOR.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "adb4f47a550fd3d83c66d93d62101db5c7d37c4f49d72eeb32724065579f9f2b"
+      "sha256": "6362f2406ae3749ee38b5b200dee7e49272c4a98b528f465b1e70a3360ec8eb5"
     },
     "ops/linear/CONVENTIONS.md": {
       "callers": [],
@@ -2355,7 +2391,7 @@
         "ops/hermes-cron-scripts/glp_auto_coordinator.sh"
       ],
       "kind": "script",
-      "sha256": "bdd3ae35c63d2403b8e176bc913b1091c9545e58ef8c59c5928fe0bf7b340f1d"
+      "sha256": "4cae62230a7fee1e4fdf70b69f86d89c86653537b09710bde27ee642144d0bcf"
     },
     "scripts/awin_fresh_preflight.py": {
       "callers": [
@@ -7288,21 +7324,6 @@
       "kind": "test_fixture",
       "sha256": "e1428963ab6a910e14b4836743327912742aed89430442d2a6a4a874b52dd0d0"
     },
-    "tests/test_pro_research_supersession.py": {
-      "callers": ["business-source-ci"],
-      "kind": "test",
-      "sha256": "0bea566f03e876761d4cce570f1bc051760f866458c4b6a3ed7c394a44421695"
-    },
-    "ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.json": {
-      "callers": ["scripts/gpt6pro_relay.py", "scripts/pro_route.py"],
-      "kind": "source_control",
-      "sha256": "4ad6e16fd15e8734ce965f4ebd42a339cc893f6e53ae8f938cfbab02920f764d"
-    },
-    "ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.md": {
-      "callers": ["P17 operator ruling and independent relay-safety review"],
-      "kind": "source_control",
-      "sha256": "9b07b675be9087ea19572c476ef8d061dabebc19837cc74fd7814b08413f4b77"
-    },
     "tests/fixtures/pro_current_dom/in_progress.json": {
       "callers": [
         "tests/test_pro_current_dom.py"
@@ -7330,6 +7351,28 @@
         "registered affiliate postback receiver synchronizer; RX93"
       ],
       "sha256": "ed28774b32a3ad23a30df944d82bff4f2b0295db2ee4ecbe3b7ab95d04bc6182"
+    },
+    "tests/test_pro_research_supersession.py": {
+      "callers": [
+        "business-source-ci"
+      ],
+      "kind": "test",
+      "sha256": "0bea566f03e876761d4cce570f1bc051760f866458c4b6a3ed7c394a44421695"
+    },
+    "ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.json": {
+      "callers": [
+        "scripts/gpt6pro_relay.py",
+        "scripts/pro_route.py"
+      ],
+      "kind": "source_control",
+      "sha256": "4ad6e16fd15e8734ce965f4ebd42a339cc893f6e53ae8f938cfbab02920f764d"
+    },
+    "ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.md": {
+      "callers": [
+        "P17 operator ruling and independent relay-safety review"
+      ],
+      "kind": "source_control",
+      "sha256": "9b07b675be9087ea19572c476ef8d061dabebc19837cc74fd7814b08413f4b77"
     }
   },
   "omitted_runtime_inputs": [
@@ -7340,5 +7383,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1078
+  "tracked_count": 1083
 }

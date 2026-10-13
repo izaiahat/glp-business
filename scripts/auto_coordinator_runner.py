@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import auto_coordinator_guard as guard
+import auto_coordinator_receipt as receipt
 
 ROOT = Path('/home/ubuntu/business')
 
@@ -30,7 +31,9 @@ def main():
         if state['status'] != 'IDLE':
             print(json.dumps(state), flush=True)
             return 10
+        directory = receipt.begin(ROOT, state)
         env = dict(os.environ, LINEAR_ROLE='orchestrator',
+                   GLP_AUTO_COORDINATOR_RECEIPT_DIR=str(directory),
                    GLP_AUTO_COORDINATOR_MODE='plan-dispatch-close-only',
                    GLP_AUTO_COORDINATOR_LEASE_TOKEN=token,
                    GLP_AUTO_COORDINATOR_LEASE_PID=str(os.getpid()))
@@ -39,7 +42,11 @@ def main():
                    '--provider', 'openai-codex', '-m', 'gpt-6.1-sol',
                    '--reasoning', 'high', '--yolo']
         print('HOST_ADMITTED coordinator_slots=1 active=%s limit=%s' % (active, limit), flush=True)
-        return subprocess.run(command, cwd=ROOT, env=env, timeout=2400).returncode
+        rc = subprocess.run(command, cwd=ROOT, env=env, timeout=2400).returncode
+        exclusive_terminal = {'coordinator_rc': rc, 'receipt_dir': str(directory)}
+        receipt.exclusive(directory / 'RUNNER-TERMINAL.json', exclusive_terminal)
+        print('CAUSAL_RECEIPT ' + str(directory), flush=True)
+        return rc
     finally:
         for lease in leases:
             lease.release()
