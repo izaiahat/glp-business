@@ -77,8 +77,10 @@ def held_source_replacement(source, packet, entry, predecessor_row):
     if (predecessor.get('publication_effects') != 0
         or any(predecessor[key] != entry[key] for key in ('topic_id','article_id','target_route'))):
         raise RuntimeError('source_successor_predecessor_identity_invalid')
-    for ident in (old_id,entry['entry_id']):
-        if (root / 'consumed' / (ident+'.json')).exists():
+    # Consumption is operation-keyed; entry identity lives in its sealed payload.
+    for record_path in sorted((root / 'consumed').glob('*.json')):
+        consumed = buffer._read_sealed(record_path,buffer.CONSUME_SCHEMA,'consumption_sha256')
+        if consumed.get('entry_id') in (old_id,entry['entry_id']):
             raise RuntimeError('source_successor_already_consumed')
     if (entry['entry_id'] in buffer._held_entry_ids(root)
         or entry['entry_id'] in buffer._quarantined_entry_ids(root)):

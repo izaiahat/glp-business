@@ -168,9 +168,17 @@ class SourceCarrierTests(unittest.TestCase):
                 elif contract == 'different_successor_route_existing_id':
                     manifest['entries'][0].update(entry_id=new['entry_id'],route='/guides/other/')
                 elif contract.startswith('consumed_'):
-                    ident = old['entry_id'] if contract.endswith('predecessor') else new['entry_id']
-                    (pool / 'consumed').mkdir()
-                    (pool / 'consumed' / (ident+'.json')).write_text('{}')
+                    consumed_entry = old if contract.endswith('predecessor') else new
+                    operation = 'synthetic-' + contract
+                    carrier.record_consumption(pool, consumed_entry, operation,
+                        {'status':'PASS_BUFFER_PUBLISHED',
+                         'receipt':str(root / 'synthetic-publication.json')})
+                    consumed_path = carrier.consumed_path(pool, operation)
+                    consumed = carrier.buffer._read_sealed(consumed_path,
+                        carrier.buffer.CONSUME_SCHEMA, 'consumption_sha256')
+                    self.assertEqual(consumed['entry_id'], consumed_entry['entry_id'])
+                    self.assertEqual(consumed['operation_id'], operation)
+                    self.assertNotEqual(consumed_path.name, consumed_entry['entry_id']+'.json')
                 elif contract in ('held_predecessor_quarantine_conflict','active_predecessor_claim','published_predecessor_record','successor_hold','successor_quarantine'):
                     directory = {'held_predecessor_quarantine_conflict':'quarantined',
                                  'active_predecessor_claim':'claims','published_predecessor_record':'published',
