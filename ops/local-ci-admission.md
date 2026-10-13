@@ -29,14 +29,31 @@ The runner gets the PR head and changed files from GitHub. It derives the entire
 applicable `pull_request` workflow run-block plan from committed source, including
 workflow, job, step, exact command, environment, dependency checkout, working
 directory and workflow hash. There is no CLI command override or hand-selected
-step subset. Same-head checkout/setup actions are prerequisites, not fabricated
-PASS jobs. The one supported secondary checkout is the public, workflow-pinned
-`izaiahat/hermes-agent` native fixture; it is cloned only into its declared
-worktree dependency directory and revalidated on consumption. Unsupported actions,
-conditions, matrices, service containers, expressions and shells refuse rather
-than silently dropping commands. Workflow dependency installations run exactly
-as declared. Use an isolated venv/PATH for pip commands; setup-node/python versions
-must already be available on the local host.
+step subset. Same-head checkout/setup actions are verified prerequisites, not fabricated PASS
+jobs. Each job gets a fresh exact-head clone (declared fetch-depth 0 or 1), HOME,
+venv with system-site-packages disabled, writable RUNNER_TEMP/TMPDIR, workspace,
+summary and PATH. Ignored files, user packages and venvs never carry between
+jobs; within-job step state is preserved. No host VIRTUAL_ENV or PYTHONPATH is
+inherited. Default Python is the producer's base interpreter, recorded per job;
+a setup-python declaration instead selects and observes that exact available
+major/minor (or patch) interpreter. Setup-node observes and matches the declared
+version before execution, or refuses. UV (when available) seeds the fresh venv
+with Python downloads disabled; otherwise the selected interpreter uses venv.
+No undeclared test dependencies are borrowed from the operator's environment.
+
+Workflow → job → step working-directory and shell defaults are honored; only
+bash is supported, and an effective unsupported shell refuses. Missing/escaping
+cwd, unsupported setup inputs, setup after run steps, needs/artifact transfer and
+GitHub file-command state (GITHUB_ENV/PATH/OUTPUT/STATE) refuse rather than being
+ignored. Reserved runner environment cannot be overridden. The one supported
+secondary checkout is the public, workflow-pinned `izaiahat/hermes-agent` native
+fixture, cloned and revalidated separately inside each job source. Unsupported
+actions, conditions, matrices, service containers and expressions refuse.
+Workflow dependency installations run exactly as declared. Setup versions must
+already be available; the runner does not install new host runtimes. Receipt job
+evidence pins setup logs, interpreter paths/observed versions, clean per-job
+sources and isolated directories; admission rechecks that evidence as well as
+every command log. Retain the jobs directory beside the receipt.
 
 A PASS receipt is registered in the existing report tree at
 `reports/ops/local-ci/<repo-name>/<head>.json`. This is an exclusive, hash-bound

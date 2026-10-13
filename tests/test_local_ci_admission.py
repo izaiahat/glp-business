@@ -10,13 +10,17 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
 
-def fixture_receipt(tmp_path, repo='izaiahat/glp-business', command='printf fixture-pass'):
+def fixture_receipt(tmp_path, repo='izaiahat/glp-business', command='printf fixture-pass', workflow_text=None, files=None):
     ci = importlib.import_module('local_ci_admission')
     tree = tmp_path / 'tree'
     tree.mkdir()
     workflow = tree / '.github/workflows/ci.yml'
     workflow.parent.mkdir(parents=True)
-    workflow.write_text('name: fixture\non: pull_request\njobs:\n  test:\n    steps:\n      - run: ' + command + '\n')
+    workflow.write_text(workflow_text or ('name: fixture\non: pull_request\njobs:\n  test:\n    steps:\n      - run: ' + command + '\n'))
+    for name, content in (files or {}).items():
+        target = tree / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
     for args in (['init'], ['add', '.'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', 'fixture']):
         subprocess.run(['git', '-C', str(tree), *args], check=True, capture_output=True)
     head = subprocess.check_output(['git', '-C', str(tree), 'rev-parse', 'HEAD'], text=True).strip()
@@ -29,6 +33,24 @@ def fixture_receipt(tmp_path, repo='izaiahat/glp-business', command='printf fixt
         index = tmp_path / 'reports/ops/local-ci' / repo.split('/')[1] / (head + '.json')
         ci.write_new(index, ci.pin(tmp_path / 'lane/LOCAL-CI.json'))
     return ci, receipt, head, tree, authority
+
+
+def test_declared_setup_python_cannot_admit_inherited_wrong_version(tmp_path):
+    workflow = """on: pull_request
+jobs:
+  test:
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: python3 -c 'import sys; print(sys.version); assert sys.version_info[:2] == (3, 11)'
+"""
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path, workflow_text=workflow)
+    assert receipt['status'] == 'FAIL'
+    with pytest.raises(ValueError, match='commands_not_passed'):
+        ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                          changed_paths=['fixture.py'], authority_root=tmp_path)
+
 
 
 def test_registered_runner_receipt_admits_exact_clean_head(tmp_path):
@@ -150,8 +172,10 @@ def test_runner_failure_receipt_is_not_admissible(tmp_path):
 
 def test_runner_dirty_after_never_records_pass(tmp_path):
     ci, receipt, head, _, _ = fixture_receipt(tmp_path, command='touch dirty')
-    assert receipt['status'] == 'FAIL' and receipt['worktree_after']['clean'] is False
-    with pytest.raises(ValueError, match='dirty_tree'):
+    assert receipt['status'] == 'FAIL'
+    assert receipt['worktree_after']['clean'] is True  # retained input is not executed in place
+    assert receipt['jobs'][0]['worktree_after']['clean'] is False
+    with pytest.raises(ValueError, match='commands_not_passed'):
         ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
                           changed_paths=['fixture.py'], authority_root=tmp_path)
 
@@ -276,3 +300,186 @@ def test_receipt_for_another_remote_head_refuses_before_fallback(tmp_path):
     with pytest.raises(ValueError, match='remote_head_mismatch'):
         ci.admit({'headRefOid': 'c' * 40}, repo=receipt['repo'], pr=receipt['pr'], head=head,
                  authority_root=tmp_path, gh=locked_gh(head))
+
+
+def test_independent_jobs_do_not_admit_ignored_dependency_leak(tmp_path):
+    workflow = """on: pull_request
+jobs:
+  seed:
+    steps:
+      - run: mkdir -p .venv; touch .venv/leaked-dependency
+  check:
+    steps:
+      - run: test -f .venv/leaked-dependency
+"""
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path, workflow_text=workflow,
+                                            files={'.gitignore': '.venv/\n'})
+    assert receipt['status'] == 'FAIL'
+    assert receipt['results'][0]['exit_code'] == 0
+    assert receipt['results'][1]['exit_code'] != 0
+    with pytest.raises(ValueError, match='commands_not_passed'):
+        ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                          changed_paths=['fixture.py'], authority_root=tmp_path)
+
+
+def test_workflow_default_cwd_cannot_admit_wrong_root_script(tmp_path):
+    workflow = """on: pull_request
+defaults:
+  run:
+    working-directory: subdir
+jobs:
+  test:
+    steps:
+      - run: bash check.sh
+"""
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path, workflow_text=workflow,
+        files={'check.sh': 'exit 0\n', 'subdir/check.sh': 'exit 9\n'})
+    assert receipt['status'] == 'FAIL'
+    assert receipt['results'][0]['exit_code'] == 9
+    with pytest.raises(ValueError, match='commands_not_passed'):
+        ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                          changed_paths=['fixture.py'], authority_root=tmp_path)
+
+
+def test_runner_temp_is_writable_and_job_private(tmp_path):
+    workflow = """on: pull_request
+jobs:
+  seed:
+    steps:
+      - run: test -n "$RUNNER_TEMP"; touch "$RUNNER_TEMP/marker"
+      - run: test -f "$RUNNER_TEMP/marker"
+  check:
+    steps:
+      - run: test -n "$RUNNER_TEMP"; test ! -e "$RUNNER_TEMP/marker"; test -w "$RUNNER_TEMP"
+"""
+    _, receipt, _, _, _ = fixture_receipt(tmp_path, workflow_text=workflow)
+    assert receipt['status'] == 'PASS'
+
+
+@pytest.mark.parametrize('kind', ['workflow', 'job'])
+def test_unsupported_default_shell_refuses(tmp_path, kind):
+    workflow = "on: pull_request\n"
+    if kind == 'workflow':
+        workflow += "defaults:\n  run:\n    shell: sh\n"
+    workflow += "jobs:\n  test:\n"
+    if kind == 'job':
+        workflow += "    defaults:\n      run:\n        shell: sh\n"
+    workflow += "    steps:\n      - run: 'true'\n"
+    with pytest.raises(ValueError, match='unsupported_shell'):
+        fixture_receipt(tmp_path, workflow_text=workflow)
+
+
+def test_default_cwd_precedence_and_supported_shell_override(tmp_path):
+    workflow = """on: pull_request
+defaults:
+  run:
+    working-directory: workflow-dir
+    shell: sh
+jobs:
+  test:
+    defaults:
+      run:
+        working-directory: job-dir
+        shell: bash
+    steps:
+      - run: test "$PWD" = "$GITHUB_WORKSPACE/job-dir"
+      - run: test "$PWD" = "$GITHUB_WORKSPACE/step-dir"
+        working-directory: step-dir
+"""
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path, workflow_text=workflow,
+        files={name + '/.keep': '' for name in ('workflow-dir', 'job-dir', 'step-dir')})
+    assert receipt['status'] == 'PASS'
+    ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                      changed_paths=['fixture.py'], authority_root=tmp_path)
+
+
+@pytest.mark.parametrize('change', ['runtime', 'job', 'log'])
+def test_runtime_job_evidence_tamper_refuses(tmp_path, change):
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path)
+    if change == 'runtime':
+        receipt['jobs'][0]['runtimes']['python']['version'] = '0.0.0'
+    elif change == 'job':
+        receipt['jobs'] = []
+    else:
+        Path(receipt['jobs'][0]['setup_log']['path']).write_text('changed')
+    with pytest.raises(ValueError, match='runtime_evidence_changed|job_evidence_missing|setup_log_drift'):
+        ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                          changed_paths=['fixture.py'], authority_root=tmp_path)
+
+
+def test_declared_setup_python_positive_binds_actual_version(tmp_path):
+    workflow = """on: pull_request
+jobs:
+  test:
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: python3 -c 'import sys; assert sys.version_info[:2] == (3, 12)'
+"""
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path, workflow_text=workflow)
+    assert receipt['status'] == 'PASS'
+    assert receipt['jobs'][0]['runtimes']['python']['version'].startswith('3.12.')
+    ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                      changed_paths=['fixture.py'], authority_root=tmp_path)
+
+
+def test_jobs_have_private_home_and_python_packages(tmp_path):
+    workflow = """on: pull_request
+jobs:
+  seed:
+    steps:
+      - run: |
+          python -c 'import site, pathlib; p=pathlib.Path(site.getsitepackages()[0]); (p / "leaked_dependency.py").write_text("value=1")'
+          touch "$HOME/marker"
+      - run: python -c 'import leaked_dependency'; test -f "$HOME/marker"
+  check:
+    steps:
+      - run: python -c 'import importlib.util; assert importlib.util.find_spec("leaked_dependency") is None'; test ! -e "$HOME/marker"
+"""
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path, workflow_text=workflow)
+    assert receipt['status'] == 'PASS'
+    ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                      changed_paths=['fixture.py'], authority_root=tmp_path)
+
+
+@pytest.mark.parametrize('depth', [0, 1])
+def test_checkout_depth_is_executed_and_bound(tmp_path, depth):
+    expected = 'true' if depth == 1 else 'false'
+    workflow = f"""on: pull_request
+jobs:
+  test:
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: {depth}
+          persist-credentials: false
+      - run: test "$(git rev-parse --is-shallow-repository)" = {expected}
+"""
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path, workflow_text=workflow)
+    assert receipt['status'] == 'PASS'
+    ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                      changed_paths=['fixture.py'], authority_root=tmp_path)
+
+
+@pytest.mark.parametrize('options,reason', [
+    ('node-version: "0"', 'declared_runtime_mismatch'),
+    ('node-version: "22"\n          cache: npm', 'unsupported_setup_version_or_options'),
+])
+def test_node_setup_mismatch_or_unsupported_inputs_refuse(tmp_path, options, reason):
+    workflow = f"""on: pull_request
+jobs:
+  test:
+    steps:
+      - uses: actions/setup-node@1111111111111111111111111111111111111111
+        with:
+          {options}
+      - run: 'true'
+"""
+    with pytest.raises(ValueError, match=reason):
+        fixture_receipt(tmp_path, workflow_text=workflow)
+
+
+def test_unsupported_github_file_command_refuses(tmp_path):
+    with pytest.raises(ValueError, match='unsupported_runner_file_command'):
+        fixture_receipt(tmp_path, command='echo X=1 >> "$GITHUB_ENV"')
