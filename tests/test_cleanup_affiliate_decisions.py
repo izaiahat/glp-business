@@ -103,6 +103,49 @@ def test_each_decision_is_ingested_and_routed_to_single_writer_queue(inbox, deci
     assert result['status'] == 'persisted'
 
 
+def test_automated_network_invitation_is_not_a_direct_application(inbox):
+    cp, _, ledger, mailbox = inbox
+    raw = mail('Fixture advertiser has invited you to join their program',
+               'You have been invited to join the affiliate program. '
+               'Apply to join the program; contact partner@example.invalid.',
+               sender='help@awin.com')
+    parsed = cp.parse_message(raw, mailbox)
+    classified = cp.classify_message(mailbox, parsed)
+    assert classified['category'] == 'affiliate_network_response'
+    assert classified['reason_code'] == 'affiliate_network_automated_invitation'
+    assert classified['actionable'] is False
+    assert cp.route_for(classified['category'], classified['reason_code']) == 'silent'
+    assert cp.affiliate_response_disposition(parsed, classified) == 'other_affiliate_response'
+    event = ledger.ingest(mailbox, 'automated-invitation', raw)
+    assert ledger.conn.execute('SELECT count(*) FROM local_drafts WHERE event_id=?',
+                               (event['event_id'],)).fetchone()[0] == 0
+
+
+def test_real_human_direct_application_invitation_keeps_its_route(inbox):
+    cp, _, _, mailbox = inbox
+    parsed = cp.parse_message(mail(
+        'Re: Affiliate or publisher partnership?',
+        'Please send your social media accounts and relevant information directly '
+        'to partnerships@joinamble.com. Our affiliate team will review your information.',
+        sender='Angelica <angelica@amble.example>'), mailbox)
+    classified = cp.classify_message(mailbox, parsed)
+    assert classified['category'] == 'affiliate_network_response'
+    assert classified['reason_code'] != 'affiliate_network_automated_invitation'
+    assert cp.affiliate_response_disposition(parsed, classified) == 'auto_process_application_invitation'
+
+
+@pytest.mark.parametrize('body,expected', [
+    ('Your application has been declined. Apply to join our program.', 'auto_process_rejection'),
+    ('Please complete KYC before you apply to join the program.', 'operator_prerequisite_card'),
+])
+def test_automated_invitation_does_not_override_earlier_gates(inbox, body, expected):
+    cp, _, _, mailbox = inbox
+    parsed = cp.parse_message(mail('Invitation', body), mailbox)
+    classification = {'category': 'affiliate_network_response',
+                      'reason_code': 'affiliate_network_automated_invitation'}
+    assert cp.affiliate_response_disposition(parsed, classification) == expected
+
+
 def test_lost_response_reconciles_without_replay(inbox):
     cp, q, ledger, mailbox = inbox
     ledger.ingest(mailbox, 'lost', mail('Program update', 'The program has been terminated.'))

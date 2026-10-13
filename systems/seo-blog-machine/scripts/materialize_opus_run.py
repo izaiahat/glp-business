@@ -603,7 +603,8 @@ def main() -> None:
                 SYSTEM / "scripts/deterministic_qa_repair.py", SYSTEM / "scripts/article_research.py",
                 SYSTEM / "scripts/weekly_strategy_consumer.py",
                 SYSTEM / "scripts/r2_update_carrier.py", schema,
-                sol_wrapper, opus_wrapper, transports_module,
+                sol_wrapper, BUSINESS / "scripts/article_review_physical_lines.py",
+                BUSINESS / "scripts/review_source_lines.py", opus_wrapper, transports_module,
                 gsc, verifier, indexnow, bing_submitter, purge, rubric, SYSTEM / "config/verticals/glp-clinic-scout.json",
                 # Selection and prioritization are complete before materialization and
                 # remain bound by the immutable selection receipt/snapshot below. The

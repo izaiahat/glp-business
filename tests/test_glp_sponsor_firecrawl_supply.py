@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import re
 import sys
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -185,6 +186,98 @@ def test_sponsor_fit_refuses_negated_product_claims():
     assert supply.sponsor_fit('We offer protein shakes for our customers.')[0] == 'nutrition_protein'
 
 
+def test_no_product_quantifier_refused_by_producer_and_sealed_census():
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    host = 'negative.example'
+    local = {'suppression': {'complete': True, 'entries': []}, 'conversations': []}
+    for statement, category in (('We offer no protein shakes.', 'nutrition_protein'),
+                                ('We provide no meal delivery service.', 'meals')):
+        assert supply.sponsor_fit(statement) is None
+        assert campaign.sponsor_fit(statement) is None
+        # Even a proposed category row anchored to real first-party negative text
+        # must not authorize the organization through the actual sender census.
+        text = statement + ' We ship to customers across the United States. Partnerships partners@negative.example.'
+        html = '<p>' + text + '</p>'
+        sha = hashlib.sha256(html.encode()).hexdigest()
+        url = 'https://' + host + '/'
+        rows, contacts = supply.evidence(host, url, html, sha, at.isoformat(),
+            campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+        rows.append({'source_url': url, 'sponsor_category': category,
+                     'sponsor_category_excerpt': statement, 'observed_utc': at.isoformat(), 'sha256': sha})
+        org = {'provider': host, 'scope_evidence': rows, 'discovery': {'candidates': contacts,
+            '_markup': [{'url': url, 'final_url': url, 'html': html, 'sha256': sha}]}}
+        assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+            {'organizations': {host: org}}, local)['recipients'] == []
+    assert supply.sponsor_fit('We offer protein shakes.')[0] == 'nutrition_protein'
+    assert campaign.sponsor_fit('We provide meal delivery service.')[0] == 'meals'
+
+
+def test_correlative_negation_refused_by_helpers_and_sealed_census():
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    host = 'negative.example'
+    local = {'suppression': {'complete': True, 'entries': []}, 'conversations': []}
+    for statement in ('We offer neither protein shakes nor meal delivery.',
+                      'Our products include neither protein shakes nor prepared meals.'):
+        html = '<p>' + statement + ' We ship to customers across the United States. Partnerships partners@negative.example.</p>'
+        sha = hashlib.sha256(html.encode()).hexdigest()
+        url = 'https://' + host + '/'
+        rows, contacts = supply.evidence(host, url, html, sha, at.isoformat(),
+            campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+        rows.append({'source_url': url, 'sponsor_category': 'nutrition_protein',
+                     'sponsor_category_excerpt': statement, 'observed_utc': at.isoformat(), 'sha256': sha})
+        org = {'provider': host, 'scope_evidence': rows, 'discovery': {'candidates': contacts,
+            '_markup': [{'url': url, 'final_url': url, 'html': html, 'sha256': sha}]}}
+        assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+            {'organizations': {host: org}}, local)['recipients'] == []
+        assert supply.sponsor_fit(statement) is None
+        assert campaign.sponsor_fit(statement) is None
+
+
+def test_negative_context_cannot_be_lost_by_excerpt_clipping():
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    host = 'negative.example'
+    local = {'suppression': {'complete': True, 'entries': []}, 'conversations': []}
+    statement = 'We offer no ' + 'vitamin tablets, ' * 12 + 'protein shakes for our customers.'
+    html = '<p>' + statement + ' We ship to customers across the United States. Partnerships partners@negative.example.</p>'
+    sha = hashlib.sha256(html.encode()).hexdigest()
+    url = 'https://' + host + '/'
+    rows, contacts = supply.evidence(host, url, html, sha, at.isoformat(),
+        campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+    org = {'provider': host, 'scope_evidence': rows, 'discovery': {'candidates': contacts,
+        '_markup': [{'url': url, 'final_url': url, 'html': html, 'sha256': sha}]}}
+    assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+        {'organizations': {host: org}}, local)['recipients'] == []
+    assert supply.sponsor_fit(statement) is None
+    assert campaign.sponsor_fit(statement) is None
+    # Historical/clipped proposals cannot discard the negator from the page.
+    rows.append({'source_url': url, 'sponsor_category': 'nutrition_protein',
+        'sponsor_category_excerpt': 'protein shakes for our customers.',
+        'observed_utc': at.isoformat(), 'sha256': sha})
+    assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+        {'organizations': {host: org}}, local)['recipients'] == []
+    assert not any(x.get('sponsor_category') for x in supply.sponsor_scope_current(host, org, campaign, at))
+    # Retain conservative refusal of ambiguous double negatives/not-only claims;
+    # a separate explicit affirmative source is required, not NLP inference.
+    for text in ('We do not offer no protein shakes.',
+                 'We offer not only protein shakes but also meal delivery.',
+                 'We offer no protein shakes, meal plans or personal training.'):
+        assert supply.sponsor_fit(text) is None
+        assert campaign.sponsor_fit(text) is None
+    for text in ('We offer protein shakes, meal delivery and personal training.',
+                 'Our protein shakes contain vitamins for our customers.'):
+        assert supply.sponsor_fit(text)[0] == 'nutrition_protein'
+        assert campaign.sponsor_fit(text)[0] == 'nutrition_protein'
+
+
 def test_failed_capture_reserves_credits_and_next_run_cannot_reset(monkeypatch, tmp_path):
     import firecrawl_client
     import glp_firecrawl_jobs as jobs
@@ -236,3 +329,113 @@ def test_daily_cap_counts_legacy_and_installed_callers_without_reset(monkeypatch
     p = supply.Producer(state_dir=tmp_path)
     assert 'fc71_sponsor_supply' in seen and 'fc71_sponsor_alexandria' in seen
     assert p.budget.cap == 0 and not p.budget.allow(1)
+
+
+def test_apollo_discovers_current_contracts_before_executing_renamed_ids(tmp_path):
+    """Catalogue IDs are observations, not a pinned filter or execution fallback."""
+    import glp_sponsor_alexandria as alexandria
+    calls = []
+    ids = {'search': 'contacts/preview-v3', 'match': 'contacts/resolve-v3'}
+    class Client:
+        def search(self, payload):
+            calls.append(('search', payload))
+            assert payload['sources'] == ['alexandria']
+            return {'success': True, 'creditsUsed': 0, 'data': {'tools': [
+                {'provider': 'apollo', 'capability': value} for value in ids.values()]}}
+        def scrape(self, payload):
+            calls.append(('scrape', payload))
+            row = payload['alexandria'][0]
+            if row['provider'] == 'firecrawl':
+                assert set(row['options']['capabilities']) == set(ids.values())
+                return {'success': True, 'data': {'alexandria': [{
+                    'provider': 'firecrawl', 'capability': 'find-tools', 'creditsCost': 0,
+                    'data': {'items': [
+                        {'provider': 'apollo', 'capability': ids['search'], 'creditsCost': 0,
+                         'options': [{'name': k} for k in ('q_organization_domains_list', 'person_locations', 'page', 'per_page')],
+                         'execute': {'provider': 'apollo', 'capability': ids['search']}},
+                        {'provider': 'apollo', 'capability': ids['match'], 'creditsCost': 30,
+                         'billing': {'maxCredits': 30},
+                         'options': [{'name': k} for k in ('id', 'reveal_personal_emails', 'reveal_phone_number')],
+                         'execute': {'provider': 'apollo', 'capability': ids['match']}}]}}]}}
+            assert row['provider'] == 'apollo'
+            if row['capability'] == ids['search']:
+                data = {'people': [{'id': 'p1', 'title': 'Marketing', 'has_email': True}]}
+            else:
+                assert row['capability'] == ids['match']
+                assert row['options'] == {'id': 'p1', 'reveal_personal_emails': False, 'reveal_phone_number': False}
+                data = {'person': {'id': 'p1', 'title': 'Marketing', 'email': 'work@example.com',
+                    'country': 'United States', 'organization': {'primary_domain': 'example.com'}, 'phone': 'discard'}}
+            return {'success': True, 'data': {'alexandria': [row | {'upstreamStatus': 200, 'data': data}]}}
+    p = supply.Producer.__new__(supply.Producer)
+    p.alex = Client()
+    p.report = {}
+    contracts = p.discover_apollo_contacts()
+    assert contracts['people/search'] == ids['search'] and contracts['people/match'] == ids['match']
+    result = alexandria.observe(tmp_path, 'example.com', 'people/search',
+        {'q_organization_domains_list': ['example.com']}, p.apollo_scrape, dt.datetime.now(dt.timezone.utc))
+    assert result['people'][0]['id'] == 'p1'
+    assert len(calls) == 3
+    reserved = []
+    p.reserve = reserved.append
+    match_options = {'id': 'p1', 'reveal_personal_emails': False, 'reveal_phone_number': False}
+    matched = alexandria.observe(tmp_path, 'example.com', 'people/match', match_options,
+        p.paid_match, dt.datetime.now(dt.timezone.utc))
+    assert matched['person']['email'] == 'work@example.com' and 'phone' not in matched['person']
+    assert reserved == [30] and len(calls) == 4
+    # A renamed upstream contract must not replay a completed reveal or turn an
+    # uncertain old effect into a new request. Stable journals remain authoritative.
+    ids['search'] = 'people/preview-v4'
+    ids['match'] = 'people/reveal-v4'
+    p.discover_apollo_contacts()
+    count = len(calls)
+    assert alexandria.observe(tmp_path, 'example.com', 'people/match', match_options,
+        p.paid_match, dt.datetime.now(dt.timezone.utc)) == matched
+    assert len(calls) == count and reserved == [30]
+    for journal in tmp_path.glob('*.json'):
+        receipt = json.loads(journal.read_text())
+        if receipt.get('capability') == 'people/match':
+            receipt['status'] = 'claimed'
+            journal.write_text(json.dumps(receipt))
+    with pytest.raises(RuntimeError, match='ambiguous_prospect_effect'):
+        alexandria.observe(tmp_path, 'example.com', 'people/match', match_options,
+            p.paid_match, dt.datetime.now(dt.timezone.utc))
+    assert len(calls) == count and reserved == [30]
+
+
+@pytest.mark.parametrize('case', ['missing', 'failed', 'wrong_provider', 'unknown_price', 'price_increased',
+    'ceiling_increased', 'ambiguous', 'wrong_execute', 'option_missing', 'error'])
+def test_apollo_discovery_fails_closed_without_contact_execution(case):
+    search = {'provider': 'apollo', 'capability': 'current/preview', 'creditsCost': 0,
+        'options': [{'name': k} for k in ('q_organization_domains_list', 'person_locations', 'page', 'per_page')],
+        'execute': {'provider': 'apollo', 'capability': 'current/preview'}}
+    match = {'provider': 'apollo', 'capability': 'current/resolve', 'creditsCost': 30,
+        'billing': {'maxCredits': 30},
+        'options': [{'name': k} for k in ('id', 'reveal_personal_emails', 'reveal_phone_number')],
+        'execute': {'provider': 'apollo', 'capability': 'current/resolve'}}
+    items = [search, match]
+    if case == 'unknown_price': match.pop('creditsCost')
+    if case == 'price_increased': match['creditsCost'] = 60
+    if case == 'ceiling_increased': match['billing']['maxCredits'] = 60
+    if case == 'ambiguous': items.append(dict(search))
+    if case == 'wrong_execute': match['execute']['capability'] = 'old/guess'
+    if case == 'option_missing': match['options'].pop()
+    calls = []
+    class Client:
+        def search(self, payload):
+            calls.append('discovery')
+            return {'success': case != 'failed', 'data': {'tools': [] if case == 'missing' else [
+                {'provider': 'other' if case == 'wrong_provider' else 'apollo', 'capability': i['capability']} for i in items]}}
+        def scrape(self, payload):
+            calls.append('inspection')
+            assert payload['alexandria'][0]['provider'] == 'firecrawl'
+            return {'success': True, 'data': {'alexandria': [{
+                'provider': 'firecrawl', 'capability': 'find-tools',
+                'error': {'status': 400} if case == 'error' else None, 'data': {'items': items}}]}}
+    p = supply.Producer.__new__(supply.Producer)
+    p.alex = Client()
+    p.report = {}
+    p.apollo_capabilities = {'people/match': 'old/guess'}
+    with pytest.raises(RuntimeError, match='apollo_contact_'):
+        p.discover_apollo_contacts()
+    assert not p.apollo_capabilities
+    assert len(calls) <= 2

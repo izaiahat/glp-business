@@ -134,7 +134,41 @@ def commercial_link_metadata(meta: dict[str, Any]) -> dict[str, Any]:
     return {'commercial_link_taxonomy':classification, 'exact_services':services}
 
 
+def evidence_review_timestamp(meta: dict[str, Any], ledger: dict[str, Any],
+                              compiled_at: dt.datetime) -> str:
+    value = meta.get('evidenceReviewedAt')
+    if value is None:
+        # Preserve legacy date precision; never manufacture an actual review
+        # instant from the compile clock or a source's capture time.
+        return f"{meta['dateModified']}T00:00:00Z"
+    try:
+        if not isinstance(value, str) or not value.endswith('Z'):
+            raise ValueError('UTC timestamp required')
+        # fromisoformat silently truncates fractions beyond microsecond precision.
+        if re.search(r'[.,]\d{7,}', value):
+            raise ValueError('unsupported timestamp precision')
+        parsed = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if parsed.tzinfo != dt.timezone.utc or parsed.date().isoformat() != str(meta['dateModified']):
+            raise ValueError('evidence revision day mismatch')
+        if parsed > compiled_at:
+            raise ValueError('evidence review after compile time')
+        # The packet ledger is the evidence set, including non-public captures.
+        # Missing instants stay unknown; checked_date is not an actual clock.
+        for source in ledger['sources']:
+            if 'checked_at_utc' not in source:
+                continue
+            if re.search(r'[.,]\d{7,}', source['checked_at_utc']):
+                raise ValueError('unsupported timestamp precision')
+            checked = dt.datetime.fromisoformat(source['checked_at_utc'].replace('Z', '+00:00'))
+            if checked.tzinfo != dt.timezone.utc or parsed < checked:
+                raise ValueError('evidence review before ledger check')
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise RuntimeError('evidence_review_timestamp_invalid') from exc
+    return value
+
+
 def compile_packet(packet: Path) -> dict[str, Any]:
+    compiled_at = dt.datetime.now(dt.timezone.utc)
     draft_path = packet / "04-draft.md"
     raw = draft_path.read_text()
     parts = raw.split("---", 2)
@@ -269,7 +303,7 @@ def compile_packet(packet: Path) -> dict[str, Any]:
                           "status": serp.get("status") or serp.get("schema_version") or "PASS",
                           "parity_target_words": parity.get("primary_target_words") or parity.get("target_words") or parity.get("target") or 3000,
                           "ranking_wedge": (wedge.get("statement") or wedge.get("wedge") if isinstance(wedge, dict) else wedge) or "source-bound decision support"},
-        "evidence_review": {"status": "PASS", "reviewed_at": f"{meta['dateModified']}T00:00:00Z",
+        "evidence_review": {"status": "PASS", "reviewed_at": evidence_review_timestamp(meta, ledger, compiled_at),
                             "content_sha256": hashlib.sha256(draft_path.read_bytes()).hexdigest(),
                             "claim_source_map": "claims[] -> source_ids[] -> sources[].source_id",
                             "clinical_reviewer": None, "clinical_credentials_claimed": False},

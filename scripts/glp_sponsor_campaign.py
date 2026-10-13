@@ -261,12 +261,15 @@ SPONSOR_US_REJECT = re.compile(r'copyright|©|usa-today|1 out of 5|Pharmacopeia|
 
 def sponsor_fit(text):
     """Commercial first-party excerpt, not a seed/domain or generic blog keyword."""
-    if RESEARCH_ONLY.search(text):
+    # Refuse ambiguous/negative context before clipping: a long product list
+    # must not lose its governing negator. Deliberately prefer false negatives
+    # (including double negatives and "not only") to unsupported admission.
+    if RESEARCH_ONLY.search(text) or re.search(r"\b(?:no|not|never|neither|nor|cannot|no longer|\w+n['’]t)\b", text, re.I):
         return None
     for category, pattern in CATEGORY.items():
         for match in pattern.finditer(text):
             excerpt = text[max(0, match.start()-120):match.end()+180].strip()
-            if COMMERCIAL.search(excerpt) and not re.search(r"\b(?:not|never|cannot|no longer|\w+n['’]t)\b", excerpt, re.I):
+            if COMMERCIAL.search(excerpt):
                 return category, excerpt
     return None
 
@@ -298,7 +301,9 @@ def sponsor_scope_current(host, organization, campaign, at):
             excerpt = ev.get('sponsor_category_excerpt') or ev.get('country_excerpt')
             if not excerpt or norm(excerpt) not in norm(text):
                 continue
-            if ev.get('sponsor_category') in CATEGORY and sponsor_fit(excerpt) and CATEGORY[ev['sponsor_category']].search(excerpt):
+            # Recheck the complete bound page, not merely a proposal substring
+            # which may have dropped a negator before its category keyword.
+            if ev.get('sponsor_category') in CATEGORY and sponsor_fit(text) and sponsor_fit(excerpt) and CATEGORY[ev['sponsor_category']].search(excerpt):
                 qualified.append(ev)
             elif ev.get('country') == 'US' and not SPONSOR_US_REJECT.search(excerpt) and (SPONSOR_US_SCOPE.search(excerpt) or US_ADDRESS.search(excerpt)):
                 qualified.append(ev)
@@ -448,7 +453,7 @@ def campaign_config():
 # local custody has the same trust boundary as the existing personal receipt.
 TECHNICAL_PREDECESSOR_SHA256='7ec96bf1fe44ef69fc4c7a5c2f1090420bff3d6e15140d00c02c1ac93444d95c'
 TECHNICAL_SOURCE_SHA256={
- 'scripts/firecrawl_client.py':'9a514c5be48e6daa3aa917222496c633c3f248506bb2530a84b80cbb7dc8bbf3',
+ 'scripts/firecrawl_client.py':'d850907ff65c53ba60ae5f51f485408484a599851b1792b80d7ec067d3bb6d3b',
  'scripts/glp328_readonly_evidence.py':'bf1854217b20be3b551994f882b1e7fb4c4971930ed195cec42c714dbc4fbaee',
  'scripts/glp_sponsor_paypal.py':'99751607fcb43551b7f58ca7d5b9236291786aaf0e8a503abce98ce2cd71d3f7',
  'ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md':'9b5cd76a5e81c5d7e5e1328888f6501ebafb1fb4bbb9621da9ea855dae5981e2',
