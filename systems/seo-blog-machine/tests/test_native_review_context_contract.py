@@ -73,6 +73,17 @@ def test_registered_controls_pin_shared_physical_line_dependency(producer, name)
     namespace.update(SYSTEM=ROOT / 'systems/seo-blog-machine', BUSINESS=ROOT)
     controls = eval(compile(ast.Expression(assignment.value), str(source), 'eval'), namespace)
     assert ROOT / 'scripts/article_review_physical_lines.py' in controls
+    assert ROOT / 'scripts/review_source_lines.py' in controls
+
+
+def test_a8_and_f459_share_one_physical_line_routine():
+    # A8/PR441 uses this import; the F459 name remains a compatibility alias.
+    from review_source_lines import physical_source_lines
+    from article_review_physical_lines import physical_lines
+    import hermes_sol_article_review as custodian
+    assert physical_lines is physical_source_lines
+    assert controller().physical_lines is physical_source_lines
+    assert custodian.physical_lines is physical_source_lines
 
 
 ROOT=Path(__file__).resolve().parents[3]

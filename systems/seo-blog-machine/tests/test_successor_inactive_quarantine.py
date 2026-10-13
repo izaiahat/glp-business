@@ -80,3 +80,43 @@ def test_requested_predecessor_quarantine_is_never_filtered(tmp_path):
  b._write_once(root/'quarantined'/f'{oldid}.json',payload,'quarantine_sha256')
  with pytest.raises(b.BufferAdmissionError,match='buffer_successor_predecessor_quarantined_recorded'):
   b._held_successor_predecessor(root,oldid,dups,ev,'0'*64)
+
+
+@pytest.mark.parametrize('reason', ['inbound_link_source_missing:/guides/fixture/', 'medical_gate_rejection'])
+def test_rv459b_retry_must_not_readmit_quarantined_successor(tmp_path, monkeypatch, reason):
+    """RV-459b probe; synthetic registered-review/pool only, no live effects."""
+    root, oldid, duplicates, _, old_quarantine, other = setup(tmp_path, 'safe', registered=True)
+    packet = tmp_path / 'registered/runs/fixture-review/packet'
+    receipt = packet.parent / 'opus-history-fixture-review/round-01-receipt.json'
+    monkeypatch.setattr(b, 'REGISTERED_REVIEW_ROOT', tmp_path / 'registered')
+    monkeypatch.setattr(b, 'pt_date_now', lambda: '2026-09-26')
+    controls = dict(json.loads(duplicates[0][0].read_text())['control_files'])
+    for name in ('build_opus_article_release.py', 'publish_opus_article_release.py'):
+        path = Path(b.__file__).with_name(name)
+        controls[str(path)] = sha(path)
+    request = dict(root=root, packet=packet, pass_receipt=receipt, control_files=controls,
+                   current_routes=set(), current_topic_ids=set(), mutable_article_routes=set(),
+                   admitted_at_utc='2026-09-26T12:00:00Z', predecessor_entry_id=oldid,
+                   today_pt='2026-09-26')
+    admitted = b.admit(**request)
+    assert b.admit(**request) == admitted
+    entry = json.loads(admitted.read_text())
+    material = tmp_path / 'successor-materialization.json'
+    write_json(material, {'fixture_only': True})
+    quarantine = root / 'quarantined' / (entry['entry_id'] + '.json')
+    b._write_once(quarantine, {'schema': b.QUARANTINE_SCHEMA,
+        'status': 'QUARANTINED_PERMANENT_ARTICLE_GATE_REJECTION',
+        'entry_id': entry['entry_id'], 'reason': reason,
+        'publication_effects': 0,
+        'entry_manifest': {'path': str(admitted), 'sha256': sha(admitted)},
+        'materialization': {'path': str(material), 'sha256': sha(material)}}, 'quarantine_sha256')
+    assert b._inactive_inbound_quarantine(root, admitted, entry) == reason.startswith('inbound_link_source_missing:')
+    before = {p: p.read_bytes() for p in root.rglob('*.json')}
+    assert not b.ready_entries(root, current_routes=set(), current_topic_ids=set())
+    with pytest.raises(b.BufferAdmissionError, match='buffer_candidate_quarantined'):
+        b.admit(**request)
+    assert {p: p.read_bytes() for p in root.rglob('*.json')} == before
+    # Ordinary admission is not an alternate route around target quarantine.
+    with pytest.raises(b.BufferAdmissionError, match='buffer_candidate_quarantined'):
+        b.admit(**{**request, 'predecessor_entry_id': None})
+    assert {p: p.read_bytes() for p in root.rglob('*.json')} == before

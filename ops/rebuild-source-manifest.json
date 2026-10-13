@@ -416,7 +416,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a1eccbbcba2816ea0913b63a878101192a51cb7caee6cef633f9a246c99a9fd7"
+      "sha256": "6149cf4ea6526b634a975faac4097517f6970921d3626e688be401610c5ede12"
     },
     ".hermes.md": {
       "callers": [],
@@ -4043,14 +4043,14 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "ef9515884f5793fe886648d749ab45f67523736fa6fe2b382063b1e91c844997"
+      "sha256": "3903d381b4a9ee1d60d7638320fa176c5f3312b4642002ea22f4cd9e34edd754"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "beaf55e06c2fb8475d29e085fad45f66b0f9c4aedac3927b4835bae312c378fa"
+      "sha256": "358ad254e7c1fa52c1e419f3a779bb8d295db1e6c2c3981c0a6300ac0f27cd7b"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [
@@ -4172,7 +4172,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "56a177194c33fa78ccfee8c515c3c9aa4f34d7f0e61b30f8c37ec92f60f29efa"
+      "sha256": "eb56eb6dc445c31c7d94344f05a6f1971aa962bf6f6f3e565f166fff952dffaa"
     },
     "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py": {
       "callers": [
@@ -7380,7 +7380,7 @@
         "scripts/hermes_sol_article_review.py"
       ],
       "kind": "script",
-      "sha256": "7296aa34cce1e33996053ddaf184bab381a7ded5d449f8fb1d9997ad56a58b8e"
+      "sha256": "830dbaadd99e0f9e6a67b8a7f48025d48324a15de4dfe1f3931a2d4c26b72b39"
     },
     "systems/seo-blog-machine/tests/test_evidence_review_timestamp.py": {
       "callers": [
@@ -7394,14 +7394,21 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "2d0acc05d067e7358af45d1951979f2c16c576c6b295ec1a305b3ac96f3aa5b1"
+      "sha256": "73cd8c3832f1fd565bcbf8dcf318cf146d02e40e266c35c7d82dfc39a1eb89b3"
     },
     "systems/seo-blog-machine/tests/test_successor_inactive_quarantine.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "f7e6b6c2dc20d6a2d742b451d0712170c8ab08a6eb8e82440922484f4bdd1a15"
+      "sha256": "73a6c6c3a60894e29c6ed763e17c20b61b9d745de12dfd7fa99f39aa5cfd9fff"
+    },
+    "scripts/review_source_lines.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/article_review_physical_lines.py"
+      ],
+      "sha256": "b2585e5a788e037ee055b8f94bf027568df60e51fd4d86fb4f1c94e93cce2f06"
     }
   },
   "omitted_runtime_inputs": [
@@ -7412,5 +7419,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1087
+  "tracked_count": 1088
 }

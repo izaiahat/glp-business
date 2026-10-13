@@ -1568,6 +1568,16 @@ def admit(
         if evidence["target_route"] in current_routes or evidence["topic_id"] in current_topic_ids:
             raise BufferAdmissionError("buffer_candidate_already_live")
         closure = hashlib.sha256(_canonical(evidence["subjects"])).hexdigest()
+        entry_id = hashlib.sha256(
+            f"{evidence['topic_id']}\0{evidence['target_route']}\0{closure}".encode()
+        ).hexdigest()[:24]
+        # Inactive historical duplicates may be ignored, but never the exact
+        # requested target. Check before every predecessor/idempotency path,
+        # under the carrier lock, including a retained quarantine tombstone.
+        quarantine = _quarantine_path(root, entry_id)
+        if quarantine.exists() or quarantine.is_symlink():
+            # A malformed target record is not permission to retry either.
+            raise BufferAdmissionError("buffer_candidate_quarantined")
         duplicates: list[tuple[Path, dict[str, Any]]] = []
         for path in _entry_manifests(root):
             entry = _read_sealed(path, ENTRY_SCHEMA, "entry_sha256")
@@ -1597,9 +1607,6 @@ def admit(
                     root=root, packet=packet, evidence=evidence,
                     duplicate_manifests=duplicates, successor_closure=closure,
                 )
-        entry_id = hashlib.sha256(
-            f"{evidence['topic_id']}\0{evidence['target_route']}\0{closure}".encode()
-        ).hexdigest()[:24]
         entries_root = root.resolve() / "entries"
         final = entries_root / entry_id
         if predecessor is not None and any(
@@ -1624,9 +1631,6 @@ def admit(
         if ready_count >= READY_MAX:
             raise BufferAdmissionError("buffer_ready_pool_at_max")
 
-        entry_id = hashlib.sha256(
-            f"{evidence['topic_id']}\0{evidence['target_route']}\0{closure}".encode()
-        ).hexdigest()[:24]
         entries_root = root.resolve() / "entries"
         entries_root.mkdir(parents=True, exist_ok=True)
         final = entries_root / entry_id
