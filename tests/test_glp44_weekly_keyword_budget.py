@@ -96,6 +96,106 @@ def test_shared_rail_journal_spend_counts_toward_cap(tmp_path):
         make(tmp_path / 'b', alerts, journal=journal).reserve('dataforseo', VOLUME, [{'keywords': ['a']}], run_id='t')
 
 
+def test_exact_append_only_rail_reconciliation(tmp_path):
+    """Real sticky-UNKNOWN regression and refusal controls; all evidence synthetic."""
+    import hashlib
+    from copy import deepcopy
+
+    endpoint = '/serp/google/organic/live/advanced'
+    payload = [{'keyword': 'offline fixture', 'depth': 10}]
+    request_hash = hashlib.sha256(json.dumps([endpoint, payload], sort_keys=True,
+                                             allow_nan=False).encode()).hexdigest()
+    base = {'at': NOW.timestamp(), 'account': 'fixture-account', 'run_id': 'fixture-run',
+            'attempt_id': 'fixture-attempt', 'request_hash': request_hash}
+    attempt = dict(base, event='ATTEMPT', endpoint=endpoint, cost=None)
+    ambiguous = dict(base, event='AMBIGUOUS', cost=None)
+    artifact = tmp_path / 'provider-response.json'
+    evidence = {**{k: base[k] for k in ('account', 'run_id', 'attempt_id', 'request_hash')},
+                'endpoint': endpoint, 'payload': payload,
+                'response': {'status_code': 20000, 'cost': '0.002',
+                             'tasks': [{'id': 'fixture-provider-task', 'status_code': 20000,
+                                        'cost': '0.002'}]}}
+    artifact.write_text(json.dumps(evidence))
+    proof = {'kind': 'dataforseo_response', 'path': str(artifact),
+             'sha256': hashlib.sha256(artifact.read_bytes()).hexdigest()}
+    result = dict(base, at=base['at'] + 8 * 86400, event='RESULT', state='MEASURED',
+                  cost='0.002', provider_evidence=proof)
+    journal = tmp_path / 'rail.jsonl'
+
+    def check(rows, expected=('0.002', False), week=dt.date(2026, 10, 12)):
+        journal.write_text('\n'.join(json.dumps(r) for r in rows) + '\n')
+        before = journal.read_bytes()
+        b = WeeklyBudget(ledger_root=tmp_path / 'budget', rail_journal=journal, alert=None,
+                         clock=lambda: NOW)
+        cost, unknown = b._rail_spend(week)
+        assert (str(cost), unknown) == expected
+        assert journal.read_bytes() == before  # reducer never rewrites history
+        return b
+
+    check([attempt, ambiguous, result, result])  # charge once, in original week
+    check([attempt, ambiguous, result], ('0', False), dt.date(2026, 10, 19))
+    # Ordinary maintained rail RESULT still needs no recovery artifact.
+    ordinary = dict(base, event='RESULT', state='MEASURED', cost='0.002')
+    check([attempt, ordinary, ordinary])
+    check([attempt, ambiguous], ('0', True))
+    check([attempt, ambiguous, ordinary], ('0', True))  # bare label is not recovery proof
+    check([attempt, ambiguous, result, dict(base, event='ATTEMPT', attempt_id='other')],
+          ('0.002', True))
+    check([result], ('0', True), dt.date(2026, 10, 19))  # orphan result
+    for field in ('account', 'run_id', 'attempt_id', 'request_hash'):
+        bad = dict(result, **{field: 'different'})
+        check([attempt, ambiguous, bad], ('0', True))
+    for cost in (None, True, -1, 'NaN', 'Infinity', 'estimate'):
+        check([attempt, ambiguous, dict(result, cost=cost)], ('0', True))
+    for state in ('UNKNOWN', 'BALANCE', 'ESTIMATED', 'EXHAUSTED', 'PROVIDER_ERROR'):
+        check([attempt, ambiguous, dict(result, state=state)], ('0', True))
+    for bad_proof in ({}, dict(proof, kind='balance'), dict(proof, path=str(tmp_path / 'missing')),
+                      dict(proof, sha256='0' * 64)):
+        check([attempt, ambiguous, dict(result, provider_evidence=bad_proof)], ('0', True))
+    # Authenticated bytes with mismatched or incomplete contents still refuse.
+    for field, value in [('account', 'other'), ('run_id', 'other'), ('attempt_id', 'other'),
+                         ('request_hash', 'other'), ('endpoint', '/other'), ('payload', []),
+                         ('response', {'cost': 0, 'tasks': []})]:
+        bad_evidence = deepcopy(evidence)
+        bad_evidence[field] = value
+        artifact.write_text(json.dumps(bad_evidence))
+        bad_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+        check([attempt, ambiguous, dict(result, provider_evidence=bad_proof)], ('0', True))
+    for change in ('missing_task_id', 'duplicate_task', 'task_cost', 'envelope_cost', 'task_status'):
+        bad_evidence = deepcopy(evidence)
+        response = bad_evidence['response']
+        if change == 'missing_task_id':
+            response['tasks'][0].pop('id')
+        elif change == 'duplicate_task':
+            response['tasks'].append(deepcopy(response['tasks'][0]))
+        elif change == 'task_cost':
+            response['tasks'][0]['cost'] = '0.003'
+        elif change == 'envelope_cost':
+            response['cost'] = None
+        else:
+            response['tasks'][0]['status_code'] = 40200
+        artifact.write_text(json.dumps(bad_evidence))
+        bad_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+        check([attempt, ambiguous, dict(result, provider_evidence=bad_proof)], ('0', True))
+    zero_evidence = deepcopy(evidence)
+    zero_evidence['response']['cost'] = zero_evidence['response']['tasks'][0]['cost'] = '0'
+    artifact.write_text(json.dumps(zero_evidence))
+    zero_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+    check([attempt, ambiguous, dict(result, cost='0', provider_evidence=zero_proof)], ('0', False))
+    artifact.write_text(json.dumps(evidence))
+    check([attempt, ambiguous, result, dict(result, cost='0.003')], ('0', True))
+    check([attempt, ambiguous, dict(result, at=base['at'] - 1)], ('0', True))
+    check([result, attempt, ambiguous, result], ('0', True))
+    check([attempt, ambiguous, result, ambiguous], ('0', True))  # later uncertainty wins
+    check([attempt, dict(attempt, endpoint='/other'), ambiguous, result], ('0', True))
+    b = check([attempt, ambiguous, dict(result, provider_evidence={})], ('0', True))
+    sent = []
+    with pytest.raises(BudgetRefused, match='unknown_prior_spend_this_week'):
+        b.guarded('dataforseo', VOLUME, [{'keywords': ['a']}], lambda: sent.append(1),
+                  run_id='fixture-run', cost_of=lambda _: 0)
+    assert sent == []
+
+
 def test_cap_cannot_exceed_operator_authority(tmp_path):
     with pytest.raises(ValueError, match='weekly_cap_outside_operator_authority'):
         WeeklyBudget(ledger_root=tmp_path, rail_journal=None, cap_usd='25.01', alert=None)

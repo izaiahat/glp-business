@@ -7294,7 +7294,7 @@
         "scripts/glp_weekly_seo_collect.py"
       ],
       "kind": "script",
-      "sha256": "d6a81acf399c1027a06e1f78d67a6ad204f28211e7baa75c84e5c443f272f30f"
+      "sha256": "a3e0b713670017c310947163b41964ce28bee57fc1f47861a087ae24aed7c48a"
     },
     "ops/glp/weekly_keyword_plan.py": {
       "callers": [
@@ -7308,7 +7308,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "8ffe4aebfa7deb61185632b9da4fccaf343f0090c17e75caf086f21cad5655a3"
+      "sha256": "afb58294454930ddd025c531602ed88f02e0ee48f9fc3b15b8d4aeeabd5df056"
     },
     "tests/test_dot_dispatch_recovery.py": {
       "callers": [

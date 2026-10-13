@@ -146,33 +146,121 @@ class WeeklyBudget:
         handle.seek(0)
         return [json.loads(line) for line in handle if line.strip()]
 
+    @staticmethod
+    def _rail_cost(value: Any) -> Decimal | None:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            cost = Decimal(str(value))
+            return cost if cost.is_finite() and cost >= 0 else None
+        except ArithmeticError:
+            return None
+
+    @classmethod
+    def _recovery_cost(cls, result: dict[str, Any], attempt: dict[str, Any]) -> Decimal | None:
+        """Validate recovered exact response bytes, never balance/pricing estimates.
+
+        RESULT.provider_evidence = {kind: dataforseo_response, path, sha256}.
+        The immutable JSON artifact binds account/run/attempt/request_hash/endpoint,
+        the original payload, and the provider response (cost plus task IDs/costs).
+        Recovery provenance must be independently reviewed before journal append;
+        a digest validates retained bytes, not who supplied them. No live writer,
+        credential lookup, provider call, or append is performed by this reducer.
+        """
+        try:
+            proof = result['provider_evidence']
+            if proof['kind'] != 'dataforseo_response' or result.get('state') != 'MEASURED':
+                return None
+            raw = Path(proof['path']).read_bytes()
+            if hashlib.sha256(raw).hexdigest() != proof['sha256']:
+                return None
+            doc = json.loads(raw)
+            for key in ('account', 'run_id', 'attempt_id', 'request_hash', 'endpoint'):
+                if not isinstance(attempt.get(key), str) or not attempt[key] or doc.get(key) != attempt[key]:
+                    return None
+            payload = doc['payload']
+            if not isinstance(payload, list) or not payload or not all(isinstance(t, dict) for t in payload):
+                return None
+            digest = hashlib.sha256(json.dumps([doc['endpoint'], payload], sort_keys=True,
+                                               allow_nan=False).encode()).hexdigest()
+            if digest != attempt['request_hash']:
+                return None
+            response = doc['response']
+            tasks = response['tasks']
+            if response.get('status_code') != 20000 or not isinstance(tasks, list) or not tasks:
+                return None
+            ids, costs = set(), []
+            for task in tasks:
+                task_id = task.get('id')
+                cost = cls._rail_cost(task.get('cost'))
+                if (not isinstance(task_id, str) or not task_id or task_id in ids
+                        or task.get('status_code') != 20000 or cost is None):
+                    return None
+                ids.add(task_id)
+                costs.append(cost)
+            measured = cls._rail_cost(response.get('cost'))
+            if measured is not None and measured == cls._rail_cost(result.get('cost')) == sum(costs, Decimal('0')):
+                return measured
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            pass
+        return None
+
     def _rail_spend(self, week: dt.date) -> tuple[Decimal, bool]:
-        """Shared DataForSEO journal spend for this PT week; (total, unknown)."""
+        """Reduce append-only exact identities; charge once in the ATTEMPT's PT week."""
         if self.rail_journal is None or not self.rail_journal.is_file():
             return Decimal('0'), False
-        total, unknown, attempts, settled = Decimal('0'), False, set(), set()
+        groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+        total, unknown = Decimal('0'), False
         for line in self.rail_journal.read_text(encoding='utf-8').splitlines():
             if not line.strip():
                 continue
-            row = json.loads(line)
-            at = row.get('at')
-            if not isinstance(at, (int, float)):
+            try:
+                row = json.loads(line)
+            except ValueError:
+                unknown = True
                 continue
-            if week_start(dt.datetime.fromtimestamp(at, dt.timezone.utc)) != week:
+            if not isinstance(row, dict):
+                unknown = True
                 continue
-            event = row.get('event')
-            if event == 'ATTEMPT':
-                attempts.add(row.get('attempt_id'))
-            elif event in ('RESULT', 'AMBIGUOUS'):
-                settled.add(row.get('attempt_id'))
-                cost = row.get('cost')
-                if event == 'AMBIGUOUS' or cost is None:
+            if row.get('event') in ('ATTEMPT', 'AMBIGUOUS', 'RESULT'):
+                identity = tuple(row.get(k) for k in ('account', 'run_id', 'attempt_id', 'request_hash'))
+                if any(k is not None and not isinstance(k, str) for k in identity):
                     unknown = True
-                else:
-                    total += Decimal(str(cost))
-        # An attempt older than the current process with no result is unknown spend.
-        if attempts - settled:
-            unknown = True
+                    continue
+                groups.setdefault(identity, []).append(row)
+        for identity, rows in groups.items():
+            attempts = [r for r in rows if r['event'] == 'ATTEMPT']
+            anchor = attempts[0] if attempts else rows[0]
+            try:
+                at = anchor['at']
+                if isinstance(at, bool) or not isinstance(at, (int, float)):
+                    raise ValueError('invalid attempt time')
+                if week_start(dt.datetime.fromtimestamp(at, dt.timezone.utc)) != week:
+                    continue
+            except (ValueError, KeyError, OverflowError, OSError):
+                unknown = True  # undatable spend must not open any week
+                continue
+            if (not attempts or not anchor.get('attempt_id')
+                    or any((r.get('at'), r.get('endpoint')) != (at, anchor.get('endpoint')) for r in attempts)):
+                unknown = True
+                continue
+            results = [r for r in rows if r['event'] == 'RESULT']
+            ambiguous = [i for i, r in enumerate(rows) if r['event'] == 'AMBIGUOUS']
+            costs = [self._rail_cost(r.get('cost')) for r in results]
+            valid = bool(results) and all(c is not None for c in costs) and len(set(costs)) == 1
+            valid = valid and all(r.get('state') in (None, 'MEASURED', 'EXHAUSTED', 'PROVIDER_ERROR') for r in results)
+            valid = valid and rows[0]['event'] == 'ATTEMPT'
+            valid = valid and all(not isinstance(r.get('at'), bool)
+                                  and isinstance(r.get('at'), (int, float))
+                                  and math.isfinite(r['at']) and r['at'] >= at for r in rows)
+            if ambiguous or any('provider_evidence' in r for r in results):
+                valid = valid and all(isinstance(k, str) and bool(k) for k in identity)
+                valid = valid and rows[-1]['event'] == 'RESULT'
+                valid = valid and all(self._recovery_cost(r, anchor) == costs[0] for r in results)
+            if valid and costs[0] is not None:
+                total += costs[0]
+            else:
+                unknown = True
         return total, unknown
 
     def _state(self, rows: list[dict[str, Any]], week: dt.date) -> dict[str, Any]:
