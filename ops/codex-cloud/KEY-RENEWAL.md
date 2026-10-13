@@ -20,6 +20,26 @@ pending proof is resumed read-only, not resent. Ambiguous mint/POST/publish/
 revoke phases refuse; old keys remain until proof. Failure notifications use
 the existing ops-alerts route and a durable exact-readback journal.
 
+Raw HEAD HTTP403/503 is transport evidence, **not** a policy-denial verdict.
+No maintained authenticated denial-witness producer/verifier or genuine approved
+positive receipt was found in the assigned source/retained inputs. The parser
+therefore refuses all denial outcomes before CLOUD_PROVED or old-key revocation:
+`head_denial_attribution_required` when custody is absent, or
+`head_denial_authenticated_witness_unavailable` for any supplied custody.
+Self-declared enforcement/reviewer labels and a 64-hex digest are not authenticated
+receipt bytes or an independent policy verdict. No supplied dictionary unlocks
+revocation, including a forged persisted CLOUD_PROVED row.
+
+The old HTTP403/503 success whitelist is removed, not replaced with a guessed
+positive contract. Genuine denial-positive compatibility remains BLOCKED until
+a genuine approved witness establishes actual raw outcomes and authentic immutable
+receipt custody, designated non-author acceptance, and exact task/config/runtime/
+nonce/HEAD/8443 target plus approved applied-policy evidence. Service, proxy, TLS,
+timeout and no-response outcomes remain UNKNOWN, not policy attribution.
+No adapter/store, new positive fixture, live-state edit or pilot replay is added.
+Missing acceptance retains the old key; this source refusal is not permission for
+a new task, retry, publication, key change or inferred policy/version join.
+
 Manual resume: use the same approved interpreter and --run. Do not edit ticket
 terminal state, delete pending secret files, or remint on a stale editor label.
 If credentials/device approval expire, use the secure browser vault/MFA path;
