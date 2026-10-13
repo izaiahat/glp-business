@@ -3458,7 +3458,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "d5c0d8cc76655c4857c5323bf8189568bf5f3f16a01e62c0b30f733867768ff4"
+      "sha256": "69fc89ec7dba65c24a6c1e22974ff75b7cdd4896b9346d6af2bcbc661956cfbc"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -6384,10 +6384,25 @@
       "kind": "test",
       "sha256": "cc5bc57b3ec25bbb71e9dbfd30a851d39f2925e93e12e1d01b9e98f2b97b5196"
     },
+    "tests/fixtures/pro_terminal_unsent_p20/mode_receipt.json": {
+      "callers": ["tests/test_gpt6pro_relay_binding.py"],
+      "kind": "test_fixture",
+      "sha256": "4839b929a0f23f5e00dcde697a608d2c3d836534c6e8ed71b1b1035a4f7e7bf7"
+    },
+    "tests/fixtures/pro_terminal_unsent_p20/empty_witness.json": {
+      "callers": ["tests/test_gpt6pro_relay_binding.py"],
+      "kind": "test_fixture",
+      "sha256": "857cd070e0809eba04509586191790b40f4d16bd03bd07ae42763b2f522cc5a3"
+    },
+    "tests/fixtures/pro_terminal_unsent_p20/README.md": {
+      "callers": ["P21 fixture provenance"],
+      "kind": "test_fixture_documentation",
+      "sha256": "8febc1983b4a6f7b666f01af9dbe6c7d9c6ad426a6a1699775a3996875d17f10"
+    },
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "79b6c0c8678fe3e8c4b4c58dd76d7e044624e1467263acd5ade9aef0f7b32e8b"
+      "sha256": "7260d71bda0d4f737a8443f09548aa942d4ae415802d5a44237f37be0c1a5ff8"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -7383,5 +7398,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1083
+  "tracked_count": 1086
 }

@@ -3185,6 +3185,29 @@ def _terminal_unsent_pin(job, report=None):
     return c
 
 
+def _valid_pretyping_mode_receipt(error, tab):
+    """Accept only the legacy gate or its current enriched refusal, never success.
+
+    Both schemas precede input; fresh strict-empty/no-user-turn witnessing and
+    complete packet/ledger custody remain mandatory at the terminal entry.
+    """
+    base = {'error', 'typed', 'sent', 'tab'}
+    if (not isinstance(error, dict) or error.get('error') != 'CHAT_SURFACE_REFUSED' or
+            error.get('typed') is not False or error.get('sent') is not False or
+            not isinstance(tab, str) or not tab or error.get('tab') != tab):
+        return False
+    if set(error) == base:
+        return True  # Historical sender recorded only these four refusal facts.
+    if set(error) != base | {'mode_observation', 'mode_evidence'}:
+        return False
+    evidence = error['mode_evidence']
+    # The sender records a 1-based count from its bounded eleven observations.
+    return (type(error['mode_observation']) is int and 1 <= error['mode_observation'] <= 11 and
+            isinstance(evidence, dict) and set(evidence) == {'error', 'reason'} and
+            evidence['error'] == 'CHAT_SURFACE_REFUSED' and
+            evidence['reason'] in ('work_selected', 'mode_missing', 'mode_ambiguous', 'mode_unverified'))
+
+
 def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
     """Exact no-resume incidents; no inference from an error's stale sent flag."""
     c = c or TERMINAL_UNSENT_CURRENT[st['job']]
@@ -3207,8 +3230,7 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
             raise ValueError('ATTEMPT_LOG')
         attempt_custody[lp] = log_bytes
     mode_refusal = c.get('generic') and c['reason'] == 'CHAT_SURFACE_REFUSED'
-    if mode_refusal and error != {'error': 'CHAT_SURFACE_REFUSED', 'typed': False,
-                                 'sent': False, 'tab': c['tab']}:
+    if mode_refusal and not _valid_pretyping_mode_receipt(error, c['tab']):
         raise ValueError('MODE_RECEIPT')
     # This gate's exact pre-input receipt carries its own target, but no state.
     # Never borrow this exception for readiness/model failures or missing tabs.
