@@ -404,6 +404,42 @@ def rule_contract(policy):
     return hashlib.sha256(json.dumps(scope,sort_keys=True).encode()).hexdigest()
 
 
+def read_dry_run_receipt(receipt, expected_sha256, deadline):
+    """Authenticate and decode ONE bounded regular-file buffer, never reopen it."""
+    limit=32*1024*1024
+    fd=os.open(receipt,os.O_RDONLY|os.O_NOFOLLOW|os.O_NOATIME|os.O_NONBLOCK)
+    def identity(s):
+        return (s.st_dev,s.st_ino,s.st_mode,s.st_uid,s.st_gid,s.st_size,
+                s.st_mtime_ns,s.st_ctime_ns,s.st_nlink)
+    try:
+        before=os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_size>limit:
+            raise ValueError('D_verified_dry_run_required')
+        with os.fdopen(fd,'rb',closefd=False) as stream:
+            chunks=[]; size=0
+            while True:
+                if time.monotonic()>=deadline: raise ep.ScanBudget()
+                chunk=stream.read(min(1024*1024,limit+1-size))
+                if not chunk: break
+                size+=len(chunk)
+                if size>limit: raise ValueError('D_verified_dry_run_required')
+                chunks.append(chunk)
+        raw=b''.join(chunks)
+        if (identity(os.fstat(fd))!=identity(before)
+                or identity(receipt.lstat())!=identity(before)
+                or len(raw)!=before.st_size
+                or hashlib.sha256(raw).hexdigest()!=expected_sha256):
+            raise ValueError('D_verified_dry_run_required')
+    finally:
+        os.close(fd)
+    data=json.loads(raw)
+    if time.monotonic()>=deadline: raise ep.ScanBudget()
+    if (not isinstance(data,dict) or not isinstance(data.get('rows'),list)
+            or any(not isinstance(row,dict) for row in data['rows'])):
+        raise ValueError('D_dry_run_incomplete_or_stale')
+    return data
+
+
 def run_rules(api, config, *, dry_run, deadline, progress=None):
     """Production dispatch: fixed roots, bound approval, dry-first, all guards fail closed."""
     import shutil
@@ -434,12 +470,14 @@ def run_rules(api, config, *, dry_run, deadline, progress=None):
             allowed={ep.BUS/'reports/ops/host-disk-pruner-screenshots-20261001',
                      ep.BUS/'reports/ops/host-disk-pruner-screenshots-v2-20261001'}
             if (not any(p in receipt.parents for p in allowed) or receipt.is_symlink()
-                    or receipt.resolve()!=receipt.absolute()
-                    or ep.sha(receipt,deadline)!=proof.get('sha256')):
+                    or receipt.resolve()!=receipt.absolute()):
                 raise ValueError('D_verified_dry_run_required')
-            data=json.loads(receipt.read_text())
+            data=read_dry_run_receipt(receipt,proof.get('sha256'),deadline)
             summaries=[r for r in data['rows'] if r['rule']==RULE+'_summary']
-            if (not data.get('dry_run') or len(summaries)!=1 or summaries[0].get('partial',True)
+            if (data.get('dry_run') is not True or len(summaries)!=1
+                    or summaries[0].get('status')!='COMPLETE'
+                    or summaries[0].get('ok') is not True
+                    or summaries[0].get('partial') is not False
                     or summaries[0].get('contract_sha256')!=contract):
                 raise ValueError('D_dry_run_incomplete_or_stale')
         reference_config=dict(config)

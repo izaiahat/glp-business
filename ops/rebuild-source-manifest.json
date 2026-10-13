@@ -268,7 +268,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1737cd1ff9dd2db3575d82e7fb107e0b07c2482cb633da7f790bafc03d2c932e"
+      "sha256": "afe9e89880156f2ff672906fc6c95f2f8446c49319ea19ebd3e399bf89178ace"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -7514,7 +7514,14 @@
         "scripts/evidence_preserving_pruner.py:run_D",
         "GLP-349 native image qualification/receipt admission"
       ],
-      "sha256": "7c609e630e094647fb12359dbf94e3d1a9990a3240975b1a67aa15428190cd29"
+      "sha256": "be7cd1ea13187c9973a725241d5c227becb5708b136287e7f74c7727b8795d7d"
+    },
+    "tests/test_host_disk_screenshot_receipt.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci: GLP349 owning pruner group"
+      ],
+      "sha256": "078eec705403d18c376bc70ad21f799cbf23d49011c59ca7d729e2b2045e6b15"
     }
   },
   "omitted_runtime_inputs": [
@@ -7525,5 +7532,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1103
+  "tracked_count": 1104
 }
