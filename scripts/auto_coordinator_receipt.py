@@ -270,6 +270,20 @@ def authenticate(root, directory, executions, native, output_root):
         require(m and g and g['id'] < m['id'] and g['role'] == 'tool', 'causal native guard/effect absent')
         guard = json.loads(g['content'])
         require(guard['exit_code'] == 0 and '"status": "IDLE"' in guard['output'], 'native pre-effect guard failed')
+        # A digest printed after dispatch is not evidence available at admission.
+        # Only preconditions belong here; Done/worker outcome reads may be later.
+        row = next(r for r in decision['eligibility'] if r['issue'] == a['issue'])
+        preconditions = set(row['evidence_paths'])
+        preconditions.update(ref['path'] for ref in decision['readbacks']
+                             if load(root / ref['path']) == decision['linear_readback'])
+        require(session['started_at'] <= g['timestamp'] <= m['timestamp'] <= session['ended_at'],
+                'pre-effect evidence chronology: guard/effect outside causal order')
+        for ref in decision['readbacks']:
+            if ref['path'] in preconditions:
+                observed = native.execute('SELECT timestamp FROM messages WHERE id=? AND session_id=?',
+                                          (ref['native_message_id'], session['id'])).fetchone()
+                require(observed and session['started_at'] <= observed['timestamp'] <= g['timestamp'],
+                        'pre-effect evidence chronology: input was not observed before guard')
         if a['kind'] == 'dispatch':
             calls = json.loads(m['tool_calls'])
             call = next(c for c in calls if c['id'] == effect['call_id'])

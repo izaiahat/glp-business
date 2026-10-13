@@ -314,6 +314,21 @@ def test_one_published_row_is_a_concrete_worker_output(tmp_path):
     assert m.verify(args) == {'status': 'PASS', 'natural_actions': 1, 'second_run_repeated_effects': 0, 'writes': 0}
 
 
+@pytest.mark.parametrize('message_id,timestamp', [
+    (11, 1791766805),  # eligibility and OPEN board observed after dispatch
+    (11, 1791766799),  # reused readback predates the coordinator session
+    (20, 1791766805),  # guard result arrived after dispatch
+])
+def test_pre_effect_evidence_chronology_is_required(tmp_path, message_id, timestamp):
+    paths = fixture(tmp_path)
+    args = native_fixture(tmp_path, paths)
+    assert m.verify(args)['status'] == 'PASS'
+    with sqlite3.connect(args.state_db) as db:
+        db.execute('UPDATE messages SET timestamp=? WHERE id=?', (timestamp, message_id))
+    with pytest.raises(ValueError, match='pre-effect evidence chronology'):
+        m.verify(args)
+
+
 def test_runner_deferral_preserves_receipt_boundary(monkeypatch):
     import auto_coordinator_runner as runner
     monkeypatch.setattr(runner.guard, 'inspect', lambda: {'status': 'DEFERRED_TUI_CHILDREN'})
