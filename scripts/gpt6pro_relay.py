@@ -3293,6 +3293,7 @@ def _terminal_mode_receipt_valid(error, tab):
     return True
 
 
+
 def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
     """Exact no-resume incidents; no inference from an error's stale sent flag."""
     c = c or TERMINAL_UNSENT_CURRENT[st['job']]
