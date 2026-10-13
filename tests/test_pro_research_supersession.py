@@ -188,6 +188,33 @@ class SupersessionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'SUPERSESSION_REPLACEMENT_SITUATION_DRIFT'):
             route.effect(row, 'submit')
 
+    def test_rehashed_replacement_payload_cannot_change_approved_work(self):
+        route, _ = self.prepare_route(); self.call(True)
+        row = route.enqueue_replacement(self.job, RULING)
+        for name in ('PROMPT.md', 'MANIFEST.json'):
+            path = self.jobs / self.replacement / name
+            before = path.read_bytes()
+            changed = json.loads(json.dumps(row))
+            if name == 'PROMPT.md':
+                path.write_text('Unapproved replacement task.\n')
+            else:
+                manifest = json.loads(before)
+                manifest['linear_child'] = 'GLP-336'
+                path.write_text(json.dumps(manifest, indent=1))
+            changed['packet_sha256'][name] = sha(path)
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'SUPERSESSION_REPLACEMENT_PAYLOAD_DRIFT'):
+                route.effect(changed, 'submit')
+            path.write_bytes(before)
+        route._replacement_receipt(row)  # genuine producer bytes remain accepted
+
+    def test_missing_replacement_link_cannot_bypass_receipt_validation(self):
+        route, _ = self.prepare_route(); self.call(True)
+        row = route.enqueue_replacement(self.job, RULING)
+        row.pop('supersedes')
+        row['account'] = 'acct1'
+        with self.assertRaisesRegex(ValueError, 'SUPERSESSION_REPLACEMENT_LINK_REQUIRED'):
+            route.effect(row, 'submit')
+
     def test_interrupted_packet_is_held_without_rebuild_or_deletion(self):
         route, _ = self.prepare_route(); self.call(True)
         with mock.patch.object(route.packet, 'build_freeform', side_effect=OSError('fixture interruption')):

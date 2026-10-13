@@ -3415,14 +3415,14 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "8690c30d339a539069b69027432c532a7b2599f7461acadaf7ed9f301a852446"
+      "sha256": "f84c994bfd430615e289324379e0dbfa312703bf69a251c337273143c179cb05"
     },
     "scripts/gpt6pro_relay.py": {
       "callers": [
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "83b599e1f306450ce6223178ab2879be1b0ead7e63ac1a6a97daaa732208a693"
+      "sha256": "d5c0d8cc76655c4857c5323bf8189568bf5f3f16a01e62c0b30f733867768ff4"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -3776,7 +3776,7 @@
     "scripts/pro_route.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "25807cc6ac2fe679dce2fb2712b9b1cbe7a86de48f787cfdd1e01e39b4e0795e"
+      "sha256": "5e99480fb8be082a678e818ea9207626e9a959ee18949f6920aa0c987eca5981"
     },
     "scripts/receive_one_discord_message.py": {
       "callers": [
@@ -6781,7 +6781,7 @@
     "tests/test_pro_route.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "7b193fc463d413d81d7a12a6d08a210809a27a87b164b4e1096c884adf3240c7"
+      "sha256": "be9e21e59cb22549afa6e6a41dc8f34266551323ef7cc5ce908d78bb272879c3"
     },
     "tests/test_pro_route_backlog.py": {
       "callers": [
@@ -7291,7 +7291,7 @@
     "tests/test_pro_research_supersession.py": {
       "callers": ["business-source-ci"],
       "kind": "test",
-      "sha256": "1fe05e17c8c4af9b616be260a03c7a923957177fbc70c53d9cd235f090209d3f"
+      "sha256": "0bea566f03e876761d4cce570f1bc051760f866458c4b6a3ed7c394a44421695"
     },
     "ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.json": {
       "callers": ["scripts/gpt6pro_relay.py", "scripts/pro_route.py"],

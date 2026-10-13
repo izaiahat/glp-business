@@ -565,7 +565,8 @@ SUPERSESSION_RULINGS = {
 }
 
 
-def _supersession_ruling(ruling, job):
+def _supersession_entries(ruling):
+    """Authenticate the pinned identities independently of mutable queue links."""
     if ruling not in SUPERSESSION_RULINGS:
         raise ValueError('RULING_NOT_REGISTERED')
     path = BUSINESS / ruling
@@ -586,6 +587,11 @@ def _supersession_ruling(ruling, job):
             not re.fullmatch(r'[A-Za-z0-9._-]{1,80}', j) or j in ('.', '..')
             for j in originals + replacements)):
         raise ValueError('RULING_IDENTITIES')
+    return entries, raw
+
+
+def _supersession_ruling(ruling, job):
+    entries, raw = _supersession_entries(ruling)
     matching = [r for r in entries if r['job'] == job]
     if len(matching) != 1 or matching[0].get('linear_child') == 'GLP-336':
         raise ValueError('RULING_JOB')

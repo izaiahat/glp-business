@@ -162,6 +162,16 @@ def _replacement_receipt(row):
     for name, digest in row['packet_sha256'].items():
         if hash_file(relay.JOBS / row['job'] / name) != digest:
             raise ValueError('PACKET_DRIFT ' + row['job'] + '/' + name)
+    # Queue hashes detect drift, but are not authority for the payload. Re-render
+    # from the ruling-authenticated wave, not the mutable replacement packet.
+    if expected['jobs'][0].get('files'):
+        raise ValueError('SUPERSESSION_REPLACEMENT_PAYLOAD_DRIFT')
+    expected['_path'] = row['wave']
+    prompt, manifest = packet.render_freeform(expected['jobs'][0], expected, [], [])
+    payloads = {'PROMPT.md': prompt.encode('utf-8'),
+                'MANIFEST.json': json.dumps(manifest, indent=1).encode('utf-8')}
+    if any((relay.JOBS / row['job'] / name).read_bytes() != raw for name, raw in payloads.items()):
+        raise ValueError('SUPERSESSION_REPLACEMENT_PAYLOAD_DRIFT')
 
 
 def choose_account(requested):
@@ -206,6 +216,11 @@ def effect(row, action):
     """One non-waiting relay CLI call under owned heavy; no model/browser bypass."""
     if row.get('supersedes'):
         _replacement_receipt(row)
+    else:
+        for ruling in relay.SUPERSESSION_RULINGS:
+            entries, _ = relay._supersession_entries(ruling)
+            if any(row['job'] == entry['replacement_job'] for entry in entries):
+                raise ValueError('SUPERSESSION_REPLACEMENT_LINK_REQUIRED')
     if action == 'submit':
         pins = row.get('packet_sha256', {})
         if set(pins) != {'PROMPT.md', 'MANIFEST.json'} or any(
