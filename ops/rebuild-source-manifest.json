@@ -3486,7 +3486,7 @@
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
       "kind": "review_transport",
-      "sha256": "c68630cc359e91cf1152616f68f74879e4c51069127df3646985af84b31d0e15"
+      "sha256": "f07045890781b3812dd501e11fb01d6fa65856e3acdad8855e8b90cb676684b0"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [

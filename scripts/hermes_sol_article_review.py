@@ -20,6 +20,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+# Spec-loaded tooling must resolve the same sibling controls as direct CLI use.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from article_review_physical_lines import physical_lines
 
 TARGET_PROVIDER = "openai-codex"
