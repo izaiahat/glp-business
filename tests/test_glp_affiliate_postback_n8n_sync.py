@@ -330,6 +330,34 @@ def _reviewed_fixture(monkeypatch, tmp_path, *, fail_post_write=False):
     )
 
 
+@pytest.mark.parametrize("prerequisite", ["missing", "malformed", "permissions", "destination", "valid"])
+def test_cli_receipt_prerequisites_precede_any_provider_mutation(monkeypatch, tmp_path, prerequisite):
+    client, before_sha, after_sha = _reviewed_fixture(monkeypatch, tmp_path)
+    key_path = tmp_path / "authority-key"
+    if prerequisite != "missing":
+        key_path.write_bytes(b"short" if prerequisite == "malformed" else b"k" * 64)
+        key_path.chmod(0o644 if prerequisite == "permissions" else 0o600)
+    real_attest = sync.authority.attest_receipt
+    monkeypatch.setattr(sync.authority, "attest_receipt", lambda value: real_attest(value, key_path=key_path))
+    monkeypatch.setattr(sync, "N8NClient", lambda: client)
+    receipt = tmp_path / "receipt.json"
+    if prerequisite == "destination":
+        receipt.mkdir()
+    argv = ["--apply", "--repair-existing", "--expected-before-sha256", before_sha,
+            "--expected-after-sha256", after_sha, "--receipt", str(receipt)]
+    if prerequisite == "valid":
+        assert sync.main(argv) == 0
+        assert client.put_calls == 1
+        saved = json.loads(receipt.read_text())
+        assert sync.authority.verify_receipt_attestation(saved, key_path=key_path) == (True, "")
+        assert stat.S_IMODE(receipt.stat().st_mode) == 0o600
+    else:
+        with pytest.raises(sync.SyncError):
+            sync.main(argv)
+        assert client.put_calls == 0
+        assert client.credential_list_calls == 0
+
+
 def test_reviewed_transition_performs_one_put_and_exact_active_readback(monkeypatch, tmp_path):
     client, before_sha, after_sha = _reviewed_fixture(monkeypatch, tmp_path)
     result = sync.apply_live(

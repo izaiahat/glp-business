@@ -7244,7 +7244,7 @@
       "callers": [
         "registered affiliate postback receiver synchronizer; RX93"
       ],
-      "sha256": "f88c6e8bf246ac5930c8fac71e862e30d210d82f6a2e9a020ae32a09345c54aa"
+      "sha256": "981c05eb1ceaa9182fbd57060f0ad292bc40d6b6785ac2089b5b14d1f5227381"
     },
     "scripts/glp_postback_authority.py": {
       "kind": "script",
@@ -7258,7 +7258,7 @@
       "callers": [
         "registered affiliate postback receiver synchronizer; RX93"
       ],
-      "sha256": "eff8d71fd3df02284993eee2f12007b693ff4889963d93ec834a93983aaac7bc"
+      "sha256": "ed28774b32a3ad23a30df944d82bff4f2b0295db2ee4ecbe3b7ab95d04bc6182"
     }
   },
   "omitted_runtime_inputs": [

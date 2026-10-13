@@ -934,6 +934,35 @@ def inspect(client: N8NClient) -> dict[str, Any]:
     }
 
 
+def preflight_attested_receipt(path: Path) -> None:
+    """Reject known signing/destination failures before any provider mutation.
+
+    This is a prerequisite check, not a transition receipt. Later filesystem or
+    key changes still require reconciliation; this does not claim atomic n8n IO.
+    """
+    try:
+        authority.attest_receipt({})
+    except authority.AuthorityError as exc:
+        raise SyncError(str(exc)) from exc
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    opened = False
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            raise SyncError("receipt_destination_invalid")
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        opened = True
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(b"receipt-write-preflight\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except OSError as exc:
+        raise SyncError("receipt_destination_not_writable") from exc
+    finally:
+        if opened:
+            temporary.unlink(missing_ok=True)
+
+
 def write_private_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -966,6 +995,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not args.repair_existing or not reviewed or args.receipt is None:
             raise SyncError("direct_receiver_workflow_write_authority_required")
+        preflight_attested_receipt(args.receipt)
     client = N8NClient()
     if args.apply:
         result = apply_live(
