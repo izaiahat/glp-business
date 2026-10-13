@@ -22,6 +22,8 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install pytest google-api-python-client google-auth google-auth-oauthlib python-dotenv
       - name: Exact-head receiving and prior sponsor guard regressions
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha }}'
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python -m pytest -q tests/test_glp_sponsor_nuimage_reply.py tests/test_glp_sponsor_current_receiving.py tests/test_glp_sponsor_technical_receiving.py tests/test_glp_sponsor_campaign.py tests/test_glp_sponsor_boundary_repairs.py

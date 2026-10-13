@@ -335,6 +335,20 @@ def test_f09_reviewed_active_native_inventory_matches_exact_source(job_id, filen
     assert row['payloads'] == []
 
 
+def test_disk_monitor_inventory_is_exact_maintained_source_and_mutations_drift():
+    inventory = json.loads((ROOT/'ops/scheduled-source-drift-manifest.json').read_text())
+    rows = [row for row in inventory['jobs'] if row['id'] == 'crontab:d1449753b8c4b011']
+    assert len(rows) == 1 and rows[0]['payloads'] == []
+    assert rows[0]['surface'] == 'crontab' and len(rows[0]['sources']) == 1
+    source = rows[0]['sources'][0]
+    assert source['path'] == '/home/ubuntu/.hermes/scripts/disk_monitor.sh'
+    assert source['source'] == 'ops/hermes-cron-scripts/disk_monitor.sh'
+    accepted = '2bc27ff0fdfd02a2de2f94a1678b1ddadb04def5cbe5ddadc8cc75cdb438fe7d'
+    raw = (ROOT/source['source']).read_bytes()
+    assert source['reviewed_sha256'] == sha(raw) == accepted
+    assert sha(raw + b'\n# unreviewed drift\n') != source['reviewed_sha256']
+
+
 def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     import subprocess
     path = 'ops/scheduled-source-drift-manifest.json'
@@ -410,10 +424,10 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
     pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
         'source': pricing_source, 'reviewed_sha256': pricing_pin}
-    # D1: only the retained disk monitor launcher pin changes; cron identity and
-    # all other source/payload metadata remain equal to the historical cohort.
+    # D1/PR449: exact maintained monitor successor includes the user-service bus.
+    # Cron identity and all other source/payload metadata remain historical.
     monitor = 'ops/hermes-cron-scripts/disk_monitor.sh'
-    monitor_pin = '1061caac91653c9328e66634983fb713f84d7c1148e960d2ad86babd07755e4c'
+    monitor_pin = '2bc27ff0fdfd02a2de2f94a1678b1ddadb04def5cbe5ddadc8cc75cdb438fe7d'
     assert sha((ROOT/monitor).read_bytes()) == monitor_pin
     monitor_rows = [r for r in expected['jobs'] if r['id'] == 'crontab:d1449753b8c4b011']
     assert len(monitor_rows) == 1 and len(monitor_rows[0]['sources']) == 1
