@@ -745,7 +745,18 @@ def batch_monitor(client, urls, out, concurrency):
                                                   'http_status': None, 'creditsUsed': credits,
                                                   'operation_id': None}
                 else:
-                    response['transport_recovery'] = {**recovery, 'creditsUsed': credits}
+                    try:
+                        data = response_data(response, url)
+                        source_status = (data.get('metadata') or {}).get('statusCode')
+                        if (not isinstance(source_status, int) or isinstance(source_status, bool)
+                                or not 200 <= source_status < 300):
+                            raise ValueError('source_status_not_2xx')
+                    except ValueError as exc:
+                        response['monitor_failure'] = {**recovery, 'error_type': type(exc).__name__,
+                            'validation_error': str(exc), 'http_status': None,
+                            'creditsUsed': credits, 'operation_id': None}
+                    else:
+                        response['transport_recovery'] = {**recovery, 'creditsUsed': credits}
             monitored[url] = response  # Also suppress duplicate failed-URL entries.
             fallbacks[url] = response
             put(out / 'BATCH-FALLBACKS.json', fallbacks)
@@ -831,10 +842,11 @@ def run(args, client=None):
                 put(folder / (key + '-monitor.json'), response)
                 if response.get('monitor_failure'):
                     page['monitor_failure'] = response['monitor_failure']
-                    raise ValueError('batch_auto_fallback_failed:' + response['monitor_failure']['error_type'])
+                    raise ValueError(response['monitor_failure'].get('validation_error') or
+                                     'batch_auto_fallback_failed:' + response['monitor_failure']['error_type'])
+                data = response_data(response, url)
                 if response.get('transport_recovery'):
                     page['monitor_transport_recovery'] = response['transport_recovery']
-                data = response_data(response, url)
                 text = data['markdown']
                 is_changed = monitor_changed(cache, text)
                 cache['monitor_sha256'] = digest(text)
