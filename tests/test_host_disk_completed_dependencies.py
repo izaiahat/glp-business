@@ -14,6 +14,7 @@ import os
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
 import host_disk_completed_dependencies as dep
+ORIGINAL_INBOUND = dep.inbound_links
 
 
 class API:
@@ -97,6 +98,19 @@ class CompletedDependencyTests(unittest.TestCase):
         with patch.object(dep,'lsof_inactive',side_effect=lambda p: ((self.root/'vendor/cli.js').write_bytes(b'drift') and True)):
             self.assertEqual(self.run_row(False)['status'],'REFUSED')
         self.assertEqual(self.api.removed,[])
+
+    def test_other_dependency_interior_symlink_and_import_owner_refuse(self):
+        peer=self.base/'peer/node_modules/pkg';peer.mkdir(parents=True)
+        (peer/'lazy-import').symlink_to(self.root/'vendor')
+        links=ORIGINAL_INBOUND(self.root,time.monotonic()+10,search_roots=[self.base])
+        self.assertIn(self.root/'vendor',links)
+        import types
+        source=self.base/'active.py';source.write_text('import_path = "'+str(self.root)+'"')
+        response=types.SimpleNamespace(returncode=0,stdout=json.dumps([str(source)]))
+        with patch.object(dep,'BUS',self.base),patch.object(dep.subprocess,'run',return_value=response):
+            self.assertIn(self.root,dep.active_import_owners(refs_only=True))
+        with patch.object(dep.subprocess,'run',return_value=types.SimpleNamespace(returncode=2,stdout='')):
+            with self.assertRaises(ValueError):dep.active_import_owners()
 
     def test_database_fixture_is_protected_even_if_published_by_package(self):
         raw=io.BytesIO()

@@ -71,24 +71,68 @@ def fresh_pins():
         pins={Path(p) for p in data}
     else:
         pins=auto.external_pins(include_worktrees=False)
-    return cold.custody_pins(pins)
+    return cold.custody_pins(pins) | active_import_owners(refs_only=True)
 
 
 def intersects(root, pins):
     return any(root == p or root in p.parents or p in root.parents for p in map(Path,pins))
 
 
-def inbound_links(root, deadline):
+def active_import_owners(*, refs_only=False):
+    """All-UID cwd/script owners, not an unbounded historical dependency census."""
+    code='''import os,json,pathlib,sys
+out=set();excluded={os.getpid(),os.getppid()}
+for p in pathlib.Path('/proc').iterdir():
+ if not p.name.isdigit() or int(p.name) in excluded:continue
+ try:
+  cwd=pathlib.Path(os.readlink(p/'cwd'))
+  args=(p/'cmdline').read_bytes().decode(errors='replace').split('\\0')
+  out.add(str(cwd))
+  for a in args:
+   if not a.endswith(('.py','.js','.mjs','.cjs')):continue
+   q=pathlib.Path(a);q=q if q.is_absolute() else cwd/q
+   if q.is_file():out.add(str(q.resolve()))
+ except (FileNotFoundError,ProcessLookupError):continue
+ except PermissionError:raise SystemExit(2)
+print(json.dumps(sorted(out)))'''
+    cmd=['/usr/bin/python3','-I','-c',code]
+    if os.geteuid()!=0:cmd=['sudo','-n',*cmd]
+    result=subprocess.run(cmd,capture_output=True,text=True,timeout=15)
+    if result.returncode:raise ValueError('unknown import owners')
+    data=json.loads(result.stdout)
+    if not isinstance(data,list) or any(not isinstance(p,str) or not p.startswith('/') for p in data):
+        raise ValueError('invalid import owner inventory')
+    layout={BUS,BUS/'reports',BUS/'reports/ops',BUS/'.worktrees',BUS/'worktrees',BUS/'site-system',
+            Path('/home/ubuntu/.hermes'),Path('/home/ubuntu/.hermes/cache'),Path('/home/ubuntu/.hermes/cache/scratch')}
+    owners=[];references=set()
+    for text in data:
+        p=Path(text)
+        if p in layout or not (BUS in p.parents or Path('/home/ubuntu/.hermes') in p.parents):continue
+        if p.is_file():
+            from host_disk_custody import source_refs
+            references.update(source_refs(p,BUS))
+            owners.append(p.parent)
+        else:owners.append(p)
+    return references if refs_only else sorted(set(owners))
+
+
+def inbound_links(root, deadline, *, search_roots=None):
     """No-follow all operational reuse locations; unknown/deadline refuses.
 
     Skip Git internals and this exact candidate only; inspect links inside other
     dependency environments too (npm link / Python import reuse is custody).
     Candidate-internal npm bins are validated against package.json separately.
     """
-    roots = [BUS/'.worktrees', BUS/'worktrees', BUS/'site-system', BUS/'reports',
-             Path('/home/ubuntu/.hermes')]
+    roots = list(search_roots) if search_roots is not None else [BUS/'.worktrees', BUS/'worktrees', BUS/'site-system', BUS/'lanes',
+             BUS/'reports/ops/fable-plan-2-20261009/lanes',
+             Path('/home/ubuntu/.hermes/scripts'),Path('/home/ubuntu/.hermes/skills'),
+             *active_import_owners()]
+    # Historical report/cache trees are not a live import census. Explicit
+    # scheduler/skill/PREPARED/PR references remain separate hard pins, and
+    # actual all-UID import owners supplement these operational roots.
     found = set()
-    stack = [p for p in roots if p.exists()]
+    roots=set(roots)
+    stack = [p for p in roots if p.exists() and not any(a in roots for a in p.parents)]
     while stack:
         if time.monotonic() >= deadline:
             raise TimeoutError('symlink custody inventory')
