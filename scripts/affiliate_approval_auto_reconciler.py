@@ -1783,7 +1783,7 @@ def render_discord(outputs):
  passed=[x for x in outputs if x['status']=='PASS'];blocked=[x for x in outputs if x['status']=='BLOCKED']
  if not blocked:return ''
  verb='needs' if len(blocked)==1 else 'need'
- details='\n'.join(f"• {x.get('network') or 'unknown network'} — {re.sub(r'[^ -~]','',str(x.get('subject') or x['event_id']))[:100]} — {str(x['blocker'])[:180]}" for x in blocked)
+ details='\n'.join(f"• {x.get('network') or 'unknown network'} — {re.sub(r'[^ -~]','',str(x.get('subject') or x['event_id']))[:100]} — {str(x.get('blocker') or x.get('disposition') or 'blocker details unavailable')[:180]}" for x in blocked)
  message=discord_fmt.render(discord_fmt.title('warn','Affiliate Reconciler',f"{len(blocked)} email{'s' if len(blocked)!=1 else ''} {verb} operator or provider repair"),details,discord_fmt.kvline(('automatic updates completed',len(passed)),('blocked',len(blocked))),discord_fmt.meaning('the automatic path stayed fail-closed; mailbox disposition was left unchanged and no Sheet guess was made'),discord_fmt.subtext(f'artifacts: {REPORT_DIR}'),output_class='alert')
  check=discord_fmt.lint(message,output_class='alert')
  if check['status']!='pass':raise RuntimeError(f"discord_output_lint_failed:{check['errors']}")
