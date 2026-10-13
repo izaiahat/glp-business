@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/host_disk_completed_dependencies.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_large_sweep.py"
+      ],
+      "sha256": "c8ce1ecaccc1ddf8998bd66de15303cd499e660c08409d146834db95aafc70b1"
+    },
+    "tests/test_host_disk_completed_dependencies.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "c09b0f2dd2e3e74a44bab97a99e4e863cfddfdb72bd3b9676a401c412741c9ba"
+    },
     "ops/rook-mcp/rook_adapter_launch.py": {
       "kind": "registered_launcher_source",
       "callers": [
@@ -268,7 +282,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c52bcf7281f29b828ec5802cad0c39386bb5542ceb5a355d59d848227a851652"
+      "sha256": "63ba0594a17078713cb986e8cea38e19b499eacb18c3e8223baf44c57352bcde"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -626,7 +640,7 @@
     "ops/disk-retention-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "25031d20ce3f3a340ba30af7be3bfc9280801d002c5e599b5668a0514ec25a00"
+      "sha256": "57ab552256e98cd724adc5c73e056005a8974b5954bc870b58ce66edb557e48f"
     },
     "ops/fable-mention-recovery.md": {
       "callers": [],
@@ -3515,7 +3529,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "71ef0190b9a88f1ff847c9988e1e525a50e70975ea6c43ccdf631fd69aee6ed6"
+      "sha256": "820d546d4fc6099c3d03f8e61a6ef157ad7ad2c1706cddb87aa85669c000f560"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3543,7 +3557,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "f044042fe2d43c6e9eb4ca31179f436706760e2da5b61b62d50b67568f214b41"
+      "sha256": "23f1b3a588d6ee59d965c7d34b601c1902b758ab51e5b3d759181ba5419409d3"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -7440,5 +7454,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1091
+  "tracked_count": 1093
 }
