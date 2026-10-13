@@ -1,15 +1,72 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "scripts/glp_sponsor_firecrawl_supply.py": {"callers": ["ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"], "kind": "script", "sha256": "5241c5c2076941ab85a6e1912a5b85cae11d8ca6dd15cdf4daab9fdb632657b2"},
-    "tests/test_glp_sponsor_firecrawl_supply.py": {"callers": ["scripts/run_tests.sh", "business-source-ci", "firecrawl-integration"], "kind": "test", "sha256": "86ff5ea288b0c256c0d1b5e0b04f3d807834c94862c38593189c3ea310d0262e"},
-    "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {"callers": ["hermes cron sponsor supply refresh"], "kind": "source_control", "sha256": "9300de9f5dece996ba05330c713b672f8bef2a92f6597ca5792925856ade5da2"},
-    "scripts/glp_firecrawl_jobs.py": {"callers": ["ops/hermes-cron-scripts/glp_firecrawl_{provider_research,provider_discovery,seo_signals,budget}.sh"], "kind": "script", "sha256": "2275077e4ab754e8c3a40263c6a8662124183f664be0a8e6c1c017d1a84094a4"},
-    "tests/test_glp_firecrawl_jobs.py": {"callers": ["scripts/run_tests.sh", "firecrawl-integration"], "kind": "test", "sha256": "d10a5dd5d578dbc949ac0eedb3f2851c5780ca854c519639330878ed6b10ac48"},
-    "ops/hermes-cron-scripts/glp_firecrawl_provider_research.sh": {"callers": ["hermes cron FC71 provider research"], "kind": "source_control", "sha256": "c9649be66d9fea1860a714ef802b7ff32e2cdc5dfa4ad9d29d3a0e28a7a9254b"},
-    "ops/hermes-cron-scripts/glp_firecrawl_provider_discovery.sh": {"callers": ["hermes cron FC71 provider discovery"], "kind": "source_control", "sha256": "4a5608679083b04e11a8038bf98e90f770d7fbbcde7012a4b7073df781adc62c"},
-    "ops/hermes-cron-scripts/glp_firecrawl_seo_signals.sh": {"callers": ["hermes cron FC71 SEO signals"], "kind": "source_control", "sha256": "ec7865a39f1cd43df65db00b8dc844330b1e27132a3fba99c688b8d937d88064"},
-    "ops/hermes-cron-scripts/glp_firecrawl_budget.sh": {"callers": ["hermes cron FC71 budget readback"], "kind": "source_control", "sha256": "46d1dab59655e40fe3b3667539034ffb5e645e0fe9814275946375e6f6bca8d3"},
+    "scripts/glp_sponsor_firecrawl_supply.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
+      ],
+      "kind": "script",
+      "sha256": "5241c5c2076941ab85a6e1912a5b85cae11d8ca6dd15cdf4daab9fdb632657b2"
+    },
+    "tests/test_glp_sponsor_firecrawl_supply.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        "business-source-ci",
+        "firecrawl-integration"
+      ],
+      "kind": "test",
+      "sha256": "86ff5ea288b0c256c0d1b5e0b04f3d807834c94862c38593189c3ea310d0262e"
+    },
+    "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
+      "callers": [
+        "hermes cron sponsor supply refresh"
+      ],
+      "kind": "source_control",
+      "sha256": "9300de9f5dece996ba05330c713b672f8bef2a92f6597ca5792925856ade5da2"
+    },
+    "scripts/glp_firecrawl_jobs.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_firecrawl_{provider_research,provider_discovery,seo_signals,budget}.sh"
+      ],
+      "kind": "script",
+      "sha256": "2275077e4ab754e8c3a40263c6a8662124183f664be0a8e6c1c017d1a84094a4"
+    },
+    "tests/test_glp_firecrawl_jobs.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        "firecrawl-integration"
+      ],
+      "kind": "test",
+      "sha256": "d10a5dd5d578dbc949ac0eedb3f2851c5780ca854c519639330878ed6b10ac48"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_provider_research.sh": {
+      "callers": [
+        "hermes cron FC71 provider research"
+      ],
+      "kind": "source_control",
+      "sha256": "c9649be66d9fea1860a714ef802b7ff32e2cdc5dfa4ad9d29d3a0e28a7a9254b"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_provider_discovery.sh": {
+      "callers": [
+        "hermes cron FC71 provider discovery"
+      ],
+      "kind": "source_control",
+      "sha256": "4a5608679083b04e11a8038bf98e90f770d7fbbcde7012a4b7073df781adc62c"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_seo_signals.sh": {
+      "callers": [
+        "hermes cron FC71 SEO signals"
+      ],
+      "kind": "source_control",
+      "sha256": "ec7865a39f1cd43df65db00b8dc844330b1e27132a3fba99c688b8d937d88064"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_budget.sh": {
+      "callers": [
+        "hermes cron FC71 budget readback"
+      ],
+      "kind": "source_control",
+      "sha256": "46d1dab59655e40fe3b3667539034ffb5e645e0fe9814275946375e6f6bca8d3"
+    },
     "ops/systemd/H349-cold-swap-repair.md": {
       "kind": "operations",
       "callers": [
@@ -1203,7 +1260,7 @@
         "hermes:0d734f16c0e9"
       ],
       "kind": "script",
-      "sha256": "29692f247224b472ddb047719dea215fe5b239521e29f67b69e03a51b380bf17"
+      "sha256": "2bd313908e460adfbfa1b7243346d517e56f21f07b83da577099de057afcbe6b"
     },
     "ops/hermes-cron-scripts/glp_google_ads_spend_guard.py": {
       "callers": [
@@ -2951,7 +3008,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh"
       ],
       "kind": "script",
-      "sha256": "f4d86f0d41f968db01551c7ed16c7b78f534f2ed6f9103eefbb63552b4d71e54"
+      "sha256": "3d90b4c87940a4b70a77110ad3b6dbc9c2ff03e35a8edaabc47460fa672ff2e8"
     },
     "scripts/glp_go_runtime_manifest_refresh.mjs": {
       "callers": [
@@ -3776,7 +3833,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3724452a2b1d81e292f7b50072330a3be3b7a311d4ec7e92c50b99f97191e1ff"
+      "sha256": "6af45bea28d845922579ca795069f04cb289b4bc790d2a30d00aacc8d6d048a5"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -7186,6 +7243,13 @@
       ],
       "kind": "test",
       "sha256": "8ffe4aebfa7deb61185632b9da4fccaf343f0090c17e75caf086f21cad5655a3"
+    },
+    "tests/test_glp_g6_traction_freshness.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "c62fa3d0b667052c9154ec023a1eb489f43240e2a9bda6017c4b6063b6073764"
     }
   },
   "omitted_runtime_inputs": [
