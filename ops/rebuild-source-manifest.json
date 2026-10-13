@@ -6,7 +6,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "115563062cd4c8fd4838deae1a52131d54ea3bf6aefc16dcd819386f048dac26"
+      "sha256": "7cba93ab9a115de15cbeeda4daa3ceeddf76373221a423dac3285b78209ddfb7"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -15,7 +15,7 @@
         "firecrawl-integration"
       ],
       "kind": "test",
-      "sha256": "280ec5fea9c350fa5121abd440a560c78471098001e7a80de64c069e5d0cb98c"
+      "sha256": "21603caf10c8937f236809a8493102c7132493bc816c3ae706f0ac4460c2bee7"
     },
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
       "callers": [
@@ -218,7 +218,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2f099ebb4af394462982487977fad84330e8a4bda01aa5919f164743700f004e"
+      "sha256": "c7f27087989fe5b9a7851749da96985d651aa3dafbf21461cac45150a199f3a3"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -380,7 +380,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "905ad02b54e4248d09688f7287934d179245860044f3a1bdc8b8951525c008dc"
+      "sha256": "e9b54079224907f0403d13ed5df0549c63d17e616ca94f2a31d68e7f7f9e73e3"
     },
     ".hermes.md": {
       "callers": [],
@@ -630,7 +630,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "75533ef6e1c330e221c941a57cb906630162ee193950637760e949727de2bb83"
+      "sha256": "caf57e689bda9ab352dde029173c537f6aea729f7097b2ff2f412e07a6976e19"
     },
     "ops/glp/evidence-refresh-k3/compose_current_base.py": {
       "callers": [
@@ -1246,7 +1246,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "d9ec947c922b65a7d035b003fa0c50a48020ea33408377d28b94c26e77b7ba30"
+      "sha256": "43da21747ececf71bfad0848033b352a548635529ceb96a7c7479a2f58865a7b"
     },
     "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
       "callers": [
@@ -1749,7 +1749,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "160768dd78c3a748ecf4b99644db0672b55c6d8f578ec1082cc8a5abf69041d4"
+      "sha256": "3638bcc6c0073dc1fcfa2a84e5d969d853be6a3be85d7a0d8a58d2b18ffe49f6"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -2607,7 +2607,7 @@
         "all maintained Firecrawl producers"
       ],
       "kind": "script",
-      "sha256": "9a514c5be48e6daa3aa917222496c633c3f248506bb2530a84b80cbb7dc8bbf3"
+      "sha256": "d850907ff65c53ba60ae5f51f485408484a599851b1792b80d7ec067d3bb6d3b"
     },
     "scripts/fleet_ingest.md": {
       "callers": [
@@ -3119,7 +3119,7 @@
         "manual:GLP-80"
       ],
       "kind": "script",
-      "sha256": "25b842b1d066357dfb2f35327a0a911ac1725526b30db02fb0419266768b5bb1"
+      "sha256": "c114803b4cd8b544f99815aedc0f04b1d78abac1f1cde593b96c8046f32dabfe"
     },
     "scripts/glp_price_index_recovery.py": {
       "callers": [
@@ -3314,7 +3314,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "09621d6599721421564d69aa400ece0974c6ab947712f2567e35b9e57fe2c76a"
+      "sha256": "d1a807a5a4489225adf3158151967fa7f4c5e63ec8549fba4969bff5acda1470"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -3415,14 +3415,14 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "8690c30d339a539069b69027432c532a7b2599f7461acadaf7ed9f301a852446"
+      "sha256": "f84c994bfd430615e289324379e0dbfa312703bf69a251c337273143c179cb05"
     },
     "scripts/gpt6pro_relay.py": {
       "callers": [
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "abe053f0d1d4f59646f0f2072923c5c8cae0988d53c3c1c3d7a3613bb1c8efaf"
+      "sha256": "d5c0d8cc76655c4857c5323bf8189568bf5f3f16a01e62c0b30f733867768ff4"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -3776,7 +3776,7 @@
     "scripts/pro_route.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "423bd87da422a0d22aaa26887696f882a33e1005041ae34d4e62a173c51207af"
+      "sha256": "5e99480fb8be082a678e818ea9207626e9a959ee18949f6920aa0c987eca5981"
     },
     "scripts/receive_one_discord_message.py": {
       "callers": [
@@ -5141,7 +5141,7 @@
         ".github/workflows/firecrawl-integration.yml"
       ],
       "kind": "test",
-      "sha256": "f64eebfb400ed0a85cbc9819f40f703ea2fff0bf7e628520044a5108fae6c2f1"
+      "sha256": "011143d2fcaac3ab62be57ce35d4dcc38d504c6e1756ce6bdb534a19a7107fb4"
     },
     "tests/test_fleet_ingest.py": {
       "callers": [
@@ -5846,7 +5846,7 @@
         ".github/workflows/glp80-price-freshness.yml"
       ],
       "kind": "test",
-      "sha256": "b2c3b86de983fd7c9e6ff1c4dda542fc5e7db76365bbdfe2e3e296cd90be30f3"
+      "sha256": "09a2d87350d2ea25bf87c0e3cbc4861dd15b34cec58b3406cf801c273d88d21a"
     },
     "tests/test_glp80_reattest.py": {
       "callers": [
@@ -6767,7 +6767,7 @@
     "tests/test_pro_route.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "7b193fc463d413d81d7a12a6d08a210809a27a87b164b4e1096c884adf3240c7"
+      "sha256": "be9e21e59cb22549afa6e6a41dc8f34266551323ef7cc5ce908d78bb272879c3"
     },
     "tests/test_pro_route_backlog.py": {
       "callers": [
@@ -6872,7 +6872,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "75559498cec037e418e360b01787ccf3f209cf2ca53ab44856c5a54b6ced3769"
+      "sha256": "a8ee2254bb1b4cbe5e83e3f99be4bcf329d45f993efc6e2fd86472bb44d35476"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -7288,6 +7288,21 @@
       "kind": "test_fixture",
       "sha256": "e1428963ab6a910e14b4836743327912742aed89430442d2a6a4a874b52dd0d0"
     },
+    "tests/test_pro_research_supersession.py": {
+      "callers": ["business-source-ci"],
+      "kind": "test",
+      "sha256": "0bea566f03e876761d4cce570f1bc051760f866458c4b6a3ed7c394a44421695"
+    },
+    "ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.json": {
+      "callers": ["scripts/gpt6pro_relay.py", "scripts/pro_route.py"],
+      "kind": "source_control",
+      "sha256": "4ad6e16fd15e8734ce965f4ebd42a339cc893f6e53ae8f938cfbab02920f764d"
+    },
+    "ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.md": {
+      "callers": ["P17 operator ruling and independent relay-safety review"],
+      "kind": "source_control",
+      "sha256": "9b07b675be9087ea19572c476ef8d061dabebc19837cc74fd7814b08413f4b77"
+    },
     "tests/fixtures/pro_current_dom/in_progress.json": {
       "callers": [
         "tests/test_pro_current_dom.py"
@@ -7325,5 +7340,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1075
+  "tracked_count": 1078
 }
