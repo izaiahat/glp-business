@@ -8,7 +8,7 @@
 # only the newest 2 such copies are kept (older pruned before a new snapshot).
 set -Eeuo pipefail
 umask 077
-exec python3 - "${HERMES_HOME:-$HOME/.hermes}" \
+exec nice -n 19 ionice -c 3 python3 - "${HERMES_HOME:-$HOME/.hermes}" \
   "${HERMES_BACKUP_ROOT:-/home/ubuntu/business/backups/hermes-state}" \
   "${HERMES_BACKUP_RETENTION_DAYS:-14}" "$0" <<'PY'
 import datetime as dt
@@ -158,14 +158,23 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             if logical_bytes > limit:
                 raise ValueError('logical ledger exceeds staging bound: '+rel)
             dst = sqlite3.connect(snapshot)
-            deadline = time.monotonic()+(1800 if is_state else 15)
+            copy_started = time.monotonic()
+            deadline = copy_started+(1800 if is_state else 15)
             def progress(status, remaining, total):
                 if (time.monotonic() >= deadline or total * page_size > limit
                         or (is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size)
                         or (is_state and wal.exists() and wal.stat().st_size > wal_before + 1024**3)):
                     raise TimeoutError('bounded ledger snapshot refused: '+rel)
-            # 13G state.db: 256-page steps would sleep past the 30-min deadline.
-            src.backup(dst, pages=8192 if is_state else 256, progress=progress, sleep=0.1)
+                if is_state and status in (sqlite3.SQLITE_OK, sqlite3.SQLITE_DONE):
+                    # backup(sleep=...) sleeps ONLY on BUSY/LOCKED, not after
+                    # successful copies. Pace real copied pages at 10 MiB/s;
+                    # bounded 1 MiB steps also prevent a 32 MiB read burst.
+                    expected = (total-remaining) * page_size / (10 * 1024**2)
+                    delay = expected - (time.monotonic()-copy_started)
+                    if delay > 0:
+                        time.sleep(delay)
+            src.backup(dst, pages=max(1, 1024**2 // page_size) if is_state else 256,
+                       progress=progress, sleep=0.1)
             # Release the private source read generation before validation and
             # compression, minimizing checkpoint delay without signalling holders.
             src.close()
@@ -194,7 +203,7 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             with os.fdopen(os.open(zpartial, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), 'wb') as target:
                 os.fchmod(target.fileno(), 0o600)
                 writer = HeadroomWriter(target)
-                proc = subprocess.Popen(['zstd', '-q', '-3', '-T0', '-c', str(snapshot)], stdout=subprocess.PIPE)
+                proc = subprocess.Popen(['zstd', '-q', '-3', '-T1', '-c', str(snapshot)], stdout=subprocess.PIPE)
                 try:
                     for chunk in iter(lambda: proc.stdout.read(1024**2), b''):
                         writer.write(chunk)
