@@ -256,7 +256,7 @@
         "github-actions"
       ],
       "kind": "repository_control",
-      "sha256": "1421d2f491ee7de076e9edb548fe5f92056abd2ea467e00da78666e54da4fffd"
+      "sha256": "60594ac5dec25869d46aae78e4776a6032ed06117ad62113170300f8fc5714ab"
     },
     ".github/workflows/glp331-carrier-closure.yml": {
       "callers": [
