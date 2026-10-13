@@ -1061,7 +1061,7 @@
         "hermes:f918ef069c4a"
       ],
       "kind": "script",
-      "sha256": "84da41316f1757ccfa994e542013b42c13d7cb4cffa881da5ebbf240e3275503"
+      "sha256": "c0e6ec262b1bdd1dfa923df05e609d67252a4b4282e9a155144c391f59612896"
     },
     "ops/hermes-cron-scripts/codex_gate_watchdog.py": {
       "callers": [
@@ -4878,7 +4878,7 @@
         "guardian-exact-head"
       ],
       "kind": "test",
-      "sha256": "b3e3f34a762b70c984da778cd1701614ae8df592562e3e55c000806b65fe7aa8"
+      "sha256": "e703c032791f8f56213358d0787d888c2d551405141cb642ed2b52534b5e5b86"
     },
     "tests/test_cleanup_affiliate_copins.py": {
       "callers": [
@@ -4966,7 +4966,9 @@
       "sha256": "41c1406515baa32434f18c5f1d7975ea7d4554aa6663cf00ac4b526b13fcbe80"
     },
     "tests/test_dot_dispatch_recovery.py": {
-      "callers": [".github/workflows/dot-lane.yml"],
+      "callers": [
+        ".github/workflows/dot-lane.yml"
+      ],
       "kind": "test",
       "sha256": "607da8f672d1730c5a3014adba294caaa72324fbd398b1a0b63ef7c8248e0712"
     },
