@@ -1445,9 +1445,45 @@ def _registered_successor_review(receipt_path: Path, evidence: dict[str, Any]) -
             "execution": _spec(execution_path)}
 
 
+def _inactive_inbound_quarantine(root: Path, path: Path, entry: dict[str, Any]) -> bool:
+    """Ignore only authenticated zero-effect historical link-source rejection.
+
+    No record is edited; uncertain, active, published or unrelated history stays
+    a duplicate blocker. The actual requested predecessor is never filtered.
+    """
+    try:
+        q = _read_sealed(_quarantine_path(root, entry['entry_id']), QUARANTINE_SCHEMA, 'quarantine_sha256')
+        if (q.get('entry_id') != entry['entry_id']
+                or q.get('status') != 'QUARANTINED_PERMANENT_ARTICLE_GATE_REJECTION'
+                or not str(q.get('reason', '')).startswith('inbound_link_source_missing:/guides/')
+                or type(q.get('publication_effects')) is not int or q['publication_effects'] != 0
+                or _verify_spec(q['entry_manifest'], 'inactive_quarantine_entry') != path.resolve()):
+            return False
+        try:
+            _verify_spec(q['materialization'], 'inactive_quarantine_materialization')
+        except RuntimeError:
+            # The producer retains the exact pre-refusal bytes when archiving
+            # the workspace; a reused live path is not evidence authority.
+            archive = Path(str(q.get('workspace_archive') or ''))
+            if not archive.is_absolute():
+                return False
+            spec = q['materialization']
+            _verify_spec({'path': str(archive / Path(spec['path']).name),
+                          'sha256': spec['sha256']}, 'inactive_quarantine_archive')
+        for directory in ('claims', 'consumed', 'published', 'publications'):
+            for record in (root.resolve() / directory).glob('*.json'):
+                if json.loads(record.read_text()).get('entry_id') == entry['entry_id']:
+                    return False
+        return True
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError):
+        return False
+
+
 def _held_successor_predecessor(root: Path, predecessor_id: str,
                                 duplicates: list[tuple[Path, dict[str, Any]]],
                                 evidence: dict[str, Any], closure: str) -> dict[str, Any]:
+    duplicates = [(p, e) for p, e in duplicates if e.get('entry_id') == predecessor_id
+                  or not _inactive_inbound_quarantine(root, p, e)]
     if ENTRY_ID_PATTERN.fullmatch(predecessor_id) is None or len(duplicates) not in (1, 2):
         raise BufferAdmissionError("buffer_successor_predecessor_not_exact")
     path, entry = duplicates[0] if len(duplicates) == 1 else next(

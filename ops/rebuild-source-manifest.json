@@ -4007,7 +4007,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "54d93ea5fa5efda79344925f2922ebfdad8867664a997b251f0433945c4a7fa9"
+      "sha256": "1f887d9ad0a86ce7a505f878933a38eba2fe0cf04ac6cfea256ae55e1bf21205"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
