@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_terminal_mode_receipt.py": {
+      "kind": "test",
+      "callers": [
+        "glp357-terminal-mode"
+      ],
+      "sha256": "fd9c6b50aa02224e487f730ccc6978593ba5536c150e73bfb77a3807d6b38892"
+    },
+    ".github/workflows/glp357-terminal-mode.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "GitHub exact-head focused relay CI"
+      ],
+      "sha256": "83b78f62bbb5121063ddc2d46702bda3f018e600ca8ddd40a2e9dc5730dd3842"
+    },
     "scripts/auto_coordinator_receipt.py": {
       "kind": "script",
       "callers": [
@@ -3458,7 +3472,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "d5c0d8cc76655c4857c5323bf8189568bf5f3f16a01e62c0b30f733867768ff4"
+      "sha256": "d5ea7a34e388e433076695a99716df7dbacc9ae3d39308af9d704cf26d16c66e"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -6384,10 +6398,31 @@
       "kind": "test",
       "sha256": "cc5bc57b3ec25bbb71e9dbfd30a851d39f2925e93e12e1d01b9e98f2b97b5196"
     },
+    "tests/fixtures/pro_terminal_unsent_p20/mode_receipt.json": {
+      "callers": [
+        "tests/test_gpt6pro_relay_binding.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "4839b929a0f23f5e00dcde697a608d2c3d836534c6e8ed71b1b1035a4f7e7bf7"
+    },
+    "tests/fixtures/pro_terminal_unsent_p20/empty_witness.json": {
+      "callers": [
+        "tests/test_gpt6pro_relay_binding.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "857cd070e0809eba04509586191790b40f4d16bd03bd07ae42763b2f522cc5a3"
+    },
+    "tests/fixtures/pro_terminal_unsent_p20/README.md": {
+      "callers": [
+        "P21 fixture provenance"
+      ],
+      "kind": "test_fixture_documentation",
+      "sha256": "8febc1983b4a6f7b666f01af9dbe6c7d9c6ad426a6a1699775a3996875d17f10"
+    },
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "79b6c0c8678fe3e8c4b4c58dd76d7e044624e1467263acd5ade9aef0f7b32e8b"
+      "sha256": "a7405ed2ba64cf153d73cf93188c88a1ec07693a3d76ac535a5e09c17aa7eb98"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -6555,13 +6590,6 @@
       ],
       "kind": "test",
       "sha256": "c23d8a1c1640f812895c28dd576b5c92e1f299935bbc8af2b1ca4b6304be5d34"
-    },
-    "tests/test_affiliate_approval_discord_render.py": {
-      "callers": [
-        "affiliate_approval_auto_reconciler"
-      ],
-      "kind": "test",
-      "sha256": "f519141de896b694372466165d81689d27b84dd6922040b35bed7c5867186289"
     },
     "tests/test_katalys_contract_terms_notice.py": {
       "callers": [
@@ -7308,7 +7336,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "f0785289c3870c13b76f6c17082e20e02e1fab0931eb72823c333621c7838da6"
+      "sha256": "4451e0e08c14331de1b652189c7fc597605b61818ec72155484a7a4057cd6c39"
     },
     "tests/fixtures/pro_current_dom/README.json": {
       "callers": [
@@ -7381,6 +7409,27 @@
       "kind": "source_control",
       "sha256": "9b07b675be9087ea19572c476ef8d061dabebc19837cc74fd7814b08413f4b77"
     },
+    "ops/rook-mcp/rook_adapter_launch.py": {
+      "kind": "registered_launcher_source",
+      "callers": [
+        "systemd:user:rook-mcp-adapter.service -> /home/ubuntu/.hermes/scripts/rook_adapter_launch.py"
+      ],
+      "sha256": "b3ed8ea6ca35c98ea87cc81a313347ae32e7d3defd71f691356f764891198e72"
+    },
+    "ops/rook-mcp/ROOK_LAUNCHER_RUNBOOK.md": {
+      "kind": "runbook",
+      "callers": [
+        "manual:parent-owned exact-source Rook adapter restoration"
+      ],
+      "sha256": "f4b1d9e62320b4f65f3bd4871532d6f41fe616594e612414079857b943e89c4d"
+    },
+    "tests/test_host_disk_pin_protocol.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci host-disk exact-head offline suite"
+      ],
+      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
+    },
     "scripts/article_review_physical_lines.py": {
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py",
@@ -7417,12 +7466,12 @@
       ],
       "sha256": "b2585e5a788e037ee055b8f94bf027568df60e51fd4d86fb4f1c94e93cce2f06"
     },
-    "tests/test_host_disk_pin_protocol.py": {
-      "kind": "test",
+    "tests/test_affiliate_approval_discord_render.py": {
       "callers": [
-        "business-source-ci host-disk exact-head offline suite"
+        "affiliate_approval_auto_reconciler"
       ],
-      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
+      "kind": "test",
+      "sha256": "f519141de896b694372466165d81689d27b84dd6922040b35bed7c5867186289"
     },
     "scripts/__init__.py": {
       "callers": [
@@ -7444,20 +7493,6 @@
       ],
       "kind": "test",
       "sha256": "3b9d86238231a7f4c39b8817cf47d6c08255e7a10186fab676ad7e0af04f3a48"
-    },
-    "ops/rook-mcp/rook_adapter_launch.py": {
-      "kind": "registered_launcher_source",
-      "callers": [
-        "systemd:user:rook-mcp-adapter.service -> /home/ubuntu/.hermes/scripts/rook_adapter_launch.py"
-      ],
-      "sha256": "b3ed8ea6ca35c98ea87cc81a313347ae32e7d3defd71f691356f764891198e72"
-    },
-    "ops/rook-mcp/ROOK_LAUNCHER_RUNBOOK.md": {
-      "kind": "runbook",
-      "callers": [
-        "manual:parent-owned exact-source Rook adapter restoration"
-      ],
-      "sha256": "f4b1d9e62320b4f65f3bd4871532d6f41fe616594e612414079857b943e89c4d"
     },
     "scripts/host_disk_completed_dependencies.py": {
       "kind": "script",
@@ -7482,5 +7517,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1097
+  "tracked_count": 1102
 }

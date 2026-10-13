@@ -1,0 +1,58 @@
+{
+  "tab": "EBE38BAC1F838EE8BE732DC64D3736DB",
+  "first": {
+    "url": "https://chatgpt.com/",
+    "time_origin": 1791875744535.6,
+    "ready_state": "complete",
+    "composer_empty": true,
+    "user_count": 0,
+    "transcript_count": 0,
+    "stop": false,
+    "Chat": false,
+    "Work": true,
+    "mode_gate": {
+      "error": "CHAT_SURFACE_REFUSED",
+      "reason": "work_selected"
+    },
+    "model_trigger": "GPT-6.1 Sol\nLight\nNone\nMinimal\nLight\nMedium\nHigh\nExtra High\nMax\nUltra\nPersistent",
+    "committed_gpt6_pro": false,
+    "selected_models": []
+  },
+  "last": {
+    "url": "https://chatgpt.com/",
+    "time_origin": 1791875744535.6,
+    "ready_state": "complete",
+    "composer_empty": true,
+    "user_count": 0,
+    "transcript_count": 0,
+    "stop": false,
+    "Chat": false,
+    "Work": true,
+    "mode_gate": {
+      "error": "CHAT_SURFACE_REFUSED",
+      "reason": "work_selected"
+    },
+    "model_trigger": "GPT-6.1 Sol\nLight\nNone\nMinimal\nLight\nMedium\nHigh\nExtra High\nMax\nUltra\nPersistent",
+    "committed_gpt6_pro": false,
+    "selected_models": []
+  },
+  "state": {
+    "url": "https://chatgpt.com/",
+    "title": "\ud83d\udc34 ChatGPT",
+    "model": null,
+    "logged_out": false,
+    "stop": false,
+    "drive_reconnect": false,
+    "rate_limited": false,
+    "send": null,
+    "assistant_count": 0,
+    "last_len": 0,
+    "thinking_failed": false,
+    "ready_state": "complete",
+    "composer_present": true,
+    "model_trigger": "GPT-6.1 Sol\nLight\nNone\nMinimal\nLight\nMedium\nHigh\nExtra High\nMax\nUltra\nPersistent",
+    "security_interstitial": false,
+    "human_challenge": false
+  },
+  "same_tabs": true
+}

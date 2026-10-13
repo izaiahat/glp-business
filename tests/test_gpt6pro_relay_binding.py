@@ -1806,10 +1806,72 @@ console.log(JSON.stringify(fixtures.map(f => {
         """Exact typed=false mode receipt releases only distinct-ID admission."""
         self._proof_bound_preinsert_terminal_actual_cli('CHAT_SURFACE_REFUSED')
 
-    def _proof_bound_preinsert_terminal_actual_cli(self, reason):
+    def test_p20_enriched_chat_mode_refusal_terminal_actual_cli(self):
+        """Replay P20's real receipt through default/apply/raw verification offline."""
+        path = Path(__file__).parent / 'fixtures/pro_terminal_unsent_p20/mode_receipt.json'
+        receipt = json.loads(path.read_bytes())
+        self._proof_bound_preinsert_terminal_actual_cli(
+            'CHAT_SURFACE_REFUSED', error_receipt=receipt, custody_tab=receipt['tab'])
+
+    def test_p20_enriched_mode_receipt_supported_observations(self):
+        path = Path(__file__).parent / 'fixtures/pro_terminal_unsent_p20/mode_receipt.json'
+        receipt = json.loads(path.read_bytes())
+        for reason in ('work_selected', 'mode_missing', 'mode_ambiguous', 'mode_unverified'):
+            for count in ((1, 11) if reason == 'mode_missing' else (1, 2, 11)):
+                candidate = {**receipt, 'mode_observation': count,
+                             'mode_evidence': {**receipt['mode_evidence'], 'reason': reason}}
+                with self.subTest(reason=reason, count=count):
+                    self.assertTrue(relay._terminal_mode_receipt_valid(candidate, receipt['tab']))
+
+    def test_p20_captured_empty_witness_still_requires_no_user_turn(self):
+        path = Path(__file__).parent / 'fixtures/pro_terminal_unsent_p20/empty_witness.json'
+        witness = json.loads(path.read_bytes())
+        tab, origin = witness['tab'], witness['first']['time_origin']
+        with mock.patch.object(relay, 'bu_json', return_value=witness):
+            self.assertTrue(relay._retained_empty_witness(tab, origin, disposition_only=True))
+            for key, value in [('user_count', 1), ('transcript_count', 1),
+                               ('composer_empty', False), ('stop', True)]:
+                changed = json.loads(json.dumps(witness))
+                changed['first'][key] = changed['last'][key] = value
+                with self.subTest(key=key), mock.patch.object(relay, 'bu_json', return_value=changed):
+                    self.assertFalse(relay._retained_empty_witness(tab, origin, disposition_only=True))
+
+    def test_p20_incomplete_or_contradictory_mode_receipts_refused(self):
+        path = Path(__file__).parent / 'fixtures/pro_terminal_unsent_p20/mode_receipt.json'
+        receipt = json.loads(path.read_bytes())
+        candidates = [{k: v for k, v in receipt.items() if k != key}
+                      for key in receipt]
+        candidates += [{**receipt, key: value} for key, value in [
+            ('typed', True), ('sent', True), ('typed', 0), ('sent', 0),
+            ('tab', 'other-target'), ('tab', ''), ('mode_observation', True),
+            ('mode_observation', 0), ('mode_observation', 12),
+            ('mode_observation', 1.0), ('mode_observation', '1'),
+            ('mode_evidence', None), ('mode_evidence', {}),
+            ('mode_evidence', {'switched': False}),
+            ('mode_evidence', {'error': 'WRONG_MODEL', 'reason': 'work_selected'}),
+            ('mode_evidence', {'error': 'CHAT_SURFACE_REFUSED'}),
+            ('mode_evidence', {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'chat_selected'}),
+            ('mode_evidence', {**receipt['mode_evidence'], 'switched': False}),
+            ('state', {'stop': True}), ('user_count', 1),
+        ]]
+        legacy = {k: receipt[k] for k in ('error', 'typed', 'sent', 'tab')}
+        candidates += [{**legacy, key: value} for key, value in [('typed', 0), ('sent', 0)]]
+        c = {'generic': True, 'reason': 'CHAT_SURFACE_REFUSED', 'status': 'failed',
+             'tab': receipt['tab']}
+        for candidate in candidates:
+            st = {'status': 'failed', 'reason': 'CHAT_SURFACE_REFUSED', 'retry_blocked': True,
+                  'typed': False, 'sent': False, 'error': candidate}
+            preimage = json.dumps(st).encode()
+            c['held'] = relay.hashlib.sha256(preimage).hexdigest()
+            with self.subTest(receipt=candidate), self.assertRaisesRegex(ValueError, '^MODE_RECEIPT$'):
+                relay._current_terminal_unsent_custody(self.cfg, st, preimage, '', c)
+
+    def _proof_bound_preinsert_terminal_actual_cli(self, reason, *, error_receipt=None,
+                                                   default_only=False, expect_valid=True,
+                                                   custody_tab='attributed-target'):
         """Reusable report-bound disposition; no replay or stale UNKNOWN release."""
         sha = lambda b: relay.hashlib.sha256(b).hexdigest()
-        job, tab, origin = 'unlisted-preinsert-job', 'attributed-target', 1791334401239.7
+        job, tab, origin = 'unlisted-preinsert-job', custody_tab, 1791334401239.7
         d = relay.job_dir(job)
         prompt = b'preserved original packet'
         (d / 'PROMPT.md').write_bytes(prompt)
@@ -1825,6 +1887,8 @@ console.log(JSON.stringify(fixtures.map(f => {
         if reason == 'CHAT_SURFACE_REFUSED':
             # The actual mode gate emits a tab but no readiness-state snapshot.
             held['error'] = {'error': reason, 'typed': False, 'sent': False, 'tab': tab}
+        if error_receipt is not None:
+            held['error'] = error_receipt
         relay.job_write(job, held)
         preimage = (d / 'JOB.json').read_bytes()
         message = relay._failed_generation_identity(held).encode()
@@ -1873,12 +1937,25 @@ console.log(JSON.stringify(fixtures.map(f => {
              mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')), \
              mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
              mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')):
+            if default_only and not expect_valid:
+                for args in ((), ('--apply', '--authorize-preimage', sha(preimage))):
+                    with self.assertRaisesRegex(SystemExit, 'REFUSED_CUSTODY'):
+                        call(*args)
+                self.assertEqual((d/'JOB.json').read_bytes(), preimage)
+                self.assertEqual(ledger.read_bytes(), before_ledger)
+                self.assertFalse(list(d.glob('JOB.pre-terminal-unsent-*.json')))
+                self.assertFalse(relay._verified_terminal_unsent(relay.job_state(job)))
+                witness.assert_not_called()
+                return {'decision': 'REFUSED_CUSTODY', 'default_and_apply_refused': True,
+                        'job_unchanged': True, 'ledger_unchanged': True}
             code, text = call()
             self.assertEqual(code, 0)
             self.assertIn('WOULD_TERMINALIZE_UNSENT', text)
             self.assertEqual((d/'JOB.json').read_bytes(), preimage)
             self.assertEqual(ledger.read_bytes(), before_ledger)
             witness.assert_called_with(tab, origin, disposition_only=True)
+            if default_only:
+                return {'code': code, 'stdout': text, 'job_unchanged': True, 'ledger_unchanged': True}
             mutations = [('typed', True), ('sent', 'UNKNOWN')]
             if reason == 'CHAT_SURFACE_REFUSED':
                 mutations += [('error', {k: v for k, v in held['error'].items() if k != 'tab'}),
@@ -2871,9 +2948,18 @@ console.log(JSON.stringify(fixtures.map(f => {
         }console.log(JSON.stringify(results));'''
         proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
         actual = json.loads(proc.stdout)
+        work_value = actual['work']['value']
+        evidence = work_value.pop('diagnostics')
+        self.assertTrue(evidence['main_present'])
+        self.assertEqual(evidence['chat']['candidates'], [{'pressed': 'false', 'excluded': None}])
+        self.assertEqual(evidence['work']['candidates'], [{'pressed': 'true', 'excluded': None}])
         self.assertEqual(actual['work'], {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
         self.assertEqual(actual['chat'], {'value': {'switched': False}, 'clicks': 0})
         for kind in ('draft','stop','transcript','duplicate','disabled','unknown','wrong_path','hidden'):
+            evidence = actual[kind]['value'].pop('diagnostics')
+            self.assertTrue(evidence['main_present'])
+            self.assertEqual(evidence['chat']['raw_count'], 2 if kind == 'duplicate' else 1)
+            self.assertEqual(evidence['chat']['filtered_count'], 0 if kind in ('disabled', 'hidden') else 2 if kind == 'duplicate' else 1)
             reason = 'mode_ambiguous' if kind in ('duplicate','disabled','hidden') else 'work_selected'
             self.assertEqual(actual[kind], {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': reason}, 'clicks': 0})
         original_js = self.browser.js
@@ -2916,7 +3002,12 @@ console.log(JSON.stringify(fixtures.map(f => {
         console.log(JSON.stringify({value:vm.runInNewContext(action,{document,location:{pathname:'/'},
           getComputedStyle:()=>({display:'block',visibility:'visible'})}),clicks}));'''
         proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
-        self.assertEqual(json.loads(proc.stdout), {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
+        actual = json.loads(proc.stdout)
+        evidence = actual['value'].pop('diagnostics')
+        self.assertTrue(evidence['main_present'])
+        self.assertEqual(evidence['chat']['candidates'], [{'pressed': 'false', 'excluded': None}])
+        self.assertEqual(evidence['work']['candidates'], [{'pressed': 'true', 'excluded': None}])
+        self.assertEqual(actual, {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
         original_js = self.browser.js
         def js(expression):
             if expression.startswith('(()=>{function ensureProChatSurface'):
