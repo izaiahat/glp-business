@@ -14,6 +14,51 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from test_rook_mcp_events import module, config, rpc
 
 
+def test_rook_registered_launcher_uses_installed_source_and_fresh_cursor(monkeypatch):
+    """Regression: the retired rook-live-main worktree is not a runtime binding."""
+    import os
+    from pathlib import Path
+    import runpy
+    import sys
+    from types import SimpleNamespace
+
+    root = Path(__file__).resolve().parents[1]
+    launcher = root / 'ops/rook-mcp/rook_adapter_launch.py'
+    reads = []
+    executed = []
+    fresh = '1559388888888888888'
+
+    def read(arguments):
+        reads.append(arguments)
+        return {'structuredContent': {'messages': [{'message_id': fresh}]}}
+
+    class ExecIntercepted(Exception):
+        pass
+
+    def execute(executable, argv):
+        executed.append((executable, argv))
+        raise ExecIntercepted
+
+    # No real module, token, Discord request, socket, store or process is opened.
+    monkeypatch.setitem(sys.modules, 'rook_mcp_events', SimpleNamespace(read_messages=read))
+    monkeypatch.setattr(sys, 'path', list(sys.path))
+    monkeypatch.setattr(os, 'execv', execute)
+    monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('socket denied'))
+    with pytest.raises(ExecIntercepted):
+        runpy.run_path(str(launcher), run_name='__main__')
+    assert reads == [{'limit': 1}]
+    assert sys.path[0] == '/home/ubuntu/business/scripts'
+    assert executed == [(sys.executable, [
+        sys.executable, '-B', '/home/ubuntu/business/scripts/rook_mcp_events.py',
+        '--overnight-pilot', '--local-tunnel-metadata',
+        '--issuer', 'https://dev-qv5n6hpb2umayqwt.us.auth0.com/',
+        '--audience', 'https://api.openai.com/v1/mcp/tunnel_6abc70ee3f548191bfaabda8ee682eee',
+        '--operator-subject', 'google-oauth2|102663398483169401447',
+        '--state-dir', '/home/ubuntu/.hermes/state/rook-mcp-pilot', '--port', '18796',
+        '--after-message', fresh, '--max-run-seconds', '57600',
+    ])]
+
+
 class TestRookCommunication:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path, monkeypatch):
@@ -1785,6 +1830,39 @@ class TestFinchCommunication:
         assert status == 200 and not result['result']['isError'] and len(self.posts) == 1
         assert result['result']['structuredContent']['attachment']['byte_length'] == self.m.FILE_LIMIT
 
+    def test_gateway_fixture_waits_for_ingests_after_real_deadline(self, monkeypatch):
+        """RV-462: first persistence finishes only after the real lifespan expires."""
+        import asyncio
+        import threading
+        release = threading.Event()
+        ingest = self.app.ingest
+        real_wait = asyncio.wait
+        completed = []
+        deadlines = []
+
+        def held_first(event, cursors):
+            if event['d']['id'] == '150':
+                assert release.wait(5), 'fixture regression watchdog: no deadline'
+            result = ingest(event, cursors)
+            completed.append(event['d']['id'])
+            return result
+
+        async def release_after_deadline(tasks, *, timeout, return_when):
+            done, pending = await real_wait(tasks, timeout=timeout, return_when=return_when)
+            deadlines.append((timeout, bool(done)))
+            release.set()
+            return done, pending
+
+        monkeypatch.setattr(self.app, 'ingest', held_first)
+        monkeypatch.setattr(asyncio, 'wait', release_after_deadline)
+        try:
+            self.test_gateway_and_receiver_use_finch_own_token_and_both_channel_cursors(monkeypatch)
+            assert deadlines[0] == (.05, False)
+            assert completed == ['150', '201']
+            assert {row['id'] for row in self.app.store.all('requests')} == {'discord-150', 'discord-201'}
+        finally:
+            release.set()
+
     def test_gateway_and_receiver_use_finch_own_token_and_both_channel_cursors(self, monkeypatch):
         import asyncio
         import receive_one_discord_message as r
@@ -1798,12 +1876,46 @@ class TestFinchCommunication:
                 class Client:
                     async def start(_, token, reconnect):
                         tokens.append(token); assert reconnect is False
-                        on_event(self.event('150', '901'), observer); on_event(self.event('201', '902'), observer)
+                        on_event(self.event('150', '901'), observer)
+                        on_event(self.event('201', '902'), observer)
                         await asyncio.Future()
                     async def close(_): pass
                 return Client()
             return make
-        assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, .05, client_factory=factory(self.dot.bot))) == 0
+        async def run_until_ingested():
+            loop = asyncio.get_running_loop()
+            completed = asyncio.Event()
+            remaining = {'150', '201'}
+            ingest = self.app.ingest
+            real_wait = asyncio.wait
+
+            def acknowledge(identity):
+                remaining.discard(identity)
+                if not remaining:
+                    completed.set()
+
+            def tracked_ingest(event, cursors):
+                result = ingest(event, cursors)
+                loop.call_soon_threadsafe(acknowledge, event['d']['id'])
+                return result
+
+            async def completion_wait(tasks, *, timeout, return_when):
+                done, pending = await real_wait(tasks, timeout=timeout, return_when=return_when)
+                # Fixture-only teardown gate: keep the real 50ms lifespan and
+                # result, but acknowledge BOTH completed ingests before shutdown
+                # discards queued work. Five seconds is a failure watchdog, not
+                # an adapter lifespan or a sleep-based delivery assumption.
+                if not done:
+                    await asyncio.wait_for(completed.wait(), timeout=5)
+                return done, pending
+
+            with monkeypatch.context() as fixture:
+                fixture.setattr(self.app, 'ingest', tracked_ingest)
+                fixture.setattr(asyncio, 'wait', completion_wait)
+                return await self.m.run_adapter(self.app, Server(), self.cursors, .05,
+                    client_factory=factory(self.dot.bot))
+
+        assert asyncio.run(run_until_ingested()) == 0
         assert tokens == ['synthetic-finch-token'] and len(self.app.store.all('requests')) == 2
         assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, .05, client_factory=factory(self.m.BOT))) == 2
         self.call('reply_to_finch_request', self.args('150', False))
