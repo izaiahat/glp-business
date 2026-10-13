@@ -76,6 +76,7 @@ suites+=(tests/test_monday_discovery_background.py tests/test_reddit_fractional_
 suites+=(tests/test_affiliate_catalog_batch.py tests/test_j2_maxbounty_catalog.py tests/test_j3_partnerstack_catalog.py tests/test_j4_refersion_catalog.py)
 suites+=(tests/test_j4_partnerize_partial_catalog.py)
 suites+=(tests/test_capacity_reset_policy.py)
+suites+=(tests/test_glp_g6_traction_freshness.py)
 suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
 suites+=(tests/test_glp109_scheduler_health.py tests/test_glp320_host_failure_sensor.py)
 suites+=(tests/test_pro_route.py tests/test_pro_route_backlog.py tests/test_pro_route_consumer.py tests/test_pro_picker_family.py tests/test_pro_dispatch.py)
