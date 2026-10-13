@@ -90,6 +90,40 @@ def fixture(tmp_path, monkeypatch):
     return args, inputs, db, packet, manifest, handle, closed
 
 
+@pytest.mark.parametrize('source,lines', [
+    ('a\u2028b\u2029c\x85d\x0be\x0cf\n'.encode(), ['a\u2028b\u2029c\x85d\x0be\x0cf']),
+    (b'{\r"quote": "valid JSON whitespace"}\r', ['{\r"quote": "valid JSON whitespace"}\r']),
+    (b'a\r\nb\nc\r', ['a', 'b', 'c\r']),
+    (b'', []),
+])
+def test_custodian_replays_physical_lines_without_backfilling(tmp_path, monkeypatch, source, lines):
+    args, _, db, packet, manifest, _, _ = fixture(tmp_path, monkeypatch)
+    (packet / '04-draft.md').write_bytes(source)
+    context = ('SEALED ARTICLE SUBJECTS — READ ONLY\nmanifest_sha256=' + 'a' * 64 +
+               '\n\n===== 04-draft.md =====\n' +
+               ''.join(f'{n:04d}|{line}\n' for n, line in enumerate(lines, 1)) + '\n')
+    Path(args.context_file[0]).write_bytes(context.encode())
+    captured = {}
+    payload = review.build_payload(args, captured)
+    with sqlite3.connect(db) as c:
+        c.execute('update messages set content=? where id=1', (payload,))
+        response = c.execute('select content from messages where id=2').fetchone()[0]
+    custody = review.authenticate_result('reviewer', payload, response, model=args.model,
+                                         provider=args.provider, effort=args.effort, session_db=db)
+    runtime = {'session_id': 'reviewer', 'model': args.model, 'provider': args.provider,
+               'effort': args.effort, 'result_custody': custody}
+    raw = {'session_id': 'reviewer', 'result': response, 'hermes_runtime': runtime,
+           'review_input': review.review_input(args, payload, captured, runtime)}
+    before = db.read_bytes()
+    assert review.validate_result_custody(raw, manifest=manifest, packet=packet, session_db=db) == custody
+    historical = copy.deepcopy(raw)
+    historical['hermes_runtime'].pop('result_custody')
+    with pytest.raises(RuntimeError, match='custody'):
+        review.validate_result_custody(historical, manifest=manifest, packet=packet, session_db=db)
+    assert 'result_custody' not in historical['hermes_runtime']
+    assert db.read_bytes() == before
+
+
 def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch):
     args, inputs, db, packet, manifest, handle, closed = fixture(tmp_path, monkeypatch)
     captured = {}
