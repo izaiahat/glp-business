@@ -96,6 +96,8 @@ CONTROL_FILES = (
     SYSTEM / "pipeline-contract.json",
     SYSTEM / "schemas/glp-opus-seo-review-v1.schema.json",
     BUSINESS / "scripts/hermes_sol_article_review.py",
+    BUSINESS / "scripts/article_review_physical_lines.py",
+    BUSINESS / "scripts/review_source_lines.py",
     BUSINESS / "scripts/site_tree_materializer.py",
     BUSINESS / "reports/glp-clinic-scout/seo-machine/OPUS-REVIEW-PATH-20260802.md",
 )

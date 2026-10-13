@@ -1445,9 +1445,51 @@ def _registered_successor_review(receipt_path: Path, evidence: dict[str, Any]) -
             "execution": _spec(execution_path)}
 
 
+def _inactive_inbound_quarantine(root: Path, path: Path, entry: dict[str, Any]) -> bool:
+    """Ignore only authenticated zero-effect historical link-source rejection.
+
+    No record is edited; uncertain, active, published or unrelated history stays
+    a duplicate blocker. The actual requested predecessor is never filtered.
+    """
+    try:
+        q = _read_sealed(_quarantine_path(root, entry['entry_id']), QUARANTINE_SCHEMA, 'quarantine_sha256')
+        if (q.get('entry_id') != entry['entry_id']
+                or q.get('status') != 'QUARANTINED_PERMANENT_ARTICLE_GATE_REJECTION'
+                or not str(q.get('reason', '')).startswith('inbound_link_source_missing:/guides/')
+                or type(q.get('publication_effects')) is not int or q['publication_effects'] != 0
+                or _verify_spec(q['entry_manifest'], 'inactive_quarantine_entry') != path.resolve()):
+            return False
+        try:
+            _verify_spec(q['materialization'], 'inactive_quarantine_materialization')
+        except RuntimeError:
+            # The producer retains the exact pre-refusal bytes when archiving
+            # the workspace; a reused live path is not evidence authority.
+            archive = Path(str(q.get('workspace_archive') or ''))
+            if not archive.is_absolute():
+                return False
+            spec = q['materialization']
+            _verify_spec({'path': str(archive / Path(spec['path']).name),
+                          'sha256': spec['sha256']}, 'inactive_quarantine_archive')
+        for directory in ('claims', 'consumed', 'published', 'publications'):
+            for record in (root.resolve() / directory).glob('*.json'):
+                if json.loads(record.read_text()).get('entry_id') == entry['entry_id']:
+                    return False
+        return True
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError):
+        return False
+
+
+def _held_successor_duplicates(root: Path, predecessor_id: str,
+                               duplicates: list[tuple[Path, dict[str, Any]]]) -> list[tuple[Path, dict[str, Any]]]:
+    """Use one authenticated duplicate set through preflight and admission."""
+    return [(p, e) for p, e in duplicates if e.get('entry_id') == predecessor_id
+            or not _inactive_inbound_quarantine(root, p, e)]
+
+
 def _held_successor_predecessor(root: Path, predecessor_id: str,
                                 duplicates: list[tuple[Path, dict[str, Any]]],
                                 evidence: dict[str, Any], closure: str) -> dict[str, Any]:
+    duplicates = _held_successor_duplicates(root, predecessor_id, duplicates)
     if ENTRY_ID_PATTERN.fullmatch(predecessor_id) is None or len(duplicates) not in (1, 2):
         raise BufferAdmissionError("buffer_successor_predecessor_not_exact")
     path, entry = duplicates[0] if len(duplicates) == 1 else next(
@@ -1526,6 +1568,16 @@ def admit(
         if evidence["target_route"] in current_routes or evidence["topic_id"] in current_topic_ids:
             raise BufferAdmissionError("buffer_candidate_already_live")
         closure = hashlib.sha256(_canonical(evidence["subjects"])).hexdigest()
+        entry_id = hashlib.sha256(
+            f"{evidence['topic_id']}\0{evidence['target_route']}\0{closure}".encode()
+        ).hexdigest()[:24]
+        # Inactive historical duplicates may be ignored, but never the exact
+        # requested target. Check before every predecessor/idempotency path,
+        # under the carrier lock, including a retained quarantine tombstone.
+        quarantine = _quarantine_path(root, entry_id)
+        if quarantine.exists() or quarantine.is_symlink():
+            # A malformed target record is not permission to retry either.
+            raise BufferAdmissionError("buffer_candidate_quarantined")
         duplicates: list[tuple[Path, dict[str, Any]]] = []
         for path in _entry_manifests(root):
             entry = _read_sealed(path, ENTRY_SCHEMA, "entry_sha256")
@@ -1537,6 +1589,7 @@ def admit(
         on_page_successor_of = None
         predecessor = None
         if predecessor_entry_id is not None:
+            duplicates = _held_successor_duplicates(root, predecessor_entry_id, duplicates)
             predecessor = _held_successor_predecessor(
                 root, predecessor_entry_id, duplicates, evidence, closure)
             _successor_publication_date(today_pt or pt_date_now(), control_files)
@@ -1554,9 +1607,6 @@ def admit(
                     root=root, packet=packet, evidence=evidence,
                     duplicate_manifests=duplicates, successor_closure=closure,
                 )
-        entry_id = hashlib.sha256(
-            f"{evidence['topic_id']}\0{evidence['target_route']}\0{closure}".encode()
-        ).hexdigest()[:24]
         entries_root = root.resolve() / "entries"
         final = entries_root / entry_id
         if predecessor is not None and any(
@@ -1581,9 +1631,6 @@ def admit(
         if ready_count >= READY_MAX:
             raise BufferAdmissionError("buffer_ready_pool_at_max")
 
-        entry_id = hashlib.sha256(
-            f"{evidence['topic_id']}\0{evidence['target_route']}\0{closure}".encode()
-        ).hexdigest()[:24]
         entries_root = root.resolve() / "entries"
         entries_root.mkdir(parents=True, exist_ok=True)
         final = entries_root / entry_id

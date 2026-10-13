@@ -14,6 +14,51 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from test_rook_mcp_events import module, config, rpc
 
 
+def test_rook_registered_launcher_uses_installed_source_and_fresh_cursor(monkeypatch):
+    """Regression: the retired rook-live-main worktree is not a runtime binding."""
+    import os
+    from pathlib import Path
+    import runpy
+    import sys
+    from types import SimpleNamespace
+
+    root = Path(__file__).resolve().parents[1]
+    launcher = root / 'ops/rook-mcp/rook_adapter_launch.py'
+    reads = []
+    executed = []
+    fresh = '1559388888888888888'
+
+    def read(arguments):
+        reads.append(arguments)
+        return {'structuredContent': {'messages': [{'message_id': fresh}]}}
+
+    class ExecIntercepted(Exception):
+        pass
+
+    def execute(executable, argv):
+        executed.append((executable, argv))
+        raise ExecIntercepted
+
+    # No real module, token, Discord request, socket, store or process is opened.
+    monkeypatch.setitem(sys.modules, 'rook_mcp_events', SimpleNamespace(read_messages=read))
+    monkeypatch.setattr(sys, 'path', list(sys.path))
+    monkeypatch.setattr(os, 'execv', execute)
+    monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('socket denied'))
+    with pytest.raises(ExecIntercepted):
+        runpy.run_path(str(launcher), run_name='__main__')
+    assert reads == [{'limit': 1}]
+    assert sys.path[0] == '/home/ubuntu/business/scripts'
+    assert executed == [(sys.executable, [
+        sys.executable, '-B', '/home/ubuntu/business/scripts/rook_mcp_events.py',
+        '--overnight-pilot', '--local-tunnel-metadata',
+        '--issuer', 'https://dev-qv5n6hpb2umayqwt.us.auth0.com/',
+        '--audience', 'https://api.openai.com/v1/mcp/tunnel_6abc70ee3f548191bfaabda8ee682eee',
+        '--operator-subject', 'google-oauth2|102663398483169401447',
+        '--state-dir', '/home/ubuntu/.hermes/state/rook-mcp-pilot', '--port', '18796',
+        '--after-message', fresh, '--max-run-seconds', '57600',
+    ])]
+
+
 class TestRookCommunication:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path, monkeypatch):

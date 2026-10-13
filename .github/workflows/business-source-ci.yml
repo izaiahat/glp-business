@@ -260,6 +260,8 @@ jobs:
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py
       - name: Article-buffer exact-entry hold regression (isolated fixtures)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_article_buffer.py -k registered_exact_entry_hold_states
+      - name: Article review physical records, evidence dates and inactive quarantine (isolated fixtures)
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_native_review_context_contract.py systems/seo-blog-machine/tests/test_evidence_review_timestamp.py systems/seo-blog-machine/tests/test_successor_inactive_quarantine.py
       - name: Registered held-predecessor successor admission (isolated fixtures)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_article_successor.py
       - name: Repair rollback and no-replay regressions (isolated fixtures)

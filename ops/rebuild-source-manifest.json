@@ -254,7 +254,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f2928bb70e91904d46eaf8490ce81a2a885aeacddbadcfc71318b975f06592e7"
+      "sha256": "c52bcf7281f29b828ec5802cad0c39386bb5542ceb5a355d59d848227a851652"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -416,7 +416,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e9b54079224907f0403d13ed5df0549c63d17e616ca94f2a31d68e7f7f9e73e3"
+      "sha256": "6149cf4ea6526b634a975faac4097517f6970921d3626e688be401610c5ede12"
     },
     ".hermes.md": {
       "callers": [],
@@ -3486,7 +3486,7 @@
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
       "kind": "review_transport",
-      "sha256": "d4a09018bd11cda1480851b806ebfb248aef4cc34b2791667917b02ff7ac1e88"
+      "sha256": "f07045890781b3812dd501e11fb01d6fa65856e3acdad8855e8b90cb676684b0"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
@@ -4043,14 +4043,14 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "54d93ea5fa5efda79344925f2922ebfdad8867664a997b251f0433945c4a7fa9"
+      "sha256": "3903d381b4a9ee1d60d7638320fa176c5f3312b4642002ea22f4cd9e34edd754"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "c193e3b169e4acf7b1a692609fb671b4a00414541b8789cb4ff19c1fd55981cb"
+      "sha256": "358ad254e7c1fa52c1e419f3a779bb8d295db1e6c2c3981c0a6300ac0f27cd7b"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [
@@ -4114,7 +4114,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "574c476c9d01c1cb45e1a44d9932633c7e1751018ce7597e87382f971a44fb2c"
+      "sha256": "8759946c180152ebcdd9ef6c2de7412afa571b30c4183db1fa7334eb0079e353"
     },
     "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
       "callers": [
@@ -4172,7 +4172,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "8619d5c1908031fbb060fd2bfcde684aae76a028cfbf1836cb7606421b13cacc"
+      "sha256": "eb56eb6dc445c31c7d94344f05a6f1971aa962bf6f6f3e565f166fff952dffaa"
     },
     "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py": {
       "callers": [
@@ -4184,7 +4184,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "602cead8781db2b2a459d8fad7258d6564e5a741d851664203a53e9f854b6092"
+      "sha256": "b674298a00b5cb311f8a389417aa53f077f10f1da4a6433fec5c32066b099179"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [
@@ -4822,7 +4822,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "ed424026bb0b45f31b2ea7b687890f16810f9453ae136b57c2f34925eab78040"
+      "sha256": "02aa2de34d1e9fe920e5eaa32c5e82df527406292f2b7a3c0540bbad53952d3e"
     },
     "tests/test_article_source_carrier.py": {
       "callers": [
@@ -6887,7 +6887,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "b98e7711314556ace45b5fa78af72d2d9c16c013a1bdd5e9e427b93b7d4e5948"
+      "sha256": "f7ea9d6ff39127f9e8800057191b4899bf72c6565f8ab2a29a42baf4f9f8b724"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
@@ -7401,6 +7401,56 @@
         "business-source-ci host-disk exact-head offline suite"
       ],
       "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
+    },
+    "ops/rook-mcp/rook_adapter_launch.py": {
+      "kind": "registered_launcher_source",
+      "callers": [
+        "systemd:user:rook-mcp-adapter.service -> /home/ubuntu/.hermes/scripts/rook_adapter_launch.py"
+      ],
+      "sha256": "b3ed8ea6ca35c98ea87cc81a313347ae32e7d3defd71f691356f764891198e72"
+    },
+    "ops/rook-mcp/ROOK_LAUNCHER_RUNBOOK.md": {
+      "kind": "runbook",
+      "callers": [
+        "manual:parent-owned exact-source Rook adapter restoration"
+      ],
+      "sha256": "f4b1d9e62320b4f65f3bd4871532d6f41fe616594e612414079857b943e89c4d"
+    },
+    "scripts/article_review_physical_lines.py": {
+      "callers": [
+        "systems/seo-blog-machine/scripts/opus_review_loop.py",
+        "scripts/hermes_sol_article_review.py"
+      ],
+      "kind": "script",
+      "sha256": "830dbaadd99e0f9e6a67b8a7f48025d48324a15de4dfe1f3931a2d4c26b72b39"
+    },
+    "systems/seo-blog-machine/tests/test_evidence_review_timestamp.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "fdcdeb0affc20ee8b487e9d9e9204ffcf252123d0392576d2c6688f319db0a56"
+    },
+    "systems/seo-blog-machine/tests/test_native_review_context_contract.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "73cd8c3832f1fd565bcbf8dcf318cf146d02e40e266c35c7d82dfc39a1eb89b3"
+    },
+    "systems/seo-blog-machine/tests/test_successor_inactive_quarantine.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "73a6c6c3a60894e29c6ed763e17c20b61b9d745de12dfd7fa99f39aa5cfd9fff"
+    },
+    "scripts/review_source_lines.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/article_review_physical_lines.py"
+      ],
+      "sha256": "b2585e5a788e037ee055b8f94bf027568df60e51fd4d86fb4f1c94e93cce2f06"
     }
   },
   "omitted_runtime_inputs": [
@@ -7411,5 +7461,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1087
+  "tracked_count": 1094
 }
