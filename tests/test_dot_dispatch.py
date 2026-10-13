@@ -132,6 +132,170 @@ class DispatchTests(unittest.TestCase):
         self.assertIn('LATE_REPLY_TO_EXPIRED_TICKET', (ticket / 'REPLY.md').read_text())
         self.assertTrue(json.loads((ticket / 'COMPLETION.json').read_text())['late'])
 
+    def test_exact_hash_external_terminal_alternative_is_never_native_completion(self):
+        def api(method, route, payload=None):
+            if method == 'POST': self.message['content'] = payload['content']
+            if '?limit=100' in route: return [self.message, reply]
+            return reply if route.endswith('/1560000000000000000') else self.message
+        result = self.dispatch(api)
+        ticket = Path(result['ticket_dir'])
+        row = json.loads((ticket/'TICKET.json').read_text())
+        reply = dict(id='1560000000000000000', channel_id=row['channel_id'], type=19,
+            author={'id':d.DOTS['rook']['user']}, attachments=[],
+            message_reference=dict(message_id=row['request_id'], channel_id=row['channel_id'], guild_id=d.GUILD),
+            content=f"<@{d.SENDER}> RESULT {row['ticket']}\nOriginal evidence. Delivery is authorized direct fallback, NOT native-correlated: no request_id.")
+        fingerprint=d.digest(reply['content'])
+        import copy
+        cases = ('author','channel','guild','id','ref_message','ref_channel','ref_guild','ticket_suffix',
+            'hash','webhook','attachment','duplicate','history','get_drift','native_confirmed',
+            'native_sending','native_uncertain','early','short_timeout','staged','audit_conflict')
+        for case in cases:
+            bad=copy.deepcopy(reply); history=[self.message,bad]; get=bad
+            if case=='author':bad['author']['id']='foreign'
+            if case=='channel':bad['channel_id']='foreign'
+            if case=='guild':bad['guild_id']='foreign'
+            if case=='id':bad['id']='foreign'
+            if case.startswith('ref_'):bad['message_reference'][{'ref_message':'message_id','ref_channel':'channel_id','ref_guild':'guild_id'}[case]]='foreign'
+            if case=='ticket_suffix':bad['content']=bad['content'].replace(row['ticket'],row['ticket']+'suffix')
+            if case=='hash':bad['content']+=' changed'
+            if case=='webhook':bad['webhook_id']='hook'
+            if case=='attachment':bad['attachments']=[{'id':'102'}]
+            if case=='duplicate':history.append(dict(bad,id='1570000000000000000'))
+            if case=='history':history=[bad]
+            if case=='get_drift':get=copy.deepcopy(bad);get['content']+=' drift'
+            if case=='staged':d.atomic_text(ticket/'REPLY.md','staged')
+            if case=='audit_conflict':d.atomic_json(ticket/'EXPIRY.json',dict(schema='wrong'))
+            def bad_api(method,route,payload=None):
+                self.assertEqual(method,'GET')
+                return history if '?limit=100' in route else get if route.endswith('/'+reply['id']) else self.message
+            probes=iter([{'status':'request_expired'},{'status':case.removeprefix('native_')}])
+            probe=(lambda _:next(probes)) if case.startswith('native_') else (lambda _:{'status':'request_expired'})
+            clock=row['sent_at']+(1 if case=='early' else 21601)
+            pre=(ticket/'TICKET.json').read_bytes()
+            with self.subTest(external_negative=case),patch.object(d.time,'time',return_value=clock),self.assertRaises((ValueError,KeyError)):
+                d.expire(ticket,reason='offline alternative',owner='parent',api=bad_api,probe=probe,
+                    handoff_reply_id=reply['id'],handoff_content_sha256=fingerprint,
+                    timeout_seconds=1 if case=='short_timeout' else 21600)
+            self.assertEqual((ticket/'TICKET.json').read_bytes(),pre)
+            for name in ('REPLY.md','EXPIRY.json'):
+                (ticket/name).unlink(missing_ok=True)
+        with patch.object(d.time, 'time', return_value=row['sent_at']+21601):
+            expired = d.expire(ticket, reason='offline alternative', owner='parent', api=api,
+                probe=lambda _:{'status':'request_expired'}, handoff_reply_id=reply['id'],
+                handoff_content_sha256=fingerprint)
+            self.assertEqual(d.expire(ticket,reason='offline alternative',owner='parent',api=lambda *_:self.fail('replay GET'),
+                probe=lambda _:self.fail('replay probe'),handoff_reply_id=reply['id'],handoff_content_sha256=fingerprint),expired)
+            with self.assertRaises(ValueError):
+                d.expire(ticket,reason='offline alternative',owner='parent',handoff_reply_id=reply['id'],handoff_content_sha256='0'*64)
+        audit = json.loads((ticket/'EXPIRY.json').read_text())
+        self.assertEqual(expired['state'], 'expired')
+        self.assertEqual(audit['external_handoff'], reply)
+        self.assertEqual(audit['external_handoff_content_sha256'], d.digest(reply['content']))
+        self.assertFalse((ticket/'REPLY.md').exists())
+        self.assertFalse((ticket/'COMPLETION.json').exists())
+
+    def test_exact_receiving_migration_preserves_preimages_and_is_replayable(self):
+        import native_reply_consumer as n
+        import rook_mcp_events as r
+        import sqlite3
+        ticket = self.root/'finch-glp-359-fixture'
+        ticket.mkdir(parents=True, mode=0o700)
+        self.root.chmod(0o700)
+        state_dir = Path(self.tmp.name)/'native'; state_dir.mkdir(mode=0o700)
+        receipts = ticket/'receipts'; receipts.mkdir(mode=0o700)
+        config = dict(parent='parent', receipt_state_dir=str(receipts), registrations=[dict(
+            correlation='discord-100', channel=n.FINCH_CHANNEL, state_dir=str(state_dir),
+            issuer=d.ISSUER, audience=d.DOTS['finch']['audience'], subject=d.SUBJECT,
+            task_owner='owner', action='inspect', result_key=ticket.name)])
+        d.atomic_json(ticket/'NATIVE-CONFIG.json', config)
+        _, entries = n.load_registrations(ticket/'NATIVE-CONFIG.json'); registration=entries[0]
+        payload=b'assistant evidence copy\n'
+        metadata=dict(id='102', filename='evidence.txt', content_type='text/plain', size=len(payload),
+            url=f'https://cdn.discordapp.com/attachments/{n.FINCH_CHANNEL}/102/evidence.txt')
+        attachment=r.finch_attachment_custody(metadata,n.FINCH_CHANNEL,hashlib.sha256(payload).hexdigest())
+        reply=dict(id='101',channel_id=n.FINCH_CHANNEL,type=0,author={'id':n.FINCH_BOT},attachments=[metadata],
+            content=f'RESULT {ticket.name} evidence\n-# finch.reply · discord-100')
+        policy=dict(issuer=d.ISSUER,audience=d.DOTS['finch']['audience'],subject=d.SUBJECT,
+            identity=registration.scope.finch.policy_fields())
+        row=dict(id='discord-100',message_id='100',subject=d.SUBJECT,policy=d.digest(d.canonical(policy)),
+            state='confirmed',reply_id='101',reply_sha256=d.digest(reply['content']),attachment=attachment,
+            guild_id=d.GUILD,channel_id=n.FINCH_CHANNEL,reply_author=n.FINCH_BOT,reply_kind='finch.reply',
+            auth_method='RS256-authenticated-tools/call',auth_subject=d.SUBJECT,confirmed_at=1,auth_expires=10)
+        row['reply_effect_sha256']=d.digest(d.canonical([d.GUILD,n.FINCH_CHANNEL,row['reply_sha256'],
+            {k:attachment[k] for k in ('filename','content_type','byte_length','sha256')}]))
+        db=sqlite3.connect(state_dir/'rook.sqlite3');db.execute('CREATE TABLE requests(id TEXT PRIMARY KEY,value TEXT)')
+        db.execute('INSERT INTO requests VALUES (?,?)',('discord-100',json.dumps(row)));db.commit();db.close()
+        (state_dir/'rook.sqlite3').chmod(0o600)
+        pins=d.source_pins(); old_pins=dict(pins,**{'native_reply_consumer.py':'0'*64})
+        state=dict(ticket=ticket.name,issue='GLP-359',dot='finch',request_id='100',correlation='discord-100',
+            state='sent',exact_readback=True,parent='parent',task_owner='owner',channel_id=n.FINCH_CHANNEL,
+            source_pins=old_pins,sent_at=20)
+        d.atomic_json(ticket/'TICKET.json',state);d.atomic_json(ticket/'CONFIG.json',d.fleet_config(ticket,state))
+        pre={name:(ticket/name).read_text() for name in ('TICKET.json','NATIVE-CONFIG.json')}
+        plan=dict(schema='DOT_RECEIVING_MIGRATION_V1',ticket=ticket.name,
+            ticket_preimage_sha256=d.digest(pre['TICKET.json']),native_config_preimage_sha256=d.digest(pre['NATIVE-CONFIG.json']),
+            native_row_sha256=d.digest(d.canonical(row)),old_source_pins=old_pins,new_source_pins=pins,
+            reply_id='101',content_sha256=row['reply_sha256'],terminal_attachment={k:attachment[k] for k in
+                ('id','filename','content_type','byte_length','sha256')},recorded_by='parent',reason='reviewed test')
+        with patch.dict(d.DOTS['finch'],state_dir=str(state_dir)):
+            for key, bad in [('ticket','foreign'),('old_source_pins',{}),('new_source_pins',{}),
+                    ('ticket_preimage_sha256','0'*64),('native_config_preimage_sha256','0'*64),
+                    ('native_row_sha256','0'*64),('reply_id','999'),('content_sha256','0'*64),
+                    ('terminal_attachment',dict(plan['terminal_attachment'],sha256='0'*64))]:
+                with self.subTest(migration_plan=key), self.assertRaises(ValueError):
+                    d.migrate_receiving(ticket,dict(plan,**{key:bad}),reader=lambda *_:reply)
+                self.assertEqual({name:(ticket/name).read_text() for name in pre},pre)
+                self.assertFalse((ticket/'RECEIVING-MIGRATION.json').exists())
+            for name in ('REPLY.md','COMPLETION.json','EXPIRY.json'):
+                d.atomic_text(ticket/name,'present')
+                with self.subTest(existing=name),self.assertRaises(ValueError):
+                    d.migrate_receiving(ticket,plan,reader=lambda *_:reply)
+                (ticket/name).unlink()
+            with n.Receipts(receipts):
+                with self.assertRaises((BlockingIOError,OSError)):
+                    d.migrate_receiving(ticket,plan,reader=lambda *_:reply)
+            with d.locked(self.root):
+                with self.assertRaises((BlockingIOError,OSError)):
+                    d.migrate_receiving(ticket,plan,reader=lambda *_:reply)
+            with n.Receipts(receipts) as store:
+                store.put(dict(receipt_id='conflicting',correlation='other',outcome='result'))
+            with self.assertRaisesRegex(ValueError,'receipt_conflict'):
+                d.migrate_receiving(ticket,plan,reader=lambda *_:reply)
+            db=sqlite3.connect(receipts/'reply-consumers.sqlite3');db.execute('DELETE FROM receipts');db.commit();db.close()
+            for key,bad in [('state','sending'),('state','uncertain'),('state','ready'),('policy','0'*64),
+                    ('auth_subject','foreign'),('auth_method','forged'),('auth_expires',0),('id','discord-999')]:
+                changed=dict(row,**{key:bad})
+                db=sqlite3.connect(state_dir/'rook.sqlite3');db.execute('UPDATE requests SET value=?',(json.dumps(changed),));db.commit();db.close()
+                with self.subTest(native=key,value=bad),self.assertRaises(ValueError):
+                    d.migrate_receiving(ticket,dict(plan,native_row_sha256=d.digest(d.canonical(changed))),reader=lambda *_:reply)
+                self.assertEqual({name:(ticket/name).read_text() for name in pre},pre)
+                self.assertFalse((ticket/'RECEIVING-MIGRATION.json').exists())
+            db=sqlite3.connect(state_dir/'rook.sqlite3');db.execute('UPDATE requests SET value=?',(json.dumps(row),));db.commit();db.close()
+            real_atomic=d.atomic_json
+            def crash_after_audit(path,value):
+                real_atomic(path,value)
+                if Path(path).name=='RECEIVING-MIGRATION.json':raise OSError('simulated crash after audit fsync')
+            with patch.object(d,'atomic_json',side_effect=crash_after_audit),self.assertRaises(OSError):
+                d.migrate_receiving(ticket,plan,reader=lambda *_:reply)
+            self.assertEqual({name:(ticket/name).read_text() for name in pre},pre)
+            result=d.migrate_receiving(ticket,plan,reader=lambda *_:reply)
+            self.assertEqual(result['status'],'receiving_migrated')
+            audit=json.loads((ticket/'RECEIVING-MIGRATION.json').read_text())
+            self.assertEqual(audit['preimages'],pre)
+            self.assertEqual(json.loads((ticket/'TICKET.json').read_text())['sent_at'],20)
+            migrated=n.load_registrations(ticket/'NATIVE-CONFIG.json')[1][0]
+            self.assertEqual(migrated.receipt_id,registration.receipt_id)
+            self.assertNotEqual(migrated.registration_sha256,registration.registration_sha256)
+            # Interrupted config-before-state migration resumes only this audited transition.
+            d.atomic_text(ticket/'TICKET.json',pre['TICKET.json'])
+            d.migrate_receiving(ticket,plan,reader=lambda *_:reply)
+            self.assertEqual(d.migrate_receiving(ticket,plan,reader=lambda *_:reply)['status'],'receiving_migrated')
+            with n.Receipts(receipts) as store:
+                value=n.collect(migrated,store,reader=lambda *_:reply,attachment_reader=lambda *a,**k:payload)
+            self.assertTrue(d.publish_reply(ticket,json.loads((ticket/'TICKET.json').read_text()),{'results':[value]}))
+            self.assertIn('RESULT '+ticket.name,(ticket/'REPLY.md').read_text())
+            with self.assertRaises(ValueError):d.migrate_receiving(ticket,plan,reader=lambda *_:reply)
+
     def test_live_ticket_still_blocks_and_cannot_expire_early(self):
         def api(method, route, payload=None):
             if method == 'POST':

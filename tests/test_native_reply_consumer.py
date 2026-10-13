@@ -137,6 +137,90 @@ class NativeConsumerTests(unittest.TestCase):
                 with self.assertRaises((BlockingIOError, OSError)):
                     consumer.Receipts(self.root)
 
+    def test_opt_in_terminal_attachment_authenticates_and_replays_saved_bytes(self):
+        from dataclasses import replace
+        import native_reply_consumer as c
+        import rook_mcp_events as native
+        identity = native.FinchIdentity(c.FINCH_CHANNEL, c.SHARED_CHANNEL, c.FINCH_BOT,
+            Path('/home/ubuntu/.hermes/secrets/dot-bots/finch.token'),
+            (native.OPERATOR, native.BOT, native.ROOK_BOT))
+        scope = replace(self.scope, reply_kind='finch.reply', origin_id=identity.bot,
+            finch=identity, finch_channel=c.FINCH_CHANNEL)
+        payload = b'Assistant evidence copy; NOT a direct tool export.\n'
+        metadata = dict(id='102', filename='evidence.txt', size=len(payload),
+            content_type='text/plain; charset=utf-8',
+            url=f'https://cdn.discordapp.com/attachments/{c.FINCH_CHANNEL}/102/evidence.txt')
+        attachment = native.finch_attachment_custody(metadata, scope.channel, hashlib.sha256(payload).hexdigest())
+        option = {k: attachment[k] for k in ('id', 'filename', 'content_type', 'byte_length', 'sha256')}
+        data = dict(self.data, channel_id=scope.channel, author={'id':identity.bot},
+            content='RESULT TASK-1 original evidence\n-# finch.reply · discord-100', attachments=[metadata])
+        policy = dict(issuer='issuer', audience='audience', subject='subject', identity=identity.policy_fields())
+        self.binding.update(reply_kind='finch.reply', channel_id=scope.channel, reply_author=identity.bot,
+            policy=hashlib.sha256(c.canonical(policy).encode()).hexdigest(), attachment=attachment,
+            reply_sha256=hashlib.sha256(data['content'].encode()).hexdigest())
+        self.binding['reply_effect_sha256'] = hashlib.sha256(c.canonical([
+            receiver.GUILD, scope.channel, self.binding['reply_sha256'],
+            {k:attachment[k] for k in ('filename','content_type','byte_length','sha256')}]).encode()).hexdigest()
+        self.write_binding()
+        legacy = c.Registration(scope, 'parent-1', 'owner', 'inspect', result_key='TASK-1')
+        with c.Receipts(self.root) as receipts:
+            with self.assertRaisesRegex(ValueError, 'native_reply_refused'):
+                c.collect(legacy, receipts, reader=lambda *_:self.fail('default attachment GET'))
+            for key, bad in [('id','0'),('filename','../evidence.txt'),('content_type','application/pdf'),
+                    ('byte_length',64001),('byte_length',True),('sha256','0'),('url','https://attacker.invalid')]:
+                with self.subTest(invalid_attachment_registration=key,value=bad),self.assertRaises(ValueError):
+                    replace(legacy,reply_id='101',content_sha256=self.binding['reply_sha256'],
+                        terminal_attachment=dict(option,**{key:bad}))
+            registration = replace(legacy, reply_id='101', content_sha256=self.binding['reply_sha256'],
+                terminal_attachment=option)
+            self.assertNotEqual(legacy.registration_sha256, registration.registration_sha256)
+            import copy
+            for case in ('author','channel','guild','message','wire','webhook','id','filename','type','size',
+                    'url','duplicate','bytes','timeout'):
+                bad=copy.deepcopy(data); bytes_reader=lambda *a,**k:payload
+                if case=='author':bad['author']['id']='foreign'
+                if case=='channel':bad['channel_id']='foreign'
+                if case=='guild':bad['guild_id']='foreign'
+                if case=='message':bad['id']='999'
+                if case=='wire':bad['content']+=' changed'
+                if case=='webhook':bad['webhook_id']='hook'
+                if case=='id':bad['attachments'][0]['id']='999'
+                if case=='filename':bad['attachments'][0]['filename']='../evidence.txt'
+                if case=='type':bad['attachments'][0]['content_type']='application/pdf'
+                if case=='size':bad['attachments'][0]['size']+=1
+                if case=='url':bad['attachments'][0]['url']=bad['attachments'][0]['url'].replace('cdn.discordapp.com','attacker.invalid')
+                if case=='duplicate':bad['attachments'].append(metadata)
+                if case=='bytes':bytes_reader=lambda *a,**k:payload.replace(b'copy',b'fake')
+                if case=='timeout':bytes_reader=lambda *a,**k:(_ for _ in ()).throw(TimeoutError('deadline'))
+                with self.subTest(attachment_negative=case),self.assertRaises((ValueError,TimeoutError)):
+                    c.collect(registration,receipts,reader=lambda *_:bad,attachment_reader=bytes_reader)
+                self.assertIsNone(receipts.get(registration.receipt_id))
+            with patch.object(receipts, 'put', side_effect=OSError('crash before stage fsync')):
+                with self.assertRaises(OSError):
+                    c.collect(registration, receipts, reader=lambda *_:data,
+                        attachment_reader=lambda *a, **k:payload)
+            self.assertIsNone(receipts.get(registration.receipt_id))
+            real_put = receipts.put
+            def crash_after_stage(value):
+                real_put(value)
+                raise OSError('crash after stage fsync, before stdout')
+            with patch.object(receipts, 'put', side_effect=crash_after_stage):
+                with self.assertRaises(OSError):
+                    c.collect(registration, receipts, reader=lambda *_:data,
+                        attachment_reader=lambda *a, **k:payload)
+            value = c.collect(registration, receipts, replay=True,
+                reader=lambda *_:self.fail('durable stage replay GET'),
+                attachment_reader=lambda *a, **k:self.fail('durable stage replay CDN GET'))
+            self.assertEqual((value['status'], value['outcome']), ('staged','result'))
+            self.assertEqual(value['attachment']['text'].encode(), payload)
+            self.assertEqual(value['attachment']['provenance_kind'], 'assistant-copy')
+            self.assertEqual(c.collect(registration, receipts, replay=True,
+                reader=lambda *_:self.fail('replay GET'))['attachment'], value['attachment'])
+            value['attachment']['text'] += 'tampered'
+            receipts.put(value)
+            with self.assertRaisesRegex(ValueError, 'saved_attachment'):
+                c.collect(registration, receipts, replay=True)
+
     def test_pending_native_row_never_reads_discord(self):
         import native_reply_consumer as consumer
         self.binding['state'] = 'ready'; self.write_binding()
