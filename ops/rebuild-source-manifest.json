@@ -4078,7 +4078,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "574c476c9d01c1cb45e1a44d9932633c7e1751018ce7597e87382f971a44fb2c"
+      "sha256": "8f02fab22a4850ff2fa668b8fad2e322178bcc5668e86e47956637d91bc50e07"
     },
     "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
       "callers": [
@@ -4148,7 +4148,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "602cead8781db2b2a459d8fad7258d6564e5a741d851664203a53e9f854b6092"
+      "sha256": "377105bfab30f62812da181111c749a3549410c7b89bd01a6fa14046fdd94fe0"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [

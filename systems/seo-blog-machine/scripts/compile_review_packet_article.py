@@ -134,6 +134,21 @@ def commercial_link_metadata(meta: dict[str, Any]) -> dict[str, Any]:
     return {'commercial_link_taxonomy':classification, 'exact_services':services}
 
 
+def evidence_review_timestamp(meta: dict[str, Any]) -> str:
+    value = meta.get('evidenceReviewedAt')
+    if value is None:
+        return f"{meta['dateModified']}T00:00:00Z"
+    try:
+        if not isinstance(value, str) or not value.endswith('Z'):
+            raise ValueError('UTC timestamp required')
+        parsed = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if parsed.tzinfo != dt.timezone.utc or parsed.date().isoformat() != str(meta['dateModified']):
+            raise ValueError('evidence revision day mismatch')
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError('evidence_review_timestamp_invalid') from exc
+    return value
+
+
 def compile_packet(packet: Path) -> dict[str, Any]:
     draft_path = packet / "04-draft.md"
     raw = draft_path.read_text()
@@ -269,7 +284,7 @@ def compile_packet(packet: Path) -> dict[str, Any]:
                           "status": serp.get("status") or serp.get("schema_version") or "PASS",
                           "parity_target_words": parity.get("primary_target_words") or parity.get("target_words") or parity.get("target") or 3000,
                           "ranking_wedge": (wedge.get("statement") or wedge.get("wedge") if isinstance(wedge, dict) else wedge) or "source-bound decision support"},
-        "evidence_review": {"status": "PASS", "reviewed_at": f"{meta['dateModified']}T00:00:00Z",
+        "evidence_review": {"status": "PASS", "reviewed_at": evidence_review_timestamp(meta),
                             "content_sha256": hashlib.sha256(draft_path.read_bytes()).hexdigest(),
                             "claim_source_map": "claims[] -> source_ids[] -> sources[].source_id",
                             "clinical_reviewer": None, "clinical_credentials_claimed": False},

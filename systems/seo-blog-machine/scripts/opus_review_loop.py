@@ -325,16 +325,12 @@ def seal_subjects(job: dict[str, Any], round_number: int, history: Path) -> tupl
 
 def build_context_bundle(job: dict[str, Any], manifest: dict[str, Any], round_number: int, history: Path) -> Path:
     packet = Path(job["packet_dir"]).resolve()
-    chunks = [
-        "# SEALED PACKET CONTENT — ALREADY IN BAND",
-        "",
-        f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
-        "Every source line is prefixed with its original 1-based line number.",
-    ]
+    chunks = ["SEALED ARTICLE SUBJECTS — READ ONLY", f"manifest_sha256={manifest['manifest_sha256']}", ""]
     for path in subject_paths(job):
         rel = path.relative_to(packet).as_posix()
-        chunks.extend(["", f"## FILE: {rel}", ""])
-        chunks.extend(f"{number}|{line}" for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1))
+        chunks.append(f"===== {rel} =====")
+        chunks.extend(f"{number:04d}|{line}" for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1))
+        chunks.append("")
     path = history / f"round-{round_number:02d}-context-bundle.md"
     path.write_text("\n".join(chunks) + "\n", encoding="utf-8")
     os.chmod(path, 0o600)
