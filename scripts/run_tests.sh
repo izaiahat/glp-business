@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export PYTHONPATH="${PWD}/scripts:${PWD}/tests${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="${PWD}:${PWD}/scripts:${PWD}/tests${PYTHONPATH:+:$PYTHONPATH}"
 export SEAT_AUTODISPATCH_TEST_SOURCE="${PWD}/scripts/seat_autodispatch.py"
 # Host-only suites depend on live bridge configuration, a bound capture and
 # absolute /home/ubuntu/business paths. Run them on the host, never pretend a
@@ -83,4 +83,5 @@ suites+=(tests/test_glp109_scheduler_health.py tests/test_glp320_host_failure_se
 suites+=(tests/test_pro_route.py tests/test_pro_route_backlog.py tests/test_pro_route_consumer.py tests/test_pro_picker_family.py tests/test_pro_dispatch.py)
 suites+=(tests/test_linear_audit.py::test_obsolete_pending_delivery_does_not_poison_distinct_audit tests/test_subscription_capacity_monitor.py::test_s7_meter_resolves_package_transport_without_ops_path tests/test_subscription_capacity_monitor.py::test_s7_notification_upgrade_emits_once_preserving_day)
 suites+=(tests/test_discord_rate_rejection.py)
+suites+=(tests/test_ci_source_isolation.py)
 python3 -m pytest -q "${suites[@]}"
