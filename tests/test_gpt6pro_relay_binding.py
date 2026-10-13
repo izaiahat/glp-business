@@ -2871,6 +2871,11 @@ console.log(JSON.stringify(fixtures.map(f => {
         }console.log(JSON.stringify(results));'''
         proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
         actual = json.loads(proc.stdout)
+        work_value = actual['work']['value']
+        evidence = work_value.pop('diagnostics')
+        self.assertTrue(evidence['main_present'])
+        self.assertEqual(evidence['chat']['candidates'], [{'pressed': 'false', 'excluded': None}])
+        self.assertEqual(evidence['work']['candidates'], [{'pressed': 'true', 'excluded': None}])
         self.assertEqual(actual['work'], {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
         self.assertEqual(actual['chat'], {'value': {'switched': False}, 'clicks': 0})
         for kind in ('draft','stop','transcript','duplicate','disabled','unknown','wrong_path','hidden'):
@@ -2916,7 +2921,12 @@ console.log(JSON.stringify(fixtures.map(f => {
         console.log(JSON.stringify({value:vm.runInNewContext(action,{document,location:{pathname:'/'},
           getComputedStyle:()=>({display:'block',visibility:'visible'})}),clicks}));'''
         proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
-        self.assertEqual(json.loads(proc.stdout), {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
+        actual = json.loads(proc.stdout)
+        evidence = actual['value'].pop('diagnostics')
+        self.assertTrue(evidence['main_present'])
+        self.assertEqual(evidence['chat']['candidates'], [{'pressed': 'false', 'excluded': None}])
+        self.assertEqual(evidence['work']['candidates'], [{'pressed': 'true', 'excluded': None}])
+        self.assertEqual(actual, {'value': {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'work_selected'}, 'clicks': 0})
         original_js = self.browser.js
         def js(expression):
             if expression.startswith('(()=>{function ensureProChatSurface'):

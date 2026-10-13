@@ -120,6 +120,69 @@ def test_captured_chat_group_not_confused_with_other_buttons_and_work_refused():
     assert mode(duplicate)['reason'] == 'mode_ambiguous'
 
 
+def test_initial_mode_refusal_records_deciding_structure_without_private_text():
+    # Reproduced gap: mode_missing conflates no main with absent controls;
+    # mode_ambiguous discards the exact candidates that made the gate refuse.
+    expression = '(()=>{' + relay.PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface(true);})()'
+    no_main = evaluate({'tag': 'div', 'children': [{'text': 'PRIVATE DRAFT'}]}, expression)
+    empty_main = evaluate({'tag': 'main', 'children': []}, expression)
+    assert no_main['reason'] == empty_main['reason'] == 'mode_missing'
+    assert no_main['diagnostics']['main_present'] is False
+    assert empty_main['diagnostics']['main_present'] is True
+    assert no_main['diagnostics']['main_count'] == 0
+    assert empty_main['diagnostics']['chat']['raw_count'] == 0
+    tree = fixture('chat_mode')
+    group = tree['children'][0]
+    group['children'].append({'tag': 'button', 'attrs': {'aria-pressed': 'mixed'},
+                             'children': [{'text': 'Chat'}]})
+    result = evaluate(tree, expression)
+    assert result['reason'] == 'mode_ambiguous'
+    assert result['diagnostics']['chat']['raw_count'] == 2
+    assert result['diagnostics']['chat']['filtered_count'] == 2
+    assert [x['pressed'] for x in result['diagnostics']['chat']['candidates']] == ['true', 'mixed']
+    # Excluded duplicate does not change the exact positive acceptance contract.
+    group['children'][-1]['attrs']['inert'] = ''
+    assert evaluate(tree, expression) == {'switched': False}
+    chat = next(n for n in group['children'] if n.get('tag') == 'button' and n['children'][0].get('text') == 'Chat')
+    chat['attrs']['aria-pressed'] = 'PRIVATE VALUE'
+    refused = evaluate(tree, expression)
+    assert refused['diagnostics']['chat']['candidates'][0]['pressed'] == 'other'
+    assert refused['diagnostics']['chat']['candidates'][1]['excluded'] == 'inert'
+    assert 'PRIVATE' not in json.dumps(refused)
+    for _ in range(10):
+        group['children'].append(copy.deepcopy(group['children'][-1]))
+    bounded = evaluate(tree, expression)['diagnostics']['chat']
+    assert bounded['raw_count'] == 12 and bounded['filtered_count'] == 1
+    assert len(bounded['candidates']) == 8 and bounded['overflow'] is True
+    # All regular per-chunk/model consumers retain the legacy error shape.
+    legacy = '(()=>{' + relay.PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface(false);})()'
+    assert evaluate(tree, legacy) == {'error': 'CHAT_SURFACE_REFUSED', 'reason': 'mode_unverified'}
+    # Real emitted sender stores the deciding result, not a second passive read
+    # after hydration changes the tree. FakeCDP isolates all browser effects.
+    case = TestCurrentReaderTransport(); case.setUp()
+    try:
+        original = case.browser.js
+        initial = '(()=>{' + relay.PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()'
+        observed = []
+        def js(expression):
+            if expression == initial:
+                result = evaluate(tree, expression)
+                observed.append(result)
+                chat['attrs']['aria-pressed'] = 'true'  # later hydration
+                return result
+            return original(expression)
+        case.browser.js = js
+        receipt = relay.send_message('offline fixture')
+        assert receipt['error'] == 'CHAT_SURFACE_REFUSED'
+        assert receipt['typed'] is False and receipt['sent'] is False
+        assert receipt['mode_observation'] == 1 and receipt['mode_evidence'] == observed[0]
+        assert receipt['mode_evidence']['diagnostics']['chat']['candidates'][0]['pressed'] == 'other'
+        assert mode(tree) == {'switched': False}
+        assert case.browser.inserts == [] and case.browser.sent == []
+    finally:
+        case.doCleanups()
+
+
 def test_pinned_renderer_never_substitutes_current_turn():
     tree = fixture('complete')
     expression = '(()=>{' + relay.CURRENT_REPLY_JS + 'return currentFinalReply(undefined,undefined,"selection_markdown");})()'

@@ -1191,7 +1191,7 @@ COMPOSER_TEXT_JS = r'''function composerText(e){
 
 # Chat/Work is independent of selectedModel. The sender verifies only; idle
 # mode correction is a separately authorized UI action, never a send fallback.
-PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
+PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(diagnose=true){
     const visible=e=>{
         if(!e.getClientRects().length)return false;
         for(let p=e;p;p=p.parentElement){
@@ -1200,17 +1200,51 @@ PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
                p.getAttribute('aria-disabled')==='true'||s.display==='none'||s.visibility==='hidden')return false;
         }return true;
     };
-    const refuse=reason=>({error:'CHAT_SURFACE_REFUSED',reason:reason});
     const main=document.querySelector('main');
+    let groups=[],scope=main;
+    // Capture only structural facts from the deciding evaluation. Never retain
+    // draft text, arbitrary attributes, HTML or account/conversation metadata.
+    // Diagnostics are emitted on refusal only; bounded samples never limit the
+    // full uniqueness/visibility predicate used for the decision.
+    const refuse=reason=>{
+        const result={error:'CHAT_SURFACE_REFUSED',reason:reason};
+        if(!diagnose)return result;
+        const excluded=e=>{
+            if(!e.getClientRects().length)return 'no_rect';
+            for(let p=e;p;p=p.parentElement){
+                const s=getComputedStyle(p);
+                if(p.hidden)return 'hidden';if(p.inert)return 'inert';if(p.disabled)return 'disabled';
+                if(p.getAttribute('aria-hidden')==='true')return 'aria_hidden';
+                if(p.getAttribute('aria-disabled')==='true')return 'aria_disabled';
+                if(s.display==='none')return 'display_none';if(s.visibility==='hidden')return 'visibility_hidden';
+            }return null;
+        };
+        const buttons=scope?[...scope.querySelectorAll('button')]:[];
+        const candidates=label=>{
+            const raw=buttons.filter(e=>(e.textContent||e.innerText).trim()===label);
+            return {raw_count:raw.length,filtered_count:raw.filter(visible).length,
+                overflow:raw.length>8,candidates:raw.slice(0,8).map(e=>{
+                    const p=e.getAttribute('aria-pressed');
+                    return {pressed:p===null?'missing':['true','false','mixed'].includes(p)?p:'other',
+                        excluded:excluded(e)};
+                })};
+        };
+        result.diagnostics={main_present:!!main,
+            main_count:typeof document.querySelectorAll==='function'?document.querySelectorAll('main').length:null,
+            group_count:groups.length,scope:groups.length===1?'composer_mode':main?'first_main':'none',
+            group_excluded:groups.length===1?excluded(groups[0]):null,
+            chat:candidates('Chat'),work:candidates('Work')};
+        return result;
+    };
     if(!main)return refuse('mode_missing');
     // The captured app shell identifies the toggle independently of other
     // Chat/Work-labelled buttons. Retain the old main-only contract if absent.
-    const groups=typeof main.querySelectorAll==='function'?
+    groups=typeof main.querySelectorAll==='function'?
         [...main.querySelectorAll('[role="group"][aria-label="Composer mode"]')]
             .filter(e=>e.getAttribute('aria-label')==='Composer mode'):[];
+    if(groups.length===1)scope=groups[0];
     if(groups.length>1)return refuse('mode_ambiguous');
     if(groups.length===1&&!visible(groups[0]))return refuse('mode_unverified');
-    const scope=groups.length===1?groups[0]:main;
     const buttons=[...scope.querySelectorAll('button')].filter(visible);
     const label=e=>(e.textContent||e.innerText).trim();
     const chat=buttons.filter(e=>label(e)==='Chat');
@@ -1249,7 +1283,7 @@ function pickerMenu(){
 function committed6ProMaximum(){
     // Revalidate Chat at every existing initial/chunk/Send admission, including
     // retained atomic Send. A stale Pro selection never authorizes Work quota.
-    if(ensureProChatSurface().error)return false;
+    if(ensureProChatSurface(false).error)return false;
     const trigger=pickerTrigger();
     // The trigger's candidate effort also labels staged state. Only the closed
     // selection owner's incoming selectedModel is a parent-acceptance witness.
