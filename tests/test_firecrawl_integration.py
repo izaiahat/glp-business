@@ -40,6 +40,24 @@ def test_no_v1_maintained_callers():
         assert 'api.firecrawl.dev/v1' not in (ROOT / rel).read_text(), rel
 
 
+def test_no_hardcoded_enhanced_in_maintained_producers():
+    import ast
+    manifest = json.loads((ROOT / 'ops/rebuild-source-manifest.json').read_text())
+    for rel in manifest['files']:
+        if not rel.endswith('.py') or not rel.startswith(('scripts/', 'systems/', 'tools/', 'glp-clinic-partner-outreach-machine/')):
+            continue
+        tree = ast.parse((ROOT / rel).read_text())
+        forced_proxy = any(isinstance(node, ast.Dict) and any(
+            isinstance(key, ast.Constant) and key.value == 'proxy' and
+            isinstance(value, ast.Constant) and value.value == 'enhanced'
+            for key, value in zip(node.keys, node.values)) for node in ast.walk(tree))
+        forced_fetch_arg = any(isinstance(node, ast.Call) and any(
+            isinstance(arg, ast.Constant) and arg.value == 'enhanced' for arg in node.args)
+            and isinstance(node.func, ast.Name) and node.func.id == 'firecrawl_fetch'
+            for node in ast.walk(tree))
+        assert not (forced_proxy or forced_fetch_arg), rel
+
+
 def test_cleanup_maintained_price_and_sponsor():
     price = (ROOT / 'scripts/glp_price_verification.py').read_text()
     sponsor = (ROOT / 'glp-clinic-partner-outreach-machine/refill_email_ready_targets.py').read_text()
@@ -82,14 +100,14 @@ def test_sdk_proxy_preserves_typed_v2_result(monkeypatch,tmp_path):
     assert 'private query' not in fc.LEDGER.read_text()
 
 
-@pytest.mark.parametrize('basic_ok,expected',[(True,['basic']),(False,['basic','enhanced'])])
+@pytest.mark.parametrize('basic_ok,expected',[(True,['basic']),(False,['basic','auto'])])
 def test_price_proxy_sequence(monkeypatch,basic_ok,expected):
     import glp_price_verification as price
     from types import SimpleNamespace
     calls=[]
     def post(url,**kwargs):
         proxy=kwargs['json']['proxy'];calls.append(proxy)
-        text='First party offer $100. '*50 if basic_ok or proxy=='enhanced' else ''
+        text='First party offer $100. '*50 if basic_ok or proxy=='auto' else ''
         return SimpleNamespace(status_code=200,content=text.encode(),json=lambda:{'success':True,'data':{'markdown':text,'metadata':{'statusCode':200}}})
     monkeypatch.setattr(fc,'firecrawl_post',post)
     def requests_unavailable(url):
