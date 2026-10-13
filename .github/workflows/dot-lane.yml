@@ -10,6 +10,7 @@ on:
       - 'scripts/dot_lane.py'
       - 'scripts/dot_dispatch.py'
       - 'tests/test_dot_lane.py'
+      - 'tests/test_dot_dispatch*.py'
 permissions:
   contents: read
 jobs:
@@ -29,5 +30,5 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          python3 -m pytest tests/test_dot_lane.py tests/test_dot_dispatch.py tests/test_fleet_ingest.py -q
+          python3 -m pytest tests/test_dot_lane.py tests/test_dot_dispatch.py tests/test_dot_dispatch_recovery.py tests/test_fleet_ingest.py -q
           bash -n ops/hermes-cron-scripts/fleet_ingest_cron.sh
