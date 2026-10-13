@@ -61,6 +61,20 @@ def test_manifest_and_bundle_preserve_raw_physical_lines(tmp_path, source, lines
     assert expected in bundle
     assert manifest['subject_files'][0]['lines'] == len(lines)
 
+@pytest.mark.parametrize('producer,name', [
+    ('article_buffer_cli.py', 'CONTROL_FILES'), ('materialize_opus_run.py', 'controls')])
+def test_registered_controls_pin_shared_physical_line_dependency(producer, name):
+    source = ROOT / 'systems/seo-blog-machine/scripts' / producer
+    tree = ast.parse(source.read_text())
+    assignment = next(node for node in ast.walk(tree) if isinstance(node, ast.Assign)
+                      and any(isinstance(target, ast.Name) and target.id == name for target in node.targets))
+    namespace = {node.id: Path('/unused') / node.id for node in ast.walk(assignment.value)
+                 if isinstance(node, ast.Name)}
+    namespace.update(SYSTEM=ROOT / 'systems/seo-blog-machine', BUSINESS=ROOT)
+    controls = eval(compile(ast.Expression(assignment.value), str(source), 'eval'), namespace)
+    assert ROOT / 'scripts/article_review_physical_lines.py' in controls
+
+
 ROOT=Path(__file__).resolve().parents[3]
 
 def test_real_controller_bundle_matches_native_custodian_exact_contract(tmp_path):

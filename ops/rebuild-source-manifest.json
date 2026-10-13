@@ -14,7 +14,7 @@
     "systems/seo-blog-machine/tests/test_native_review_context_contract.py": {
       "callers": [".github/workflows/business-source-ci.yml"],
       "kind": "test",
-      "sha256": "817ff18164dc639d979bfe85e73fb2acb4642d6c96f8c8340b97d99c03cb37ba"
+      "sha256": "2d0acc05d067e7358af45d1951979f2c16c576c6b295ec1a305b3ac96f3aa5b1"
     },
     "systems/seo-blog-machine/tests/test_successor_inactive_quarantine.py": {
       "callers": [".github/workflows/business-source-ci.yml"],
@@ -4034,7 +4034,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "c193e3b169e4acf7b1a692609fb671b4a00414541b8789cb4ff19c1fd55981cb"
+      "sha256": "beaf55e06c2fb8475d29e085fad45f66b0f9c4aedac3927b4835bae312c378fa"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [
@@ -4156,7 +4156,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "8619d5c1908031fbb060fd2bfcde684aae76a028cfbf1836cb7606421b13cacc"
+      "sha256": "56a177194c33fa78ccfee8c515c3c9aa4f34d7f0e61b30f8c37ec92f60f29efa"
     },
     "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py": {
       "callers": [
