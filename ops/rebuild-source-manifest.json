@@ -1,6 +1,34 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/host_disk_completed_dependencies.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_large_sweep.py"
+      ],
+      "sha256": "e48c6c5f838d07aa7e7ee4e8e14602cfab2d0a1b941f4d40bf57c3ffd1155a14"
+    },
+    "tests/test_host_disk_completed_dependencies.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "19822da26ebae81f8ae04371d5630e81835ecc20a551006351f6ca0dcc030b15"
+    },
+    "ops/rook-mcp/rook_adapter_launch.py": {
+      "kind": "registered_launcher_source",
+      "callers": [
+        "systemd:user:rook-mcp-adapter.service -> /home/ubuntu/.hermes/scripts/rook_adapter_launch.py"
+      ],
+      "sha256": "b3ed8ea6ca35c98ea87cc81a313347ae32e7d3defd71f691356f764891198e72"
+    },
+    "ops/rook-mcp/ROOK_LAUNCHER_RUNBOOK.md": {
+      "kind": "runbook",
+      "callers": [
+        "manual:parent-owned exact-source Rook adapter restoration"
+      ],
+      "sha256": "f4b1d9e62320b4f65f3bd4871532d6f41fe616594e612414079857b943e89c4d"
+    },
     "scripts/auto_coordinator_receipt.py": {
       "kind": "script",
       "callers": [
@@ -254,7 +282,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c52bcf7281f29b828ec5802cad0c39386bb5542ceb5a355d59d848227a851652"
+      "sha256": "63ba0594a17078713cb986e8cea38e19b499eacb18c3e8223baf44c57352bcde"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -612,7 +640,7 @@
     "ops/disk-retention-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "25031d20ce3f3a340ba30af7be3bfc9280801d002c5e599b5668a0514ec25a00"
+      "sha256": "57ab552256e98cd724adc5c73e056005a8974b5954bc870b58ce66edb557e48f"
     },
     "ops/fable-mention-recovery.md": {
       "callers": [],
@@ -3501,7 +3529,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "71ef0190b9a88f1ff847c9988e1e525a50e70975ea6c43ccdf631fd69aee6ed6"
+      "sha256": "820d546d4fc6099c3d03f8e61a6ef157ad7ad2c1706cddb87aa85669c000f560"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3529,7 +3557,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "f044042fe2d43c6e9eb4ca31179f436706760e2da5b61b62d50b67568f214b41"
+      "sha256": "23f1b3a588d6ee59d965c7d34b601c1902b758ab51e5b3d759181ba5419409d3"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -4015,7 +4043,7 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "83d8e90fda41c08e1a6892c6534e0aae8d0768ac0703d24ac041591c69279ee2"
+      "sha256": "2d28814bafa488c3156a15ec82e243c55bc587b7d9b9370ef9ab4cecee1e92ea"
     },
     "systems/analytics-brain/decision_policy.py": {
       "callers": [
@@ -5572,7 +5600,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "b6e370098d3e411abaa694931c3f9c51c50310ceaad3aaafe54b290cd5c0e0e2"
+      "sha256": "5a23d735e396f4d4c6879ee4a324568b2e12cc4df3f9e49970ecbae888e3e5ba"
     },
     "tests/test_glp44_collector_successor.py": {
       "callers": [
@@ -7374,47 +7402,12 @@
       "kind": "source_control",
       "sha256": "9b07b675be9087ea19572c476ef8d061dabebc19837cc74fd7814b08413f4b77"
     },
-    "scripts/__init__.py": {
-      "callers": [
-        "tests/conftest.py"
-      ],
-      "kind": "repository_control",
-      "sha256": "3087da905ec2a7762561d88dfc771cf3bde2daf59fcbfff7f9e3cc676dd05d64"
-    },
-    "tests/__init__.py": {
-      "callers": [
-        "tests/conftest.py"
-      ],
-      "kind": "test",
-      "sha256": "6b14123a0e79512fd00b32f34259c793f3c02f8887cf67eca197fbffc2060ac1"
-    },
-    "tests/test_ci_source_isolation.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "3b9d86238231a7f4c39b8817cf47d6c08255e7a10186fab676ad7e0af04f3a48"
-    },
     "tests/test_host_disk_pin_protocol.py": {
       "kind": "test",
       "callers": [
         "business-source-ci host-disk exact-head offline suite"
       ],
       "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
-    },
-    "ops/rook-mcp/rook_adapter_launch.py": {
-      "kind": "registered_launcher_source",
-      "callers": [
-        "systemd:user:rook-mcp-adapter.service -> /home/ubuntu/.hermes/scripts/rook_adapter_launch.py"
-      ],
-      "sha256": "b3ed8ea6ca35c98ea87cc81a313347ae32e7d3defd71f691356f764891198e72"
-    },
-    "ops/rook-mcp/ROOK_LAUNCHER_RUNBOOK.md": {
-      "kind": "runbook",
-      "callers": [
-        "manual:parent-owned exact-source Rook adapter restoration"
-      ],
-      "sha256": "f4b1d9e62320b4f65f3bd4871532d6f41fe616594e612414079857b943e89c4d"
     },
     "scripts/article_review_physical_lines.py": {
       "callers": [
@@ -7451,6 +7444,27 @@
         "scripts/article_review_physical_lines.py"
       ],
       "sha256": "b2585e5a788e037ee055b8f94bf027568df60e51fd4d86fb4f1c94e93cce2f06"
+    },
+    "scripts/__init__.py": {
+      "callers": [
+        "tests/conftest.py"
+      ],
+      "kind": "repository_control",
+      "sha256": "3087da905ec2a7762561d88dfc771cf3bde2daf59fcbfff7f9e3cc676dd05d64"
+    },
+    "tests/__init__.py": {
+      "callers": [
+        "tests/conftest.py"
+      ],
+      "kind": "test",
+      "sha256": "6b14123a0e79512fd00b32f34259c793f3c02f8887cf67eca197fbffc2060ac1"
+    },
+    "tests/test_ci_source_isolation.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "3b9d86238231a7f4c39b8817cf47d6c08255e7a10186fab676ad7e0af04f3a48"
     }
   },
   "omitted_runtime_inputs": [
@@ -7461,5 +7475,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1094
+  "tracked_count": 1096
 }
