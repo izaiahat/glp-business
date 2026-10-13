@@ -81,13 +81,48 @@ def resolve_pr(worker, gh=gh_pr):
             'checks': checks, 'files': [f['path'] for f in remote.get('files') or [] if f.get('path')]}
 
 
-def installed_files(worker, pr_files):
-    """R2 inputs: maintained paths the worker says it installed that the merged PR changed."""
+def installed_files(worker, pr_files, pr=None, gh=gh_pr):
+    """R2 inputs: changed paths, or unchanged blobs carried from a merged source PR.
+
+    A zero-file carry can name install={source_pr: URL, paths: [...]}.
+    Authenticate that source's merged ancestry and each selected Git blob at the
+    original source head, CI head and receiving merge; prose is not provenance.
+    The ordinary validator still enforces exact-head CI and live merge bytes.
+    """
     text = '\n'.join(strings({k: worker.get(k) for k in ('install', 'install_readback')}))
+    source = None
+    install = worker.get('install')
+    if not pr_files and pr and isinstance(install, dict) and install.get('source_pr'):
+        source = resolve_pr({'pr': install['source_pr']}, gh)
+        if not source or source['url'].rsplit('/pull/', 1)[0] != pr['url'].rsplit('/pull/', 1)[0]:
+            raise Refused('unchanged installed source requires a merged source PR in the same repository')
+        repo = pr['url'].split('github.com/', 1)[1].split('/pull/', 1)[0]
+
+        def api(endpoint):
+            return json.loads(subprocess.check_output(
+                ['gh', 'api', 'repos/' + repo + '/' + endpoint], text=True, timeout=60))
+
+        # The source was actually merged into the tested head, and that exact
+        # head was received by the merge. Later main changes need not share its
+        # whole tree, but may not alter any selected installed blob.
+        for base, head in ((source['merge_sha'], pr['head_sha']), (pr['head_sha'], pr['merge_sha'])):
+            if not all(re.fullmatch(r'[a-f0-9]{40}', sha) for sha in (base, head)) or \
+                    (api('compare/' + base + '...' + head).get('merge_base_commit') or {}).get('sha') != base:
+                raise Refused('unchanged installed source lacks authenticated merged source ancestry')
+        pr_files = source['files']
     out = []
     for rel in dict.fromkeys(SOURCE_RE.findall(text)):
         path = ROOT / rel
+        if source and rel not in pr_files:
+            raise Refused('merged source PR did not change installed path: ' + rel)
         if rel in pr_files and path.is_file() and not path.is_symlink():
+            if source:
+                raw = path.read_bytes()
+                blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+                for ref in (source['head_sha'], pr['head_sha'], pr['merge_sha']):
+                    remote = api('contents/' + rel + '?ref=' + ref)
+                    if remote.get('type') != 'file' or remote.get('sha') != blob:
+                        raise Refused('installed Git blob differs from source/CI head/merge: ' + rel)
             out.append({'path': str(path.resolve()), 'sha256': lo.sha(path)})
     return out
 
@@ -184,7 +219,7 @@ def build(ident, worker_path, iss, gh=gh_pr):
     if pr:
         files = pr.pop('files', [])
         data['pr'] = pr
-        installed = installed_files(worker, files)
+        installed = installed_files(worker, files, pr, gh)
         if installed:
             data['installed_files'] = installed
         elif data['scope'] in ('ordinary-runtime', 'reviewed-health-runtime') and pr['url'].startswith('https://github.com/izaiahat/glp-business/'):

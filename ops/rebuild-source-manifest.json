@@ -3607,7 +3607,7 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "0e91eb4b96c6603381d53057d9b5825894c9b2e429b70e2466f42fa5d71b5bd8"
+      "sha256": "2dc23434c48bbc5442d0768962614f2e76a527beaf52dfec472628dbf2c3fbf8"
     },
     "scripts/linear_orchestrator.py": {
       "callers": [],
@@ -6580,7 +6580,7 @@
     "tests/test_linear_close.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "b549681a7207f209262d1e6457da93869a6f4bbe77371fe74b4ab8c0c8537d53"
+      "sha256": "567bb1b9b12c1bc61125974913c353aed5d85b3691a3474c2e3543a7296aa813"
     },
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
