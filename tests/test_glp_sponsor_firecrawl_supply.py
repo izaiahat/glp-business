@@ -641,3 +641,100 @@ def test_retained_cli_import_executes_supported_writer_only(tmp_path, monkeypatc
     report = json.loads((tmp_path / 'firecrawl-supply-latest.json').read_text())
     assert report['import_only'] and report['paid_calls'] == report['sends'] == 0
     assert 'example.com' in json.loads(p.discovery.read_text())['organizations']
+
+
+@pytest.mark.parametrize('mode', ['empty', 'reordered', 'reordered_held_row'])
+def test_retained_registry_schema_refuses_before_hold_lookup(tmp_path, monkeypatch, mode):
+    import hashlib
+    import glp328_outreach_policy as policy
+    p, manifest, receipt, row, ledger = retained_fixture(tmp_path, monkeypatch)
+    headers = list(policy.EXPECTED_HEADERS)
+    bad = [] if mode == 'empty' else [list(reversed(headers))]
+    if mode == 'reordered_held_row':
+        held = [''] * len(headers)
+        held[policy.PROGRAM_COLUMN] = 'Example'
+        held[policy.OFFICIAL_URL_COLUMN] = 'https://example.com'
+        held[policy.STATUS_COLUMN] = 'HOLD'
+        assert policy.classify_row(2, held)['blocks_org'] is True
+        # A real column reorder moves the header and value together.
+        i = policy.STATUS_COLUMN
+        headers[i], headers[0] = headers[0], headers[i]
+        held[i], held[0] = held[0], held[i]
+        assert not policy.classify_row(2, held).get('blocks_org')
+        bad = [headers, held]
+    monkeypatch.setattr(p.c, 'read_values', lambda: bad)
+    classified = []
+    classify = policy.classify_row
+    def lookup(*args):
+        classified.append(args)
+        return classify(*args)
+    monkeypatch.setattr(policy, 'classify_row', lookup)
+    before = p.discovery.read_bytes()
+    with pytest.raises(RuntimeError, match='registry_schema_drift'):
+        p.merge(retained_cohort=manifest, cohort_sha256=hashlib.sha256(manifest.read_bytes()).hexdigest())
+    assert not classified and p.discovery.read_bytes() == before
+    assert not p.pages.exists() and not p.cache.exists()
+
+
+@pytest.mark.parametrize('capture_kind', ['normal', 'retained'])
+def test_later_identical_capture_refreshes_without_rewriting_retained_receipts(tmp_path, monkeypatch, capture_kind):
+    import copy
+    import hashlib
+    p, manifest, receipt, row, ledger = retained_fixture(tmp_path, monkeypatch)
+    digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    p.merge(retained_cohort=manifest, cohort_sha256=digest)
+    initial = json.loads(p.discovery.read_text())['organizations']['example.com']
+    original_page = copy.deepcopy(initial['discovery']['_markup'][0])
+    original_scope = copy.deepcopy(initial['scope_evidence'])
+    original_bytes = (tmp_path / 'receipt.json').read_bytes()
+    original_manifest = manifest.read_bytes()
+    later = dt.datetime.fromisoformat(row['observed_utc']) + dt.timedelta(days=31)
+    monkeypatch.setattr(supply, 'now', lambda: later)
+    args = {}
+    if capture_kind == 'normal':
+        # Already retained genuine-shaped capture, not a capture transport call.
+        fresh = copy.deepcopy(original_page)
+        fresh.pop('provenance')
+        fresh['fetched_at_utc'] = later.isoformat()
+        fresh['source'] = 'firecrawl_v2_scrape_rawHtml'
+        p.pages.mkdir()
+        p.c.save(p.pages / 'example.com.json', {'host': 'example.com', 'pages': [fresh]})
+        p.import_only = False
+    else:
+        # New independent receipt/operation; never restamp the original receipt.
+        fresh_receipt = copy.deepcopy(receipt)
+        fresh_receipt['observed_at'] = later.isoformat()
+        fresh_receipt['response']['data']['metadata']['scrapeId'] = 'later-fixture-id'
+        fresh_path = tmp_path / 'later-receipt.json'
+        fresh_path.write_text(json.dumps(fresh_receipt))
+        fresh_row = row | {'observed_utc': later.isoformat(), 'receipt': fresh_path.name,
+            'receipt_sha256': hashlib.sha256(fresh_path.read_bytes()).hexdigest(), 'operation_id': 'later-fixture-op'}
+        ops = [json.loads(line) | {'at_utc': later.isoformat(), 'operation_id': 'later-fixture-op'}
+               for line in ledger.read_text().splitlines()]
+        ops[-1]['scrape_search_id'] = 'sha256:' + hashlib.sha256(b'later-fixture-id').hexdigest()
+        ledger.write_text(ledger.read_text() + ''.join(json.dumps(op) + '\n' for op in ops))
+        fresh_manifest = tmp_path / 'later-cohort.json'
+        fresh_manifest.write_text(json.dumps({'schema': 'sponsor-retained-cohort-v1', 'pages': [fresh_row]}))
+        args = {'retained_cohort': fresh_manifest, 'cohort_sha256': hashlib.sha256(fresh_manifest.read_bytes()).hexdigest()}
+    ledger_before = ledger.read_bytes()
+    p.merge(**args)
+    org = json.loads(p.discovery.read_text())['organizations']['example.com']
+    qualified = p.c.sponsor_scope_current('example.com', org, p.c, later)
+    assert any(r.get('sponsor_category') for r in qualified) and any(r.get('country') == 'US' for r in qualified)
+    assert all(r['observed_utc'] == later.isoformat() for r in qualified)
+    assert org['discovery']['_markup'][0] == original_page
+    assert org['scope_evidence'][:len(original_scope)] == original_scope
+    assert len(org['discovery']['_markup']) == 2
+    current_page = org['discovery']['_markup'][-1]
+    assert current_page['fetched_at_utc'] == later.isoformat()
+    assert current_page['sha256'] == original_page['sha256'] and current_page['html'] == original_page['html']
+    if capture_kind == 'retained':
+        assert current_page['provenance']['operation_id'] == 'later-fixture-op'
+        assert current_page['provenance']['receipt_path'] == str(fresh_path)
+    else:
+        assert 'provenance' not in current_page and current_page['source'] == 'firecrawl_v2_scrape_rawHtml'
+    first = p.discovery.read_bytes()
+    p.merge(**args)
+    assert p.discovery.read_bytes() == first
+    assert (tmp_path / 'receipt.json').read_bytes() == original_bytes and manifest.read_bytes() == original_manifest
+    assert ledger.read_bytes() == ledger_before

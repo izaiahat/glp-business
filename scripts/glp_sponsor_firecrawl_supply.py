@@ -400,7 +400,10 @@ class Producer:
         live = self.c.read_local()
         if not live['suppression']['complete'] or live['faults']:
             raise RuntimeError('suppression_or_local_sources_incomplete')
-        registry = [policy.classify_row(i, r) for i, r in enumerate(self.c.read_values()[1:], 2)]
+        values = self.c.read_values()
+        if not values or tuple(values[0]) != policy.EXPECTED_HEADERS:
+            raise RuntimeError('registry_schema_drift')
+        registry = [policy.classify_row(i, r) for i, r in enumerate(values[1:], 2)]
         blocked = {x['domain'] for x in live['suppression']['entries']} | {x['domain'] for x in live['conversations']}
         blocked |= {r['host'] for r in registry if r.get('blocks_org') and r.get('host')}
         grouped = {}
@@ -515,11 +518,14 @@ class Producer:
                 d.setdefault('candidates', [])
                 org.setdefault('scope_evidence', [])
                 for p in res['pages']:
-                    existing = next((m for m in d['_markup'] if m.get('final_url', m.get('url')) == p['final_url'] and m.get('sha256') == p['sha256']), None)
-                    if existing is not None:
-                        if p.get('provenance'):
-                            bound = [existing] + [r for r in org['scope_evidence'] if r.get('source_url') == p['final_url'] and r.get('sha256') == p['sha256']]
-                            bound += [r for r in d['candidates'] if isinstance(r, dict) and r.get('page_sha256') == p['sha256']]
+                    existing = max((m for m in d['_markup'] if m.get('final_url', m.get('url')) == p['final_url'] and m.get('sha256') == p['sha256']),
+                                   key=lambda m: dt.datetime.fromisoformat(m['fetched_at_utc']), default=None)
+                    # A later independently captured observation gets its own
+                    # evidence rows; retain the original receipt-bearing records.
+                    if existing is not None and dt.datetime.fromisoformat(p['fetched_at_utc']) <= dt.datetime.fromisoformat(existing['fetched_at_utc']):
+                        if p.get('provenance') and p['fetched_at_utc'] == existing['fetched_at_utc']:
+                            bound = [existing] + [r for r in org['scope_evidence'] if r.get('source_url') == p['final_url'] and r.get('sha256') == p['sha256'] and r.get('observed_utc') == p['fetched_at_utc']]
+                            bound += [r for r in d['candidates'] if isinstance(r, dict) and r.get('page_sha256') == p['sha256'] and r.get('captured_at_utc') == p['fetched_at_utc']]
                             for record in bound:
                                 if record.get('provenance') != p['provenance'] and p['provenance'] not in record.get('retained_provenance', []):
                                     record.setdefault('retained_provenance', []).append(p['provenance'])
