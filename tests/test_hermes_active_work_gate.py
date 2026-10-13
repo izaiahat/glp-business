@@ -38,8 +38,19 @@ def activity_from_capture(capture: str) -> dict[str, Any]:
     bad = [marker for marker in BAD_MARKERS if marker.lower() in tail.lower()]
     ready_pos = max((tail.rfind(marker) for marker in READY_MARKERS), default=-1)
     active_pos = max((tail.lower().rfind(marker.lower()) for marker in ACTIVE_MARKERS), default=-1)
+    pending = False
+    placeholders = {
+        'Ask me anything…', 'Try "explain this codebase"', 'Try "write a test for…"',
+        'Try "refactor the auth module"', 'Try "/help" for commands',
+        'Try "fix the lint errors"', 'Try "how does the config loader work?"',
+    }
+    prompts = [line.strip()[1:].strip() for line in lines[-8:] if line.strip().startswith(('❯', '›'))]
+    if prompts:
+        pending = bool(prompts[-1] and prompts[-1] not in placeholders)
     if bad:
         state = "error"
+    elif pending:
+        state = "pending_input"
     elif ready_pos >= 0 and ready_pos > active_pos:
         state = "idle_ready"
     elif active_pos >= 0:
@@ -712,6 +723,21 @@ class IdleLifecycleRegistrationTests(unittest.TestCase):
         self.assertEqual(result["blockers"][0]["reason"], "unverifiable_pid_scope_with_live_owning_session")
         self.assertFalse(result["tui_census"]["tuis"][0]["signals"]["unexpired_turn_lease"])
         self.assertEqual(len(result["idle_lifecycle_registrations"]), 1)
+
+    def test_pending_input_is_never_an_idle_ready_registration(self):
+        for prompt in ('❯ resume the assignment', '› /new'):
+            with self.subTest(prompt=prompt):
+                result = activity_from_capture('─ ready\n' + prompt)
+                self.assertEqual(result['state'], 'pending_input')
+                gate = self.collect(capture='─ ready\n' + prompt)
+                self.assertEqual(gate['status'], 'SKIPPED_ACTIVE_HERMES_WORK')
+                self.assertFalse(gate['ok'])
+                self.assertTrue(gate['blockers'])
+                self.assertEqual(gate['idle_lifecycle_registrations'], [])
+        for prompt in ('❯', '› Ask me anything…', '❯ Try "/help" for commands'):
+            with self.subTest(placeholder=prompt):
+                self.assertEqual(activity_from_capture('─ ready\n' + prompt)['state'], 'idle_ready')
+        self.assertEqual(activity_from_capture('SyntaxError:\n─ ready\n❯ pending')['state'], 'error')
 
     def test_portable_classifier_is_exact_maintained_pure_source(self):
         producer = Path("/home/ubuntu/business/scripts/hermes_tui_continuity.py")

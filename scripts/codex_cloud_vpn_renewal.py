@@ -150,7 +150,7 @@ def browser(env, action):
         raise ValueError('browser_'+action+'_failed:'+reason) from None
 
 
-def parse_proof(body, env, nonce, native_custody=None):
+def parse_proof(body, env, nonce, native_custody=None, denial_custody=None):
     import re
     if re.search(r'tskey-|Bearer |PRIVATE KEY',body,re.I):
         raise ValueError('unsafe_proof_body_no_credentials')
@@ -198,11 +198,16 @@ def parse_proof(body, env, nonce, native_custody=None):
     except (ValueError,TypeError,AttributeError): raise ValueError('cloud_timestamp_invalid') from None
     if type(allowed.get('command_exit')) is not int or allowed.get('command_exit')!=0 or allowed.get('http')!=200 or allowed.get('schema')!='codex-evidence-v1' or not allowed.get('generated_at'):
         raise ValueError('allowed_cloud_get_not_proved')
-    if type(denied.get('command_exit')) is not int or not 0 <= denied['command_exit'] <= 255 or denied.get('port')!=8443 or denied.get('http') not in (403,503):
-        raise ValueError('denied_positive_control_not_proved')
-    if native_bound:
-        value['native_creation']=native_custody
-    return value
+    # No maintained authenticated denial-witness producer/verifier or genuine
+    # approved positive receipt is available in this source contract. Labels
+    # and digest syntax in a state dictionary cannot authenticate receipt bytes,
+    # a designated non-author verdict, or the exact approved applied policy.
+    # Refuse all outcomes before CLOUD_PROVED/revocation; do not invent an HTTP
+    # success whitelist (403/503, no response, proxy/TLS/service failures alike).
+    # A future success contract must derive from a genuine approved witness.
+    if denial_custody is None:
+        raise ValueError('head_denial_attribution_required')
+    raise ValueError('head_denial_authenticated_witness_unavailable')
 
 
 def proof(env, row, state):
@@ -216,7 +221,7 @@ def proof(env, row, state):
           "Included allowance was just verified positive in the exact account; check again if your native tool exposes it. No credits, resets, local/connected-Mac substitute, repository/host edits, credential reads, or other tasks. "
           "In the NEW Cloud VM run proxy-respecting curl --max-time 12 GET http://hermes-01.tail9e25df.ts.net:18909/v1/fleet-status.json (parse schema/generated_at only), and ONE denied HEAD curl --max-time 12 -I https://hermes-01.tail9e25df.ts.net:8443/ . "
           f"Print nonce {nonce}. Reply RESULT JSON: schema codex-cloud-vpn-proof-v1, nonce, environment_id (runtime ID), new_cloud_task true, task_id, task_url (null if unknown). Include native_creation:{{task_id,environment_config_id,runtime_environment_id}} from actual create request and response, never a guessed mapping. Also include "
-          "allowed:{command_exit,http,schema,generated_at}, denied:{port:8443,command_exit,http}. Raw exits/statuses only, no invented data; <1600 chars. Or BLOCKED with exact provider message/reset time. Stop after two requests. Evidence is not approval.")
+          "allowed:{command_exit,http,schema,generated_at}, denied:{port:8443,command_exit,http}. Raw exits/statuses only, no invented data; <1600 chars. Or BLOCKED with exact provider message/reset time. Stop after two requests. Raw403/503 is NOT policy denial; independent attributed-denial acceptance is required separately. Evidence is not approval.")
         row.update(phase='PROOF_DISPATCH_INTENT',proof_nonce=nonce)
         atomic(STATE,state)
         try:
@@ -237,7 +242,7 @@ def proof(env, row, state):
     result=terminal(directory,ticket)
     if result['outcome']!='result':
         raise ValueError('native_cloud_proof_blocked_no_old_key_revoke')
-    value=parse_proof(result['text'],env,row['proof_nonce'],row.get('native_creation_custody'))
+    value=parse_proof(result['text'],env,row['proof_nonce'],row.get('native_creation_custody'),row.get('head_denial_custody'))
     row.update(phase='CLOUD_PROVED',cloud_proof=value,native_reply_id=ticket['reply_id'])
     atomic(STATE,state)
     return value
@@ -273,6 +278,10 @@ def run(config, state_path=STATE, api=None):
                     outcomes.append({'name':env['name'],'status':'PROOF_PENDING','ticket':row['native_ticket']})
                     continue
             if row['phase']=='CLOUD_PROVED':
+                # Revalidate persisted proofs too; a pre-guard raw status must
+                # not become revocation authority merely by retaining its phase.
+                stored=dict(row['cloud_proof']);stored.pop('head_denial_custody',None)
+                parse_proof(json.dumps(stored),env,row['proof_nonce'],row.get('native_creation_custody'),row.get('head_denial_custody'))
                 api.metadata(row['key_id'])
                 row['phase']='REVOKE_INTENT';atomic(state_path,state)
                 api.revoke(row['old_key_id'])

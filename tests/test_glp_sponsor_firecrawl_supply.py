@@ -2,6 +2,7 @@ import datetime as dt
 import json
 import re
 import sys
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -328,3 +329,113 @@ def test_daily_cap_counts_legacy_and_installed_callers_without_reset(monkeypatch
     p = supply.Producer(state_dir=tmp_path)
     assert 'fc71_sponsor_supply' in seen and 'fc71_sponsor_alexandria' in seen
     assert p.budget.cap == 0 and not p.budget.allow(1)
+
+
+def test_apollo_discovers_current_contracts_before_executing_renamed_ids(tmp_path):
+    """Catalogue IDs are observations, not a pinned filter or execution fallback."""
+    import glp_sponsor_alexandria as alexandria
+    calls = []
+    ids = {'search': 'contacts/preview-v3', 'match': 'contacts/resolve-v3'}
+    class Client:
+        def search(self, payload):
+            calls.append(('search', payload))
+            assert payload['sources'] == ['alexandria']
+            return {'success': True, 'creditsUsed': 0, 'data': {'tools': [
+                {'provider': 'apollo', 'capability': value} for value in ids.values()]}}
+        def scrape(self, payload):
+            calls.append(('scrape', payload))
+            row = payload['alexandria'][0]
+            if row['provider'] == 'firecrawl':
+                assert set(row['options']['capabilities']) == set(ids.values())
+                return {'success': True, 'data': {'alexandria': [{
+                    'provider': 'firecrawl', 'capability': 'find-tools', 'creditsCost': 0,
+                    'data': {'items': [
+                        {'provider': 'apollo', 'capability': ids['search'], 'creditsCost': 0,
+                         'options': [{'name': k} for k in ('q_organization_domains_list', 'person_locations', 'page', 'per_page')],
+                         'execute': {'provider': 'apollo', 'capability': ids['search']}},
+                        {'provider': 'apollo', 'capability': ids['match'], 'creditsCost': 30,
+                         'billing': {'maxCredits': 30},
+                         'options': [{'name': k} for k in ('id', 'reveal_personal_emails', 'reveal_phone_number')],
+                         'execute': {'provider': 'apollo', 'capability': ids['match']}}]}}]}}
+            assert row['provider'] == 'apollo'
+            if row['capability'] == ids['search']:
+                data = {'people': [{'id': 'p1', 'title': 'Marketing', 'has_email': True}]}
+            else:
+                assert row['capability'] == ids['match']
+                assert row['options'] == {'id': 'p1', 'reveal_personal_emails': False, 'reveal_phone_number': False}
+                data = {'person': {'id': 'p1', 'title': 'Marketing', 'email': 'work@example.com',
+                    'country': 'United States', 'organization': {'primary_domain': 'example.com'}, 'phone': 'discard'}}
+            return {'success': True, 'data': {'alexandria': [row | {'upstreamStatus': 200, 'data': data}]}}
+    p = supply.Producer.__new__(supply.Producer)
+    p.alex = Client()
+    p.report = {}
+    contracts = p.discover_apollo_contacts()
+    assert contracts['people/search'] == ids['search'] and contracts['people/match'] == ids['match']
+    result = alexandria.observe(tmp_path, 'example.com', 'people/search',
+        {'q_organization_domains_list': ['example.com']}, p.apollo_scrape, dt.datetime.now(dt.timezone.utc))
+    assert result['people'][0]['id'] == 'p1'
+    assert len(calls) == 3
+    reserved = []
+    p.reserve = reserved.append
+    match_options = {'id': 'p1', 'reveal_personal_emails': False, 'reveal_phone_number': False}
+    matched = alexandria.observe(tmp_path, 'example.com', 'people/match', match_options,
+        p.paid_match, dt.datetime.now(dt.timezone.utc))
+    assert matched['person']['email'] == 'work@example.com' and 'phone' not in matched['person']
+    assert reserved == [30] and len(calls) == 4
+    # A renamed upstream contract must not replay a completed reveal or turn an
+    # uncertain old effect into a new request. Stable journals remain authoritative.
+    ids['search'] = 'people/preview-v4'
+    ids['match'] = 'people/reveal-v4'
+    p.discover_apollo_contacts()
+    count = len(calls)
+    assert alexandria.observe(tmp_path, 'example.com', 'people/match', match_options,
+        p.paid_match, dt.datetime.now(dt.timezone.utc)) == matched
+    assert len(calls) == count and reserved == [30]
+    for journal in tmp_path.glob('*.json'):
+        receipt = json.loads(journal.read_text())
+        if receipt.get('capability') == 'people/match':
+            receipt['status'] = 'claimed'
+            journal.write_text(json.dumps(receipt))
+    with pytest.raises(RuntimeError, match='ambiguous_prospect_effect'):
+        alexandria.observe(tmp_path, 'example.com', 'people/match', match_options,
+            p.paid_match, dt.datetime.now(dt.timezone.utc))
+    assert len(calls) == count and reserved == [30]
+
+
+@pytest.mark.parametrize('case', ['missing', 'failed', 'wrong_provider', 'unknown_price', 'price_increased',
+    'ceiling_increased', 'ambiguous', 'wrong_execute', 'option_missing', 'error'])
+def test_apollo_discovery_fails_closed_without_contact_execution(case):
+    search = {'provider': 'apollo', 'capability': 'current/preview', 'creditsCost': 0,
+        'options': [{'name': k} for k in ('q_organization_domains_list', 'person_locations', 'page', 'per_page')],
+        'execute': {'provider': 'apollo', 'capability': 'current/preview'}}
+    match = {'provider': 'apollo', 'capability': 'current/resolve', 'creditsCost': 30,
+        'billing': {'maxCredits': 30},
+        'options': [{'name': k} for k in ('id', 'reveal_personal_emails', 'reveal_phone_number')],
+        'execute': {'provider': 'apollo', 'capability': 'current/resolve'}}
+    items = [search, match]
+    if case == 'unknown_price': match.pop('creditsCost')
+    if case == 'price_increased': match['creditsCost'] = 60
+    if case == 'ceiling_increased': match['billing']['maxCredits'] = 60
+    if case == 'ambiguous': items.append(dict(search))
+    if case == 'wrong_execute': match['execute']['capability'] = 'old/guess'
+    if case == 'option_missing': match['options'].pop()
+    calls = []
+    class Client:
+        def search(self, payload):
+            calls.append('discovery')
+            return {'success': case != 'failed', 'data': {'tools': [] if case == 'missing' else [
+                {'provider': 'other' if case == 'wrong_provider' else 'apollo', 'capability': i['capability']} for i in items]}}
+        def scrape(self, payload):
+            calls.append('inspection')
+            assert payload['alexandria'][0]['provider'] == 'firecrawl'
+            return {'success': True, 'data': {'alexandria': [{
+                'provider': 'firecrawl', 'capability': 'find-tools',
+                'error': {'status': 400} if case == 'error' else None, 'data': {'items': items}}]}}
+    p = supply.Producer.__new__(supply.Producer)
+    p.alex = Client()
+    p.report = {}
+    p.apollo_capabilities = {'people/match': 'old/guess'}
+    with pytest.raises(RuntimeError, match='apollo_contact_'):
+        p.discover_apollo_contacts()
+    assert not p.apollo_capabilities
+    assert len(calls) <= 2

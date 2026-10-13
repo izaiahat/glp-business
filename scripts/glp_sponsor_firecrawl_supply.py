@@ -289,7 +289,7 @@ class Producer:
 
     def paid_match(self, payload):
         self.reserve(30)
-        return self.alex.scrape(payload)
+        return self.apollo_scrape(payload)
 
     # -- locking -----------------------------------------------------------
     def locked(self, seconds=420):
@@ -410,14 +410,79 @@ class Producer:
         self.report.setdefault('merge', []).append(added)
 
     # -- alexandria --------------------------------------------------------
+    def discover_apollo_contacts(self):
+        """Free catalogue discovery; classify contracts, never filter stale IDs.
+
+        The aliases below are the existing journal/cleaning operations, not
+        provider IDs. Keep them stable so ambiguous claims cannot be replayed
+        just because the upstream catalogue renamed a capability.
+        """
+        self.apollo_capabilities = {}
+        res = self.alex.search({'query': 'Apollo search people by organization domain and enrich person business work email',
+                                'sources': ['alexandria'], 'limit': 20})
+        tools = (res.get('data') or {}).get('tools')
+        if res.get('success') is not True or not isinstance(tools, list):
+            raise RuntimeError('apollo_contact_discovery_unknown')
+        ids = sorted({t['capability'] for t in tools if isinstance(t, dict) and t.get('provider') == 'apollo'
+                      and isinstance(t.get('capability'), str) and t['capability']})
+        if not ids:
+            raise RuntimeError('apollo_contact_capabilities_not_discovered')
+        inspected = self.alex.scrape({'alexandria': [{'provider': 'firecrawl', 'capability': 'find-tools',
+            'options': {'providers': ['apollo'], 'capabilities': ids, 'level': 'tools', 'expand': ['options'], 'limit': 20}}]})
+        entries = (inspected.get('data') or {}).get('alexandria', [])
+        if (inspected.get('success') is not True or len(entries) != 1 or entries[0].get('error')
+                or entries[0].get('provider') != 'firecrawl' or entries[0].get('capability') != 'find-tools'):
+            raise RuntimeError('apollo_contact_discovery_unknown')
+        items = (entries[0].get('data') or {}).get('items', [])
+        required = {
+            'people/search': {'q_organization_domains_list', 'person_locations', 'page', 'per_page'},
+            'people/match': {'id', 'reveal_personal_emails', 'reveal_phone_number'},
+        }
+        selected = {}
+        for alias, names in required.items():
+            candidates = []
+            for item in items:
+                execute = item.get('execute') or {}
+                options = {o.get('name') for o in item.get('options', []) if isinstance(o, dict)}
+                cost = item.get('creditsCost')
+                price_ok = (type(cost) is int and cost == (0 if alias == 'people/search' else 30))
+                if alias == 'people/match':
+                    ceiling = (item.get('billing') or {}).get('maxCredits')
+                    price_ok = price_ok and type(ceiling) is int and ceiling == 30
+                if (item.get('provider') == 'apollo' and item.get('capability') in ids and names <= options and price_ok
+                        and execute.get('provider') == 'apollo' and execute.get('capability') == item.get('capability')):
+                    candidates.append(item['capability'])
+            if len(candidates) != 1:
+                raise RuntimeError('apollo_contact_capabilities_not_discovered')
+            selected[alias] = candidates[0]
+        if len(set(selected.values())) != 2:
+            raise RuntimeError('apollo_contact_capabilities_not_discovered')
+        self.apollo_capabilities = selected
+        self.report['alexandria_discovered'] = selected
+        return selected
+
+    def apollo_scrape(self, payload):
+        """Translate stable journal aliases only through this run's catalogue."""
+        rows = payload.get('alexandria', [])
+        if len(rows) != 1 or rows[0].get('provider') != 'apollo':
+            raise RuntimeError('apollo_contact_execution_unknown')
+        row = rows[0]
+        alias = row.get('capability')
+        capability = self.apollo_capabilities.get(alias)
+        if not capability:
+            raise RuntimeError('apollo_contact_capabilities_not_discovered')
+        response = self.alex.scrape({'alexandria': [row | {'capability': capability}]})
+        entries = (response.get('data') or {}).get('alexandria', [])
+        if len(entries) != 1 or entries[0].get('provider') != 'apollo' or entries[0].get('capability') != capability:
+            raise RuntimeError('apollo_contact_execution_unknown')
+        # Only the envelope alias changes; observe still checks success/errors,
+        # status and minimizes contact fields before completing the same journal.
+        return response | {'data': response['data'] | {'alexandria': [entries[0] | {'capability': alias}]}}
+
     def apollo(self):
         import glp_sponsor_alexandria as alexandria
         from glp328_outreach_policy import _same_adverse_org
-        from glp_firecrawl_jobs import Alexandria
-        capabilities = Alexandria(self.alex).discover('apollo', ('people/search', 'people/match', 'organizations/enrich'))
-        self.report['alexandria_discovered'] = capabilities
-        if not all(k in capabilities for k in ('people/search', 'people/match')):
-            raise RuntimeError('apollo_contact_capabilities_not_discovered')
+        self.discover_apollo_contacts()
         lock = self.locked()
         try:
             live, plan = self.plan()
@@ -432,7 +497,7 @@ class Producer:
                     break
                 try:
                     found = alexandria.observe(self.cache, host, 'people/search', {'q_organization_domains_list': [host], 'person_locations': ['United States'],
-                                               'page': 1, 'per_page': 50}, self.alex.scrape, at)
+                                               'page': 1, 'per_page': 50}, self.apollo_scrape, at)
                     people = [p for p in found.get('people', []) if p.get('id') and p.get('has_email') is True and alexandria.business_title(p.get('title'))]
                     people.sort(key=lambda p: (not bool(PEOPLE_TITLES.search(p.get('title', ''))), p['id']))
                     if not people:

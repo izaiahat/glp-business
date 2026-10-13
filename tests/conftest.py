@@ -1,9 +1,22 @@
 """Never send fixture operation receipts to the live billing ledger."""
 import os
 from pathlib import Path
+import sys
 import tempfile
 from datetime import datetime, timezone
 import pytest
+
+# Bind the regular checkout package before collection imports modules that add
+# an installed BUSINESS root to sys.path. Namespace packages lose to an
+# installed regular package even when the checkout root was first on sys.path.
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'tests')]
+import scripts
+import tests
+if Path(tests.__file__).resolve() != ROOT / 'tests/__init__.py':
+    raise RuntimeError('pytest tests package is not the exact checkout source')
+if Path(scripts.__file__).resolve() != ROOT / 'scripts/__init__.py':
+    raise RuntimeError('pytest scripts package is not the exact checkout source')
 
 
 @pytest.fixture

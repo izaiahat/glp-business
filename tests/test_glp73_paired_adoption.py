@@ -26,10 +26,17 @@ def cohort(tmp_path, monkeypatch):
     root, home = tmp_path / 'business', tmp_path / 'hermes'
     for p in (root, home / 'scripts', home / 'cron'):
         p.mkdir(parents=True)
+    archive = LIVE / 'reports/ops/pin-archive/glp73/c890cf1ddec28cef655e5f8c7e5387e94714b0611c96a3ee06f93821e31a05ea'
+    before = dict(zip(pair.PATHS, pair.SOURCE_BEFORE))
     for rel in (*pair.PATHS, *pair.RETAINED):
         target = root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(LIVE / rel, target)
+        digest, mode = before.get(rel, (pair.RETAINED.get(rel), 0o644))
+        saved = archive / (digest + '.bytes')
+        body = (saved if saved.is_file() else LIVE / rel).read_bytes()
+        assert sha(body) == digest, 'historical preimage custody moved: ' + rel
+        target.write_bytes(body)
+        target.chmod(mode)
     # Authenticate the retained old precondition; copying today's shared live
     # state silently broke this test after unrelated authorized scoped syncs.
     old_state = LIVE / 'reports/ops/glp44-scoped-live-adoption-20260929/read-only-preimages/05.bytes'
@@ -43,9 +50,13 @@ def cohort(tmp_path, monkeypatch):
     shutil.copy2(REPO / rel, checkout / rel)
     manifest = checkout / syncer.MANIFEST
     document = json.loads(manifest.read_text())
+    for historical in pair.PATHS:
+        body = subprocess.check_output(['git', '-C', str(REPO), 'show', pair.SOURCE + ':' + historical])
+        (checkout / historical).write_bytes(body)
+        document['files'][historical]['sha256'] = sha(body)
     document['files'][rel]['sha256'] = sha((checkout / rel).read_bytes())
     manifest.write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
-    subprocess.run(['git', '-C', str(checkout), 'add', rel, syncer.MANIFEST], check=True)
+    subprocess.run(['git', '-C', str(checkout), 'add', rel, syncer.MANIFEST, *pair.PATHS], check=True)
     subprocess.run(['git', '-C', str(checkout), '-c', 'user.name=Fixture',
                     '-c', 'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm',
                     'fixture producer'], check=True)
