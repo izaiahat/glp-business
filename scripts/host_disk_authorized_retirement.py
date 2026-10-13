@@ -72,14 +72,38 @@ def site_protected(p,pins,root):
     return cold.protected(Path(*pieces),())
 
 
+def read_registry_pins():
+    """Reject failed/malformed child reads while retaining safe source identity."""
+    code=(f"import sys,json;sys.path.insert(0,{str(Path(__file__).resolve().parent)!r});"
+          "import host_disk_auto_classes as a;r=a.pin_inventory();"
+          "print(json.dumps(r));sys.exit(0 if r['ok'] else 1)")
+    cmd=[sys.executable,'-c',code]
+    if os.geteuid()==0:cmd=['sudo','-n','-H','-u','ubuntu',*cmd]
+    try:
+        result=subprocess.run(cmd,capture_output=True,text=True,timeout=300)
+        reply=json.loads(result.stdout)
+    except Exception as error:
+        raise RuntimeError('pin inventory transport or JSON unavailable') from error
+    if not isinstance(reply,dict) or reply.get('schema')!='host-disk-pins-v1':
+        raise RuntimeError('pin inventory protocol invalid')
+    if result.returncode or reply.get('ok') is not True:
+        source=reply.get('source');kind=reply.get('error_type')
+        if (reply.get('ok') is False and source in
+                ('pr_pins','worktree_pins','live_release_pins','r8_pins','linear_pins')
+                and isinstance(kind,str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,79}',kind)):
+            raise RuntimeError(f'pin inventory refused: {source} ({kind}; rc={result.returncode})')
+        raise RuntimeError(f'pin inventory refused or inconsistent (rc={result.returncode})')
+    paths=reply.get('pins')
+    if (not isinstance(paths,list) or any(not isinstance(p,str) or '\x00' in p
+            or not Path(p).is_absolute() for p in paths)):
+        raise RuntimeError('pin inventory paths invalid')
+    return {Path(p) for p in paths}
+
+
 def fresh_pins():
     """Read the real registry through its authorized non-root identity."""
     global _CANONICAL_ROOTS
-    code="import sys,json;sys.path.insert(0,'/home/ubuntu/business/scripts');import host_disk_auto_classes as a;p=a.pr_pins()|a.worktree_pins()|a.live_release_pins()|a.r8_pins()|a.linear_pins();print(json.dumps(sorted(map(str,p))))"
-    cmd=[sys.executable,'-c',code]
-    if os.geteuid()==0:cmd=['sudo','-n','-H','-u','ubuntu',*cmd]
-    result=subprocess.run(cmd,capture_output=True,text=True,timeout=300,check=True)
-    pins={Path(p) for p in json.loads(result.stdout)}
+    pins=read_registry_pins()
     before=BASE.read_bytes();base=json.loads(before)
     canonical=Control(credentials()).request('GET','/pages/projects/glp-clinic-scout').get('canonical_deployment') or {}
     if (base.get('status')!='PASS' or canonical.get('id')!=base.get('deployment_id')

@@ -1,6 +1,11 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_host_disk_pin_protocol.py": {
+      "kind": "test",
+      "callers": ["business-source-ci host-disk exact-head offline suite"],
+      "sha256": "35648e0f1daa86c4df3660506218416f1a1306f28451328426baad83e06b1d6d"
+    },
     "scripts/auto_coordinator_receipt.py": {
       "kind": "script",
       "callers": [
@@ -254,7 +259,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c7f27087989fe5b9a7851749da96985d651aa3dafbf21461cac45150a199f3a3"
+      "sha256": "f2928bb70e91904d46eaf8490ce81a2a885aeacddbadcfc71318b975f06592e7"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3501,7 +3506,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "cd91cc7dcfa4d0a83c7bb8b8906e715ae00eacb567e22f5b7fe774fb0426c799"
+      "sha256": "71ef0190b9a88f1ff847c9988e1e525a50e70975ea6c43ccdf631fd69aee6ed6"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -7251,7 +7256,7 @@
       ],
       "kind": "script",
       "scope": "Completed verified archives and superseded site members; shared singleton and fresh production/rollback/PR/scheduler custody; verified R2 pair before retirement; not scheduled.",
-      "sha256": "9d9b778b100660f37eedfca9b7b9e4849f90910bab6b09423d29f9cb923223a3"
+      "sha256": "c5ffb268b37cc158e92b7188243c7411ead88a3c6e91b0fba4eeac5d1912d97e"
     },
     "ops/glp/seo_weekly_budget.py": {
       "callers": [
@@ -7383,5 +7388,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1083
+  "tracked_count": 1084
 }
