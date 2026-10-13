@@ -536,7 +536,7 @@ def test_approved_directory_direct_anchor_needs_no_go_membership(synthetic_relea
     assert row["unauthorized_affiliate_anchor_count"] == (0 if case.endswith("approved") else 1)
 
 
-@pytest.mark.parametrize("case", ["direct", "comparison", "undeclared-comparison", "go", "wrong-target", "wrong-surface", "unsealed", "bad-receipt", "network-hold", "ended"])
+@pytest.mark.parametrize("case", ["direct", "comparison", "undeclared-comparison", "scalar-roles", "mapping-roles", "null-roles", "mixed-roles", "go", "wrong-target", "wrong-surface", "unsealed", "bad-receipt", "network-hold", "ended"])
 def test_api_issued_direct_review_class_is_not_redirect_authority(synthetic_release, case):
     """AN336: sealed sole-writer API direct CTAs were mislabeled forbidden."""
     fixture = synthetic_release
@@ -564,7 +564,11 @@ def test_api_issued_direct_review_class_is_not_redirect_authority(synthetic_rele
         program_id=pid, entry_state="transparent_direct", promotion_authorized=False,
         live_link_allowed=False, status="candidate_preview_only", network="maxbounty",
         link_mode="instrumented_redirect_candidate", candidate_gate="approved_api_link_sole_writer_ready",
-        allowed_page_roles=["semaglutide"] if case == "comparison" else [],
+        allowed_page_roles={"comparison": ["semaglutide"],
+                            "scalar-roles": "not-semaglutide",
+                            "mapping-roles": {"semaglutide": False},
+                            "null-roles": None,
+                            "mixed-roles": ["semaglutide", False]}.get(case, []),
         tracking={"base_url": href, "allowed_tracking_hosts": ["synthetic.invalid"],
                   "generated_link_readback_verified": True})
     fixture.module.write_bytes(PREFIX + json.dumps(fixture.local).encode() + b");\n")
@@ -600,7 +604,7 @@ def test_api_issued_direct_review_class_is_not_redirect_authority(synthetic_rele
         static[0]["sponsored_anchor_targets"][0]["href"] += "&changed=1"
     elif case == "wrong-surface":
         static[0]["path"] = "/medical-advice/"
-    elif case in {"comparison", "undeclared-comparison"}:
+    elif case in {"comparison", "undeclared-comparison", "scalar-roles", "mapping-roles", "null-roles", "mixed-roles"}:
         static[0]["path"] = "/semaglutide/"
     if case in {"unsealed", "bad-receipt"}:
         with pytest.raises(RuntimeError, match="affiliate_api_direct_"):

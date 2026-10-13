@@ -1829,9 +1829,13 @@ def derive_affiliate_obligations(control: dict[str, Any],
                       "network": str(network or "").lower()}
         if promotion.get("reason") == "approved_api_link_sole_writer_ready" and direct_target:
             permission["direct_paths"] = [f"/providers/{program_id}/", program.get("review_path")]
-            permission["direct_paths"].extend(
-                f"/{role}/" for role in ("semaglutide", "tirzepatide")
-                if role in (runtime or {}).get("allowed_page_roles", []))
+            roles = (runtime or {}).get("allowed_page_roles", [])
+            # JSON arrays of exact strings only: scalar substring and mapping-key
+            # membership are not declared role grants. Keep legitimate direct paths.
+            if type(roles) is list and all(type(role) is str for role in roles):
+                permission["direct_paths"].extend(
+                    f"/{role}/" for role in ("semaglutide", "tirzepatide")
+                    if role in roles)
         permissions[program_id] = permission
         if program.get("review_path"):
             permissions[program["review_path"].strip("/").split("/")[-1]] = permission
