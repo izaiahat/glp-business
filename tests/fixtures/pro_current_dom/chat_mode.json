@@ -1,0 +1,58 @@
+{
+  "tag": "main",
+  "attrs": {},
+  "children": [
+    {
+      "tag": "div",
+      "attrs": {
+        "class": "relative isolate inline-grid h-9 max-w-full min-w-0 grid-cols-2 gap-0 rounded-full select-none browser:w-56 root-HUUPVC",
+        "role": "group",
+        "aria-label": "Composer mode"
+      },
+      "children": [
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "pointer-events-none absolute inset-x-px top-1/2 z-0 h-8.5 -translate-y-1/2 rounded-full bg-background-mode-toggle-track",
+            "aria-hidden": "true"
+          },
+          "children": []
+        },
+        {
+          "tag": "span",
+          "attrs": {
+            "class": "pointer-events-none relative z-10 col-start-1 row-start-1 rounded-full indicator-zrk55u",
+            "aria-hidden": "true"
+          },
+          "children": []
+        },
+        {
+          "tag": "button",
+          "attrs": {
+            "class": "cursor-interaction relative z-10 inline-flex h-full min-w-0 items-center justify-center whitespace-nowrap rounded-full px-10 text-sm font-medium @max-xs/home-mode-toggle:px-2.5 disabled:cursor-not-allowed disabled:opacity-40 col-start-1 row-start-1 ps-11 pe-9 browser:ps-3.5 browser:pe-1.5 text-mode-toggle-primary",
+            "aria-pressed": "true",
+            "data-state": "closed"
+          },
+          "children": [
+            {
+              "text": "Chat"
+            }
+          ]
+        },
+        {
+          "tag": "button",
+          "attrs": {
+            "class": "cursor-interaction relative z-10 inline-flex h-full min-w-0 items-center justify-center whitespace-nowrap rounded-full px-10 text-sm font-medium @max-xs/home-mode-toggle:px-2.5 disabled:cursor-not-allowed disabled:opacity-40 col-start-2 row-start-1 ps-9 pe-11 browser:ps-1.5 browser:pe-3.5 text-mode-toggle-inactive hover:text-mode-toggle-primary focus-visible:text-mode-toggle-primary",
+            "aria-pressed": "false",
+            "data-state": "closed"
+          },
+          "children": [
+            {
+              "text": "Work"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

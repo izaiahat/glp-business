@@ -1,0 +1,332 @@
+{
+  "tag": "main",
+  "attrs": {},
+  "children": [
+    {
+      "tag": "div",
+      "attrs": {
+        "data-chatgpt-conversation-selection-target": "true"
+      },
+      "children": [
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "[&_[data-virtualized-turn-content]]:[content-visibility:visible]",
+            "data-turn-key": "fixture-data-turn-key"
+          },
+          "children": [
+            {
+              "tag": "div",
+              "attrs": {},
+              "children": [
+                {
+                  "tag": "div",
+                  "attrs": {
+                    "class": "flex flex-col gap-1.5"
+                  },
+                  "children": [
+                    {
+                      "tag": "div",
+                      "attrs": {
+                        "class": "group flex flex-col",
+                        "data-talvt-turn-state": "complete"
+                      },
+                      "children": [
+                        {
+                          "tag": "div",
+                          "attrs": {
+                            "class": "flex flex-col gap-3 browser:gap-1"
+                          },
+                          "children": [
+                            {
+                              "tag": "div",
+                              "attrs": {
+                                "class": "block-BQZwFn"
+                              },
+                              "children": [
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "group/user-message flex flex-col items-end gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "w-full",
+                                        "data-content-search-unit-key": "fallback-turn-0:0:user"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "tag": "div",
+                              "attrs": {
+                                "class": "block-BQZwFn"
+                              },
+                              "children": [
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 items-start gap-3"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "min-w-0 flex-1"
+                                      },
+                                      "children": [
+                                        {
+                                          "tag": "div",
+                                          "attrs": {
+                                            "class": "min-w-0 text-size-chat relative overflow-visible py-0"
+                                          },
+                                          "children": [
+                                            {
+                                              "tag": "div",
+                                              "attrs": {
+                                                "class": "flex min-w-0 flex-col"
+                                              },
+                                              "children": [
+                                                {
+                                                  "tag": "div",
+                                                  "attrs": {
+                                                    "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start"
+                                                  },
+                                                  "children": []
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                },
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 flex-col gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start text-secondary hover:text-default"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "tag": "div",
+                              "attrs": {
+                                "class": "block-BQZwFn"
+                              },
+                              "children": [
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "data-content-search-unit-key": "fallback-turn-0:2:assistant"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "h4",
+                                      "attrs": {
+                                        "class": "sr-only m-0 select-none",
+                                        "data-conversation-role": "assistant"
+                                      },
+                                      "children": []
+                                    },
+                                    {
+                                      "tag": "div",
+                                      "attrs": {},
+                                      "children": [
+                                        {
+                                          "tag": "div",
+                                          "attrs": {
+                                            "class": "group flex min-w-0 flex-col",
+                                            "data-chatgpt-selection-message-id": "fixture-data-chatgpt-selection-message-id"
+                                          },
+                                          "children": [
+                                            {
+                                              "tag": "div",
+                                              "attrs": {
+                                                "data-markdown-text-style": "assistant-message",
+                                                "class": "MarkdownRoot-rZKhxa [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>*:last-child]:mb-0 [&>ol:first-child]:mt-0 [&>ul:first-child]:mt-0"
+                                              },
+                                              "children": [
+                                                {
+                                                  "tag": "p",
+                                                  "attrs": {},
+                                                  "children": [
+                                                    {
+                                                      "text": "Fixture assistant text"
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

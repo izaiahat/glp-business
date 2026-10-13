@@ -23,6 +23,7 @@
 /tests/*
 !/tests/test_glp93_review_projection.py
 !/tests/test_glp93_surface_inputs.py
+!/tests/test_pro_current_dom.py
 !/tests/test_pro_root_home.py
 !/tests/test_pro_terminal_hydration.py
 !/tests/test_article_source_carrier.py
@@ -442,6 +443,8 @@
 !/tests/test_glp76_carrier_calendar.py
 !/tests/fixtures/
 /tests/fixtures/*
+!/tests/fixtures/pro_current_dom/
+!/tests/fixtures/pro_current_dom/*.json
 !/tests/fixtures/glp76-carrier-material/
 /tests/fixtures/glp76-carrier-material/*
 !/tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs

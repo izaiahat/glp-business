@@ -302,7 +302,7 @@ def native_expiry_probe(ticket):
 
 
 def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
-           probe=native_expiry_probe):
+           probe=native_expiry_probe, handoff_reply_id=None):
     """Explicit orchestrator-only administrative expiry; never a dot-authored reply.
 
     Refuse uncertain sends, confirmed/staged replies, live native grants/effects,
@@ -321,6 +321,8 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
         state = json.loads((ticket / 'TICKET.json').read_text())
         if state['state'] == 'expired':
             audit = json.loads((ticket / 'EXPIRY.json').read_text())
+            if audit.get('external_handoff',{}).get('id') != handoff_reply_id:
+                raise ValueError('expiry_audit_handoff_conflict')
             if (audit['reason'], audit['recorded_by'], audit['timeout_seconds']) != (reason, owner, timeout_seconds):
                 raise ValueError('expiry_audit_conflict')
             return state
@@ -344,20 +346,35 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
             and (m.get('message_reference', {}).get('message_id') == state['request_id']
                  or state['ticket'] in m.get('content', '')
                  or state['correlation'] in m.get('content', ''))]
-        if replies:
+        handoff = None
+        if handoff_reply_id is not None:
+            if native['status'] != 'request_expired' or len(replies) != 1 or replies[0].get('id') != handoff_reply_id:
+                raise ValueError('expiry_external_handoff_binding_refused')
+            handoff = api('GET',f"/channels/{state['channel_id']}/messages/{handoff_reply_id}")
+            text = handoff.get('content','')
+            if handoff != replies[0] or handoff.get('webhook_id') or handoff.get('attachments') or not text.startswith('<@'+SENDER+'> DIRECT FALLBACK RESULT '+state['ticket']) or 'not a native-correlated receipt' not in text:
+                raise ValueError('expiry_external_handoff_binding_refused')
+        elif replies:
             raise ValueError('expiry_reply_present_requires_reconciliation')
-        if probe(ticket)['status'] not in {'absent', 'request_expired'}:
+        final_native = probe(ticket)
+        if final_native['status'] not in {'absent', 'request_expired'} or (handoff is not None and final_native['status'] != 'request_expired'):
             raise ValueError('expiry_native_confirmation_or_live_effect')
         audit = dict(schema='DOT_NO_REPLY_EXPIRY_V1', ticket=state['ticket'],
             correlation=state['correlation'], reason=reason, recorded_by=owner,
             expired_at=now, timeout_seconds=timeout_seconds, age_seconds=now - state['sent_at'],
-            native=native, history_messages_checked=len(history), matching_reply_count=0,
+            native=native, history_messages_checked=len(history), matching_reply_count=len(replies),
             history_covers_request=True, history_sha256=digest(canonical(history)),
             ticket_preimage_sha256=digest(canonical(state)), source_pins=source_pins(),
             operator_approval=False)
+        if handoff is not None:
+            audit['schema']='DOT_EXTERNAL_HANDOFF_EXPIRY_V1'
+            audit.update(external_handoff=handoff,external_handoff_sha256=digest(canonical(handoff)),
+                         provenance='Authenticated external Discord fallback; NOT native completion')
         audit_path = ticket / 'EXPIRY.json'
         if audit_path.exists():  # recover an interrupted audit-before-state commit
             old = json.loads(audit_path.read_text())
+            if any(old.get(k) != audit.get(k) for k in ('schema','external_handoff_sha256')) or old.get('external_handoff',{}).get('id') != handoff_reply_id:
+                raise ValueError('expiry_audit_handoff_conflict')
             if any(old[k] != audit[k] for k in ('ticket_preimage_sha256', 'reason', 'recorded_by', 'timeout_seconds', 'source_pins')):
                 raise ValueError('expiry_audit_conflict')
             audit = old
@@ -450,6 +467,48 @@ def consume(root=TICKETS, max_wait_seconds=1):
     return {'schema': 'DOT_CONSUME_V1', 'results': output}
 
 
+def recover_selection(scope, *, root=TICKETS, reason):
+    """Audit a selection with no dispatch journal; never send or replay work.
+
+    dispatch journals the full scope-bearing brief before POST. Hold both the
+    refill and dispatch locks and refuse any same-scope or post-selection
+    same-dot/issue journal, even if terminal. Preserve the claim and audit.
+    """
+    root = Path(root)
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,160}', scope) or not reason.strip():
+        raise ValueError('recovery_scope_and_reason_required')
+    directory = root.parent / 'dot-refill'
+    ledger = directory / 'CLAIMS.json'
+    with locked(directory), locked(root):
+        claims = json.loads(ledger.read_text())
+        claim = claims.get(scope)
+        if not claim or claim.get('status') != 'selecting' or claim.get('ticket') or claim.get('request_id'):
+            raise ValueError('recovery_requires_unbound_selection')
+        if claim.get('dot') not in DOTS or not isinstance(claim.get('selected_at'), (int, float)):
+            raise ValueError('recovery_selection_binding_invalid')
+        snapshots = []
+        for path in sorted(root.glob('*/TICKET.json')):
+            row = json.loads(path.read_text())
+            snapshots.append({'ticket':row.get('ticket'), 'sha256':digest(canonical(row))})
+            if scope in row.get('content', '') or (row.get('dot') == claim['dot'] and row.get('issue') == claim.get('issue') and row.get('sent_at', 0) >= claim['selected_at']):
+                raise ValueError('recovery_dispatch_journal_present_requires_reconciliation')
+        audit = dict(schema='DOT_SELECTION_ABORT_V1',scope=scope,reason=reason,
+                     selection_preimage_sha256=digest(canonical(claim)),tickets=snapshots,
+                     source_pins=source_pins(),recorded_at=time.time(),no_post_journal=True,
+                     operator_approval=False)
+        audit_path = directory / ('RECOVERY-'+scope+'.json')
+        if audit_path.exists():
+            old=json.loads(audit_path.read_text())
+            if old['selection_preimage_sha256'] != audit['selection_preimage_sha256'] or old['reason'] != reason:
+                raise ValueError('recovery_audit_conflict')
+            audit=old
+        else:
+            atomic_json(audit_path,audit)
+        claim.update(status='aborted_pre_dispatch',audit_sha256=digest(canonical(audit)))
+        atomic_json(ledger,claims)
+        return dict(scope=scope,status=claim['status'],audit=str(audit_path),redispatched=False)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dot', choices=DOTS)
@@ -462,17 +521,23 @@ def main():
     p.add_argument('--max-wait-seconds', type=float, default=1)
     p.add_argument('--reconcile', type=Path)
     p.add_argument('--expire', type=Path, help='Orchestrator audited no-reply expiry; never auto-expires')
-    p.add_argument('--reason', help='Required recorded administrative expiry reason')
+    p.add_argument('--recover-selection', help='Audited abort of unbound refill selection; never redispatch')
+    p.add_argument('--reason', help='Required recorded administrative expiry/recovery reason')
+    p.add_argument('--external-handoff-id', help='Exact authenticated direct-fallback reply; expiry only, not native completion')
     p.add_argument('--expiry-timeout-seconds', type=float, default=21600,
                    help='Minimum no-reply age before explicit expiry (default: 6 hours)')
     a = p.parse_args()
     os.umask(0o077)
     try:
-        if sum(bool(v) for v in (a.consume, a.reconcile, a.expire)) > 1:
+        if sum(bool(v) for v in (a.consume, a.reconcile, a.expire, a.recover_selection)) > 1:
             raise ValueError('choose_one_dispatcher_action')
-        if a.expire:
+        if a.recover_selection:
+            if not a.reason:
+                raise ValueError('recovery_reason_required')
+            result = recover_selection(a.recover_selection,root=a.root,reason=a.reason)
+        elif a.expire:
             result = expire(a.expire, reason=a.reason, owner=a.owner,
-                            timeout_seconds=a.expiry_timeout_seconds)
+                            timeout_seconds=a.expiry_timeout_seconds,handoff_reply_id=a.external_handoff_id)
         elif a.consume:
             result = consume(a.root, a.max_wait_seconds)
         elif a.reconcile:

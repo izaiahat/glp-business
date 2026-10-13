@@ -92,19 +92,52 @@ def pr_pins(repos=('izaiahat/glp-business', 'izaiahat/glp-site-candidate')):
     return pins
 
 
-def linear_pins(client=BUS / 'scripts/linear_client.py'):
-    r = subprocess.run([sys.executable, str(client), 'list', 'GLP'], capture_output=True, text=True, timeout=120)
-    if r.returncode:
-        raise RuntimeError('Linear inventory unavailable')
+LINEAR_PIN_QUERY = '''query HostDiskLiveLinearPins($filter:IssueFilter,$after:String){
+  issues(first:100,after:$after,filter:$filter){
+    nodes{identifier description state{type} team{key}}
+    pageInfo{hasNextPage endCursor}
+  }
+}'''
+
+
+def linear_pins(client=BUS / 'scripts/linear_client.py', *, reader=None):
+    """One complete fresh paginated read, never an issue-get storm or a cache."""
+    variables = {'filter': {'team': {'key': {'eq': 'GLP'}}}}
+    try:
+        if reader is not None:
+            issues = reader.pages(LINEAR_PIN_QUERY, variables, ('issues',))
+        else:
+            # Reuse the installed registered client's role, credential locator,
+            # bounded retries and fail-closed pagination. It is deliberately not
+            # duplicated into this reduced source mirror or run as orchestrator.
+            code = (
+                'import importlib.util,json,sys;from pathlib import Path;'
+                'sys.path.insert(0,str(Path(sys.argv[1]).resolve().parent));'
+                's=importlib.util.spec_from_file_location("host_disk_registered_linear_client",sys.argv[1]);'
+                'm=importlib.util.module_from_spec(s);s.loader.exec_module(m);'
+                'print(json.dumps(m.Client().pages(sys.argv[2],json.loads(sys.argv[3]),("issues",))))'
+            )
+            result = subprocess.run([sys.executable, '-c', code, str(client),
+                                     LINEAR_PIN_QUERY, json.dumps(variables)],
+                                    capture_output=True, text=True, timeout=120)
+            if result.returncode:
+                raise RuntimeError('registered Linear reader refused')
+            issues = json.loads(result.stdout)
+    except Exception as error:
+        raise RuntimeError('Linear inventory unavailable') from error
+    if not isinstance(issues, list):
+        raise RuntimeError('Linear inventory incomplete')
     pins = set()
-    for issue in json.loads(r.stdout):
-        if issue['state']['type'] in ('completed', 'canceled'):
-            continue
-        g = subprocess.run([sys.executable, str(client), 'get', issue['identifier']],
-                           capture_output=True, text=True, timeout=60)
-        if g.returncode:
-            raise RuntimeError('Linear issue unavailable')
-        pins.update(text_paths(json.loads(g.stdout).get('description') or ''))
+    for issue in issues:
+        if (not isinstance(issue, dict) or not isinstance(issue.get('identifier'), str)
+                or not issue['identifier'] or not isinstance(issue.get('state'), dict)
+                or not isinstance(issue['state'].get('type'), str) or not issue['state']['type']
+                or not isinstance(issue.get('team'), dict) or issue['team'].get('key') != 'GLP'
+                or 'description' not in issue
+                or (issue['description'] is not None and not isinstance(issue['description'], str))):
+            raise RuntimeError('Linear inventory incomplete')
+        if issue['state']['type'] not in ('completed', 'canceled'):
+            pins.update(text_paths(issue['description'] or ''))
     return pins
 
 
