@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Consume only explicitly registered native replies; no ingress/sends/attachments.
+"""Consume explicitly registered native replies; no ingress or sends.
 
 Run from frozen reviewed source via parent terminal(background=True, notify=True)
 (or confirmed process handoff), under GNU timeout --foreground --signal=KILL
@@ -65,6 +65,7 @@ class Registration:
     reply_id: str | None = None
     content_sha256: str | None = None
     result_key: str | None = None
+    terminal_attachment: dict | None = None
 
     def __post_init__(self):
         s = self.scope
@@ -81,6 +82,17 @@ class Registration:
                 or self.reply_id is not None and (not re.fullmatch(r'[1-9][0-9]{0,19}', self.reply_id)
                     or not re.fullmatch(SHA, self.content_sha256))):
             raise ValueError('invalid_registration')
+        if self.terminal_attachment is not None:
+            a = self.terminal_attachment
+            if (not s.finch or self.reply_id is None or self.result_key is None
+                    or not isinstance(a, dict)
+                    or set(a) != {'id', 'filename', 'content_type', 'byte_length', 'sha256'}
+                    or not isinstance(a['id'], str) or not re.fullmatch(r'[1-9][0-9]{0,19}', a['id'])
+                    or not isinstance(a['filename'], str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}\.txt', a['filename'])
+                    or a['content_type'] != 'text/plain'
+                    or type(a['byte_length']) is not int or not 1 <= a['byte_length'] <= 64000
+                    or not isinstance(a['sha256'], str) or not re.fullmatch(SHA, a['sha256'])):
+                raise ValueError('invalid_terminal_attachment_registration')
 
     @property
     def receipt_id(self):
@@ -98,6 +110,8 @@ class Registration:
         # be retrofitted onto an already staged legacy registration.
         if self.result_key is not None:
             fields.append({'result_key': self.result_key})
+        if self.terminal_attachment is not None:
+            fields.append({'terminal_attachment': self.terminal_attachment})
         return hashlib.sha256(canonical(fields).encode()).hexdigest()
 
 
@@ -165,12 +179,37 @@ class Receipts:
         return row
 
 
-def collect(registration, receipts, *, reader=None, replay=False):
+def check_saved_attachment(value, registration):
+    """Receipt SQLite stores exact UTF-8 bytes and custody before stdout."""
+    if registration.terminal_attachment is None:
+        if value.get('attachment') is not None:
+            raise ValueError('saved_attachment_integrity_refused')
+        return
+    a = value.get('attachment', {})
+    try:
+        payload = a['text'].encode('utf-8')
+        valid = (all(a.get(k) == v for k, v in registration.terminal_attachment.items())
+            and len(payload) == a['byte_length']
+            and hashlib.sha256(payload).hexdigest() == a['sha256']
+            and a['provenance_kind'] == 'assistant-copy'
+            and re.fullmatch(SHA, a['url_sha256'])
+            and value.get('native_attachment_custody') == {k: a[k] for k in
+                ('id', 'filename', 'content_type', 'byte_length', 'sha256', 'url_sha256')}
+            and value.get('reply_id') == registration.reply_id
+            and value.get('content_sha256') == registration.content_sha256)
+    except (KeyError, AttributeError, UnicodeError, TypeError):
+        valid = False
+    if not valid:
+        raise ValueError('saved_attachment_integrity_refused')
+
+
+def collect(registration, receipts, *, reader=None, replay=False, attachment_reader=None):
     s = registration.scope
     old = receipts.get(registration.receipt_id)
     if old:
         if old['registration_sha256'] != registration.registration_sha256:
             raise ValueError('registration_conflict')
+        check_saved_attachment(old, registration)
         if replay and old['status'] in {'staged', 'non_result_reply'}:
             return dict(old, replay=True)
         return {'status': 'awaiting_coordinator_ack' if old['status'] == 'staged' else old['status'],
@@ -199,23 +238,48 @@ def collect(registration, receipts, *, reader=None, replay=False):
         return {'status': 'waiting_native_confirmation', 'correlation': s.correlation}
     identity = row.get('reply_id')
     if (not isinstance(identity, str) or not re.fullmatch(r'[1-9][0-9]{0,19}', identity)
-            or int(identity) <= int(s.after_message) or row.get('attachment') is not None
+            or int(identity) <= int(s.after_message)
+            or row.get('attachment') is not None and registration.terminal_attachment is None
+            or registration.terminal_attachment is not None and (
+                not isinstance(row.get('attachment'), dict) or any(
+                    row['attachment'].get(k) != v for k, v in registration.terminal_attachment.items()))
             or registration.reply_id is not None and (identity != registration.reply_id
                 or row.get('reply_sha256') != registration.content_sha256)):
         raise ValueError('native_reply_refused')
     if reader is None:
         from rook_mcp_events import discord_request
         reader = lambda channel, message: discord_request('GET', f'/channels/{channel}/messages/{message}', finch=s.finch)
-    data = reader(s.channel, identity)  # exact message, never channel history or attachments
+    data = reader(s.channel, identity)  # exact message, never channel history
     body = parse_reply_content(data.get('content'), s.reply_kind)
     if (data.get('id') != identity or data.get('channel_id') != s.channel
             or data.get('guild_id', s.guild) != s.guild or data.get('type') != 0
             or data.get('webhook_id') is not None or data.get('author', {}).get('id') != s.bot
-            or data.get('attachments') != [] or not isinstance(body, dict)
+            or (registration.terminal_attachment is None and data.get('attachments') != [])
+            or not isinstance(body, dict)
             or body.get('correlation') != s.correlation or body.get('kind') != s.reply_kind
             or not isinstance(body.get('text'), str) or not body['text'].strip()
             or not verified_registered_reply_binding(data, s, s.bot)):
         raise ValueError('live_reply_or_custody_refused')
+    attachment = None
+    if registration.terminal_attachment is not None:
+        from rook_mcp_events import download_attachment, finch_attachment_custody, validate_file
+        # The existing verifier checked exact native effect AND CDN URL hash.
+        items = data.get('attachments')
+        if not isinstance(items, list) or len(items) != 1:
+            raise ValueError('terminal_attachment_metadata_refused')
+        metadata = items[0]
+        custody = finch_attachment_custody(metadata, s.channel, registration.terminal_attachment['sha256'])
+        if custody != row['attachment']:
+            raise ValueError('terminal_attachment_metadata_refused')
+        payload = (attachment_reader or download_attachment)(metadata, s.channel, finch=True)
+        if (not isinstance(payload, bytes) or len(payload) != custody['byte_length']
+                or hashlib.sha256(payload).hexdigest() != custody['sha256']):
+            raise ValueError('terminal_attachment_bytes_refused')
+        # Preserve all existing active-content/credential/privacy refusals.
+        validate_file(metadata['filename'], metadata['content_type'], payload, finch=True)
+        attachment = dict(custody, text=payload.decode('utf-8'), provenance_kind='assistant-copy')
+        if native_row(registration) != row or not verified_registered_reply_binding(data, s, s.bot):
+            raise ValueError('terminal_attachment_native_changed')
     value = {'status': 'staged', 'receipt_id': registration.receipt_id,
         'registration_sha256': registration.registration_sha256,
         'parent': registration.parent, 'task_owner': registration.task_owner, 'action': registration.action,
@@ -223,6 +287,9 @@ def collect(registration, receipts, *, reader=None, replay=False):
         'content_sha256': hashlib.sha256(data['content'].encode()).hexdigest(), 'trust': TRUST,
         'text': body['text'][:TEXT_LIMIT], 'text_truncated': len(body['text']) > TEXT_LIMIT,
         'staged_at': time.time(), 'operator_approval': False}
+    if attachment is not None:
+        value['attachment'] = attachment
+        value['native_attachment_custody'] = row['attachment']
     if registration.result_key is not None:
         # Syntax is a task-result contract, NOT an approval or proof of quality.
         terminal = re.match(r'^(?:<@!?[0-9]+>\s*)*(RESULT|BLOCKED)\s+'
@@ -252,7 +319,7 @@ def load_registrations(path):
     entries = []
     required = {'correlation', 'channel', 'state_dir', 'issuer', 'audience', 'subject', 'task_owner', 'action'}
     for r in config['registrations']:
-        if not required <= set(r) or set(r) - required - {'reply_id', 'content_sha256', 'result_key'}:
+        if not required <= set(r) or set(r) - required - {'reply_id', 'content_sha256', 'result_key', 'terminal_attachment'}:
             raise ValueError('invalid_registration_fields')
         if r['channel'] not in {CHANNEL, FINCH_CHANNEL, SHARED_CHANNEL}:
             raise ValueError('unauthorized_channel')
@@ -262,7 +329,7 @@ def load_registrations(path):
             1, r['state_dir'], r['issuer'], r['audience'], r['subject'], None,
             finch if is_finch else None, r['channel'] if is_finch else None)
         entries.append(Registration(scope, config['parent'], r['task_owner'], r['action'],
-            r.get('reply_id'), r.get('content_sha256'), r.get('result_key')))
+            r.get('reply_id'), r.get('content_sha256'), r.get('result_key'), r.get('terminal_attachment')))
     if len({r.receipt_id for r in entries}) != len(entries):
         raise ValueError('duplicate_registration')
     return config['receipt_state_dir'], entries
