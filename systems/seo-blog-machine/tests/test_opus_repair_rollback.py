@@ -27,6 +27,29 @@ def test_reviewer_title_repairs_must_preserve_deterministic_bounds(tmp_path, mon
     assert 'Regenerate derived article and QA' in prompt
 
 
+@pytest.mark.parametrize("separator", ["\u0085", "\u2028", "\u2029"])
+@pytest.mark.parametrize("final_newline", [False, True])
+def test_context_bundle_keeps_long_json_quote_on_its_physical_line(tmp_path, separator, final_newline):
+    packet = tmp_path / "packet"
+    packet.mkdir()
+    quote = "a" * 10200 + separator + "b" * 3300
+    text = json.dumps({"quote_id": "S5Q1", "text": quote}, ensure_ascii=False) + ("\n" if final_newline else "")
+    subjects = ["01-ledger.json", "02.json", "03.json", "04.json", "05.json"]
+    for name in subjects:
+        (packet / name).write_text(text, encoding="utf-8")
+    history = tmp_path / "history"
+    history.mkdir()
+    job = {"packet_dir": str(packet), "subject_files": subjects, "job_id": "bundle-fixture", "topic_id": "fixture"}
+    manifest, _ = review.seal_subjects(job, 1, history)
+    bundle = review.build_context_bundle(job, manifest, 1, history).read_text(encoding="utf-8")
+    records = [line for line in bundle.split("\n") if line.startswith("1|")]
+    assert len(records) == len(subjects)
+    assert all(json.loads(line.partition("|")[2])["text"] == quote for line in records)
+    assert all(row["lines"] == 1 for row in manifest["subject_files"])
+    assert "\n2|" not in bundle
+    assert all((packet / name).read_text(encoding="utf-8") == text for name in subjects)
+
+
 @pytest.fixture
 def repair_case(tmp_path):
     packet = tmp_path / "packet"

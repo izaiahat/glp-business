@@ -297,6 +297,22 @@ def subject_snapshot(packet: Path, paths: list[Path]) -> dict[str, str]:
     return {path.relative_to(packet).as_posix(): sha_file(path) for path in paths}
 
 
+def physical_source_lines(data: bytes) -> list[str]:
+    """Split only physical LF/CRLF lines, never Unicode inside JSON strings.
+
+    str.splitlines() treats NEL and Unicode line/paragraph separators as line
+    endings, even though they are legal unescaped JSON string characters.
+    Keep those characters in their original record for reviewer fidelity.
+    """
+    text = data.decode("utf-8", errors="strict")
+    if not text:
+        return []
+    lines = text.split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    return [line.removesuffix("\r") for line in lines]
+
+
 def seal_subjects(job: dict[str, Any], round_number: int, history: Path) -> tuple[dict[str, Any], Path]:
     packet = Path(job["packet_dir"]).resolve()
     rows = []
@@ -305,7 +321,7 @@ def seal_subjects(job: dict[str, Any], round_number: int, history: Path) -> tupl
         rows.append({
             "path": path.relative_to(packet).as_posix(),
             "bytes": len(data),
-            "lines": len(data.decode("utf-8", errors="replace").splitlines()),
+            "lines": len(physical_source_lines(data)),
             "sha256": sha_bytes(data),
         })
     manifest = {
@@ -334,7 +350,7 @@ def build_context_bundle(job: dict[str, Any], manifest: dict[str, Any], round_nu
     for path in subject_paths(job):
         rel = path.relative_to(packet).as_posix()
         chunks.extend(["", f"## FILE: {rel}", ""])
-        chunks.extend(f"{number}|{line}" for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1))
+        chunks.extend(f"{number}|{line}" for number, line in enumerate(physical_source_lines(path.read_bytes()), 1))
     path = history / f"round-{round_number:02d}-context-bundle.md"
     path.write_text("\n".join(chunks) + "\n", encoding="utf-8")
     os.chmod(path, 0o600)
