@@ -1749,7 +1749,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "950fb756878f8abd18ccd45c22917a1ca3ec950d45f2182e2a3df5394ad663af"
+      "sha256": "160768dd78c3a748ecf4b99644db0672b55c6d8f578ec1082cc8a5abf69041d4"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3119,7 +3119,7 @@
         "manual:GLP-80"
       ],
       "kind": "script",
-      "sha256": "dc4cf6af13abb59b5d417340a780aa4c5449453bcf799d63d174a1903f28beaa"
+      "sha256": "25b842b1d066357dfb2f35327a0a911ac1725526b30db02fb0419266768b5bb1"
     },
     "scripts/glp_price_index_recovery.py": {
       "callers": [
@@ -3147,7 +3147,7 @@
         "manual:registered price verification"
       ],
       "kind": "script",
-      "sha256": "b8ca267055d2795ca828eab70270223282866cac742a37142d22cf9921d6e9f9"
+      "sha256": "c66c175eeedba9698aad8f6106dcbd17863b0321fef2723610f9de1f09c4a202"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
@@ -5141,7 +5141,7 @@
         ".github/workflows/firecrawl-integration.yml"
       ],
       "kind": "test",
-      "sha256": "6333d7b8daaffca1379c63126967e95fd7e2eaba5b10a76377fd7af7f4405765"
+      "sha256": "f64eebfb400ed0a85cbc9819f40f703ea2fff0bf7e628520044a5108fae6c2f1"
     },
     "tests/test_fleet_ingest.py": {
       "callers": [
@@ -5846,14 +5846,14 @@
         ".github/workflows/glp80-price-freshness.yml"
       ],
       "kind": "test",
-      "sha256": "5ca69a911b26e93bdb9114628283dd621789342542a0f1c1c6251d97e514c581"
+      "sha256": "b2c3b86de983fd7c9e6ff1c4dda542fc5e7db76365bbdfe2e3e296cd90be30f3"
     },
     "tests/test_glp80_reattest.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "97a2683c3de72637d17355c68f30963fc370fcb862c9d79f1d8367e28d82a594"
+      "sha256": "bf8a08774297f6497b0e27e68fe6442e8cfe03bfa7c8278a6180de4775ccd19f"
     },
     "tests/test_glp80_registered_price_refresh.py": {
       "callers": [
@@ -6872,7 +6872,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "b71d1618ed61665cbdde33ee41edc156f827b8c299c12b0e0e70f06487152411"
+      "sha256": "75559498cec037e418e360b01787ccf3f209cf2ca53ab44856c5a54b6ced3769"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -7239,27 +7239,6 @@
       "kind": "test",
       "sha256": "8ffe4aebfa7deb61185632b9da4fccaf343f0090c17e75caf086f21cad5655a3"
     },
-    "scripts/glp_affiliate_postback_n8n_sync.py": {
-      "kind": "script",
-      "callers": [
-        "registered affiliate postback receiver synchronizer; RX93"
-      ],
-      "sha256": "981c05eb1ceaa9182fbd57060f0ad292bc40d6b6785ac2089b5b14d1f5227381"
-    },
-    "scripts/glp_postback_authority.py": {
-      "kind": "script",
-      "callers": [
-        "registered affiliate postback receiver synchronizer; RX93"
-      ],
-      "sha256": "32c51ed81267b6c4ad3cb3101a9d9fa50f075274400c2c42db963ed7f437d73e"
-    },
-    "tests/test_glp_affiliate_postback_n8n_sync.py": {
-      "kind": "test",
-      "callers": [
-        "registered affiliate postback receiver synchronizer; RX93"
-      ],
-      "sha256": "ed28774b32a3ad23a30df944d82bff4f2b0295db2ee4ecbe3b7ab95d04bc6182"
-    },
     "tests/test_dot_dispatch_recovery.py": {
       "callers": [
         ".github/workflows/dot-lane.yml"
@@ -7315,6 +7294,27 @@
       ],
       "kind": "test_fixture",
       "sha256": "faf651d2409187c360c01e125b98a55ae8545e9a3bf34c8822ae425bba118c5e"
+    },
+    "scripts/glp_affiliate_postback_n8n_sync.py": {
+      "kind": "script",
+      "callers": [
+        "registered affiliate postback receiver synchronizer; RX93"
+      ],
+      "sha256": "981c05eb1ceaa9182fbd57060f0ad292bc40d6b6785ac2089b5b14d1f5227381"
+    },
+    "scripts/glp_postback_authority.py": {
+      "kind": "script",
+      "callers": [
+        "registered affiliate postback receiver synchronizer; RX93"
+      ],
+      "sha256": "32c51ed81267b6c4ad3cb3101a9d9fa50f075274400c2c42db963ed7f437d73e"
+    },
+    "tests/test_glp_affiliate_postback_n8n_sync.py": {
+      "kind": "test",
+      "callers": [
+        "registered affiliate postback receiver synchronizer; RX93"
+      ],
+      "sha256": "ed28774b32a3ad23a30df944d82bff4f2b0295db2ee4ecbe3b7ab95d04bc6182"
     }
   },
   "omitted_runtime_inputs": [

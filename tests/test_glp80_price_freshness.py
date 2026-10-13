@@ -297,7 +297,7 @@ def test_explicit_engine_refusal_recovers_once_and_retains_failure_metadata():
     client = Client()
     result = p.scrape(client, 'https://clinic.example/pricing', ['markdown'])
     assert len(client.calls) == 2
-    assert client.calls[1]['proxy'] == 'enhanced'
+    assert client.calls[1]['proxy'] == 'auto'
     assert result['transport_recovery']['first_http_status'] == 500
     assert result['data']['markdown'] == 'actual scraped source'
 
