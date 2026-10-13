@@ -1,0 +1,7 @@
+{
+  "schema": "glp-local-ci-runner-registration-v1",
+  "runner": "scripts/local_ci_runner.py",
+  "admission": "scripts/local_ci_admission.py",
+  "repositories": ["izaiahat/glp-business", "izaiahat/glp-site-candidate"],
+  "workflow_selection": "all tracked pull_request workflows applicable to the complete PR file list; no command overrides"
+}
