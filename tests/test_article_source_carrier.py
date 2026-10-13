@@ -32,6 +32,166 @@ class SourceCarrierTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'source_identity_drift'):
                 carrier.land_packet(source, packet, entry)
 
+    def held_replacement_fixture(self, root):
+        """Synthetic admission doubles; real seals, hold, lineage and source IO."""
+        buffer = carrier.buffer
+        source = root / 'source'
+        base = source / carrier.SOURCE_REL
+        base.mkdir(parents=True)
+        (base / 'manifest.json').write_text(json.dumps({
+            'schema':'glp-accepted-guides-source-v1', 'entries':[]}))
+        pool = root / 'pool'
+        old_id, new_id = 'a'*24, 'b'*24
+        controls = root / 'control.py'; controls.write_text('# synthetic control')
+        selection = root / 'selection.json'; selection.write_text('{}')
+        entries = []
+        for ident, title in ((old_id, 'Synthetic predecessor'), (new_id, 'Synthetic successor')):
+            home = pool / 'entries' / ident
+            packet = home / 'packet'; packet.mkdir(parents=True)
+            (packet / '06-article.json').write_text(json.dumps({'title':title, 'canonical_path':'/guides/new-guide/'}))
+            (packet / '07-qa-receipt.json').write_text('{}')
+            review = home / 'review.json'; review.write_text('{}')
+            entry = {'entry_id':ident, 'schema':buffer.ENTRY_SCHEMA,
+                     'status':'READY_UNPUBLISHED', 'publication_effects':0,
+                     'topic_id':'synthetic-topic', 'article_id':'synthetic-article',
+                     'target_route':'/guides/new-guide/', 'packet_closure_sha256':ident*2,
+                     'topic_provenance':{}, 'topic_authority':buffer._spec(selection),
+                     'selection_receipt':buffer._spec(selection),
+                     'control_files':{str(controls):carrier.digest(controls)},
+                     'pass_receipt':buffer._spec(review), 'qa':buffer._spec(packet / '07-qa-receipt.json')}
+            entries.append(entry)
+        old, new = entries
+        old_manifest = pool / 'entries' / old_id / 'entry.json'
+        buffer._write_once(old_manifest, old, 'entry_sha256')
+        old = buffer._read_sealed(old_manifest, buffer.ENTRY_SCHEMA, 'entry_sha256')
+        old_packet = old_manifest.parent / 'packet'
+        carrier.land_packet(source, old_packet, old)
+        old_row = carrier.source_rows(source)[0]
+        hold = pool / 'held' / (old_id + '.json')
+        buffer._write_once(hold, {'schema':buffer.HOLD_SCHEMA, 'status':'HELD_READY_ENTRY',
+            'entry_id':old_id, 'entry_manifest':buffer._spec(old_manifest),
+            **{key:old[key] for key in ('topic_id','article_id','target_route','packet_closure_sha256')},
+            'publication_effects':0, 'disposition':'excluded_from_ready_selection_no_successor_admission',
+            'reason':'synthetic independent block', 'evidence':buffer._spec(selection)}, 'hold_sha256')
+        new['successor_of'] = {'entry_id':old_id, 'entry_manifest':buffer._spec(old_manifest), 'hold':buffer._spec(hold)}
+        reviewed_packet = pool / 'entries' / 'packet'
+        reviewed_packet.mkdir()
+        for name in ('06-article.json','07-qa-receipt.json'):
+            (reviewed_packet / name).write_bytes((pool / 'entries' / new_id / 'packet' / name).read_bytes())
+        new['registered_review'] = {key:buffer._spec(pool / 'entries' / new_id / 'review.json')
+                                    for key in ('receipt','closeout','execution')}
+        new_manifest = pool / 'entries' / new_id / 'entry.json'
+        buffer._write_once(new_manifest, new, 'entry_sha256')
+        new = buffer._read_sealed(new_manifest, buffer.ENTRY_SCHEMA, 'entry_sha256')
+        return source, new_manifest.parent / 'packet', old, new, old_row
+
+    def replacement_admission_doubles(self, old, new):
+        from contextlib import ExitStack
+        stack = ExitStack()
+        def validate(path, **kwargs):
+            actual = carrier.buffer._read_sealed(path, carrier.buffer.ENTRY_SCHEMA, 'entry_sha256')
+            return actual
+        stack.enter_context(patch.object(carrier.buffer, 'validate_entry', side_effect=validate))
+        evidence = {**new, 'subjects':[], 'subject_manifest':{}, 'raw_review':{}}
+        stack.enter_context(patch.object(carrier.buffer, 'validate_admission_evidence', return_value=evidence))
+        stack.enter_context(patch.object(carrier.buffer, '_registered_successor_review', return_value=new['registered_review']))
+        stack.enter_context(patch.object(carrier.buffer, 'load_selection_receipt', return_value=({}, {})))
+        return stack
+
+    def test_source_bound_held_predecessor_replacement_preserves_history_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, packet, old, new, old_row = self.held_replacement_fixture(root)
+            preserved = {str(p):p.read_bytes() for p in (root / 'pool').rglob('*') if p.is_file()}
+            old_source = {key:(source / old_row[key]['path']).read_bytes() for key in ('article','qa','review')}
+            with self.replacement_admission_doubles(old, new):
+                self.assertTrue(carrier.land_packet(source, packet, new))
+                manifest = json.loads((source / carrier.SOURCE_REL / 'manifest.json').read_text())
+                self.assertEqual(len(manifest['entries']), 1)
+                row = manifest['entries'][0]
+                self.assertEqual(row['entry_id'], new['entry_id'])
+                self.assertEqual(manifest['replacement_history'], [{'predecessor':old_row,
+                    'successor_entry_id':new['entry_id'], 'successor_of':new['successor_of']}])
+                self.assertEqual((source / row['article']['path']).read_bytes(), (packet / '06-article.json').read_bytes())
+                before = {str(p):p.read_bytes() for p in source.rglob('*') if p.is_file()}
+                self.assertFalse(carrier.land_packet(source, packet, new))
+                self.assertEqual(before, {str(p):p.read_bytes() for p in source.rglob('*') if p.is_file()})
+            self.assertEqual(preserved, {str(p):p.read_bytes() for p in (root / 'pool').rglob('*') if p.is_file()})
+            for key, contents in old_source.items():
+                self.assertEqual((source / old_row[key]['path']).read_bytes(), contents)
+
+    def test_held_replacement_refusal_controls_by_contract(self):
+        controls = {
+            'ordinary_same_route_without_explicit_lineage':'source_identity_drift',
+            'unsealed_successor_argument':'source_successor_entry_binding_invalid',
+            'wrong_predecessor_row_id':'source_successor_predecessor_identity_invalid',
+            'predecessor_source_byte_drift':'source_packet_identity_drift',
+            'missing_hold_not_replacement_authority':'source_predecessor_hold_pin_invalid',
+            'tampered_hold_pin':'source_predecessor_hold_pin_invalid',
+            'ambiguous_existing_route':'source_identity_drift',
+            'different_successor_route_existing_id':'source_identity_drift',
+            'consumed_predecessor':'source_successor_already_consumed',
+            'consumed_successor':'source_successor_already_consumed',
+            'quarantine_alone_not_held_successor_authority':'buffer_successor_predecessor_not_held_only|buffer_quarantine_invalid',
+            'active_predecessor_claim':'buffer_successor_predecessor_claims_recorded',
+            'published_predecessor_record':'buffer_successor_predecessor_published_recorded',
+            'successor_hold':'buffer_hold_invalid|source_successor_not_ready',
+            'review_subject_byte_drift':'source_successor_review_binding_invalid',
+            'registered_review_rejected':'synthetic_registered_review_refusal',
+            'acceptance_gate_rejected':'synthetic_acceptance_refusal',
+            'versioned_destination_drift':'source_identity_drift',
+        }
+        for contract, reason in controls.items():
+            with self.subTest(contract=contract), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source, packet, old, new, old_row = self.held_replacement_fixture(root)
+                pool = root / 'pool'
+                mp = source / carrier.SOURCE_REL / 'manifest.json'
+                manifest = json.loads(mp.read_text())
+                if contract == 'ordinary_same_route_without_explicit_lineage':
+                    new.pop('successor_of')
+                elif contract == 'unsealed_successor_argument':
+                    new['article_id'] = 'unadmitted'
+                elif contract == 'wrong_predecessor_row_id':
+                    manifest['entries'][0]['entry_id'] = 'c'*24
+                elif contract == 'predecessor_source_byte_drift':
+                    (source / old_row['article']['path']).write_text('{}')
+                elif contract == 'missing_hold_not_replacement_authority':
+                    (pool / 'held' / (old['entry_id']+'.json')).unlink()
+                elif contract == 'tampered_hold_pin':
+                    hold = pool / 'held' / (old['entry_id']+'.json')
+                    hold.chmod(0o644)
+                    hold.write_text('{}')
+                elif contract == 'ambiguous_existing_route':
+                    manifest['entries'].append(old_row)
+                elif contract == 'different_successor_route_existing_id':
+                    manifest['entries'][0].update(entry_id=new['entry_id'],route='/guides/other/')
+                elif contract.startswith('consumed_'):
+                    ident = old['entry_id'] if contract.endswith('predecessor') else new['entry_id']
+                    (pool / 'consumed').mkdir()
+                    (pool / 'consumed' / (ident+'.json')).write_text('{}')
+                elif contract in ('quarantine_alone_not_held_successor_authority','active_predecessor_claim','published_predecessor_record','successor_hold'):
+                    directory = {'quarantine_alone_not_held_successor_authority':'quarantined',
+                                 'active_predecessor_claim':'claims','published_predecessor_record':'published',
+                                 'successor_hold':'held'}[contract]
+                    ident = new['entry_id'] if contract == 'successor_hold' else old['entry_id']
+                    (pool / directory).mkdir(exist_ok=True)
+                    (pool / directory / (ident+'.json')).write_text(json.dumps({'entry_id':ident}))
+                elif contract == 'review_subject_byte_drift':
+                    (pool / 'entries/packet/06-article.json').write_text('{}')
+                elif contract == 'versioned_destination_drift':
+                    (source / carrier.SOURCE_REL / 'new-guide' / ('article-'+new['entry_id']+'.json')).write_text('{}')
+                mp.write_text(json.dumps(manifest))
+                before = {str(p):p.read_bytes() for p in source.rglob('*') if p.is_file()}
+                with self.replacement_admission_doubles(old, new) as stack:
+                    if contract == 'registered_review_rejected':
+                        stack.enter_context(patch.object(carrier.buffer,'_registered_successor_review',side_effect=RuntimeError('synthetic_registered_review_refusal')))
+                    if contract == 'acceptance_gate_rejected':
+                        stack.enter_context(patch.object(carrier.buffer,'validate_admission_evidence',side_effect=RuntimeError('synthetic_acceptance_refusal')))
+                    with self.assertRaisesRegex(RuntimeError,reason):
+                        carrier.land_packet(source,packet,new)
+                self.assertEqual(before, {str(p):p.read_bytes() for p in source.rglob('*') if p.is_file()})
+
     def test_live_readback_requires_exact_title_indexability_and_canonical(self):
         html = '<title>Reviewed &amp; title</title><meta name="robots" content="index,follow"><link rel="canonical" href="https://glpclinicscout.com/guides/new/">'
         with patch.object(carrier, 'fetch', return_value=(200,html)):

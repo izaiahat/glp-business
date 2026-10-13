@@ -52,6 +52,56 @@ def source_rows(source):
     return manifest['entries']
 
 
+def held_source_replacement(source, packet, entry, predecessor_row):
+    """Receive only admitted successor_of; a quarantine alone is not authority."""
+    packet = packet.resolve()
+    manifest = packet.parent / 'entry.json'
+    root = manifest.parents[2]
+    sealed = buffer.validate_entry(manifest,current_routes=set(),current_topic_ids=set())
+    if (buffer.ENTRY_ID_PATTERN.fullmatch(str(entry.get('entry_id') or '')) is None
+        or sealed != entry or packet != root / 'entries' / entry['entry_id'] / 'packet'
+        or entry.get('publication_effects') != 0):
+        raise RuntimeError('source_successor_entry_binding_invalid')
+    lineage = entry.get('successor_of')
+    if not isinstance(lineage,dict) or set(lineage) != {'entry_id','entry_manifest','hold'}:
+        raise RuntimeError('source_identity_drift')
+    old_id = predecessor_row['entry_id']
+    if old_id != lineage['entry_id'] or old_id == entry['entry_id']:
+        raise RuntimeError('source_successor_predecessor_identity_invalid')
+    old_manifest = root / 'entries' / old_id / 'entry.json'
+    if (buffer._verify_spec(lineage['entry_manifest'],'source_predecessor') != old_manifest
+        or buffer._verify_spec(lineage['hold'],'source_predecessor_hold') != root / 'held' / (old_id+'.json')):
+        raise RuntimeError('source_successor_lineage_location_invalid')
+    # Binds all predecessor article/QA/review source bytes, not just the row ID.
+    _, predecessor, _ = accepted_entry(root,source,predecessor_row)
+    if (predecessor.get('publication_effects') != 0
+        or any(predecessor[key] != entry[key] for key in ('topic_id','article_id','target_route'))):
+        raise RuntimeError('source_successor_predecessor_identity_invalid')
+    for ident in (old_id,entry['entry_id']):
+        if (root / 'consumed' / (ident+'.json')).exists():
+            raise RuntimeError('source_successor_already_consumed')
+    if (entry['entry_id'] in buffer._held_entry_ids(root)
+        or entry['entry_id'] in buffer._quarantined_entry_ids(root)):
+        raise RuntimeError('source_successor_not_ready')
+    controls = {raw:digest(Path(raw)) for raw in entry['control_files']}
+    evidence = buffer.validate_admission_evidence(packet,Path(entry['pass_receipt']['path']),controls)
+    if any(evidence[key] != entry[key] for key in ('topic_id','article_id','target_route')):
+        raise RuntimeError('source_acceptance_identity_invalid')
+    if buffer._held_successor_predecessor(root,old_id,[(old_manifest,predecessor)],evidence,
+                                          entry['packet_closure_sha256']) != lineage:
+        raise RuntimeError('source_successor_lineage_invalid')
+    # Authenticate the registered review again; never admit or mint a review.
+    receipt = buffer._verify_spec(entry['registered_review']['receipt'],'source_registered_review')
+    reviewed_packet = receipt.parent.parent / 'packet'
+    reviewed = buffer.validate_admission_evidence(reviewed_packet,receipt,controls)
+    if (any(reviewed[key] != evidence[key] for key in ('topic_id','article_id','target_route'))
+        or buffer._registered_successor_review(receipt,reviewed) != entry['registered_review']
+        or digest(reviewed_packet / '06-article.json') != digest(packet / '06-article.json')
+        or digest(reviewed_packet / '07-qa-receipt.json') != digest(packet / '07-qa-receipt.json')
+        or digest(receipt) != digest(Path(entry['pass_receipt']['path']))):
+        raise RuntimeError('source_successor_review_binding_invalid')
+
+
 def land_packet(source, packet, entry):
     route = entry['target_route']
     if not re.fullmatch(r'/guides/[a-z0-9-]+/', route):
@@ -60,22 +110,43 @@ def land_packet(source, packet, entry):
     specs = {}
     inputs = {'article':packet / '06-article.json', 'qa':packet / '07-qa-receipt.json',
               'review':Path(entry['pass_receipt']['path'])}
+    suffix = '-' + entry['entry_id'] if entry.get('successor_of') else ''
     for key, path in inputs.items():
-        specs[key] = {'path':(rel / f'{key}.json').as_posix(), 'sha256':digest(path)}
+        specs[key] = {'path':(rel / f'{key}{suffix}.json').as_posix(), 'sha256':digest(path)}
     row = {'entry_id':entry['entry_id'], 'route':route,
            'decorative_image_policy':'existing-approved-editorial-evidence-hero; no new generation or shared-manifest mutation', **specs}
     manifest_path = source / SOURCE_REL / 'manifest.json'
     manifest = json.loads(manifest_path.read_text())
+    if manifest.get('schema') != 'glp-accepted-guides-source-v1':
+        raise RuntimeError('source_manifest_invalid')
     existing = [r for r in manifest['entries'] if r['route'] == route or r['entry_id'] == entry['entry_id']]
+    predecessor = None
     if existing:
-        if existing != [row] or any(digest(source / spec['path']) != spec['sha256'] for spec in specs.values()):
+        if existing == [row] and all(digest(source / spec['path']) == spec['sha256'] for spec in specs.values()):
+            return False
+        if (len(existing) != 1 or existing[0]['route'] != route
+            or existing[0]['entry_id'] == entry['entry_id'] or not entry.get('successor_of')):
             raise RuntimeError('source_identity_drift')
-        return False
+        predecessor = existing[0]
+        held_source_replacement(source,packet,entry,predecessor)
+        history = manifest.get('replacement_history',[])
+        if not isinstance(history,list) or any(h.get('successor_entry_id') == entry['entry_id'] for h in history):
+            raise RuntimeError('source_replacement_history_invalid')
+        # Versioned successor paths leave original files and buffer holds intact.
+        for spec in specs.values():
+            target = source / spec['path']
+            if target.is_symlink() or (target.exists() and digest(target) != spec['sha256']):
+                raise RuntimeError('source_identity_drift')
     for key, path in inputs.items():
         target = source / specs[key]['path']
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(path.read_bytes())
-    manifest['entries'].append(row)
+    if predecessor is None:
+        manifest['entries'].append(row)
+    else:
+        manifest['entries'][manifest['entries'].index(predecessor)] = row
+        manifest.setdefault('replacement_history',[]).append({'predecessor':predecessor,
+            'successor_entry_id':entry['entry_id'], 'successor_of':entry['successor_of']})
     manifest_path.write_text(json.dumps(manifest,indent=2) + '\n')
     return True
 
