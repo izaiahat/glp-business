@@ -453,7 +453,7 @@ def campaign_config():
 # local custody has the same trust boundary as the existing personal receipt.
 TECHNICAL_PREDECESSOR_SHA256='7ec96bf1fe44ef69fc4c7a5c2f1090420bff3d6e15140d00c02c1ac93444d95c'
 TECHNICAL_SOURCE_SHA256={
- 'scripts/firecrawl_client.py':'9a514c5be48e6daa3aa917222496c633c3f248506bb2530a84b80cbb7dc8bbf3',
+ 'scripts/firecrawl_client.py':'d850907ff65c53ba60ae5f51f485408484a599851b1792b80d7ec067d3bb6d3b',
  'scripts/glp328_readonly_evidence.py':'bf1854217b20be3b551994f882b1e7fb4c4971930ed195cec42c714dbc4fbaee',
  'scripts/glp_sponsor_paypal.py':'99751607fcb43551b7f58ca7d5b9236291786aaf0e8a503abce98ce2cd71d3f7',
  'ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md':'9b5cd76a5e81c5d7e5e1328888f6501ebafb1fb4bbb9621da9ea855dae5981e2',
