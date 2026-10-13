@@ -228,7 +228,7 @@
         "manual:operator-secure-renewal"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "0680d516fe14859b19f4310fa89cfd715473ae9261d7febc7a9cee0d0905346b"
+      "sha256": "240f306353a41f14c3693183f7f8fb67c4c05038d87b36e2f790d30c116ddc8d"
     },
     "tests/test_codex_cloud_key_renewal.py": {
       "callers": [
@@ -7137,7 +7137,7 @@
         "ops/cron.d/codex-cloud-key-renewal"
       ],
       "kind": "script",
-      "sha256": "3827c2b0395dacc699492ebb13c68f343649ab45fd6638ff075f1b7cfede57ec"
+      "sha256": "12d6610819a3af95734e5a67c00f591d308e6129d22e30e3e36a57394751db5c"
     },
     "scripts/codex_cloud_vpn_browser.py": {
       "callers": [
@@ -7151,7 +7151,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "794ca7056c5cf43e8f47d3b16a0d2b4fb9e0b9d1491caf3ac46a975da178b2a7"
+      "sha256": "eb8e16524f6b9793ef8c03c04b27d57229efc87c8e9c7022498b2ab49adc6138"
     },
     "tests/test_codex_evidence_alias.py": {
       "callers": [
