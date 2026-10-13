@@ -33,6 +33,9 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
     buffer: list[str] = []
     table: list[str] = []
 
+    def block_order(section: dict[str, Any]) -> int:
+        return sum(len(section.get(key) or []) for key in ("paragraphs", "tables", "subheadings"))
+
     def flush() -> None:
         nonlocal buffer, table
         if current is None:
@@ -42,7 +45,15 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
         if text:
             current.setdefault("paragraphs", []).append(text)
         if table:
-            current.setdefault("tables", []).append(parse_table(table))
+            parsed = parse_table(table)
+            # Position is structure, not prose: the renderer keeps each authored
+            # table beside the paragraph it follows and under its H3 parent.
+            # ``order`` is the shared block sequence (paragraphs, tables, H3s)
+            # so a table and an H3 at the same paragraph offset keep their
+            # authored relative order.
+            parsed["after_paragraph"] = len(current.get("paragraphs") or [])
+            parsed["order"] = block_order(current)
+            current.setdefault("tables", []).append(parsed)
         buffer, table = [], []
 
     for raw in body.splitlines():
@@ -68,7 +79,12 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
         if mode != "body" or current is None:
             continue
         if line.startswith("### "):
-            flush(); buffer.append(f"{line[4:].strip()}.")
+            # Semantic H3 under the current H2 (never flattened into a prose
+            # paragraph). The renderer opens it before paragraph index N.
+            flush()
+            current.setdefault("subheadings", []).append(
+                {"heading": line[4:].strip(), "before_paragraph": len(current["paragraphs"]),
+                 "order": block_order(current)})
         elif re.match(r"^\d+\.\s+", line):
             flush(); current["ordered_items"].append(re.sub(r"^\d+\.\s+", "", line).strip())
         elif line.startswith("- "):
@@ -79,6 +95,7 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
         elif not line.strip():
             flush()
         else:
+            if table: flush()  # prose right after a table follows it, never precedes it
             buffer.append(line)
     flush()
     return sections, faqs
@@ -278,6 +295,13 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         "byline_attribution": "By the Clinic Scout Editorial Team · no clinical credentials claimed",
         "ai_assistance_disclosure": "site-editorial-policy", "editorial_contract_version": "seo-phase1-v1",
         "sections": sections, "faqs": faqs, "internal_links": links,
+        # Native accepted-guide rendering contract (GLP-320 five-gate repair):
+        # semantic H3s, automatic section TOC, inline **emphasis**, body/table/FAQ
+        # citations resolved through stable S-number source IDs, and no generated
+        # three-column fact recap beside the authored two-column tables.
+        "render_contract": {"schema": "glp-accepted-guide-render-v1", "subheadings": "h3",
+                            "toc": "automatic-sections", "inline_emphasis": True,
+                            "citations": "source-id", "facts_recap": False},
         "claims": claims, "sources": sources, "comparison_required": False,
         "pros": ["Uses current primary evidence.", "Separates verified facts from unknowns.", "Maps decision-bearing claims to captured source text."],
         "cons": ["Terms, prices, labels, and coverage can change.", "Individual outcomes and eligibility cannot be inferred from general evidence.", "The page cannot replace clinician, plan, or pharmacy verification."],

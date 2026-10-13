@@ -200,8 +200,18 @@ def main(argv=None):
         base_root = Path(pointer['release_root'])
         rebuildable = job.rebuild_inputs_complete(base_root) or bool(job.equivalent_main_rebuild_inputs(base_root))
         if current_head in (main_sha, pr['headRefOid']) and rebuildable:
+            if a.prepare_only:
+                # Prepare-only never performs external effects, including the
+                # already-current search-notification reconciliation.
+                print(json.dumps({'status': 'PASS_ALREADY_CURRENT', 'scope': SCOPE, 'site_main': main_sha,
+                                  'deployment_id': current_deployment, 'search_submission': None,
+                                  'prepare_only': True}))
+                return 0
+            from glp_release_search_notify import submit_deployment
+            predecessor = Path(pointer['supersedes']['release_root'])
+            search = submit_deployment(pointer, predecessor)
             print(json.dumps({'status': 'PASS_ALREADY_CURRENT', 'scope': SCOPE, 'site_main': main_sha,
-                              'deployment_id': current_deployment}))
+                              'deployment_id': current_deployment, 'search_submission': search}))
             return 0
         report = RUNS / ('main-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
         report.mkdir(parents=False, exist_ok=False)
@@ -231,9 +241,19 @@ def main(argv=None):
             raise
         out = {'status': result.get('status'), 'scope': SCOPE, 'site_main': main_sha, 'source_pr': pr['url'],
                'deployment_id': pointer_head()[1], 'predecessor_deployment_id': current_deployment, 'report': str(report)}
+        notification_failed = False
+        if result.get('status') == 'PASS_PRODUCTION_TERMINAL' and not a.prepare_only:
+            # Publication is already terminal; never roll it back or redispatch
+            # an article because an indexing notification failed.
+            from glp_release_search_notify import submit_deployment, current_pointer
+            try:
+                out['search_submission'] = submit_deployment(current_pointer(), base_root)
+            except Exception as exc:
+                notification_failed = True
+                out['search_submission'] = {'status': 'BLOCKED_SEARCH_NOTIFICATION', 'error': str(exc)[:1000]}
         job.save(report / 'MAIN-RELEASE-RESULT.json', out)
         print(json.dumps(out))
-        return 0
+        return 2 if notification_failed else 0
 
 
 if __name__ == '__main__':
