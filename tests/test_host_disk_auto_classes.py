@@ -324,6 +324,47 @@ def test_disk_monitor_triggers_cleanup_even_when_alert_is_unchanged(tmp_path, mo
     assert calls == ['cleanup'] and posts == []
 
 
+def test_disk_monitor_supplies_user_runtime_for_minimal_cron(tmp_path, monkeypatch):
+    import runpy
+    source = (Path(__file__).resolve().parents[1] / 'ops/hermes-cron-scripts/disk_monitor.sh').read_text()
+    body = source.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    body = body.replace("Path('/home/ubuntu/.hermes')", f"Path({str(tmp_path / 'hermes')!r})")
+    ns = {'__name__': 'fixture'}
+    exec(compile(body, 'disk_monitor.sh', 'exec'), ns)
+    monkeypatch.delenv('XDG_RUNTIME_DIR', raising=False)
+    monkeypatch.setattr(os, 'getuid', lambda: 4242)
+    calls = []
+    def trigger_main():
+        runtime = os.environ.get('XDG_RUNTIME_DIR')
+        assert runtime == '/run/user/4242'
+        calls.append('registered-main')
+        return ''
+    def run_path(path):
+        assert path == str(tmp_path / 'hermes/scripts/host_disk_low_free_trigger.py')
+        return {'main': trigger_main}
+    monkeypatch.setattr(runpy, 'run_path', run_path)
+    assert ns['run_low_disk_trigger']() == ''
+    assert calls == ['registered-main']
+
+
+def test_disk_monitor_preserves_explicit_runtime_and_trigger_failure(tmp_path, monkeypatch):
+    import runpy
+    import pytest
+    source = (Path(__file__).resolve().parents[1] / 'ops/hermes-cron-scripts/disk_monitor.sh').read_text()
+    body = source.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    body = body.replace("Path('/home/ubuntu/.hermes')", f"Path({str(tmp_path / 'hermes')!r})")
+    ns = {'__name__': 'fixture'}
+    exec(compile(body, 'disk_monitor.sh', 'exec'), ns)
+    monkeypatch.setenv('XDG_RUNTIME_DIR', '/fixture/explicit-runtime')
+    def run_path(path):
+        runtime = os.environ.get('XDG_RUNTIME_DIR')
+        assert runtime == '/fixture/explicit-runtime'
+        raise RuntimeError('registered trigger refusal')
+    monkeypatch.setattr(runpy, 'run_path', run_path)
+    with pytest.raises(RuntimeError, match='registered trigger refusal'):
+        ns['run_low_disk_trigger']()
+
+
 def test_compressor_failure_rolls_back_all_uncommitted_outputs(tmp_path, monkeypatch):
     import pytest
     root = tmp_path / 'evidence'; root.mkdir(); (root / 'proof').write_bytes(b'x' * 8192)
