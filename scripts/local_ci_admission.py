@@ -111,7 +111,8 @@ def workflow_plan(tree, head, changed_paths):
         ignored = event.get('paths-ignore', [])
         require(not (paths and ignored), 'unsupported_path_filters')
         def matches(path, patterns):
-            require(not any(p.startswith('!') for p in patterns), 'unsupported_negative_glob')
+            require(not any(p.startswith('!') or '**/' in p or any(c in p for c in '?[]{}+') for p in patterns),
+                    'unsupported_workflow_glob')
             return any(fnmatch.fnmatchcase(path, p) for p in patterns)
         if paths and not any(matches(p, paths) for p in changed_paths):
             continue
