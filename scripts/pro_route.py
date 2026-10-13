@@ -81,6 +81,89 @@ def enqueue(issue, prompt_file, account='auto', session=None, *, expected_sha256
         return row
 
 
+def enqueue_replacement(job, ruling):
+    """Queue one same-situation successor after maintained disposition; never send.
+
+    Only the normal dispatcher performs external effects. A partial packet is held
+    for explicit reconciliation, never deleted or silently rebuilt.
+    """
+    with singleton():
+        st = relay.job_state(job)
+        if not relay._verified_supersession(st) or st['supersession']['ruling'] != ruling:
+            raise ValueError('SUPERSESSION_RECEIPT_REQUIRED')
+        proof = st['supersession']
+        entry, ruling_raw = relay._supersession_ruling(ruling, job)
+        digest = hashlib.sha256(ruling_raw).hexdigest()
+        original = next(r for r in request_rows() if r['job'] == job)
+        if (original['issue'] != entry['linear_child'] or
+                original['request_sha256'] != entry['request_sha256'] or
+                original['wave'] != str(ROOT / entry['wave'])):
+            raise ValueError('SUPERSESSION_SOURCE_REQUEST_DRIFT')
+        wave = json.loads((ROOT / entry['wave']).read_bytes())
+        if (wave['issue'] != entry['linear_child'] or len(wave['jobs']) != 1 or
+                wave['jobs'][0]['job'] != job or wave['jobs'][0]['job_class'] != 'research-synthesis' or
+                wave['jobs'][0]['kind'] != 'freeform' or wave['jobs'][0].get('files') or
+                hashlib.sha256((wave['issue'] + '\0' + wave['jobs'][0]['situation']).encode()).hexdigest() != entry['request_sha256']):
+            raise ValueError('SUPERSESSION_SOURCE_SITUATION_DRIFT')
+        replacement = entry['replacement_job']
+        path = directory() / 'queue' / (replacement + '.json')
+        if path.exists():
+            row = json.loads(path.read_bytes())
+            _replacement_receipt(row)
+        else:
+            wave_path = ROOT / 'ops/gpt6pro-relay/waves' / (replacement + '.json')
+            if (relay.JOBS / replacement).exists() or wave_path.exists() or any(
+                    r.get('job') == replacement for r in relay.ledger_rows(relay.load_config())):
+                raise ValueError('SUPERSESSION_ORPHAN_REPLACEMENT_CUSTODY')
+            # The supplied situation, task, ruling and source evidence are unchanged.
+            # Only the request identity / output folder in the registered packet change.
+            wave['request_id'] = replacement; wave['jobs'][0]['job'] = replacement
+            relay._atomic_json(wave_path, wave)
+            wave['_path'] = str(wave_path)
+            packet.build_freeform(wave['jobs'][0], wave)
+            row = {'schema': 'pro-route-v1', 'job': replacement, 'issue': entry['linear_child'],
+                   'request_sha256': entry['request_sha256'], 'supersedes': job,
+                   'supersession_ruling': ruling, 'supersession_ruling_sha256': digest,
+                   'requested_account': entry['account_alias'], 'state': 'queued',
+                   'created_at': relay.now_iso(), 'wave': str(wave_path),
+                   'wave_sha256': hash_file(wave_path), 'attempts': [],
+                   'packet_sha256': {n: hash_file(relay.JOBS / replacement / n)
+                                     for n in ('PROMPT.md', 'MANIFEST.json')}}
+            if original.get('backlog_order') is not None:
+                row['backlog_order'] = original['backlog_order']
+            save(row)
+        original.update(state='superseded', replacement_job=replacement,
+                        supersession_ruling=ruling, supersession_preimage_sha256=proof['preimage_sha256'])
+        save(original)
+        return row
+
+
+def _replacement_receipt(row):
+    """Recheck the full parent receipt, same prompt and exact account before effect."""
+    st = relay.job_state(row['supersedes'])
+    if not relay._verified_supersession(st):
+        raise ValueError('SUPERSESSION_RECEIPT_REQUIRED')
+    entry, ruling_raw = relay._supersession_ruling(row['supersession_ruling'], row['supersedes'])
+    digest = hashlib.sha256(ruling_raw).hexdigest()
+    if (row['job'] != entry['replacement_job'] or row['issue'] != entry['linear_child'] or
+            row['request_sha256'] != entry['request_sha256'] or
+            row['supersession_ruling_sha256'] != digest or
+            row['requested_account'] != entry['account_alias'] or
+            row.get('account', entry['account_alias']) != entry['account_alias'] or
+            row['wave'] != str(ROOT / 'ops/gpt6pro-relay/waves' / (row['job'] + '.json')) or
+            set(row['packet_sha256']) != {'PROMPT.md', 'MANIFEST.json'} or
+            hash_file(Path(row['wave'])) != row['wave_sha256']):
+        raise ValueError('SUPERSESSION_REPLACEMENT_DRIFT')
+    old_wave = json.loads((ROOT / entry['wave']).read_bytes())
+    expected = json.loads(json.dumps(old_wave))
+    expected['request_id'] = row['job']; expected['jobs'][0]['job'] = row['job']
+    if json.loads(Path(row['wave']).read_bytes()) != expected:
+        raise ValueError('SUPERSESSION_REPLACEMENT_SITUATION_DRIFT')
+    for name, digest in row['packet_sha256'].items():
+        if hash_file(relay.JOBS / row['job'] / name) != digest:
+            raise ValueError('PACKET_DRIFT ' + row['job'] + '/' + name)
+
+
 def choose_account(requested):
     cfg = relay.load_config()
     rows = relay.active_registry()
@@ -121,6 +204,8 @@ def request_rows():
 
 def effect(row, action):
     """One non-waiting relay CLI call under owned heavy; no model/browser bypass."""
+    if row.get('supersedes'):
+        _replacement_receipt(row)
     if action == 'submit':
         pins = row.get('packet_sha256', {})
         if set(pins) != {'PROMPT.md', 'MANIFEST.json'} or any(
@@ -295,6 +380,10 @@ def dispatch(only=None, max_actions=6):
                     st.get('status') == 'unsent_reconciled' and
                     hash_file(relay.JOBS / row['job'] / 'JOB.json') == row['authorize_unsent_preimage']):
                 st = {}  # exact explicit reconciler receipt; consumed by durable submitting state
+            if st.get('status') == 'SUPERSEDED':
+                row['state'] = 'superseded' if relay._verified_supersession(st) else 'uncertain'
+                save(row)
+                continue
             if st.get('status') == 'running':
                 row['state'] = 'running'
                 action = 'poll'
@@ -581,11 +670,17 @@ def main(argv=None):
     assign_parser = sub.add_parser('assign', help='change an unreserved queued request account')
     assign_parser.add_argument('--job', required=True)
     assign_parser.add_argument('--account', choices=['auto', 'acct1', 'acct2', 'acct3'], required=True)
+    replace = sub.add_parser('replace-superseded', help='queue-only same-prompt successor after reviewed relay disposition')
+    replace.add_argument('--job', required=True)
+    replace.add_argument('--ruling', required=True)
     requeue = sub.add_parser('requeue-unsent', help='explicit opt-in after maintained WRONG_MODEL unsent reconciliation')
     requeue.add_argument('--job', required=True)
     requeue.add_argument('--authorize-preimage', required=True)
     args = parser.parse_args(argv)
-    if args.command == 'assign':
+    if args.command == 'replace-superseded':
+        row = enqueue_replacement(args.job, args.ruling)
+        print(json.dumps({'job': row['job'], 'state': row['state'], 'supersedes': args.job}), flush=True)
+    elif args.command == 'assign':
         assign(args.job, args.account)
     elif args.command == 'requeue-unsent':
         requeue_unsent(args.job, args.authorize_preimage)

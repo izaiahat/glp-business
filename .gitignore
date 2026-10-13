@@ -24,6 +24,7 @@
 !/tests/test_glp93_review_projection.py
 !/tests/test_glp93_surface_inputs.py
 !/tests/test_pro_current_dom.py
+!/tests/test_pro_research_supersession.py
 !/tests/test_pro_root_home.py
 !/tests/test_pro_terminal_hydration.py
 !/tests/test_article_source_carrier.py
