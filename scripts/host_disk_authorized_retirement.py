@@ -79,13 +79,24 @@ def read_registry_pins():
           "print(json.dumps(r));sys.exit(0 if r['ok'] else 1)")
     cmd=[sys.executable,'-c',code]
     if os.geteuid()==0:cmd=['sudo','-n','-H','-u','ubuntu',*cmd]
+    def unique_object(pairs):
+        reply={}
+        for key,value in pairs:
+            if key in reply:raise ValueError('duplicate protocol key')
+            reply[key]=value
+        return reply
     try:
         result=subprocess.run(cmd,capture_output=True,text=True,timeout=300)
-        reply=json.loads(result.stdout)
+        reply=json.loads(result.stdout,object_pairs_hook=unique_object)
     except Exception as error:
         raise RuntimeError('pin inventory transport or JSON unavailable') from error
     if not isinstance(reply,dict) or reply.get('schema')!='host-disk-pins-v1':
         raise RuntimeError('pin inventory protocol invalid')
+    # Closed, mutually exclusive envelopes: no error fields on success, no pins
+    # on failure. Ordinary JSON decoding must not erase a failure discriminator.
+    expected=({'schema','ok','pins'} if reply.get('ok') is True else
+              {'schema','ok','source','error_type'})
+    if set(reply)!=expected:raise RuntimeError('pin inventory protocol invalid')
     if result.returncode or reply.get('ok') is not True:
         source=reply.get('source');kind=reply.get('error_type')
         if (reply.get('ok') is False and source in

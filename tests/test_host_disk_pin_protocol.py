@@ -48,7 +48,12 @@ def test_nonzero_child_error_is_refusal_with_source_not_lost_stderr(monkeypatch)
  (0,{'schema':'host-disk-pins-v1','ok':True,'pins':['relative/path']}),
  (0,{'schema':'host-disk-pins-v1','ok':True,'pins':'not a list'}),
  (0,{'ok':True,'pins':[]}), (1,{'schema':'host-disk-pins-v1','ok':False,'source':'secret','error_type':'secret'}),
- (1,'invalid-json')])
+ (1,'invalid-json'),
+ (0,{'schema':'host-disk-pins-v1','ok':True,'pins':[],
+     'source':'linear_pins','error_type':'TimeoutError'}),
+ (0,'{"schema":"host-disk-pins-v1","ok":false,"source":"linear_pins","error_type":"TimeoutError","ok":true,"pins":[]}'),
+ (0,'{"schema":"host-disk-pins-v1","ok":false,"ok":true,"pins":[]}'),
+ (0,{'schema':'host-disk-pins-v1','ok':True,'pins':[],'unknown':True})])
 def test_bad_or_conflicting_protocol_never_authorizes(monkeypatch,rc,reply):
     text=reply if isinstance(reply,str) else json.dumps(reply)
     monkeypatch.setattr(retirement.subprocess,'run',lambda *a,**kw:subprocess.CompletedProcess(a,rc,text,'secret-stderr'))

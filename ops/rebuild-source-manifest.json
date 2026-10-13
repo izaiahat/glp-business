@@ -3,8 +3,10 @@
   "files": {
     "tests/test_host_disk_pin_protocol.py": {
       "kind": "test",
-      "callers": ["business-source-ci host-disk exact-head offline suite"],
-      "sha256": "35648e0f1daa86c4df3660506218416f1a1306f28451328426baad83e06b1d6d"
+      "callers": [
+        "business-source-ci host-disk exact-head offline suite"
+      ],
+      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
     },
     "scripts/auto_coordinator_receipt.py": {
       "kind": "script",
@@ -7256,7 +7258,7 @@
       ],
       "kind": "script",
       "scope": "Completed verified archives and superseded site members; shared singleton and fresh production/rollback/PR/scheduler custody; verified R2 pair before retirement; not scheduled.",
-      "sha256": "c5ffb268b37cc158e92b7188243c7411ead88a3c6e91b0fba4eeac5d1912d97e"
+      "sha256": "2414601f5ea0bf2bd104f56a5c1440775fe62e28bba7543d51a6136f3e543db8"
     },
     "ops/glp/seo_weekly_budget.py": {
       "callers": [
