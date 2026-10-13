@@ -1798,12 +1798,16 @@ class TestFinchCommunication:
                 class Client:
                     async def start(_, token, reconnect):
                         tokens.append(token); assert reconnect is False
-                        on_event(self.event('150', '901'), observer); on_event(self.event('201', '902'), observer)
+                        on_event(self.event('150', '901'), observer)
+                        # Thread-backed fixture persistence may exceed one 50ms
+                        # scheduling slice; prove both channels still arrive.
+                        await asyncio.sleep(.1)
+                        on_event(self.event('201', '902'), observer)
                         await asyncio.Future()
                     async def close(_): pass
                 return Client()
             return make
-        assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, .05, client_factory=factory(self.dot.bot))) == 0
+        assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, 1.0, client_factory=factory(self.dot.bot))) == 0
         assert tokens == ['synthetic-finch-token'] and len(self.app.store.all('requests')) == 2
         assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, .05, client_factory=factory(self.m.BOT))) == 2
         self.call('reply_to_finch_request', self.args('150', False))
