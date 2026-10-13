@@ -87,6 +87,23 @@ in its own RESULT does every brief enable builds/tests/private evidence reads in
 Current R1 source-only/pending-publication results do not enable this capability.
 Do not modify R1's result on its behalf or change keys, ACLs, proxies or grants.
 
+## Audited dispatcher recovery
+
+`dot_dispatch.py --recover-selection SCOPE --reason TEXT` aborts only an
+unbound `selecting` claim while holding refill and dispatch locks. Any matching
+scope journal or same-dot/issue journal after selection refuses. The claim and
+an audit remain; the command never POSTs, deletes supply, or redispatches.
+
+For an expired native grant that returned a direct external fallback, use
+`--expire TICKET --external-handoff-id ID --owner OWNER --reason TEXT` only
+following independent review. It requires exact original request readback,
+complete bounded history, exactly one authenticated dot-authored direct-fallback
+message, the explicit non-native disclaimer, six-hour age, and expired native
+custody twice. It retains the external message in the audit and marks the ticket
+administratively expired, never complete; it creates no native REPLY.md and
+never edits the native request database. Other replies and live/unknown effects
+still refuse. These are maintenance operations, not automatic refill behavior.
+
 ## Manual proof
 
 A fixture is not live proof. Record real Discord request/reply IDs, native

@@ -1,0 +1,392 @@
+{
+  "tag": "main",
+  "attrs": {},
+  "children": [
+    {
+      "tag": "div",
+      "attrs": {
+        "data-chatgpt-conversation-selection-target": "true"
+      },
+      "children": [
+        {
+          "tag": "div",
+          "attrs": {
+            "class": "[&_[data-virtualized-turn-content]]:[content-visibility:visible]",
+            "data-turn-key": "fixture-data-turn-key"
+          },
+          "children": [
+            {
+              "tag": "div",
+              "attrs": {},
+              "children": [
+                {
+                  "tag": "div",
+                  "attrs": {
+                    "class": "flex flex-col gap-1.5"
+                  },
+                  "children": [
+                    {
+                      "tag": "div",
+                      "attrs": {
+                        "class": "group flex flex-col",
+                        "data-talvt-turn-state": "in_progress"
+                      },
+                      "children": [
+                        {
+                          "tag": "div",
+                          "attrs": {
+                            "class": "flex flex-col gap-3 browser:gap-1"
+                          },
+                          "children": [
+                            {
+                              "tag": "div",
+                              "attrs": {
+                                "class": "block-BQZwFn"
+                              },
+                              "children": [
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "group/user-message flex flex-col items-end gap-2"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "w-full",
+                                        "data-content-search-unit-key": "fallback-turn-0:0:user"
+                                      },
+                                      "children": []
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "tag": "div",
+                              "attrs": {
+                                "class": "block-BQZwFn"
+                              },
+                              "children": [
+                                {
+                                  "tag": "div",
+                                  "attrs": {
+                                    "class": "flex min-w-0 items-start gap-3"
+                                  },
+                                  "children": [
+                                    {
+                                      "tag": "div",
+                                      "attrs": {
+                                        "class": "min-w-0 flex-1"
+                                      },
+                                      "children": [
+                                        {
+                                          "tag": "div",
+                                          "attrs": {
+                                            "class": "min-w-0 text-size-chat relative overflow-visible py-0"
+                                          },
+                                          "children": [
+                                            {
+                                              "tag": "div",
+                                              "attrs": {
+                                                "class": "flex flex-col gap-4"
+                                              },
+                                              "children": [
+                                                {
+                                                  "tag": "div",
+                                                  "attrs": {
+                                                    "data-markdown-text-style": "assistant-message",
+                                                    "data-markdown-text-tone": "primary",
+                                                    "class": "MarkdownRoot-rZKhxa [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>*:last-child]:mb-0 [&>ol:first-child]:mt-0 [&>ul:first-child]:mt-0"
+                                                  },
+                                                  "children": [
+                                                    {
+                                                      "tag": "p",
+                                                      "attrs": {},
+                                                      "children": [
+                                                        {
+                                                          "text": "Fixture assistant text"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "tag": "div",
+                                                  "attrs": {
+                                                    "class": "min-w-0 text-size-chat relative overflow-visible py-0"
+                                                  },
+                                                  "children": [
+                                                    {
+                                                      "tag": "div",
+                                                      "attrs": {
+                                                        "class": "flex min-w-0 flex-col"
+                                                      },
+                                                      "children": [
+                                                        {
+                                                          "tag": "div",
+                                                          "attrs": {
+                                                            "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start max-w-full"
+                                                          },
+                                                          "children": [
+                                                            {
+                                                              "tag": "span",
+                                                              "attrs": {
+                                                                "class": "inline-flex min-w-0 gap-1.5 group-data-[spacing=grouped]/agent-activity:align-top items-center shrink truncate text-size-chat"
+                                                              },
+                                                              "children": [
+                                                                {
+                                                                  "tag": "span",
+                                                                  "attrs": {
+                                                                    "class": "min-w-0 flex-1 truncate text-(--agent-activity-summary-color) [&_*:not(button)]:!text-(--agent-activity-summary-color) summary-lK7Lpm"
+                                                                  },
+                                                                  "children": [
+                                                                    {
+                                                                      "tag": "div",
+                                                                      "attrs": {
+                                                                        "data-markdown-text-style": "assistant-message",
+                                                                        "data-markdown-text-tone": "tertiary",
+                                                                        "class": "MarkdownRoot-rZKhxa [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>*:last-child]:mb-0 [&>ol:first-child]:mt-0 [&>ul:first-child]:mt-0"
+                                                                      },
+                                                                      "children": [
+                                                                        {
+                                                                          "tag": "p",
+                                                                          "attrs": {},
+                                                                          "children": [
+                                                                            {
+                                                                              "text": "Fixture assistant text"
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "tag": "div",
+                                                  "attrs": {
+                                                    "class": "min-w-0 text-size-chat relative overflow-visible py-0"
+                                                  },
+                                                  "children": [
+                                                    {
+                                                      "tag": "div",
+                                                      "attrs": {
+                                                        "class": "flex min-w-0 flex-col"
+                                                      },
+                                                      "children": [
+                                                        {
+                                                          "tag": "div",
+                                                          "attrs": {
+                                                            "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start max-w-full"
+                                                          },
+                                                          "children": [
+                                                            {
+                                                              "tag": "span",
+                                                              "attrs": {
+                                                                "class": "inline-flex min-w-0 gap-1.5 group-data-[spacing=grouped]/agent-activity:align-top items-center shrink truncate text-size-chat"
+                                                              },
+                                                              "children": [
+                                                                {
+                                                                  "tag": "span",
+                                                                  "attrs": {
+                                                                    "class": "min-w-0 flex-1 truncate text-(--agent-activity-summary-color) [&_*:not(button)]:!text-(--agent-activity-summary-color) summary-lK7Lpm"
+                                                                  },
+                                                                  "children": [
+                                                                    {
+                                                                      "tag": "div",
+                                                                      "attrs": {
+                                                                        "data-markdown-text-style": "assistant-message",
+                                                                        "data-markdown-text-tone": "tertiary",
+                                                                        "class": "MarkdownRoot-rZKhxa [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>*:last-child]:mb-0 [&>ol:first-child]:mt-0 [&>ul:first-child]:mt-0"
+                                                                      },
+                                                                      "children": [
+                                                                        {
+                                                                          "tag": "p",
+                                                                          "attrs": {},
+                                                                          "children": [
+                                                                            {
+                                                                              "text": "Fixture assistant text"
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "tag": "div",
+                                                  "attrs": {
+                                                    "class": "min-w-0 text-size-chat relative overflow-visible py-0"
+                                                  },
+                                                  "children": [
+                                                    {
+                                                      "tag": "div",
+                                                      "attrs": {
+                                                        "class": "flex min-w-0 flex-col"
+                                                      },
+                                                      "children": [
+                                                        {
+                                                          "tag": "div",
+                                                          "attrs": {
+                                                            "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start max-w-full"
+                                                          },
+                                                          "children": [
+                                                            {
+                                                              "tag": "span",
+                                                              "attrs": {
+                                                                "class": "inline-flex min-w-0 gap-1.5 group-data-[spacing=grouped]/agent-activity:align-top items-center shrink truncate text-size-chat"
+                                                              },
+                                                              "children": [
+                                                                {
+                                                                  "tag": "span",
+                                                                  "attrs": {
+                                                                    "class": "min-w-0 flex-1 truncate text-(--agent-activity-summary-color) [&_*:not(button)]:!text-(--agent-activity-summary-color) summary-lK7Lpm"
+                                                                  },
+                                                                  "children": [
+                                                                    {
+                                                                      "tag": "div",
+                                                                      "attrs": {
+                                                                        "data-markdown-text-style": "assistant-message",
+                                                                        "data-markdown-text-tone": "tertiary",
+                                                                        "class": "MarkdownRoot-rZKhxa [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>*:last-child]:mb-0 [&>ol:first-child]:mt-0 [&>ul:first-child]:mt-0"
+                                                                      },
+                                                                      "children": [
+                                                                        {
+                                                                          "tag": "p",
+                                                                          "attrs": {},
+                                                                          "children": [
+                                                                            {
+                                                                              "text": "Fixture assistant text"
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "tag": "div",
+                                                  "attrs": {
+                                                    "class": "min-w-0 text-size-chat relative overflow-visible py-0"
+                                                  },
+                                                  "children": [
+                                                    {
+                                                      "tag": "div",
+                                                      "attrs": {
+                                                        "class": "flex min-w-0 flex-col"
+                                                      },
+                                                      "children": [
+                                                        {
+                                                          "tag": "div",
+                                                          "attrs": {
+                                                            "class": "group/activity-header relative inline-flex min-w-0 max-w-full self-start items-center gap-1 p-0 text-start max-w-full"
+                                                          },
+                                                          "children": [
+                                                            {
+                                                              "tag": "span",
+                                                              "attrs": {
+                                                                "class": "inline-flex min-w-0 gap-1.5 group-data-[spacing=grouped]/agent-activity:align-top items-center shrink truncate text-size-chat"
+                                                              },
+                                                              "children": [
+                                                                {
+                                                                  "tag": "span",
+                                                                  "attrs": {
+                                                                    "class": "min-w-0 flex-1 truncate text-(--agent-activity-summary-color) [&_*:not(button)]:!text-(--agent-activity-summary-color) summary-lK7Lpm"
+                                                                  },
+                                                                  "children": [
+                                                                    {
+                                                                      "tag": "div",
+                                                                      "attrs": {
+                                                                        "data-markdown-text-style": "assistant-message",
+                                                                        "data-markdown-text-tone": "tertiary",
+                                                                        "class": "MarkdownRoot-rZKhxa [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>*:last-child]:mb-0 [&>ol:first-child]:mt-0 [&>ul:first-child]:mt-0"
+                                                                      },
+                                                                      "children": [
+                                                                        {
+                                                                          "tag": "p",
+                                                                          "attrs": {},
+                                                                          "children": [
+                                                                            {
+                                                                              "text": "Fixture assistant text"
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "tag": "div",
+                                                  "attrs": {
+                                                    "data-markdown-text-style": "assistant-message",
+                                                    "data-markdown-text-tone": "primary",
+                                                    "class": "MarkdownRoot-rZKhxa [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&>*:last-child]:mb-0 [&>ol:first-child]:mt-0 [&>ul:first-child]:mt-0"
+                                                  },
+                                                  "children": [
+                                                    {
+                                                      "tag": "p",
+                                                      "attrs": {},
+                                                      "children": [
+                                                        {
+                                                          "text": "Fixture assistant text"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

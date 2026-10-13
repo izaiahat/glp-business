@@ -3,6 +3,12 @@ import json
 import time
 from pathlib import Path
 import pytest
+# Bind new authority tests to the candidate before live backend imports.
+import importlib.util,sys
+_authority_spec=importlib.util.spec_from_file_location('host_disk_authorized_retirement',Path(__file__).resolve().parents[1]/'scripts/host_disk_authorized_retirement.py')
+_authority=importlib.util.module_from_spec(_authority_spec)
+sys.modules[_authority_spec.name]=_authority
+_authority_spec.loader.exec_module(_authority)
 import host_disk_cold_classes as m
 import host_disk_r2 as r2
 
@@ -209,6 +215,14 @@ def test_site_pin_cache_never_reuses_mutated_reference_lists(tmp_path):
     assert not site_protected(root/'ordinary',pins,root)
     pins.append(root)
     assert site_protected(root/'ordinary',pins,root)
+
+
+def test_archive_scaffold_is_not_a_blanket_custody_veto(tmp_path,monkeypatch):
+    import host_disk_authorized_retirement as a
+    monkeypatch.setattr(a,'BUS',tmp_path)
+    base=tmp_path/'reports/host-disk-prune';root=base/'old/archives';p=root/'proof.ordinary'
+    assert not a.site_protected(p,(base,),root)
+    assert a.site_protected(p,(root,),root)
 
 
 def test_private_bucket_object_expiry_is_refused():
