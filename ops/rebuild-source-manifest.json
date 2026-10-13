@@ -206,7 +206,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "d090df2746f6345539eb3ba1fd4f61f667ab569285f88efeaaecc1c6c64f6b96"
+      "sha256": "f17fb796f8da00d46d982a2b4aa39c59ffbfa9e1837072dfed67ec48e15c4a4a"
     },
     ".codex-task/RESULT.md": {
       "callers": [
@@ -3196,7 +3196,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "9ee9897b6011c8d920996d357b3e9f43953a31cd79f83a53a9be57cdf2a5121d"
+      "sha256": "b2f89df3b10d62479e8033b795cb7d3c20f8def09ad37e900d0c13f834ffdb5a"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [

@@ -200,6 +200,13 @@ def main(argv=None):
         base_root = Path(pointer['release_root'])
         rebuildable = job.rebuild_inputs_complete(base_root) or bool(job.equivalent_main_rebuild_inputs(base_root))
         if current_head in (main_sha, pr['headRefOid']) and rebuildable:
+            if a.prepare_only:
+                # Prepare-only never performs external effects, including the
+                # already-current search-notification reconciliation.
+                print(json.dumps({'status': 'PASS_ALREADY_CURRENT', 'scope': SCOPE, 'site_main': main_sha,
+                                  'deployment_id': current_deployment, 'search_submission': None,
+                                  'prepare_only': True}))
+                return 0
             from glp_release_search_notify import submit_deployment
             predecessor = Path(pointer['supersedes']['release_root'])
             search = submit_deployment(pointer, predecessor)
