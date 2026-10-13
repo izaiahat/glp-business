@@ -482,7 +482,7 @@
     "inbox_control_plane/control_plane.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "175cc5f72c03e8e0a6d30ee9d7b8db24ad0c54023f172c4516b52671683754d7"
+      "sha256": "b48cb3bb049a193a238b631ee6896df1cb3009f146377988c637c9527a385851"
     },
     "inbox_control_plane/gmail_client.py": {
       "callers": [],
@@ -4928,7 +4928,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "f21b3c8cc00c1efd0c79b629bc9c8aa17015cedc37b54c130477dd764a67a9ab"
+      "sha256": "a989915c54f3faf6a32157d8b92b82f0996d824acfa1128d8e17077d2df526af"
     },
     "tests/test_cleanup_inbox_reader.py": {
       "callers": [
