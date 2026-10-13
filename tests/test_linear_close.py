@@ -232,3 +232,78 @@ def test_evidence_business_counts_are_observed(tmp_path, monkeypatch):
     observed = evidence[0]['observed']
     assert '"provider_rows": 58' in observed and not any('stale_20260908_rows' in v for v in observed)
     assert lc.first_output({'evidence': evidence})
+
+
+@pytest.mark.parametrize('fault', [None, 'installed_bytes', 'unrelated_ancestry', 'ci_head_blob',
+                                  'unreviewed_path', 'failed_ci'])
+def test_zero_diff_source_carry_check_only(tmp_path, monkeypatch, capsys, fault):
+    # GLP-350: PR478 changes no files, but carries merged PR460's installed source.
+    # Its merge tree may also contain later main changes; the selected blobs must
+    # still equal the original source and the exact head tested by hosted CI.
+    rel = 'scripts/glp_price_freshness.py'
+    original = 'https://github.com/izaiahat/glp-business/pull/460'
+    carry = 'https://github.com/izaiahat/glp-business/pull/478'
+    source_head, source_merge = 'c' * 40, 'd' * 40
+    raw = b'reviewed price producer\n'
+    blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+    source = tmp_path / rel
+    source.parent.mkdir()
+    source.write_bytes(b'tampered' if fault == 'installed_bytes' else raw)
+    reports = tmp_path / 'reports'
+    reports.mkdir()
+    receipt = reports / 'receipt.json'
+    receipt.write_text(json.dumps({'provider_rows': 54, 'cost': None}))
+    worker = reports / 'RESULT.json'
+    worker.write_text(json.dumps({'issue': 'GLP-350', 'status': 'DONE_READY_TO_CLOSE',
+        'pr': carry, 'install': {'source_pr': original, 'paths': [rel]},
+        'live_run': 'provider_rows=54', 'receipt': 'reports/receipt.json'}))
+    target = {'id': ISSUE_ID, 'identifier': 'GLP-350', 'title': 'Price source receiving',
+        'description': '## Acceptance\nInstalled price producer has a registered receipt.',
+        'team': {'id': lo.TEAM, 'key': 'GLP'}, 'state': {'name': 'In Progress'}}
+    remote = {'state': 'MERGED', 'headRefOid': HEAD, 'mergeCommit': {'oid': MERGE},
+        'files': [], 'statusCheckRollup': [{'name': 'python-tests', 'detailsUrl': CI,
+        'status': 'COMPLETED', 'conclusion': 'FAILURE' if fault == 'failed_ci' else 'SUCCESS'}]}
+    original_remote = {'state': 'MERGED', 'headRefOid': source_head,
+        'mergeCommit': {'oid': source_merge},
+        'files': [{'path': 'scripts/other.py' if fault == 'unreviewed_path' else rel}]}
+    def gh(url):
+        return {carry: remote, original: original_remote}[url]
+    def check_output(argv, **kwargs):
+        if argv[:3] == ['gh', 'pr', 'view']:
+            return json.dumps(gh(argv[3]))
+        assert argv[:2] == ['gh', 'api']
+        endpoint = argv[2]
+        prefix = 'repos/izaiahat/glp-business/'
+        if endpoint.startswith(prefix + 'compare/'):
+            base, head = endpoint.split('/')[-1].split('...')
+            assert (base, head) in ((source_merge, HEAD), (HEAD, MERGE))
+            return json.dumps({'merge_base_commit': {'sha': 'e' * 40
+                if fault == 'unrelated_ancestry' else base}})
+        assert endpoint.startswith(prefix + 'contents/' + rel + '?ref=')
+        ref = endpoint.split('=')[-1]
+        assert ref in (source_head, HEAD, MERGE)
+        return json.dumps({'type': 'file', 'sha': 'f' * 40
+            if fault == 'ci_head_blob' and ref == HEAD else blob,
+            'encoding': 'base64', 'content': base64.b64encode(raw).decode()})
+    def gql(query, variables=None):
+        assert query == 'query{viewer{id}}'
+        return {'viewer': {'id': lo.OPERATOR_USER_ID}}
+    def forbidden(*args, **kwargs):
+        raise AssertionError('check-only attempted a write')
+    monkeypatch.setattr(lc, 'ROOT', tmp_path)
+    monkeypatch.setattr(lc, 'REPORTS', reports)
+    monkeypatch.setattr(lo, '__file__', str(tmp_path / 'scripts/linear_orchestrator.py'))
+    monkeypatch.setattr(lo, 'issue', lambda ident: target)
+    monkeypatch.setattr(lo, 'gql', gql)
+    monkeypatch.setattr(lo, 'comment', forbidden)
+    monkeypatch.setattr(lc, 'write', forbidden)
+    monkeypatch.setattr(lc, 'orchestrate', forbidden)
+    monkeypatch.setattr(subprocess, 'check_output', check_output)
+    before = {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    assert lc.main(['GLP-350', str(worker), '--check-only']) == (3 if fault else 0)
+    output = capsys.readouterr().out
+    expected = {None: 'GLP-350 PASS', 'installed_bytes': 'installed Git blob',
+        'unrelated_ancestry': 'merged source ancestry', 'ci_head_blob': 'installed Git blob',
+        'unreviewed_path': 'source PR did not change', 'failed_ci': 'exact-head CI'}
+    assert expected[fault] in output
+    assert {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
