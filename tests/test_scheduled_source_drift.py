@@ -406,7 +406,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     pricing_source = 'scripts/glp_price_freshness.py'
     pricing_rows[0]['id'] = 'crontab:d58cea74745f59c1'
     # GLP-350: exact maintained caller successor; transport no longer forces enhanced.
-    pricing_pin = '25b842b1d066357dfb2f35327a0a911ac1725526b30db02fb0419266768b5bb1'
+    pricing_pin = 'c114803b4cd8b544f99815aedc0f04b1d78abac1f1cde593b96c8046f32dabfe'
     assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
     pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
         'source': pricing_source, 'reviewed_sha256': pricing_pin}

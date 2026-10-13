@@ -196,3 +196,31 @@ def test_alexandria_reported_cost_and_sdk_scrape_id_are_accounted():
     for cost in (None, True, -1, '5'):
         assert fc._receipt({'data': {'alexandria': [{'creditsCost': cost}]}})[1] is None
     assert fc._receipt({'data': {'alexandria': []}})[1] is None
+
+
+@pytest.mark.parametrize('raw,expected', [
+    (b'{"success":false,"creditsUsed":1,"id":"private-receipt","error":"secret error"}', 1),
+    (b'{"success":false}', None),
+    (b'not JSON', None),
+])
+def test_http_error_retains_billing_without_consuming_caller_body(monkeypatch, tmp_path, raw, expected):
+    import io
+    import urllib.error
+    error = urllib.error.HTTPError('https://api.firecrawl.dev/v2/scrape', 500,
+                                  'engines', {}, io.BytesIO(raw))
+    def refuse(*a, **kw):
+        raise error
+    monkeypatch.setattr(fc.urllib.request, 'urlopen', refuse)
+    ledger = tmp_path / 'ops'
+    client = fc.FirecrawlClient('fixture', api_key='unused', ledger_path=ledger)
+    with pytest.raises(urllib.error.HTTPError) as caught:
+        client.scrape({'url': 'https://clinic.example/pricing'})
+    assert caught.value.code == 500
+    assert caught.value.read() == raw
+    rows = [json.loads(line) for line in ledger.read_text().splitlines()]
+    assert [row['outcome'] for row in rows] == ['started', 'http_error']
+    assert rows[-1]['http_status'] == 500
+    assert rows[-1]['creditsUsed'] == expected
+    assert caught.value.firecrawl_operation == rows[-1]
+    assert 'private-receipt' not in ledger.read_text()
+    assert 'secret error' not in ledger.read_text()

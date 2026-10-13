@@ -150,8 +150,24 @@ def firecrawl_urlopen(request, *, caller, timeout=120, run_id=None, ledger_path=
     try:
         response = urllib.request.urlopen(request, timeout=timeout)
     except urllib.error.HTTPError as exc:
-        record_operation(caller, endpoint, body, outcome="http_error", http_status=exc.code, **kwargs)
-        raise
+        # HTTP refusals can still report credits. Buffer the body so existing
+        # callers can inspect engine-refusal codes without losing these bytes.
+        import io
+        try:
+            raw = exc.read()
+            try:
+                payload = json.loads(raw)
+            except (ValueError, UnicodeError):
+                payload = {}
+        except Exception:
+            # A broken error-body stream does not erase the terminal HTTP row.
+            payload, raw = {}, b''
+        row = record_operation(caller, endpoint, body, payload=payload,
+                               outcome="http_error", http_status=exc.code, **kwargs)
+        buffered = urllib.error.HTTPError(exc.url, exc.code, exc.msg, exc.headers, io.BytesIO(raw))
+        buffered.firecrawl_operation = row
+        exc.close()
+        raise buffered from exc
     except Exception:
         record_operation(caller, endpoint, body, outcome="ambiguous_transport_error", **kwargs)
         raise
