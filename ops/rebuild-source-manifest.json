@@ -3317,7 +3317,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "d1a807a5a4489225adf3158151967fa7f4c5e63ec8549fba4969bff5acda1470"
+      "sha256": "6fb0f92cee62c937b42132b4514b3863dc364ab85689d32fa5a8c67f0f5bc726"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
