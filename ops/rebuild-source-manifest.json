@@ -228,7 +228,7 @@
         "manual:operator-secure-renewal"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "0680d516fe14859b19f4310fa89cfd715473ae9261d7febc7a9cee0d0905346b"
+      "sha256": "43cf85e75d68486a403b04260cda56ca72baac308c971685b8c5ee11de396bec"
     },
     "tests/test_codex_cloud_key_renewal.py": {
       "callers": [
@@ -254,7 +254,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "54ef3d17a4430f73c5d1c29c7485dadb4aba00ce0bd13133b74632e96994c479"
+      "sha256": "c52bcf7281f29b828ec5802cad0c39386bb5542ceb5a355d59d848227a851652"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3501,7 +3501,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "cd91cc7dcfa4d0a83c7bb8b8906e715ae00eacb567e22f5b7fe774fb0426c799"
+      "sha256": "71ef0190b9a88f1ff847c9988e1e525a50e70975ea6c43ccdf631fd69aee6ed6"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -7137,7 +7137,7 @@
         "ops/cron.d/codex-cloud-key-renewal"
       ],
       "kind": "script",
-      "sha256": "3827c2b0395dacc699492ebb13c68f343649ab45fd6638ff075f1b7cfede57ec"
+      "sha256": "7e48b4ba616a775083d9c8b43482bbd1fc876e633086573895252b4f1b0af078"
     },
     "scripts/codex_cloud_vpn_browser.py": {
       "callers": [
@@ -7151,7 +7151,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "794ca7056c5cf43e8f47d3b16a0d2b4fb9e0b9d1491caf3ac46a975da178b2a7"
+      "sha256": "16d3b2d52821ef58d88c104538aefe2eeb99b0f9a104bdea06187619ff8b5f3f"
     },
     "tests/test_codex_evidence_alias.py": {
       "callers": [
@@ -7251,7 +7251,7 @@
       ],
       "kind": "script",
       "scope": "Completed verified archives and superseded site members; shared singleton and fresh production/rollback/PR/scheduler custody; verified R2 pair before retirement; not scheduled.",
-      "sha256": "9d9b778b100660f37eedfca9b7b9e4849f90910bab6b09423d29f9cb923223a3"
+      "sha256": "2414601f5ea0bf2bd104f56a5c1440775fe62e28bba7543d51a6136f3e543db8"
     },
     "ops/glp/seo_weekly_budget.py": {
       "callers": [
@@ -7409,6 +7409,13 @@
         "scripts/article_review_physical_lines.py"
       ],
       "sha256": "b2585e5a788e037ee055b8f94bf027568df60e51fd4d86fb4f1c94e93cce2f06"
+    },
+    "tests/test_host_disk_pin_protocol.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci host-disk exact-head offline suite"
+      ],
+      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
     }
   },
   "omitted_runtime_inputs": [
@@ -7419,5 +7426,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1088
+  "tracked_count": 1089
 }
