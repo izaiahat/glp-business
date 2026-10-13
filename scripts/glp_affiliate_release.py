@@ -40,9 +40,21 @@ def validate_build_evidence(receipt, rows):
     build,ci,design=(bound(evidence[k]) for k in ('build','ci','design'))
     if build.get('exit_code')!=0 or build.get('head')!=receipt['head'] or build.get('files')!=rows:
         raise ValueError('affiliate_release_build_binding_invalid')
-    checks=ci.get('statusCheckRollup')
-    if ci.get('state')!='MERGED' or ci.get('headRefOid')!=receipt['head'] or not checks or any(c.get('status')!='COMPLETED' or c.get('conclusion')!='SUCCESS' for c in checks):
+    from local_ci_admission import admit
+    if ci.get('state')!='MERGED' or ci.get('headRefOid')!=receipt['head']:
         raise ValueError('affiliate_release_ci_not_green')
+    checks=ci.get('statusCheckRollup') or []
+    if checks and all(c.get('status')=='COMPLETED' and c.get('conclusion')=='SUCCESS' for c in checks):
+        # Retained historical hosted-success receipts remain valid.
+        pass
+    else:
+        admission=ci.get('ci_admission') or {}
+        if admission.get('mode')!='local-ci':raise ValueError('affiliate_release_ci_not_green')
+        fresh=json.loads(subprocess.check_output(['gh','pr','view',ci['url'],'--json',
+            'url,state,headRefOid,mergeCommit,statusCheckRollup,files'],text=True,timeout=120))
+        if fresh.get('state')!='MERGED':raise ValueError('affiliate_release_ci_not_green')
+        admit(fresh,repo='izaiahat/glp-site-candidate',pr=ci['url'],head=receipt['head'],
+              local_binding=admission['receipt'],authority_root=ROOT)
     if (design.get('exit_code')!=0 or design.get('head')!=receipt['head']
             or design.get('checks')!=['affiliate-relationship-sync','raw-held-output','native-build-validators']):
         raise ValueError('affiliate_release_design_missing')

@@ -180,6 +180,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--sha', help='exact site main commit (default: current origin/main)')
     p.add_argument('--prepare-only', action='store_true')
+    p.add_argument('--local-ci', type=Path, help='registered LOCAL-CI.json (default: runner exact-head index)')
     a = p.parse_args(argv)
     import glp_affiliate_sync_job as job
     import glp_deploy_glp34_authority_v1 as carrier
@@ -224,13 +225,14 @@ def main(argv=None):
         install_cache_convergence(carrier, make_purger(carrier.read_token, log), log)
         try:
             result = job.execute(job.read(job.CONFIG), report, source_ref=pr['headRefOid'], source_pr=pr['url'],
-                                 publish=not a.prepare_only, source_only=False)
+                                 publish=not a.prepare_only, source_only=False, **({'local_ci': a.local_ci} if a.local_ci else {}))
         except Exception as exc:
             job.save(report / 'FAILURE.json', {'status': 'FAIL', 'scope': SCOPE, 'error': str(exc)[:2000],
                                                'run_type': os.environ.get('GLP_RUN_TYPE', 'manual')})
             raise
         out = {'status': result.get('status'), 'scope': SCOPE, 'site_main': main_sha, 'source_pr': pr['url'],
-               'deployment_id': pointer_head()[1], 'predecessor_deployment_id': current_deployment, 'report': str(report)}
+               'deployment_id': pointer_head()[1], 'predecessor_deployment_id': current_deployment, 'report': str(report),
+               'ci_admission': result.get('ci_admission')}
         job.save(report / 'MAIN-RELEASE-RESULT.json', out)
         print(json.dumps(out))
         return 0

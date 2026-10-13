@@ -75,10 +75,15 @@ def resolve_pr(worker, gh=gh_pr):
     remote = gh(url)
     if remote.get('state') != 'MERGED' or not (remote.get('mergeCommit') or {}).get('oid'):
         raise Refused(url + ' is not merged')
+    from local_ci_admission import admit, pin, hosted_success
+    repo = re.fullmatch(r'https://github.com/(izaiahat/glp-(?:business|site-candidate))/pull/[1-9]\d*', url)[1]
+    local = worker.get('local_ci')
+    binding = pin(local) if isinstance(local, str) and not hosted_success(remote) else local
+    mode = admit(remote, repo=repo, pr=url, head=remote['headRefOid'], local_binding=binding, authority_root=ROOT)
     checks = [{'name': c['name'], 'url': c['detailsUrl']} for c in remote.get('statusCheckRollup') or []
               if c.get('name') and c.get('detailsUrl')]
     return {'url': url, 'head_sha': remote['headRefOid'], 'merge_sha': remote['mergeCommit']['oid'],
-            'checks': checks, 'files': [f['path'] for f in remote.get('files') or [] if f.get('path')]}
+            'ci_admission': mode, 'checks': checks, 'files': [f['path'] for f in remote.get('files') or [] if f.get('path')]}
 
 
 def installed_files(worker, pr_files):
@@ -125,8 +130,10 @@ def acceptance_body(data):
     lines = []
     if 'pr' in data:
         pr = data['pr']
-        lines.append('Coordinator acceptance verified: %s merged at %s; exact-head checks passed: %s.'
-                     % (pr['url'], pr['merge_sha'], ', '.join(sorted({c['name'] for c in pr['checks']}))))
+        mode = (pr.get('ci_admission') or {}).get('mode', 'hosted-success')
+        proof = ', '.join(sorted({c['name'] for c in pr['checks']})) if mode == 'hosted-success' else json.dumps(pr['ci_admission']['receipt'], sort_keys=True)
+        lines.append('Coordinator acceptance verified: %s merged at %s; exact-head CI mode=%s: %s.'
+                     % (pr['url'], pr['merge_sha'], mode, proof))
     else:
         lines.append('Coordinator acceptance verified: read-only runtime outcome.')
     lines.append('Accepted description SHA256: ' + data['description_sha256'])

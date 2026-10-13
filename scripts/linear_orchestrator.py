@@ -570,16 +570,15 @@ def _lint_ordinary_result(path, iss, *, result_data=None):
             require(all(re.fullmatch(r'[a-f0-9]{40}', pr[key]) for key in ('head_sha', 'merge_sha')),
                     'full head and merge SHA required')
             remote = json.loads(subprocess.check_output(
-                ['gh', 'pr', 'view', pr['url'], '--json', 'state,headRefOid,mergeCommit,statusCheckRollup'],
+                ['gh', 'pr', 'view', pr['url'], '--json', 'state,headRefOid,mergeCommit,statusCheckRollup,files'],
                 text=True, timeout=60))
             require(remote['state'] == 'MERGED' and remote['headRefOid'] == pr['head_sha'] and
                     (remote.get('mergeCommit') or {}).get('oid') == pr['merge_sha'], 'PR identity/merge mismatch')
-            checks = remote.get('statusCheckRollup') or []
-            require(checks and all(c.get('status') == 'COMPLETED' and c.get('conclusion') == 'SUCCESS'
-                                   for c in checks), 'exact-head CI is not all successful')
-            require(isinstance(pr.get('checks'), list) and pr['checks'] and all(
-                any(c.get('name') == expected['name'] and c.get('detailsUrl') == expected['url'] for c in checks)
-                for expected in pr['checks']), 'exact CI receipts missing or changed')
+            from local_ci_admission import validate_pr_ci
+            try:
+                validate_pr_ci(pr, remote, authority_root=Path(__file__).resolve().parents[1])
+            except ValueError as exc:
+                require(False, 'exact-head CI is not all successful: ' + str(exc))
             # R2: installed bytes equal the merge for runtime outcomes.
             # Site-candidate PRs are deployed by the release service; their live readback is
             # the runtime evidence. Business-repo runtime work must prove installed bytes.
@@ -885,16 +884,16 @@ def _lint_protected_result(path, iss, *, runtime=False):
                     'exact maintained PR/full head and merge required')
             assert match is not None  # require above fails closed; narrows the authenticated repo match.
             remote = json.loads(subprocess.check_output(
-                ['gh', 'pr', 'view', pr['url'], '--json', 'state,headRefOid,mergeCommit,statusCheckRollup'],
+                ['gh', 'pr', 'view', pr['url'], '--json', 'state,headRefOid,mergeCommit,statusCheckRollup,files'],
                 text=True, timeout=60))
             checks = remote.get('statusCheckRollup') or []
             require(remote['state'] == 'MERGED' and remote['headRefOid'] == pr['head_sha'] and
                     (remote.get('mergeCommit') or {}).get('oid') == pr['merge_sha'], 'PR identity/merge mismatch')
-            require(checks and all(c.get('status') == 'COMPLETED' and c.get('conclusion') == 'SUCCESS'
-                                      for c in checks), 'exact-head CI is not all successful')
-            require(isinstance(pr.get('checks'), list) and pr['checks'] and all(
-                any(c.get('name') == e['name'] and c.get('detailsUrl') == e['url'] for c in checks)
-                for e in pr['checks']), 'exact CI receipts missing or changed')
+            from local_ci_admission import validate_pr_ci
+            try:
+                validate_pr_ci(pr, remote, authority_root=Path(__file__).resolve().parents[1])
+            except ValueError as exc:
+                require(False, 'exact-head CI is not all successful: ' + str(exc))
             _verify_installed(data, match[1], require)
         reports = Path(__file__).resolve().parents[1] / 'reports'
         evidence = data.get('evidence')

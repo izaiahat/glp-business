@@ -50,19 +50,33 @@ def namespace(config,source,report):
     return argv
 
 
-def ci(pr,report):
+def ci(pr,report,*,head=None,local_ci=None):
+    from local_ci_admission import admit, pin, discover_binding, hosted_success
+    binding = None
     # PR creation and Actions registration are asynchronous. Poll read-only
     # metadata until checks exist; never mistake that short gap for CI failure.
     for attempt in range(60):
         registered=json.loads(run(['gh','pr','view',pr,'--repo',REPO,'--json','headRefOid,statusCheckRollup']))
-        if registered.get('statusCheckRollup'):break
+        if head is not None and registered.get('headRefOid') != head:
+            raise RuntimeError('source_pr_head_mismatch')
+        if binding is None and not registered.get('statusCheckRollup') and local_ci is None:
+            try: binding = discover_binding(REPO, registered['headRefOid'], ROOT)
+            except ValueError: pass
+        if registered.get('statusCheckRollup') or binding is not None or local_ci is not None:break
         if attempt==59:raise RuntimeError('ci_registration_timeout')
         time.sleep(2)
-    # gh's watch is read-only; an exit/timeout never means merge.
-    run(['gh','pr','checks',pr,'--repo',REPO,'--watch','--interval','10'],log=report/'ci-watch.log')
-    evidence=json.loads(run(['gh','pr','view',pr,'--repo',REPO,'--json','url,state,headRefOid,mergeCommit,statusCheckRollup']))
-    checks=evidence.get('statusCheckRollup') or []
-    if not checks or any(c.get('status')!='COMPLETED' or c.get('conclusion')!='SUCCESS' for c in checks):raise RuntimeError('exact_ci_nonpass')
+    # A failed watch is not admission. Read back and require either hosted PASS
+    # or exact billing-lock annotations plus the registered local-CI receipt.
+    try:
+        run(['gh','pr','checks',pr,'--repo',REPO,'--watch','--interval','10'],log=report/'ci-watch.log')
+    except (RuntimeError, subprocess.CalledProcessError):
+        pass
+    evidence=json.loads(run(['gh','pr','view',pr,'--repo',REPO,'--json','url,state,headRefOid,mergeCommit,statusCheckRollup,files']))
+    url = evidence.get('url') or (pr if str(pr).startswith('https://') else f'https://github.com/{REPO}/pull/{pr}')
+    if not hosted_success(evidence) and local_ci is not None:
+        binding = pin(local_ci)
+    evidence['ci_admission'] = admit(evidence, repo=REPO, pr=url, head=head or registered['headRefOid'],
+                                     local_binding=binding, authority_root=ROOT)
     save(report/'CI.json',evidence)
     return evidence
 
@@ -214,7 +228,7 @@ def prepare_sync_source(source, report, changed):
     return branch
 
 
-def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_only=True):
+def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_only=True,local_ci=None):
     """Default to source production; hourly main must explicitly own publication."""
     from glp_affiliate_registry_sync import sync
     source=report/'candidate'
@@ -255,8 +269,8 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_
         source_pr=prs[0]['url'] if prs else run(['gh','pr','create','--repo',REPO,'--base','main','--head',branch,'--title','Automatic F03 affiliate terms and relationship sync','--body','Exact sole-writer readback; denial-only relationship changes and authenticated-capture terms. No activation or tracker visits. Operator-approved F04/F06 propagation.'])
         save(report/'PR.json',{'url':source_pr})
     if not source_pr:raise RuntimeError('merged_exact_head_pr_required')
-    evidence=ci(source_pr,report)
     head=run(['git','rev-parse','HEAD'],cwd=source)
+    evidence=ci(source_pr,report,head=head,local_ci=local_ci)
     if evidence['headRefOid']!=head:raise RuntimeError('source_pr_head_mismatch')
     if evidence['state']!='MERGED':
         run(['gh','pr','merge',source_pr,'--repo',REPO,'--merge','--match-head-commit',head],log=report/'merge.log')
@@ -269,7 +283,7 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_
     if source_only:
         result={'status':'PASS_SOURCE_MERGED','source_pr':source_pr,'source_head':head,
                 'merge_head':merged['mergeCommit']['oid'],'registry_changed':outcome['changed'],
-                'deployed':False,'production_publisher':'glp_release_main.py',
+                'deployed':False,'production_publisher':'glp_release_main.py', 'ci_admission':evidence['ci_admission'],
                 'run_type':os.environ.get('GLP_RUN_TYPE','manual')}
         save(report/'RESULT.json',result);return result
     from glp_affiliate_release import package_and_publish
@@ -281,7 +295,7 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_
     try:
         build_gate(source,report,config,head)
         result=package_and_publish(source,report,seat,publish=publish)
-        result.update(run_type=os.environ.get('GLP_RUN_TYPE','manual'),source_pr=source_pr)
+        result.update(run_type=os.environ.get('GLP_RUN_TYPE','manual'),source_pr=source_pr,ci_admission=evidence['ci_admission'])
         save(report/'RESULT.json',result)
         return result
     finally:run(lock+['release','--seat',seat])

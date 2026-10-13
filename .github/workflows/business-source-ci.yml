@@ -50,6 +50,8 @@ jobs:
           # Retained pre-admission importer counterexample is read by exact SHA.
           fetch-depth: 0
           persist-credentials: false
+      - name: Registered local-CI admission regressions (offline; no release or closure effects)
+        run: PYTHONPATH=scripts python3 -B -m pytest -q -p no:cacheprovider tests/test_local_ci_admission.py tests/test_glp_affiliate_release.py tests/test_glp_release_main.py tests/test_linear_close.py tests/test_linear_ordinary_completion.py
       - name: Hermes active-work gate (offline proc/tmux fixtures, exact head; no activation)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

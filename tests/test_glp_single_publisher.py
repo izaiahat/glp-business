@@ -38,7 +38,8 @@ def test_f03_merge_handoff_is_selected_by_hourly_release(tmp_path, monkeypatch):
             return json.dumps({'state': 'MERGED', 'headRefOid': head, 'mergeCommit': {'oid': merged}})
         return ''
     monkeypatch.setattr(job, 'run', run)
-    monkeypatch.setattr(job, 'ci', lambda *a: {'state': 'OPEN', 'headRefOid': head, 'url': url})
+    monkeypatch.setattr(job, 'ci', lambda *a, **kw: {'state': 'OPEN', 'headRefOid': head, 'url': url,
+                                                 'ci_admission': {'mode': 'hosted-success', 'head_sha': head}})
     def forbidden(*a, **kw): raise AssertionError('F03 reached build/publisher')
     monkeypatch.setattr(job, 'build_gate', forbidden)
     monkeypatch.setattr(packaging, 'package_and_publish', forbidden)

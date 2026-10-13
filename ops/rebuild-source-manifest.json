@@ -206,7 +206,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "7b035e3dbaf439d498f2d1a9ab90c5c8e707b71cd529ca44fd9bf042dbd0cd0d"
+      "sha256": "11f367d78c93c3d0d0738b8fbf708229d3eaa10ccaf73f24ee4680667478e13e"
     },
     ".codex-task/RESULT.md": {
       "callers": [
@@ -218,7 +218,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2f099ebb4af394462982487977fad84330e8a4bda01aa5919f164743700f004e"
+      "sha256": "947f4eb356cba4ef797aba5ad1bbee02dc12da5c3c44e3aab40cf6e013b931f9"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -2780,14 +2780,14 @@
         "scripts/glp_deploy_glp34_authority_v1.py"
       ],
       "kind": "script",
-      "sha256": "dae83fbe19de08fcf694ddce8fc908f0fdf1a990d6a4c12c373df7f7891d571e"
+      "sha256": "9cfbbd93c9d29292e431892f3ebfc9581442bf11feca3678c16073a5864bab0e"
     },
     "scripts/glp_affiliate_sync_job.py": {
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "004a57d4518eb2348a9e2f032c9b312e0a8d30805323071ceb6dc20e605af830"
+      "sha256": "83037d7bb506d4b5923ea7f06b3d59555f9e590af1f336c9c87a4fda4a1b1139"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -3196,7 +3196,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "0375fa8fe516c16e7b86b844edd94e1628cbfa6e020a3ce77666c3820017a684"
+      "sha256": "e3a23eb31b4ef00ad6dac50eb1a999a0ec011237583d7f5a10ab06ba68899fd5"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [
@@ -3571,12 +3571,12 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "0e91eb4b96c6603381d53057d9b5825894c9b2e429b70e2466f42fa5d71b5bd8"
+      "sha256": "f86d4cc93f2286d103c30b4274dc097e975372e00e630cd8d230da4a12986231"
     },
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "3590627d226eb2b1a5aa95ea21f5ccc446ef233fd3ded3eb7967384073dadda3"
+      "sha256": "fccfb79c259dc3a7bcd8f7de232adb2aa4f96f993465a2bf4d6411cb9fb928e0"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -6167,7 +6167,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "9154d917951db79da5a537cd48e7241e247cfd354945fb20f25d3c24b5524114"
+      "sha256": "4918bd676d7515e6c2a1a8a2cc9b21342745511eaa5d50ef1f2cf72893f97d3b"
     },
     "tests/test_glp_research_autowire.py": {
       "callers": [
@@ -7309,6 +7309,31 @@
       ],
       "sha256": "32c51ed81267b6c4ad3cb3101a9d9fa50f075274400c2c42db963ed7f437d73e"
     },
+    "scripts/local_ci_admission.py": {
+      "kind": "script",
+      "callers": ["scripts/local_ci_runner.py", "scripts/linear_close.py", "scripts/linear_orchestrator.py", "scripts/glp_affiliate_sync_job.py", "scripts/glp_affiliate_release.py"],
+      "sha256": "274d08fea2de46f268f306d92a3b4e37516b3bdd8cb0f404c7c62cf9cff46463"
+    },
+    "scripts/local_ci_runner.py": {
+      "kind": "script",
+      "callers": ["ops/local-ci-runner.json"],
+      "sha256": "dcb19791dfa1959b8c71a663c40292e005116e6c474503081619d5e10923bbbf"
+    },
+    "ops/local-ci-runner.json": {
+      "kind": "source_control",
+      "callers": ["scripts/local_ci_admission.py"],
+      "sha256": "ac410c7a368617211813db2f52d9269c03f71b08b76b8c0b87717b5f9470e58e"
+    },
+    "ops/local-ci-admission.md": {
+      "kind": "source_control",
+      "callers": ["ops/local-ci-runner.json"],
+      "sha256": "16e035a0b45910cd2e712cbc9c6efb2998ecbd8d755897a920f615d3d05536ec"
+    },
+    "tests/test_local_ci_admission.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "b34fd9be0e96096baae1c06c4753f0254ff407ee123147f31861ef5133cc9043"
+    },
     "tests/test_glp_affiliate_postback_n8n_sync.py": {
       "kind": "test",
       "callers": [
@@ -7325,5 +7350,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1075
+  "tracked_count": 1080
 }

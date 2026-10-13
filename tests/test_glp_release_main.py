@@ -187,7 +187,7 @@ def test_explicit_main_source_never_shortcuts_on_unchanged_affiliate_surfaces(tm
     monkeypatch.setattr(absence, 'audit', lambda *a, **k: {
         'remaining_unmapped': 0,'evidenced_no_live_offer_presence': 0,'unaccounted': 0})
     monkeypatch.setattr(job, 'save', lambda *a: None)
-    def ci(*args):
+    def ci(*args, **kwargs):
         raise RuntimeError('exact-head-ci-gate-reached')
     monkeypatch.setattr(job, 'ci', ci)
     assert job.execute({},tmp_path / 'auto',source_only=False)['status'] == 'PASS_ALREADY_CURRENT'
@@ -347,7 +347,7 @@ def test_sync_existing_pr_reconciled_before_create(tmp_path, monkeypatch, prior,
         if argv[:3]==['gh','pr','create']:raise AssertionError('duplicate PR mutation')
         return ''
     monkeypatch.setattr(job,'run',run)
-    def ci(pr, report):
+    def ci(pr, report, **kwargs):
         assert pr=='existing-pr'
         raise RuntimeError('reached-existing-pr-ci')
     monkeypatch.setattr(job,'ci',ci)
