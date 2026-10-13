@@ -132,10 +132,11 @@ class SourceCarrierTests(unittest.TestCase):
             'different_successor_route_existing_id':'source_identity_drift',
             'consumed_predecessor':'source_successor_already_consumed',
             'consumed_successor':'source_successor_already_consumed',
-            'quarantine_alone_not_held_successor_authority':'buffer_successor_predecessor_not_held_only|buffer_quarantine_invalid',
+            'held_predecessor_quarantine_conflict':'buffer_successor_predecessor_quarantined_recorded',
             'active_predecessor_claim':'buffer_successor_predecessor_claims_recorded',
             'published_predecessor_record':'buffer_successor_predecessor_published_recorded',
-            'successor_hold':'buffer_hold_invalid|source_successor_not_ready',
+            'successor_hold':'source_successor_not_ready',
+            'successor_quarantine':'source_successor_not_ready',
             'review_subject_byte_drift':'source_successor_review_binding_invalid',
             'registered_review_rejected':'synthetic_registered_review_refusal',
             'acceptance_gate_rejected':'synthetic_acceptance_refusal',
@@ -170,13 +171,23 @@ class SourceCarrierTests(unittest.TestCase):
                     ident = old['entry_id'] if contract.endswith('predecessor') else new['entry_id']
                     (pool / 'consumed').mkdir()
                     (pool / 'consumed' / (ident+'.json')).write_text('{}')
-                elif contract in ('quarantine_alone_not_held_successor_authority','active_predecessor_claim','published_predecessor_record','successor_hold'):
-                    directory = {'quarantine_alone_not_held_successor_authority':'quarantined',
+                elif contract in ('held_predecessor_quarantine_conflict','active_predecessor_claim','published_predecessor_record','successor_hold','successor_quarantine'):
+                    directory = {'held_predecessor_quarantine_conflict':'quarantined',
                                  'active_predecessor_claim':'claims','published_predecessor_record':'published',
-                                 'successor_hold':'held'}[contract]
-                    ident = new['entry_id'] if contract == 'successor_hold' else old['entry_id']
+                                 'successor_hold':'held','successor_quarantine':'quarantined'}[contract]
+                    ident = new['entry_id'] if contract.startswith('successor_') else old['entry_id']
                     (pool / directory).mkdir(exist_ok=True)
-                    (pool / directory / (ident+'.json')).write_text(json.dumps({'entry_id':ident}))
+                    record = pool / directory / (ident+'.json')
+                    if directory == 'quarantined':
+                        carrier.buffer._write_once(record, {'schema':carrier.buffer.QUARANTINE_SCHEMA,
+                            'entry_id':ident, 'publication_effects':0}, 'quarantine_sha256')
+                    elif directory == 'held':
+                        payload = json.loads((pool / 'held' / (old['entry_id']+'.json')).read_text())
+                        payload.update({key:new[key] for key in ('entry_id','topic_id','article_id','target_route','packet_closure_sha256')})
+                        payload['entry_manifest'] = carrier.buffer._spec(packet.parent / 'entry.json')
+                        carrier.buffer._write_once(record,payload,'hold_sha256')
+                    else:
+                        record.write_text(json.dumps({'entry_id':ident}))
                 elif contract == 'review_subject_byte_drift':
                     (pool / 'entries/packet/06-article.json').write_text('{}')
                 elif contract == 'versioned_destination_drift':
