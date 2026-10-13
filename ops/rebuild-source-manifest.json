@@ -1,9 +1,10 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "scripts/article_review_recovery.py": {"callers": ["scripts/article_health_acceptance.py"], "kind": "script", "sha256": "c95d53dd925861ed555287a158e7ede340dc3ce558976241fb9fabcf56507785"},
+    "systems/seo-blog-machine/tests/test_guide_render_contract.py": {"callers": [".github/workflows/business-source-ci.yml"], "kind": "test", "sha256": "bde4f66f6ace6444baba053a01d66d48ac94ce3764e49198c363aae51cdfc338"},
+    "scripts/article_review_recovery.py": {"callers": ["scripts/article_health_acceptance.py"], "kind": "script", "sha256": "bd882801c2d5c4853218108c2d79e64d108b5b5de103000ba3d0ef8cd5faced5"},
     "scripts/glp_release_search_notify.py": {"callers": ["scripts/glp_release_main.py"], "kind": "script", "sha256": "cdcbe1e771f4e0d4f2dac82e753b47ca3a01a7916b66c6568bcf527245dd6052"},
-    "tests/test_article_review_recovery.py": {"callers": [".github/workflows/business-source-ci.yml"], "kind": "test", "sha256": "c0e371bea3f9c0a973989e439c4ccb8f5eb6ea1f165361d53fa2c7b61b201548"},
+    "tests/test_article_review_recovery.py": {"callers": [".github/workflows/business-source-ci.yml"], "kind": "test", "sha256": "eb8bed40211c9b2f7f04f577541c068f7a0e77afd85d6a06649d78daf55388d8"},
     "tests/test_glp_release_search_notify.py": {"callers": [".github/workflows/business-source-ci.yml"], "kind": "test", "sha256": "3a616147f2d99299ee7307c46fc6a8e7aba4367a63bde4d8fc805ba86dbc0e34"},
     "scripts/glp_sponsor_firecrawl_supply.py": {"callers": ["ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"], "kind": "script", "sha256": "5241c5c2076941ab85a6e1912a5b85cae11d8ca6dd15cdf4daab9fdb632657b2"},
     "tests/test_glp_sponsor_firecrawl_supply.py": {"callers": ["scripts/run_tests.sh", "business-source-ci", "firecrawl-integration"], "kind": "test", "sha256": "86ff5ea288b0c256c0d1b5e0b04f3d807834c94862c38593189c3ea310d0262e"},
@@ -165,7 +166,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3b3ecbfc89f20515ef724fcc4505f0815623b3f19c34759e0d6809de33390e66"
+      "sha256": "ebffdd265bce2e78e21a9155c563842df6ac90cb8365b799b8cfb03cbc3a6825"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -2280,7 +2281,7 @@
         "scripts/linear_orchestrator.py"
       ],
       "kind": "script",
-      "sha256": "42d897ffc89f8d24b246c0feadf0cce017af7a1825d64d42cb38744b45df3d5d"
+      "sha256": "0ce5e234b5a3e796bc7c27a2b7848f5b47caf266d030c9021775e968b32528e3"
     },
     "scripts/article_source_carrier.py": {
       "callers": [
@@ -4025,7 +4026,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "574c476c9d01c1cb45e1a44d9932633c7e1751018ce7597e87382f971a44fb2c"
+      "sha256": "a2bca6ccad9abf44f6bc0b55e415ea18b393866000b9a5e4b60b3a8be942fda8"
     },
     "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
       "callers": [
@@ -4179,7 +4180,7 @@
         "systems/seo-blog-machine/scripts/materialize_opus_run.py"
       ],
       "kind": "script",
-      "sha256": "ac06d131f1f0e5676739f64b71284a5f667a225336f0caacd6699e4f8842da2e"
+      "sha256": "88314eecd90021669baba69406dc780fdabf06fa789bb705b2e922a9cfef43f3"
     },
     "systems/seo-blog-machine/scripts/weekly_strategy_consumer.py": {
       "callers": [
@@ -7195,5 +7196,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1068
+  "tracked_count": 1069
 }

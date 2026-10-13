@@ -205,7 +205,10 @@ def acceptance(carrier_path, *, natural=False, root=None, session_db=None):
         raw_path = Path(recovered['document']['raw_review']['path'])
         manifest_path = Path(recovered['document']['subject_manifest']['path'])
         custody = recovered['custody']
+        successor = {'derivation': recovered['document']['successor'],
+                     'authors': recovered['successor_authors']}
     else:
+        successor = None
         custody = reviewer_transport.validate_result_custody(
             raw, manifest=manifest, packet=packet, session_db=session_db or SESSION_DB)
     require(timestamp(manifest['sealed_at_utc']) <= custody['started_at']
@@ -224,6 +227,7 @@ def acceptance(carrier_path, *, natural=False, root=None, session_db=None):
             'raw_review': spec(raw_path), 'subject_manifest': spec(manifest_path),
             'authors': authors, 'reviewer': reviewer,
             'original_review': original_review, 'postpublication_recovery': recovery,
+            'postpublication_successor': successor,
             'url': live['url'], 'deployment_id': publication['deployment_id'], 'natural_due_slot': natural}
 
 

@@ -1,18 +1,37 @@
 #!/usr/bin/env python3
-"""Fresh post-publication review; never authenticates absent historical custody."""
+"""Fresh post-publication review of a repaired successor packet.
+
+Never authenticates absent historical custody and never rewrites the original
+entry, claim, QA or review. The successor contract replaces strict
+eight-original-byte equality, which genuinely regenerated 06/07 metadata cannot
+satisfy:
+
+* identity subjects (00 authority, 02 SERP) stay byte-identical to the original;
+* reviewed source repairs (01, 03, 04, 05) are free but must be the exact bytes
+  in the sealed fresh PASS manifest, authored by a non-reviewer session;
+* 06 must equal what the INSTALLED compiler regenerates from those sources;
+* 07 must be a full-PASS validator receipt over exactly those 00-06 bytes;
+* the reviewed candidate HTML (08) must project onto the deployed page, and the
+  deployed release source must carry exactly these 06/07 bytes and this review.
+Copying old QA into the successor cannot manufacture equality: 07 must hash the
+successor 06 and the recompiled 06 must match.
+"""
 import argparse
 import hashlib
+import html as htmllib
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path('/home/ubuntu/business')
-SCHEMA = 'glp-postpublication-review-recovery-v1'
+SCHEMA = 'glp-postpublication-review-recovery-v2'
 SUBJECTS = {'00-authority.json', '01-evidence-ledger.json', '02-serp-brief.json',
             '03-editorial-brief.md', '04-draft.md', '05-claim-source-map.json',
             '06-article.json', '07-qa-receipt.json'}
+CANDIDATE = '08-candidate-guide.html'
+IDENTITY = ('00-authority.json', '02-serp-brief.json')
+SOURCE_REPAIRS = ('01-evidence-ledger.json', '03-editorial-brief.md', '04-draft.md', '05-claim-source-map.json')
 
 
 def require(ok, reason):
@@ -49,16 +68,51 @@ def normalize_live(text):
     return text.replace('<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>', '')
 
 
-def subjects_match(original, fresh, rows, manifest):
+def site_wording(text):
+    """The site build's global dated-wording pass (scripts/build-staging.mjs)."""
+    text = re.sub(r'\bwas checked (2026-\d{2}-\d{2})(?!\d)', r'is current as of \1', text, flags=re.I)
+    text = re.sub(r'\bchecked through (2026-\d{2}-\d{2})(?!\d)', r'current through \1', text, flags=re.I)
+    text = re.sub(r'\bchecked (2026-\d{2}-\d{2})(?!\d)', r'current as of \1', text, flags=re.I)
+    return re.sub(r'\brelated coverage\b', 'connected coverage', text, flags=re.I)
+
+
+def article_projection(page):
+    """Reviewed article region: meta description plus TOC through source list."""
+    page = site_wording(normalize_live(page))
+    meta = re.findall(r'<meta name="description" content="([^"]*)"', page)
+    start = page.find('<nav class="guide-toc"')
+    anchor = page.find('<section class="guide-sources" id="sources">')
+    end = page.find('</section>', anchor) if anchor >= 0 else -1
+    require(len(meta) == 1 and 0 <= start < anchor < end, 'article_projection_missing')
+    return {'meta_description': htmllib.unescape(meta[0]), 'body': page[start:end + len('</section>')]}
+
+
+def successor_contract(original, fresh, rows, manifest, *, compile_packet):
+    """Positively exercised derivation from the original packet to the successor."""
     expected = {row['path']: row['sha256'] for row in rows}
     actual = {row['path']: row['sha256'] for row in manifest['subject_files']}
     require(set(expected) == SUBJECTS and len(rows) == len(expected), 'original_subject_set')
-    require(set(actual) == SUBJECTS | {'08-live-guide.html'}
-            and len(manifest['subject_files']) == len(actual), 'recovery_subject_set')
-    for name, digest in expected.items():
-        require(actual[name] == digest and sha(original / name) == digest
-                and sha(fresh / name) == digest, 'original_subject_drift')
-    require(sha(fresh / '08-live-guide.html') == actual['08-live-guide.html'], 'live_subject_drift')
+    require(set(actual) == SUBJECTS | {CANDIDATE} and len(manifest['subject_files']) == len(actual),
+            'recovery_subject_set')
+    for name, digest in actual.items():
+        require(sha(fresh / name) == digest, 'successor_subject_drift')
+    for name in IDENTITY:
+        require(actual[name] == expected[name] == sha(original / name), 'identity_subject_changed')
+    article = compile_packet(fresh)
+    regenerated = json.dumps(article, indent=2, sort_keys=True) + '\n'
+    require(regenerated.encode() == (fresh / '06-article.json').read_bytes(), 'successor_article_not_compiled')
+    require(article.get('render_contract', {}).get('schema') == 'glp-accepted-guide-render-v1',
+            'successor_render_contract_missing')
+    qa = read(fresh / '07-qa-receipt.json')
+    require(qa.get('status') == 'PASS' and qa.get('failures') == [] and qa.get('checks')
+            and all(v is True for v in qa['checks'].values()), 'successor_qa_not_PASS')
+    bound = {name: row['sha256'] for name, row in (qa.get('artifacts') or {}).items()}
+    require(bound == {name: actual[name] for name in SUBJECTS - {'07-qa-receipt.json'}}, 'successor_qa_unbound')
+    require(qa['checked_at_utc'] <= manifest['sealed_at_utc'], 'successor_qa_after_seal')
+    changed = sorted(name for name in SOURCE_REPAIRS if actual[name] != expected[name])
+    return {'identity': list(IDENTITY), 'source_repairs': changed,
+            'article_regenerated_sha256': hashlib.sha256(regenerated.encode()).hexdigest(),
+            'qa_sha256': actual['07-qa-receipt.json']}
 
 
 def recovery_path(entry_path, root):
@@ -71,8 +125,11 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     import hermes_sol_article_review as transport
     sys.path.insert(0, str(root / 'systems/seo-blog-machine/scripts'))
     import opus_review_loop as loop
+    import compile_review_packet_article as compiler
     entry = read(entry_path)
     require(doc['schema'] == SCHEMA and doc['status'] == 'PASS_POSTPUBLICATION_REVIEW', 'recovery_schema')
+    require(doc.get('natural_acceptance') is False and doc.get('historical_custody_repaired') is False,
+            'recovery_scope')
     require(checked(doc['entry']) == entry_path.resolve(), 'recovery_entry_replay')
     require(doc['original_review'] == entry['pass_receipt']
             and doc['original_raw_review'] == entry['raw_review'], 'historical_review_binding')
@@ -94,28 +151,45 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
             and manifest['manifest_sha256'] == loop.payload_hash(manifest, 'manifest_sha256')
             and receipt['raw_review_sha256'] == sha(raw_path)
             and receipt['subject_manifest_sha256'] == sha(manifest_path), 'fresh_review_binding')
-    fresh = checked(doc['live_snapshot']).parent
-    require(doc['live_snapshot']['path'] == str(fresh / '08-live-guide.html'), 'live_snapshot_path')
-    subjects_match(entry_path.parent / 'packet', fresh, entry['packet_files'], manifest)
+    fresh = checked(doc['candidate']).parent
+    require(doc['candidate']['path'] == str(fresh / CANDIDATE), 'candidate_path')
+    derivation = successor_contract(entry_path.parent / 'packet', fresh, entry['packet_files'], manifest,
+                                    compile_packet=compiler.compile_packet)
+    require(doc['successor'] == derivation, 'successor_derivation_changed')
     payload = loop.parse_result(raw)
     loop.validate_review(payload, raw, manifest, receipt['round'])
     require(payload['verdict'] == receipt['status'] == 'PASS_OPUS_SEO_DRAFT'
             and payload['gates'] == receipt['gates'] and payload['findings'] == receipt['findings'] == []
             and all(g['status'] == 'PASS' and not g['findings'] for g in receipt['gates']), 'fresh_review_not_PASS')
     custody = transport.validate_result_custody(raw, manifest=manifest, packet=fresh, session_db=session_db)
-    from article_health_acceptance import timestamp
+    from article_health_acceptance import timestamp, packet_authors
     require(timestamp(manifest['sealed_at_utc']) <= custody['started_at']
             and custody['ended_at'] <= timestamp(receipt['reviewed_at_utc']), 'fresh_review_chronology')
+    runtime = raw['hermes_runtime']
+    successor_authors = packet_authors(database, [fresh / name for name in derivation['source_repairs']],
+                                       {'model': runtime['model'], 'runtime': {'native_session_id': runtime['session_id']}},
+                                       timestamp(manifest['sealed_at_utc']))
     pointer = read(root / 'reports/glp-clinic-scout/seo-machine/current-content-base.json')
+    release = Path(pointer['release_root'])
+    rows = [r for r in read(release / 'data/blog/accepted-guides/updates.json')['entries']
+            if r['route'] == entry['target_route']]
+    require(len(rows) == 1 and rows[0]['article']['sha256'] == sha(fresh / '06-article.json')
+            and rows[0]['qa']['sha256'] == sha(fresh / '07-qa-receipt.json')
+            and rows[0]['review']['sha256'] == sha(round_path)
+            and all(sha(release / rows[0][k]['path']) == rows[0][k]['sha256'] for k in ('article', 'qa', 'review')),
+            'deployed_source_not_successor')
     binding = doc['live_binding']
-    live_file = Path(pointer['release_root']) / 'public' / entry['target_route'].strip('/') / 'index.html'
+    live_file = release / 'public' / entry['target_route'].strip('/') / 'index.html'
+    snapshot = checked(doc['live_snapshot'])
     require(binding['url'] == 'https://glpclinicscout.com' + entry['target_route']
             and binding['http_status'] == 200 and binding['deployment_id'] == pointer['deployment_id']
-            and sha(live_file) == binding['deployed_sha256']
-            and sha(checked(doc['live_snapshot'])) == binding['live_sha256']
-            and normalize_live(checked(doc['live_snapshot']).read_text()) == live_file.read_text(),
+            and sha(live_file) == binding['deployed_sha256'] and sha(snapshot) == binding['live_sha256']
+            and normalize_live(snapshot.read_text()) == live_file.read_text(),
             'reviewed_live_deployment_drift')
-    return {'receipt': receipt, 'raw': raw, 'manifest': manifest, 'custody': custody, 'document': doc}
+    require(article_projection(live_file.read_text()) == article_projection((fresh / CANDIDATE).read_text()),
+            'live_differs_from_reviewed_candidate')
+    return {'receipt': receipt, 'raw': raw, 'manifest': manifest, 'custody': custody, 'document': doc,
+            'successor_authors': successor_authors}
 
 
 def validate_recovery(entry_path, *, root=ROOT, natural=False, session_db=None):
@@ -127,20 +201,22 @@ def validate_recovery(entry_path, *, root=ROOT, natural=False, session_db=None):
     return result
 
 
-def seal(entry_path, history, packet, binding_path, *, root=ROOT):
+def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT):
+    sys.path.insert(0, str(root / 'systems/seo-blog-machine/scripts'))
+    import compile_review_packet_article as compiler
     entry = read(entry_path)
-    rounds = sorted(history.glob('round-*.receipt.json'))
-    if not rounds:
-        rounds = sorted(history.glob('round-*-receipt.json'))
+    rounds = sorted(history.glob('round-*-receipt.json'))
     require(len(rounds) == 1, 'exact_single_review_required')
     receipt = read(rounds[0])
-    manifest_path = Path(receipt['subject_manifest_path'])
-    raw_path = Path(receipt['raw_review_path'])
+    manifest = read(receipt['subject_manifest_path'])
     doc = {'schema': SCHEMA, 'status': 'PASS_POSTPUBLICATION_REVIEW',
            'entry': spec(entry_path), 'original_review': entry['pass_receipt'],
            'original_raw_review': entry['raw_review'], 'review': spec(rounds[0]),
-           'raw_review': spec(raw_path), 'subject_manifest': spec(manifest_path),
-           'live_snapshot': spec(packet / '08-live-guide.html'), 'live_binding': read(binding_path),
+           'raw_review': spec(receipt['raw_review_path']), 'subject_manifest': spec(receipt['subject_manifest_path']),
+           'candidate': spec(packet / CANDIDATE),
+           'successor': successor_contract(entry_path.parent / 'packet', packet, entry['packet_files'], manifest,
+                                           compile_packet=compiler.compile_packet),
+           'live_snapshot': spec(snapshot), 'live_binding': read(binding_path),
            'historical_custody_repaired': False, 'natural_acceptance': False}
     validate_documents(entry_path, doc, root=root)
     path = recovery_path(entry_path, root)
@@ -157,11 +233,13 @@ def main():
     parser.add_argument('--history', type=Path, required=True)
     parser.add_argument('--packet', type=Path, required=True)
     parser.add_argument('--live-binding', type=Path, required=True)
+    parser.add_argument('--live-snapshot', type=Path, required=True)
     args = parser.parse_args()
     from glp_release_main import lock_module
     with lock_module().acquire('main-site-release', owner='article-review-recovery', root=ROOT):
         path = seal(args.entry.resolve(strict=True), args.history.resolve(strict=True),
-                    args.packet.resolve(strict=True), args.live_binding.resolve(strict=True))
+                    args.packet.resolve(strict=True), args.live_binding.resolve(strict=True),
+                    args.live_snapshot.resolve(strict=True))
     print(json.dumps({'status': 'PASS_POSTPUBLICATION_REVIEW', 'recovery': spec(path)}))
 
 
