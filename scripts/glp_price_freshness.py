@@ -716,17 +716,39 @@ def batch_monitor(client, urls, out, concurrency):
     if set(urls) - monitored.keys():
         errors = client.request('batch/scrape/' + start['id'] + '/errors', method='GET', timeout=150)
         put(out / 'BATCH-ERRORS.json', errors)
+        fallbacks = {}
         for error in errors.get('errors', []):
             url = error.get('url')
             if (url not in urls or url in monitored or url in errors.get('robotsBlocked', [])
                     or error.get('code') != 'SCRAPE_ALL_ENGINES_FAILED'):
                 continue
-            response = client.scrape({'url': url, 'formats': ['markdown'], 'onlyMainContent': False,
-                'maxAge': 0, 'timeout': 120000, 'proxy': 'auto', 'waitFor': 2000}, timeout=150)
-            response = copy.deepcopy(response)
-            response['transport_recovery'] = {'first_error_code': error['code'],
-                'batch_id': start['id'], 'attempts': 2, 'retry_options': {'proxy': 'auto', 'waitFor': 2000}}
-            monitored[url] = response
+            recovery = {'first_error_code': error['code'], 'batch_id': start['id'],
+                        'attempts': 2, 'retry_options': {'proxy': 'auto', 'waitFor': 2000}}
+            try:
+                response = client.scrape({'url': url, 'formats': ['markdown'], 'onlyMainContent': False,
+                    'maxAge': 0, 'timeout': 120000, 'proxy': 'auto', 'waitFor': 2000}, timeout=150)
+            except Exception as exc:
+                # This URL is unknown evidence, not a failed entire batch. In
+                # particular, ambiguous effects are retained, NEVER retried.
+                operation = getattr(exc, 'firecrawl_operation', {})
+                response = {'success': False, 'monitor_failure': {
+                    **recovery, 'error_type': type(exc).__name__,
+                    'http_status': exc.code if isinstance(exc, urllib.error.HTTPError) else None,
+                    'creditsUsed': operation.get('creditsUsed'),
+                    'operation_id': operation.get('operation_id')}}
+            else:
+                from firecrawl_client import _receipt
+                response = copy.deepcopy(response)
+                credits = _receipt(response)[1]
+                if response.get('success') is not True:
+                    response['monitor_failure'] = {**recovery, 'error_type': 'provider_error',
+                                                  'http_status': None, 'creditsUsed': credits,
+                                                  'operation_id': None}
+                else:
+                    response['transport_recovery'] = {**recovery, 'creditsUsed': credits}
+            monitored[url] = response  # Also suppress duplicate failed-URL entries.
+            fallbacks[url] = response
+            put(out / 'BATCH-FALLBACKS.json', fallbacks)
     return monitored
 
 
@@ -807,6 +829,9 @@ def run(args, client=None):
                 response = (monitored.get(url, {'success': False}) if monitored is not None else
                             scrape(client, url, ['markdown', {'type': 'changeTracking', 'modes': ['git-diff']}]))
                 put(folder / (key + '-monitor.json'), response)
+                if response.get('monitor_failure'):
+                    page['monitor_failure'] = response['monitor_failure']
+                    raise ValueError('batch_auto_fallback_failed:' + response['monitor_failure']['error_type'])
                 if response.get('transport_recovery'):
                     page['monitor_transport_recovery'] = response['transport_recovery']
                 data = response_data(response, url)
