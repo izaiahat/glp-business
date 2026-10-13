@@ -558,14 +558,243 @@ def abandon_empty_legacy(*, jobs: list[str], apply=False, live_jobs_reader=_lega
                       'active': active_registry()}, sort_keys=True))
     return 0 if all(r['decision'] in ('WOULD_ABANDON', 'ABANDONED', 'NOT_RUNNING_V1') for r in results) else 1
 
+# Only committed, independently reviewed rulings can authorize sent-job disposition.
+# A new ruling requires a source PR, never a caller-authored runtime allowlist.
+SUPERSESSION_RULINGS = {
+    'ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.json': '4ad6e16fd15e8734ce965f4ebd42a339cc893f6e53ae8f938cfbab02920f764d',
+}
+
+
+def _supersession_entries(ruling):
+    """Authenticate the pinned identities independently of mutable queue links."""
+    if ruling not in SUPERSESSION_RULINGS:
+        raise ValueError('RULING_NOT_REGISTERED')
+    path = BUSINESS / ruling
+    raw = path.read_bytes()
+    if path.is_symlink() or hashlib.sha256(raw).hexdigest() != SUPERSESSION_RULINGS[ruling]:
+        raise ValueError('RULING_HASH')
+    facts = json.loads(raw)
+    entries = facts.get('jobs')
+    if (facts.get('schema') != 'pro-research-supersession-ruling-v1' or
+            facts.get('authority') != 'operator' or facts.get('research_only') is not True or
+            facts.get('no_side_effects') is not True or not facts.get('verbatim') or
+            not facts.get('decision_date') or not isinstance(entries, list) or not entries):
+        raise ValueError('RULING_SCOPE')
+    originals = [r['job'] for r in entries]
+    replacements = [r['replacement_job'] for r in entries]
+    if (len(set(originals)) != len(entries) or len(set(replacements)) != len(entries) or
+            set(originals) & set(replacements) or any(not isinstance(j, str) or
+            not re.fullmatch(r'[A-Za-z0-9._-]{1,80}', j) or j in ('.', '..')
+            for j in originals + replacements)):
+        raise ValueError('RULING_IDENTITIES')
+    return entries, raw
+
+
+def _supersession_ruling(ruling, job):
+    entries, raw = _supersession_entries(ruling)
+    matching = [r for r in entries if r['job'] == job]
+    if len(matching) != 1 or matching[0].get('linear_child') == 'GLP-336':
+        raise ValueError('RULING_JOB')
+    return matching[0], raw
+
+
+def _supersession_evidence(cfg, st, preimage, ruling):
+    """Authenticate the complete sent preimage, unchanged packet and original journal."""
+    entry, raw = _supersession_ruling(ruling, st['job'])
+    alias = entry['account_alias']
+    if not re.fullmatch(r'acct[123]', alias):
+        raise ValueError('ACCOUNT_ALIAS')
+    account = cfg['accounts'][int(alias[4:]) - 1]['label']
+    if (json.loads(preimage) != st or hashlib.sha256(preimage).hexdigest() != entry['job_sha256'] or
+            st.get('status') != 'running' or st.get('job_class') != 'research-synthesis' or
+            st.get('typed') is not True or st.get('sent') is not True or
+            st.get('retry_blocked') is not False or st.get('account') != account or
+            st.get('linear_child') != entry['linear_child'] or st.get('linear_child') == 'GLP-336' or
+            st.get('input_sha256') != entry['input_sha256'] or
+            st.get('binding_version') != 2 or not binding_url(st) or
+            st.get('conversation_id') != binding_url(st).rsplit('/', 1)[1] or
+            not isinstance(st.get('tab'), str) or not st['tab'] or
+            not all(isinstance(st.get(k), str) and st[k] for k in PROVENANCE_FIELDS)):
+        raise ValueError('SENT_BOUND_RESEARCH_STATE')
+    d = JOBS / st['job']
+    if (d / 'RESPONSE.md').exists() or (d / 'outbox').exists():
+        raise ValueError('OUTPUT_PRESENT')
+    files = entry['files']
+    if not isinstance(files, dict) or not files:
+        raise ValueError('PACKET_PINS')
+    custody = {}
+    for name, digest in files.items():
+        p = BUSINESS / name
+        if (Path(name).is_absolute() or '..' in Path(name).parts or
+                p.resolve() != p.absolute() or not p.resolve().is_relative_to(BUSINESS.resolve()) or
+                not re.fullmatch(r'[0-9a-f]{64}', digest)):
+            raise ValueError('PACKET_PATH')
+        content = p.read_bytes()
+        if hashlib.sha256(content).hexdigest() != digest:
+            raise ValueError('PACKET_HASH')
+        custody[p] = content
+    required = [d / n for n in ('PROMPT.md', 'MANIFEST.json', 'MESSAGE.md')]
+    if not all(p in custody for p in required):
+        raise ValueError('PACKET_INCOMPLETE')
+    if _failed_generation_identity(st) not in custody[d / 'MESSAGE.md'].decode():
+        raise ValueError('MESSAGE_IDENTITY')
+    manifest = json.loads(custody[d / 'MANIFEST.json'])
+    paths = [d / 'PROMPT.md', *map(Path, manifest['attach']), *map(Path, manifest['drive_attach'])]
+    if any(p not in custody for p in paths):
+        raise ValueError('PACKET_INCOMPLETE')
+    packet = [(p.name, hashlib.sha256(custody[p]).hexdigest()) for p in paths]
+    if hashlib.sha256(json.dumps(packet, separators=(',', ':')).encode()).hexdigest() != st['input_sha256']:
+        raise ValueError('INPUT_HASH')
+    ledger = ledger_path(cfg)
+    custody[ledger] = ledger.read_bytes()
+    all_rows = [(line, json.loads(line)) for line in custody[ledger].splitlines() if line.strip()]
+    job_lines = [line for line, row in all_rows if row.get('job') == st['job']]
+    n = len(entry['ledger_lines_sha256'])
+    if not n or [hashlib.sha256(line).hexdigest() for line in job_lines[:n]] != entry['ledger_lines_sha256']:
+        raise ValueError('JOURNAL_PREIMAGE')
+    rows = [json.loads(line) for line in job_lines]
+    bound = [r for r in rows[:n] if r.get('event') == 'submission_bound']
+    if (len(bound) != 1 or bound[0].get('account') != st['account'] or
+            _conversation(bound[0].get('conversation_url')) != binding_url(st) or
+            any(bound[0].get(k) != st[k] for k in PROVENANCE_FIELDS)):
+        raise ValueError('JOURNAL_BINDING')
+    custody[BUSINESS / ruling] = raw
+    return entry, raw, custody, rows, job_lines
+
+
+def _supersession_observations(st, rows):
+    """Only exact native read-only point observations may follow the ruling prefix."""
+    fields = ('stop', 'logged_out', 'security_interstitial', 'human_challenge',
+              'rate_limited', 'drive_reconnect', 'thinking_failed', 'user_identity_matched')
+    for row in rows:
+        observed = row.get('observed', {})
+        if set(observed) != set(fields) or any(type(v) is not bool and v is not None for v in observed.values()):
+            raise ValueError('JOURNAL_OBSERVATION')
+        generating = (False if any(v is not None and v != (k in ('stop', 'user_identity_matched'))
+                                  for k, v in observed.items()) else
+                      None if any(v is None for v in observed.values()) else True)
+        expected = {'ts': row['ts'], 'event': 'generation_observation',
+                    'schema': 'gpt6pro-generation-observation-v1', 'coverage': 'single_bound_read_only',
+                    'read_started_at': row['read_started_at'], 'read_finished_at': row['read_finished_at'],
+                    'job': st['job'], 'account': st['account'], 'conversation_url': binding_url(st),
+                    'conversation_id': st['conversation_id'], 'binding_version': 2, 'tab': st['tab'],
+                    'observed': observed, 'authenticated_generation_observed': generating,
+                    'reply_token_sha256': hashlib.sha256(st['reply_token'].encode()).hexdigest(),
+                    **{key: st[key] for key in (*PROVENANCE_FIELDS, 'job_class', 'input_sha256')}}
+        times = [datetime.fromisoformat(row[key]) for key in ('read_started_at', 'read_finished_at', 'ts')]
+        if (row != expected or type(row.get('authenticated_generation_observed')) not in (bool, type(None)) or
+                not all(t.tzinfo for t in times) or times != sorted(times)):
+            raise ValueError('JOURNAL_OBSERVATION')
+
+
+def _supersession_event(st, entry, ruling, raw, at, journal_lines):
+    return {'event': 'research_supersession', 'job': st['job'], 'account': st['account'],
+            'from_status': st['status'], 'to_status': 'SUPERSEDED',
+            'replacement_job': entry['replacement_job'], 'ruling': ruling,
+            'ruling_sha256': hashlib.sha256(raw).hexdigest(), 'preimage_sha256': entry['job_sha256'],
+            'journal_preimage_rows': len(journal_lines),
+            'journal_preimage_sha256': hashlib.sha256(b'\n'.join(journal_lines)).hexdigest(),
+            'conversation_url': binding_url(st), 'retained_tab': st['tab'], 'observed_at': at}
+
+
+def _verified_supersession(st):
+    """An interrupted or tampered disposition NEVER frees active capacity."""
+    try:
+        if st.get('status') != 'SUPERSEDED' or job_state(st['job']) != st:
+            return False
+        proof = st['supersession']
+        preimage = (JOBS / st['job'] / ('JOB.pre-supersession-' + proof['preimage_sha256'] + '.json')).read_bytes()
+        original = json.loads(preimage)
+        entry, raw, _, rows, lines = _supersession_evidence(load_config(), original, preimage, proof['ruling'])
+        n = len(rows) - 2
+        if n < len(entry['ledger_lines_sha256']):
+            return False
+        _supersession_observations(original, rows[len(entry['ledger_lines_sha256']):n])
+        expected = _supersession_event(original, entry, proof['ruling'], raw, proof['observed_at'], lines[:n])
+        return (datetime.fromisoformat(proof['observed_at']).tzinfo is not None and proof == expected and
+                st == {**original, 'status': 'SUPERSEDED', 'retry_blocked': True, 'supersession': proof} and
+                len(rows) == n + 2 and all(r == {'ts': r.get('ts'), **proof, 'phase': phase}
+                                         for r, phase in zip(rows[n:], ('STARTED', 'APPLIED'))))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
+        return False
+
+
+def supersede_research(job, ruling, *, apply=False, authorize_preimage=None):
+    """Forward-only ruled disposition. Never stop, close, reload, send, fetch or erase.
+
+    Old tabs remain protected and the original ID is permanently retry-blocked.
+    --apply requires the exact original JOB digest; dry-run changes no custody.
+    Coordination lock files may be created by the existing lock helpers.
+    Replacement creation/submission is a separate installed dispatcher action.
+    """
+    def refuse(reason):
+        raise SystemExit('SUPERSESSION_REFUSED_' + reason + ' ' + job)
+    try:
+        entry, _ = _supersession_ruling(ruling, job)
+        if (apply and authorize_preimage != entry['job_sha256']) or (not apply and authorize_preimage is not None):
+            refuse('AUTHORITY')
+        cfg = load_config()
+        st = job_state(job)
+        use_account(account_of(cfg, st.get('account')))
+        with account_lock(), global_lock():
+            path = JOBS / job / 'JOB.json'
+            preimage = path.read_bytes(); st = json.loads(preimage)
+            if st.get('status') == 'SUPERSEDED':
+                if not _verified_supersession(st) or st['supersession']['ruling'] != ruling:
+                    refuse('INCOMPLETE_OR_CHANGED_HISTORY')
+                print('ALREADY_SUPERSEDED job=' + job)
+                return 0
+            if st.get('job') != job:
+                refuse('JOB_IDENTITY')
+            entry, raw, custody, rows, lines = _supersession_evidence(cfg, st, preimage, ruling)
+            _supersession_observations(st, rows[len(entry['ledger_lines_sha256']):])
+            replacement = JOBS / entry['replacement_job']
+            if replacement.exists() or any(r.get('job') == entry['replacement_job'] for r in ledger_rows(cfg)):
+                refuse('REPLACEMENT_ALREADY_EXISTS')
+            require_binding(st)
+            if _legacy_live_jobs():
+                refuse('LIVE_RUNNER')
+            backup = path.with_name('JOB.pre-supersession-' + entry['job_sha256'] + '.json')
+            if backup.exists():
+                refuse('PREIMAGE_ALREADY_EXISTS')
+            def recheck():
+                if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
+                        replacement.exists() or (path.parent / 'RESPONSE.md').exists() or
+                        (path.parent / 'outbox').exists() or _legacy_live_jobs()):
+                    refuse('DRIFT')
+            recheck()
+            if not apply:
+                print('WOULD_SUPERSEDE job=' + job + ' replacement=' + entry['replacement_job'])
+                return 0
+            with backup.open('xb') as fh:
+                fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
+            fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try: os.fsync(fd)
+            finally: os.close(fd)
+            recheck()
+            event = _supersession_event(st, entry, ruling, raw, now_iso(), lines)
+            ledger_append(cfg, {**event, 'phase': 'STARTED'})
+            job_write(job, {**st, 'status': 'SUPERSEDED', 'retry_blocked': True, 'supersession': event})
+            ledger_append(cfg, {**event, 'phase': 'APPLIED'})
+            if not _verified_supersession(job_state(job)):
+                refuse('READBACK')
+            print('SUPERSEDED job=' + job + ' replacement=' + entry['replacement_job'] + '; retained tab protected')
+            return 0
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError) as exc:
+        refuse(type(exc).__name__ + '_' + str(exc))
+
+
 def active_registry():
     """JOB.json is the account-global reservation, not a wave or live PID count."""
     rows = []
     for path in sorted(JOBS.glob('*/JOB.json')):
         st = json.loads(path.read_text())
-        if st.get('status') in ACTIVE_STATES or (st.get('retry_blocked') and
+        if ((st.get('status') == 'SUPERSEDED' and
+                (st.get('job') != path.parent.name or not _verified_supersession(st))) or
+                st.get('status') in ACTIVE_STATES or (st.get('retry_blocked') and
+                st.get('status') != 'SUPERSEDED' and
                 not (st.get('status') == 'failed' and st.get('reason') == 'THINKING_FAILED') and
-                not (st.get('job') == path.parent.name and _verified_terminal_unsent(st))):
+                not (st.get('job') == path.parent.name and _verified_terminal_unsent(st)))):
             rows.append({'job': path.parent.name, 'account': st.get('account'),
                          'status': st.get('status'), 'conversation_id': st.get('conversation_id'),
                          'retry_blocked': bool(st.get('retry_blocked'))})
@@ -747,7 +976,7 @@ def bu_json(script: str, timeout: int = 300) -> dict:
                 if f"http://127.0.0.1:{a.get('cdp_port', 9340)}" == BU_ENV['BU_CDP_URL']]
     if len(accounts) == 1:
         retained = {t for s in sibling_bindings(accounts[0]['label'], '')
-                    if _verified_terminal_unsent(s) for t in custody_tabs(s)}
+                    if _verified_terminal_unsent(s) or _verified_supersession(s) for t in custody_tabs(s)}
         cap += len(retained)
     preamble = ('import time\n_pace_path=' + repr(str(BUSINESS / 'ops/gpt6pro-relay/locks/page-load-ip.clock')) +
                 '\n_page_gap=' + repr(max(60, 60 / max(0.01, envelope.get('max_page_loads_per_min_per_ip', 1)))) + '\n')
@@ -3620,7 +3849,7 @@ def _cmd_submit(a) -> int:
         raise SystemExit(f"REFUSED_JOB_CLASS {a.job_class} not in {cfg['job_classes_allowed']}")
     d = job_dir(a.job)
     previous = job_state(a.job)
-    if previous.get("status") in ("submitting", "running", "done") or previous.get("retry_blocked"):
+    if previous.get("status") in ("submitting", "running", "done", "SUPERSEDED") or previous.get("retry_blocked"):
         raise SystemExit(f"REFUSED_DUPLICATE job {a.job} already submitted or uncertain (use poll/operator recovery)")
     siblings = sibling_bindings(acct["label"], a.job)
     if any((s.get("status") in ("submitting", "running") or s.get("retry_blocked")) and
@@ -3946,6 +4175,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
+    ss = sub.add_parser('supersede-research', help='dry-run by default; registered operator ruling for sent/bound research-only jobs')
+    ss.add_argument('--job', required=True)
+    ss.add_argument('--ruling', required=True, help='registered approval path relative to business root')
+    ss.add_argument('--apply', action='store_true')
+    ss.add_argument('--authorize-preimage', help='exact original JOB.json SHA256, required only with --apply')
     nr = sub.add_parser("reconcile-no-reply", help="read exact bound tab without reload or freeing uncertain capacity")
     nr.add_argument("--job", required=True)
     u = sub.add_parser("reconcile-unsent-focus", help="dry-run first; exact pre-insert focus() KeyError only")
@@ -3998,6 +4232,8 @@ def main() -> int:
     p.add_argument("--interval", type=int, default=30)
     p.add_argument("--max-wait", type=int, default=3600)
     a = ap.parse_args()
+    if a.cmd == 'supersede-research':
+        return supersede_research(a.job, a.ruling, apply=a.apply, authorize_preimage=a.authorize_preimage)
     if a.cmd == "status":
         return cmd_status(a)
     if a.cmd == "reconcile-no-reply":

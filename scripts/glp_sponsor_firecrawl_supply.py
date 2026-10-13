@@ -96,12 +96,15 @@ US_ADDRESS = re.compile(r'\b(?:CA|NY|TX|FL|MA|CO|WA|IL|AZ|NC|GA|PA|NJ|UT|TN|OH|O
 
 def sponsor_fit(text):
     """Commercial first-party excerpt, not a seed/domain or generic blog keyword."""
-    if RESEARCH_ONLY.search(text):
+    # Refuse ambiguous/negative context before clipping: a long product list
+    # must not lose its governing negator. Deliberately prefer false negatives
+    # (including double negatives and "not only") to unsupported admission.
+    if RESEARCH_ONLY.search(text) or re.search(r"\b(?:no|not|never|neither|nor|cannot|no longer|\w+n['’]t)\b", text, re.I):
         return None
     for category, pattern in CATEGORY.items():
         for match in pattern.finditer(text):
             excerpt = text[max(0, match.start()-120):match.end()+180].strip()
-            if COMMERCIAL.search(excerpt) and not re.search(r"\b(?:not|never|cannot|no longer|\w+n['’]t)\b", excerpt, re.I):
+            if COMMERCIAL.search(excerpt):
                 return category, excerpt
     return None
 
@@ -133,7 +136,9 @@ def sponsor_scope_current(host, organization, campaign, at):
             excerpt = ev.get('sponsor_category_excerpt') or ev.get('country_excerpt')
             if not excerpt or norm(excerpt) not in norm(text):
                 continue
-            if ev.get('sponsor_category') in CATEGORY and sponsor_fit(excerpt) and CATEGORY[ev['sponsor_category']].search(excerpt):
+            # Recheck the complete bound page, not merely a proposal substring
+            # which may have dropped a negator before its category keyword.
+            if ev.get('sponsor_category') in CATEGORY and sponsor_fit(text) and sponsor_fit(excerpt) and CATEGORY[ev['sponsor_category']].search(excerpt):
                 qualified.append(ev)
             elif ev.get('country') == 'US' and not US_REJECT.search(excerpt) and (US_SCOPE.search(excerpt) or US_ADDRESS.search(excerpt)):
                 qualified.append(ev)

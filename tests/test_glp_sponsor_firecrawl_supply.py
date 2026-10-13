@@ -185,6 +185,98 @@ def test_sponsor_fit_refuses_negated_product_claims():
     assert supply.sponsor_fit('We offer protein shakes for our customers.')[0] == 'nutrition_protein'
 
 
+def test_no_product_quantifier_refused_by_producer_and_sealed_census():
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    host = 'negative.example'
+    local = {'suppression': {'complete': True, 'entries': []}, 'conversations': []}
+    for statement, category in (('We offer no protein shakes.', 'nutrition_protein'),
+                                ('We provide no meal delivery service.', 'meals')):
+        assert supply.sponsor_fit(statement) is None
+        assert campaign.sponsor_fit(statement) is None
+        # Even a proposed category row anchored to real first-party negative text
+        # must not authorize the organization through the actual sender census.
+        text = statement + ' We ship to customers across the United States. Partnerships partners@negative.example.'
+        html = '<p>' + text + '</p>'
+        sha = hashlib.sha256(html.encode()).hexdigest()
+        url = 'https://' + host + '/'
+        rows, contacts = supply.evidence(host, url, html, sha, at.isoformat(),
+            campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+        rows.append({'source_url': url, 'sponsor_category': category,
+                     'sponsor_category_excerpt': statement, 'observed_utc': at.isoformat(), 'sha256': sha})
+        org = {'provider': host, 'scope_evidence': rows, 'discovery': {'candidates': contacts,
+            '_markup': [{'url': url, 'final_url': url, 'html': html, 'sha256': sha}]}}
+        assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+            {'organizations': {host: org}}, local)['recipients'] == []
+    assert supply.sponsor_fit('We offer protein shakes.')[0] == 'nutrition_protein'
+    assert campaign.sponsor_fit('We provide meal delivery service.')[0] == 'meals'
+
+
+def test_correlative_negation_refused_by_helpers_and_sealed_census():
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    host = 'negative.example'
+    local = {'suppression': {'complete': True, 'entries': []}, 'conversations': []}
+    for statement in ('We offer neither protein shakes nor meal delivery.',
+                      'Our products include neither protein shakes nor prepared meals.'):
+        html = '<p>' + statement + ' We ship to customers across the United States. Partnerships partners@negative.example.</p>'
+        sha = hashlib.sha256(html.encode()).hexdigest()
+        url = 'https://' + host + '/'
+        rows, contacts = supply.evidence(host, url, html, sha, at.isoformat(),
+            campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+        rows.append({'source_url': url, 'sponsor_category': 'nutrition_protein',
+                     'sponsor_category_excerpt': statement, 'observed_utc': at.isoformat(), 'sha256': sha})
+        org = {'provider': host, 'scope_evidence': rows, 'discovery': {'candidates': contacts,
+            '_markup': [{'url': url, 'final_url': url, 'html': html, 'sha256': sha}]}}
+        assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+            {'organizations': {host: org}}, local)['recipients'] == []
+        assert supply.sponsor_fit(statement) is None
+        assert campaign.sponsor_fit(statement) is None
+
+
+def test_negative_context_cannot_be_lost_by_excerpt_clipping():
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    host = 'negative.example'
+    local = {'suppression': {'complete': True, 'entries': []}, 'conversations': []}
+    statement = 'We offer no ' + 'vitamin tablets, ' * 12 + 'protein shakes for our customers.'
+    html = '<p>' + statement + ' We ship to customers across the United States. Partnerships partners@negative.example.</p>'
+    sha = hashlib.sha256(html.encode()).hexdigest()
+    url = 'https://' + host + '/'
+    rows, contacts = supply.evidence(host, url, html, sha, at.isoformat(),
+        campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+    org = {'provider': host, 'scope_evidence': rows, 'discovery': {'candidates': contacts,
+        '_markup': [{'url': url, 'final_url': url, 'html': html, 'sha256': sha}]}}
+    assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+        {'organizations': {host: org}}, local)['recipients'] == []
+    assert supply.sponsor_fit(statement) is None
+    assert campaign.sponsor_fit(statement) is None
+    # Historical/clipped proposals cannot discard the negator from the page.
+    rows.append({'source_url': url, 'sponsor_category': 'nutrition_protein',
+        'sponsor_category_excerpt': 'protein shakes for our customers.',
+        'observed_utc': at.isoformat(), 'sha256': sha})
+    assert campaign.recipients([list(policy.EXPECTED_HEADERS)],
+        {'organizations': {host: org}}, local)['recipients'] == []
+    assert not any(x.get('sponsor_category') for x in supply.sponsor_scope_current(host, org, campaign, at))
+    # Retain conservative refusal of ambiguous double negatives/not-only claims;
+    # a separate explicit affirmative source is required, not NLP inference.
+    for text in ('We do not offer no protein shakes.',
+                 'We offer not only protein shakes but also meal delivery.',
+                 'We offer no protein shakes, meal plans or personal training.'):
+        assert supply.sponsor_fit(text) is None
+        assert campaign.sponsor_fit(text) is None
+    for text in ('We offer protein shakes, meal delivery and personal training.',
+                 'Our protein shakes contain vitamins for our customers.'):
+        assert supply.sponsor_fit(text)[0] == 'nutrition_protein'
+        assert campaign.sponsor_fit(text)[0] == 'nutrition_protein'
+
+
 def test_failed_capture_reserves_credits_and_next_run_cannot_reset(monkeypatch, tmp_path):
     import firecrawl_client
     import glp_firecrawl_jobs as jobs
