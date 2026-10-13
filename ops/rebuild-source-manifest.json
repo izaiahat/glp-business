@@ -1,6 +1,26 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/article_review_physical_lines.py": {
+      "callers": ["systems/seo-blog-machine/scripts/opus_review_loop.py", "scripts/hermes_sol_article_review.py"],
+      "kind": "script",
+      "sha256": "7296aa34cce1e33996053ddaf184bab381a7ded5d449f8fb1d9997ad56a58b8e"
+    },
+    "systems/seo-blog-machine/tests/test_evidence_review_timestamp.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "d5c16a94dffa1fbd836dd7bbb9bdf18cab0845c2851eb8029c3b98ec33ff8e96"
+    },
+    "systems/seo-blog-machine/tests/test_native_review_context_contract.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "817ff18164dc639d979bfe85e73fb2acb4642d6c96f8c8340b97d99c03cb37ba"
+    },
+    "systems/seo-blog-machine/tests/test_successor_inactive_quarantine.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "f7e6b6c2dc20d6a2d742b451d0712170c8ab08a6eb8e82440922484f4bdd1a15"
+    },
     "scripts/glp_sponsor_firecrawl_supply.py": {
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
@@ -218,7 +238,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c7f27087989fe5b9a7851749da96985d651aa3dafbf21461cac45150a199f3a3"
+      "sha256": "54ef3d17a4430f73c5d1c29c7485dadb4aba00ce0bd13133b74632e96994c479"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -380,7 +400,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e9b54079224907f0403d13ed5df0549c63d17e616ca94f2a31d68e7f7f9e73e3"
+      "sha256": "a1eccbbcba2816ea0913b63a878101192a51cb7caee6cef633f9a246c99a9fd7"
     },
     ".hermes.md": {
       "callers": [],
@@ -3450,7 +3470,7 @@
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
       "kind": "review_transport",
-      "sha256": "d4a09018bd11cda1480851b806ebfb248aef4cc34b2791667917b02ff7ac1e88"
+      "sha256": "c68630cc359e91cf1152616f68f74879e4c51069127df3646985af84b31d0e15"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
@@ -4007,7 +4027,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "1f887d9ad0a86ce7a505f878933a38eba2fe0cf04ac6cfea256ae55e1bf21205"
+      "sha256": "ef9515884f5793fe886648d749ab45f67523736fa6fe2b382063b1e91c844997"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
@@ -4148,7 +4168,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "377105bfab30f62812da181111c749a3549410c7b89bd01a6fa14046fdd94fe0"
+      "sha256": "b674298a00b5cb311f8a389417aa53f077f10f1da4a6433fec5c32066b099179"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [
@@ -4786,7 +4806,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "ed424026bb0b45f31b2ea7b687890f16810f9453ae136b57c2f34925eab78040"
+      "sha256": "02aa2de34d1e9fe920e5eaa32c5e82df527406292f2b7a3c0540bbad53952d3e"
     },
     "tests/test_article_source_carrier.py": {
       "callers": [
@@ -7340,5 +7360,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1078
+  "tracked_count": 1082
 }
