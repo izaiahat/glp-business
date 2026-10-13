@@ -1313,6 +1313,61 @@ def _relationship_denied(program: dict[str, Any]) -> bool:
     return True
 
 
+def _approved_api_direct_target(release: Path, control: dict[str, Any], pid: str,
+                                runtime: dict[str, Any], promotion: dict[str, Any]) -> str:
+    """Read the sealed sole-writer API grant, never upgrade its /go candidate.
+
+    This recognizes the maintained review-tracking-rebind producer's direct-only
+    class. Current relationship/operator/network holds are evaluated by the caller
+    first. Only provider-review and explicitly declared organic comparison
+    surfaces are authorized by this reader; no health-information surface.
+    """
+    if promotion.get("reason") != "approved_api_link_sole_writer_ready":
+        return ""
+    if (runtime.get("entry_state") != "transparent_direct"
+            or runtime.get("live_link_allowed") is not False
+            or runtime.get("promotion_authorized") is not False
+            or runtime.get("candidate_gate") != promotion["reason"]
+            or promotion.get("status") != "VERIFIED"
+            or promotion.get("promotion_authorized") is not True
+            or promotion.get("constructor_verified") is not True
+            or promotion.get("direct_only") is not True
+            or str(promotion.get("network", "")).casefold() != "maxbounty"
+            or str(runtime.get("network", "")).casefold() != "maxbounty"):
+        raise RuntimeError("affiliate_api_direct_authority_invalid:" + pid)
+    href = str(promotion.get("issued_link") or "")
+    url = urlsplit(href)
+    tracking = runtime.get("tracking") or {}
+    if (url.scheme != "https" or not url.hostname or url.username or url.password
+            or url.fragment or href != tracking.get("base_url")
+            or tracking.get("generated_link_readback_verified") is not True
+            or url.hostname not in tracking.get("allowed_tracking_hosts", [])
+            or promotion.get("tracking_link_sha256") != hashlib.sha256(href.encode()).hexdigest()
+            or promotion.get("source_receipt") != f"data/review-tracking-receipts.json#{pid}"):
+        raise RuntimeError("affiliate_api_direct_target_invalid:" + pid)
+    pointer = read_json(BUSINESS / control["affiliate_obligations"]["release_pointer"])
+    seals = {row["path"]: row["sha256"] for row in read_json(Path(pointer["manifest"]["path"]))["release_rows"]}
+    name = "data/review-tracking-receipts.json"
+    path = release / name
+    if not path.is_file() or seals.get(name) != hashlib.sha256(path.read_bytes()).hexdigest():
+        raise RuntimeError("affiliate_api_direct_receipt_unsealed:" + pid)
+    doc = read_json(path)
+    receipt = doc.get("programs", {}).get(pid, {})
+    campaign = receipt.get("campaign") or {}
+    api = receipt.get("tracking_api_receipt") or {}
+    response = api.get("response") or {}
+    if (doc.get("schema") != "glp-review-approved-tracking-v1"
+            or doc.get("tracking_clicks") != 0
+            or campaign.get("details", {}).get("affiliate_campaign_status") != "Approved"
+            or api.get("schema") != "glp.maxbounty.authorized_api_tracking_link.v1"
+            or str(api.get("campaign_id")) != str(campaign.get("campaign_id"))
+            or api.get("publisher_id") != "803003" or api.get("status") != 200
+            or api.get("tracking_clicks") != 0 or response.get("success") is not True
+            or response.get("tracking-link") != href):
+        raise RuntimeError("affiliate_api_direct_receipt_invalid:" + pid)
+    return href
+
+
 def _bound_fastpath_permissions(release: Path, control: dict[str, Any],
                                 programs: dict[str, Any], authority: dict[str, Any],
                                 runtime: dict[str, Any], current_holds: set[str]) -> dict[str, Any]:
@@ -1758,6 +1813,9 @@ def derive_affiliate_obligations(control: dict[str, Any],
             # receipted site-direct branch has a separate exact issued target.
             if allowed and not go_allowed:
                 direct_target = _approved_direct_target(runtime, promotion)
+                if direct_target is None:
+                    direct_target = _approved_api_direct_target(
+                        release, control, program_id, runtime, promotion) or None
             elif go_allowed:
                 direct_target = (runtime.get("tracking") or {}).get("base_url")
             allowed = go_allowed or direct_target is not None
@@ -1769,6 +1827,11 @@ def derive_affiliate_obligations(control: dict[str, Any],
         permission = {"allowed": allowed, "go_allowed": go_allowed and allowed,
                       "go_route": (runtime or {}).get("route"), "direct_target": direct_target,
                       "network": str(network or "").lower()}
+        if promotion.get("reason") == "approved_api_link_sole_writer_ready" and direct_target:
+            permission["direct_paths"] = [f"/providers/{program_id}/", program.get("review_path")]
+            permission["direct_paths"].extend(
+                f"/{role}/" for role in ("semaglutide", "tirzepatide")
+                if role in (runtime or {}).get("allowed_page_roles", []))
         permissions[program_id] = permission
         if program.get("review_path"):
             permissions[program["review_path"].strip("/").split("/")[-1]] = permission

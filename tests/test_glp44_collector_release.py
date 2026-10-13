@@ -536,6 +536,82 @@ def test_approved_directory_direct_anchor_needs_no_go_membership(synthetic_relea
     assert row["unauthorized_affiliate_anchor_count"] == (0 if case.endswith("approved") else 1)
 
 
+@pytest.mark.parametrize("case", ["direct", "comparison", "undeclared-comparison", "go", "wrong-target", "wrong-surface", "unsealed", "bad-receipt", "network-hold", "ended"])
+def test_api_issued_direct_review_class_is_not_redirect_authority(synthetic_release, case):
+    """AN336: sealed sole-writer API direct CTAs were mislabeled forbidden."""
+    fixture = synthetic_release
+    pid = "synthetic-allowed"
+    href = "https://synthetic.invalid/issued?o=123&a=803003"
+    authority_path = fixture.release / AUTHORITIES[2]
+    authority = json.loads(authority_path.read_text())
+    authority["programs"][pid].update(
+        reason="approved_api_link_sole_writer_ready", network="MaxBounty",
+        constructor_verified=True, direct_only=True, issued_link=href,
+        tracking_link_sha256=sha(href.encode()),
+        source_receipt=f"data/review-tracking-receipts.json#{pid}")
+    write_json(authority_path, authority)
+    registry_path = fixture.release / AUTHORITIES[1]
+    registry = json.loads(registry_path.read_text())
+    program = next(row for row in registry["programs"] if row["program_id"] == pid)
+    program["commercial_state"] = "live"
+    if case == "ended":
+        program["affiliate_relationship_snapshot"] = {
+            "lifecycle": "ended", "promotion_denied": True, "reported_information": True,
+            "network": "maxbounty", "network_program_id": "123", "relationship_status": "ended",
+            "source_checked_at": "2026-10-12T00:00:00Z"}
+    write_json(registry_path, registry)
+    fixture.local["programs"][pid].update(
+        program_id=pid, entry_state="transparent_direct", promotion_authorized=False,
+        live_link_allowed=False, status="candidate_preview_only", network="maxbounty",
+        link_mode="instrumented_redirect_candidate", candidate_gate="approved_api_link_sole_writer_ready",
+        allowed_page_roles=["semaglutide"] if case == "comparison" else [],
+        tracking={"base_url": href, "allowed_tracking_hosts": ["synthetic.invalid"],
+                  "generated_link_readback_verified": True})
+    fixture.module.write_bytes(PREFIX + json.dumps(fixture.local).encode() + b");\n")
+    receipt_path = fixture.release / "data/review-tracking-receipts.json"
+    receipt = {"schema": "glp-review-approved-tracking-v1", "tracking_clicks": 0,
+               "programs": {pid: {"campaign": {"campaign_id": 123,
+                   "details": {"affiliate_campaign_status": "Approved"}},
+                   "tracking_api_receipt": {"schema": "glp.maxbounty.authorized_api_tracking_link.v1",
+                       "campaign_id": "123", "publisher_id": "803003", "status": 200,
+                       "tracking_clicks": 0, "response": {"success": True, "tracking-link": href}}}}}
+    if case == "bad-receipt":
+        receipt["programs"][pid]["tracking_api_receipt"]["response"]["tracking-link"] += "&changed=1"
+    write_json(receipt_path, receipt)
+    fixture.seal()
+    if case != "unsealed":
+        manifest = json.loads(fixture.manifest.read_text())
+        manifest["release_rows"].append({"path": "data/review-tracking-receipts.json", "sha256": sha(receipt_path.read_bytes())})
+        write_json(fixture.manifest, manifest)
+        pointer = json.loads(fixture.pointer.read_text())
+        pointer["manifest"]["sha256"] = sha(fixture.manifest.read_bytes())
+        write_json(fixture.pointer, pointer)
+    if case == "network-hold":
+        hold = fixture.release.parent / "api-network-hold.md"
+        hold.write_text("synthetic network hold\n")
+        fixture.control["affiliate_obligations"]["current_network_holds"] = {
+            "networks": ["maxbounty"], "authority_path": str(hold), "authority_sha256": sha(hold.read_bytes())}
+    routes = [f"/providers/{pid}/", f"/reviews/{pid}/"]
+    static = [{"path": path, "sponsored_anchor_count": 1, "sponsored_anchor_targets": [
+        {"program_id": pid, "href": href, "link_mode": "transparent-direct", "network": "MaxBounty"}]} for path in routes]
+    if case == "go":
+        static[0]["sponsored_anchor_targets"][0]["href"] = f"/go/{pid}"
+    elif case == "wrong-target":
+        static[0]["sponsored_anchor_targets"][0]["href"] += "&changed=1"
+    elif case == "wrong-surface":
+        static[0]["path"] = "/medical-advice/"
+    elif case in {"comparison", "undeclared-comparison"}:
+        static[0]["path"] = "/semaglutide/"
+    if case in {"unsealed", "bad-receipt"}:
+        with pytest.raises(RuntimeError, match="affiliate_api_direct_"):
+            collector.derive_affiliate_obligations(fixture.control, set(routes), static)
+        return
+    obligations = collector.derive_affiliate_obligations(fixture.control, set(routes), static)
+    assert {obligations[path] for path in routes} == ({"forbidden"} if case in {"ended", "network-hold"} else {"required"})
+    assert sum(row["unauthorized_affiliate_anchor_count"] for row in static) == (
+        0 if case in {"direct", "comparison"} else 2 if case in {"ended", "network-hold"} else 1)
+
+
 def test_hourly_synthetic_release_reaches_provider_boundary_only(synthetic_release, monkeypatch):
     fixture = synthetic_release
     monkeypatch.setattr(collector, "_load_cache", lambda _: {})
