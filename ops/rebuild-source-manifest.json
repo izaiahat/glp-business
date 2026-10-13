@@ -380,7 +380,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "16c68fc77c1ca8f3c910a8f2e6350398a8e9f78531d339f2749dd6d11328b2f2"
+      "sha256": "905ad02b54e4248d09688f7287934d179245860044f3a1bdc8b8951525c008dc"
     },
     ".hermes.md": {
       "callers": [],
@@ -3833,7 +3833,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6af45bea28d845922579ca795069f04cb289b4bc790d2a30d00aacc8d6d048a5"
+      "sha256": "0aef3b8e16c09c6258b01ad503043bfc7585deebffa8d2a11ec8e06c8739dfb3"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -7294,6 +7294,27 @@
       ],
       "kind": "test_fixture",
       "sha256": "faf651d2409187c360c01e125b98a55ae8545e9a3bf34c8822ae425bba118c5e"
+    },
+    "scripts/glp_affiliate_postback_n8n_sync.py": {
+      "kind": "script",
+      "callers": [
+        "registered affiliate postback receiver synchronizer; RX93"
+      ],
+      "sha256": "981c05eb1ceaa9182fbd57060f0ad292bc40d6b6785ac2089b5b14d1f5227381"
+    },
+    "scripts/glp_postback_authority.py": {
+      "kind": "script",
+      "callers": [
+        "registered affiliate postback receiver synchronizer; RX93"
+      ],
+      "sha256": "32c51ed81267b6c4ad3cb3101a9d9fa50f075274400c2c42db963ed7f437d73e"
+    },
+    "tests/test_glp_affiliate_postback_n8n_sync.py": {
+      "kind": "test",
+      "callers": [
+        "registered affiliate postback receiver synchronizer; RX93"
+      ],
+      "sha256": "ed28774b32a3ad23a30df944d82bff4f2b0295db2ee4ecbe3b7ab95d04bc6182"
     }
   },
   "omitted_runtime_inputs": [
@@ -7304,5 +7325,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1072
+  "tracked_count": 1075
 }
