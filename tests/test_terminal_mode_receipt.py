@@ -53,6 +53,94 @@ class TerminalModeReceiptTests(unittest.TestCase):
         finally:
             case.doCleanups()
 
+    def test_missing_mode_middle_observations_refused_by_default_cli(self):
+        # Retained mode stops at 1; a fresh missing-only loop stops at 11.
+        receipt = self.emitted()
+        receipt['mode_evidence'].pop('diagnostics')
+        receipt['mode_evidence']['reason'] = 'mode_missing'
+        for count in range(2, 11):
+            with self.subTest(observation=count):
+                receipt['mode_observation'] = count
+                self.cli(copy.deepcopy(receipt), valid=False)
+
+    def test_deciding_diagnostics_reason_consistency_default_cli(self):
+        current = self.emitted()  # Unique visible controls, Work pressed true.
+        for reason in ('mode_missing', 'mode_ambiguous', 'mode_unverified'):
+            receipt = copy.deepcopy(current)
+            receipt['mode_evidence']['reason'] = reason
+            receipt['mode_observation'] = 11
+            with self.subTest(reason=reason):
+                self.cli(receipt, valid=False)
+
+    def test_diagnostic_scope_counts_consistency_default_cli(self):
+        current = self.emitted()
+        none = copy.deepcopy(current)
+        none['mode_observation'] = 11
+        none['mode_evidence']['reason'] = 'mode_missing'
+        none['mode_evidence']['diagnostics'].update(
+            main_present=False, main_count=0, group_count=0, scope='none', group_excluded=None)
+        hidden = copy.deepcopy(current)
+        hidden['mode_evidence']['reason'] = 'mode_unverified'
+        hidden['mode_evidence']['diagnostics']['group_excluded'] = 'hidden'
+        overflow = copy.deepcopy(current)
+        overflow['mode_evidence']['reason'] = 'mode_ambiguous'
+        overflow['mode_evidence']['diagnostics']['chat'] = {
+            'raw_count': 9, 'filtered_count': 2, 'overflow': True,
+            'candidates': [{'pressed': 'false', 'excluded': 'hidden'} for _ in range(8)]}
+        for name, receipt in [('none-with-buttons', none), ('hidden-with-visible', hidden),
+                              ('more-visible-than-unsampled', overflow)]:
+            with self.subTest(name=name):
+                self.cli(receipt, valid=False)
+
+    def test_emitted_scope_overflow_and_reason_matrix_default_cli(self):
+        hidden = dom.fixture('chat_mode')
+        hidden['children'][0]['attrs']['hidden'] = ''
+        beyond = dom.fixture('chat_mode')
+        group = beyond['children'][0]
+        controls = [n for n in group['children'] if n.get('tag') == 'button']
+        group['children'] = []
+        for control in controls:
+            excluded = copy.deepcopy(control)
+            excluded['attrs']['inert'] = ''
+            group['children'] += [copy.deepcopy(excluded) for _ in range(8)]
+            visible = copy.deepcopy(control)
+            visible['attrs']['aria-pressed'] = str(visible['children'][0]['text'] == 'Work').lower()
+            group['children'].append(visible)
+        main_only = copy.deepcopy(beyond)
+        main_only['children'][0]['attrs'].pop('role')
+        variants = [('hidden-group', hidden), ('unique-beyond-sample', beyond),
+                    ('first-main-fallback', main_only),
+                    ('none', {'tag': 'div', 'children': []}),
+                    ('empty-main', {'tag': 'main', 'children': []})]
+        for name, tree in variants:
+            evidence = dom.mode(tree)
+            receipt = {'error': 'CHAT_SURFACE_REFUSED', 'typed': False, 'sent': False,
+                       'tab': 'attributed-target', 'mode_observation': 1, 'mode_evidence': evidence}
+            with self.subTest(name=name):
+                self.cli(receipt)
+                for wrong in {'mode_missing', 'mode_ambiguous', 'mode_unverified', 'work_selected'} - {evidence['reason']}:
+                    # Overflow can hide pressed state, but cannot hide counts or scope.
+                    if name in ('unique-beyond-sample', 'first-main-fallback') and wrong == 'mode_unverified':
+                        continue
+                    invalid = copy.deepcopy(receipt)
+                    invalid['mode_evidence']['reason'] = wrong
+                    self.cli(invalid, valid=False)
+                if evidence['reason'] == 'mode_missing':
+                    receipt['mode_observation'] = 11
+                    self.cli(receipt)
+                else:
+                    receipt['mode_observation'] = 2
+                    self.cli(receipt)  # May follow an earlier missing-control observation.
+
+    def test_emitted_diagnostic_receipt_full_synthetic_apply_readback(self):
+        case = binding.BindingTests()
+        case.setUp()
+        try:
+            case._proof_bound_preinsert_terminal_actual_cli(
+                'CHAT_SURFACE_REFUSED', error_receipt=self.emitted())
+        finally:
+            case.doCleanups()
+
     def test_actual_emitted_current_and_legacy_default_cli(self):
         receipt = self.emitted()
         self.cli(receipt)

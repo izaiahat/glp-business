@@ -5,6 +5,8 @@ on:
       - scripts/gpt6pro_relay.py
       - tests/test_gpt6pro_relay_binding.py
       - tests/test_terminal_mode_receipt.py
+      - tests/test_pro_current_dom.py
+      - tests/fixtures/pro_terminal_unsent_p20/**
       - .github/workflows/glp357-terminal-mode.yml
 permissions:
   contents: read

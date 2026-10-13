@@ -1810,13 +1810,14 @@ console.log(JSON.stringify(fixtures.map(f => {
         """Replay P20's real receipt through default/apply/raw verification offline."""
         path = Path(__file__).parent / 'fixtures/pro_terminal_unsent_p20/mode_receipt.json'
         receipt = json.loads(path.read_bytes())
-        self._proof_bound_preinsert_terminal_actual_cli('CHAT_SURFACE_REFUSED', error_receipt=receipt)
+        self._proof_bound_preinsert_terminal_actual_cli(
+            'CHAT_SURFACE_REFUSED', error_receipt=receipt, custody_tab=receipt['tab'])
 
     def test_p20_enriched_mode_receipt_supported_observations(self):
         path = Path(__file__).parent / 'fixtures/pro_terminal_unsent_p20/mode_receipt.json'
         receipt = json.loads(path.read_bytes())
         for reason in ('work_selected', 'mode_missing', 'mode_ambiguous', 'mode_unverified'):
-            for count in (1, 11):
+            for count in ((1, 11) if reason == 'mode_missing' else (1, 2, 11)):
                 candidate = {**receipt, 'mode_observation': count,
                              'mode_evidence': {**receipt['mode_evidence'], 'reason': reason}}
                 with self.subTest(reason=reason, count=count):
@@ -1866,12 +1867,11 @@ console.log(JSON.stringify(fixtures.map(f => {
                 relay._current_terminal_unsent_custody(self.cfg, st, preimage, '', c)
 
     def _proof_bound_preinsert_terminal_actual_cli(self, reason, *, error_receipt=None,
-                                                   default_only=False, expect_valid=True):
+                                                   default_only=False, expect_valid=True,
+                                                   custody_tab='attributed-target'):
         """Reusable report-bound disposition; no replay or stale UNKNOWN release."""
         sha = lambda b: relay.hashlib.sha256(b).hexdigest()
-        job, tab, origin = 'unlisted-preinsert-job', 'attributed-target', 1791334401239.7
-        if error_receipt is not None:
-            tab = error_receipt['tab']
+        job, tab, origin = 'unlisted-preinsert-job', custody_tab, 1791334401239.7
         d = relay.job_dir(job)
         prompt = b'preserved original packet'
         (d / 'PROMPT.md').write_bytes(prompt)
@@ -1938,11 +1938,16 @@ console.log(JSON.stringify(fixtures.map(f => {
              mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
              mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')):
             if default_only and not expect_valid:
-                with self.assertRaisesRegex(SystemExit, 'REFUSED_CUSTODY'):
-                    call()
+                for args in ((), ('--apply', '--authorize-preimage', sha(preimage))):
+                    with self.assertRaisesRegex(SystemExit, 'REFUSED_CUSTODY'):
+                        call(*args)
                 self.assertEqual((d/'JOB.json').read_bytes(), preimage)
                 self.assertEqual(ledger.read_bytes(), before_ledger)
-                return {'decision': 'REFUSED_CUSTODY', 'job_unchanged': True, 'ledger_unchanged': True}
+                self.assertFalse(list(d.glob('JOB.pre-terminal-unsent-*.json')))
+                self.assertFalse(relay._verified_terminal_unsent(relay.job_state(job)))
+                witness.assert_not_called()
+                return {'decision': 'REFUSED_CUSTODY', 'default_and_apply_refused': True,
+                        'job_unchanged': True, 'ledger_unchanged': True}
             code, text = call()
             self.assertEqual(code, 0)
             self.assertIn('WOULD_TERMINALIZE_UNSENT', text)

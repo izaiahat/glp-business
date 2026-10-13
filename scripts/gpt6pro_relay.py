@@ -3240,6 +3240,9 @@ def _terminal_mode_receipt_valid(error, tab):
             evidence.get('error') != 'CHAT_SURFACE_REFUSED' or
             not isinstance(evidence.get('reason'), str) or evidence['reason'] not in reasons):
         return False
+    # Only missing controls are retried; retained stops at 1, fresh at 11.
+    if evidence['reason'] == 'mode_missing' and observation not in (1, 11):
+        return False
     if 'diagnostics' not in evidence:
         return True  # Earlier current gate before diagnostic sampling.
     d = evidence['diagnostics']
@@ -3282,15 +3285,32 @@ def _terminal_mode_receipt_valid(error, tab):
             if candidate['excluded'] is None:
                 visible.append(candidate['pressed'])
         if (len(visible) > part['filtered_count'] or
-                (not part['overflow'] and len(visible) != part['filtered_count'])):
+                part['filtered_count'] > len(visible) + part['raw_count'] - len(part['candidates']) or
+                (d['scope'] == 'none' and part['raw_count'] != 0) or
+                (d['group_excluded'] is not None and part['filtered_count'] != 0)):
             return False
         selected[label] = visible
-    # Reject a success-shaped diagnostic snapshot, not just a success error tag.
-    if (d['main_present'] and d['group_count'] <= 1 and d['group_excluded'] is None and
-            d['chat']['filtered_count'] == d['work']['filtered_count'] == 1 and
-            selected['chat'] == ['true'] and selected['work'] == ['false']):
-        return False
-    return True
+    # Mirror ensureProChatSurface's decision order, including early scope gates.
+    if not d['main_present']:
+        expected = {'mode_missing'}
+    elif d['group_count'] > 1:
+        expected = {'mode_ambiguous'}
+    elif d['group_excluded'] is not None:
+        expected = {'mode_unverified'}
+    elif d['chat']['filtered_count'] == d['work']['filtered_count'] == 0:
+        expected = {'mode_missing'}
+    elif d['chat']['filtered_count'] != 1 or d['work']['filtered_count'] != 1:
+        expected = {'mode_ambiguous'}
+    else:
+        # A unique visible button can be outside the bounded eight-item sample.
+        # Keep those genuinely emitted overflow cases; infer no unseen value.
+        unknown = {'true', 'false', 'mixed', 'missing', 'other'}
+        chats = selected['chat'] or unknown
+        works = selected['work'] or unknown
+        expected = {('success' if chat == 'true' and work == 'false' else
+                     'work_selected' if work == 'true' else 'mode_unverified')
+                    for chat in chats for work in works}
+    return evidence['reason'] in expected
 
 
 
