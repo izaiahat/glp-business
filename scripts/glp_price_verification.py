@@ -273,7 +273,7 @@ def fetch_source(browser: Any, url: str, program_id: str, firecrawl_key: str | N
         lambda: browser_fetch(browser, url, program_id) if browser is not None else (_ for _ in ()).throw(RuntimeError("playwright_unavailable")),
         lambda: requests_fetch(url),
         lambda: firecrawl_fetch(url, firecrawl_key, 'basic') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
-        lambda: firecrawl_fetch(url, firecrawl_key, 'enhanced') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
+        lambda: firecrawl_fetch(url, firecrawl_key, 'auto') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
     )):
         try:
             result = fetcher()
@@ -283,7 +283,7 @@ def fetch_source(browser: Any, url: str, program_id: str, firecrawl_key: str | N
         except Exception as exc:
             errors.append(type(exc).__name__)
             # A dispatched Firecrawl effect with no result is uncertain. Only
-            # an explicit completed response permits basic-to-enhanced fallback.
+            # an explicit completed response permits basic-to-auto fallback.
             if attempt >= 2:
                 break
     return {
