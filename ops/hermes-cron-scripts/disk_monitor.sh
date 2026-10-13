@@ -116,6 +116,9 @@ def post(message: str) -> None:
 
 
 def run_low_disk_trigger() -> str:
+    # Host cron lacks the login-session bus environment. Bind systemctl --user
+    # to this UID's runtime; retain an explicitly configured runtime unchanged.
+    os.environ.setdefault('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')
     # Run the registered native producer, not a second threshold/launch path.
     import runpy
     return runpy.run_path(str(HERMES_HOME / 'scripts/host_disk_low_free_trigger.py'))['main']()
