@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
 import host_disk_completed_dependencies as dep
 ORIGINAL_INBOUND = dep.inbound_links
+ORIGINAL_FRESH_PINS = dep.fresh_pins
 
 
 class API:
@@ -98,6 +99,14 @@ class CompletedDependencyTests(unittest.TestCase):
         with patch.object(dep,'lsof_inactive',side_effect=lambda p: ((self.root/'vendor/cli.js').write_bytes(b'drift') and True)):
             self.assertEqual(self.run_row(False)['status'],'REFUSED')
         self.assertEqual(self.api.removed,[])
+
+    def test_fresh_pin_tuple_collectors_remain_unionable(self):
+        with patch.object(dep.os,'geteuid',return_value=1000), \
+             patch('host_disk_auto_classes.external_pins',return_value=set()), \
+             patch('host_disk_cold_classes.custody_pins',return_value=(self.root,)), \
+             patch.object(dep,'active_import_owners',return_value={self.owner}):
+            # Invoke the real fresh_pins, not the fixture's effect mock.
+            self.assertEqual(ORIGINAL_FRESH_PINS(),{self.root,self.owner})
 
     def test_other_dependency_interior_symlink_and_import_owner_refuse(self):
         peer=self.base/'peer/node_modules/pkg';peer.mkdir(parents=True)

@@ -71,7 +71,7 @@ def fresh_pins():
         pins={Path(p) for p in data}
     else:
         pins=auto.external_pins(include_worktrees=False)
-    return cold.custody_pins(pins) | active_import_owners(refs_only=True)
+    return set(cold.custody_pins(pins)) | active_import_owners(refs_only=True)
 
 
 def intersects(root, pins):
