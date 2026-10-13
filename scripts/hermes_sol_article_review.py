@@ -20,6 +20,10 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+# Spec-loaded tooling must resolve the same sibling controls as direct CLI use.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from article_review_physical_lines import physical_lines
+
 TARGET_PROVIDER = "openai-codex"
 TARGET_MODEL = "gpt-6-astra-900k"
 TARGET_EFFORT = "high"
@@ -366,8 +370,8 @@ def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_
                  f"manifest_sha256={manifest['manifest_sha256']}", '']
         for row in manifest['subject_files']:
             parts.append(f"===== {row['path']} =====")
-            text = (packet / row['path']).read_text(encoding='utf-8')
-            parts.extend(f'{i:04d}|{line}' for i, line in enumerate(text.splitlines(), 1))
+            lines = physical_lines((packet / row['path']).read_bytes())
+            parts.extend(f'{i:04d}|{line}' for i, line in enumerate(lines, 1))
             parts.append('')
         expected_context = '\n'.join(parts) + '\n'
         if len(captured['context_files']) != 1 or captured['context_files'][0]['content'] != expected_context:
