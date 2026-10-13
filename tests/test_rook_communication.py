@@ -1785,6 +1785,39 @@ class TestFinchCommunication:
         assert status == 200 and not result['result']['isError'] and len(self.posts) == 1
         assert result['result']['structuredContent']['attachment']['byte_length'] == self.m.FILE_LIMIT
 
+    def test_gateway_fixture_waits_for_ingests_after_real_deadline(self, monkeypatch):
+        """RV-462: first persistence finishes only after the real lifespan expires."""
+        import asyncio
+        import threading
+        release = threading.Event()
+        ingest = self.app.ingest
+        real_wait = asyncio.wait
+        completed = []
+        deadlines = []
+
+        def held_first(event, cursors):
+            if event['d']['id'] == '150':
+                assert release.wait(5), 'fixture regression watchdog: no deadline'
+            result = ingest(event, cursors)
+            completed.append(event['d']['id'])
+            return result
+
+        async def release_after_deadline(tasks, *, timeout, return_when):
+            done, pending = await real_wait(tasks, timeout=timeout, return_when=return_when)
+            deadlines.append((timeout, bool(done)))
+            release.set()
+            return done, pending
+
+        monkeypatch.setattr(self.app, 'ingest', held_first)
+        monkeypatch.setattr(asyncio, 'wait', release_after_deadline)
+        try:
+            self.test_gateway_and_receiver_use_finch_own_token_and_both_channel_cursors(monkeypatch)
+            assert deadlines[0] == (.05, False)
+            assert completed == ['150', '201']
+            assert {row['id'] for row in self.app.store.all('requests')} == {'discord-150', 'discord-201'}
+        finally:
+            release.set()
+
     def test_gateway_and_receiver_use_finch_own_token_and_both_channel_cursors(self, monkeypatch):
         import asyncio
         import receive_one_discord_message as r
@@ -1799,15 +1832,45 @@ class TestFinchCommunication:
                     async def start(_, token, reconnect):
                         tokens.append(token); assert reconnect is False
                         on_event(self.event('150', '901'), observer)
-                        # Thread-backed fixture persistence may exceed one 50ms
-                        # scheduling slice; prove both channels still arrive.
-                        await asyncio.sleep(.1)
                         on_event(self.event('201', '902'), observer)
                         await asyncio.Future()
                     async def close(_): pass
                 return Client()
             return make
-        assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, 1.0, client_factory=factory(self.dot.bot))) == 0
+        async def run_until_ingested():
+            loop = asyncio.get_running_loop()
+            completed = asyncio.Event()
+            remaining = {'150', '201'}
+            ingest = self.app.ingest
+            real_wait = asyncio.wait
+
+            def acknowledge(identity):
+                remaining.discard(identity)
+                if not remaining:
+                    completed.set()
+
+            def tracked_ingest(event, cursors):
+                result = ingest(event, cursors)
+                loop.call_soon_threadsafe(acknowledge, event['d']['id'])
+                return result
+
+            async def completion_wait(tasks, *, timeout, return_when):
+                done, pending = await real_wait(tasks, timeout=timeout, return_when=return_when)
+                # Fixture-only teardown gate: keep the real 50ms lifespan and
+                # result, but acknowledge BOTH completed ingests before shutdown
+                # discards queued work. Five seconds is a failure watchdog, not
+                # an adapter lifespan or a sleep-based delivery assumption.
+                if not done:
+                    await asyncio.wait_for(completed.wait(), timeout=5)
+                return done, pending
+
+            with monkeypatch.context() as fixture:
+                fixture.setattr(self.app, 'ingest', tracked_ingest)
+                fixture.setattr(asyncio, 'wait', completion_wait)
+                return await self.m.run_adapter(self.app, Server(), self.cursors, .05,
+                    client_factory=factory(self.dot.bot))
+
+        assert asyncio.run(run_until_ingested()) == 0
         assert tokens == ['synthetic-finch-token'] and len(self.app.store.all('requests')) == 2
         assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, .05, client_factory=factory(self.m.BOT))) == 2
         self.call('reply_to_finch_request', self.args('150', False))
