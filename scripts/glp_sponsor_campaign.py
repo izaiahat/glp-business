@@ -241,6 +241,91 @@ def fresh_public_contact(recipient,at):
  return None
 
 
+# Targeting policy stays in the already packet-bound campaign module. The supply
+# producer may propose evidence, but must not supply executable admission policy.
+RESEARCH_ONLY = re.compile(r'research[- ]use[- ]only|for research (?:use|purposes) only|not for human (?:use|consumption)', re.I)
+CATEGORY = {
+    'telehealth_glp1': re.compile(r'(?:GLP[- ]?1|semaglutide|tirzepatide|Wegovy|Zepbound).{0,100}(?:treatment|prescription|telehealth)|(?:prescri\w+|telehealth|treatment).{0,100}(?:GLP[- ]?1|semaglutide|tirzepatide|Wegovy|Zepbound)', re.I),
+    'pharmacy': re.compile(r'(?:compounding|mail[- ]order|specialty) pharmacy|pharmacy.{0,50}(?:compounding|prescription delivery)', re.I),
+    'nutrition_protein': re.compile(r'protein (?:shakes?|powder|nutrition)|nutrition shakes?|meal replacement', re.I),
+    'meals': re.compile(r'meal delivery|prepared meals|healthy meals|meal plans', re.I),
+    'fitness': re.compile(r'fitness (?:app|training|program)|personal training|strength training|workout (?:app|program)', re.I),
+    'cgm': re.compile(r'continuous glucose monitor|metabolic health|glucose monitoring', re.I),
+    'weight_coaching': re.compile(r'weight[- ]loss (?:app|coaching|program)|weight management (?:app|coaching|program)', re.I),
+}
+COMMERCIAL = re.compile(r'\b(?:our|we|shop|buy|order|subscribe|membership|plans|products|program|patients|customers|offers?|provid\w+|prescri\w+|get started)\b', re.I)
+US_ADDRESS = re.compile(r'\b(?:CA|NY|TX|FL|MA|CO|WA|IL|AZ|NC|GA|PA|NJ|UT|TN|OH|OR|VA|NV|MD|CT|MN|MI|WI|MO|IN|KY|SC|AL|LA|OK|KS|NM|ID|IA|NE|AR|MS|NH|ME|RI|DE|VT|WV|MT|WY|ND|SD|HI|AK|DC)\s+\d{5}(?:-\d{4})?\b')
+SPONSOR_US_SCOPE = re.compile(r'(?:available|licensed|serv(?:e|es|ing)|operat\w*|residents|customers|patients|ship\w*|deliver\w*)\b.{0,80}(?:United States|U\.S\.|USA|\bUS\b|50 states)|(?:across|throughout|in all)\s+(?:the\s+)?(?:United States|U\.S\.|US|USA|50 states)|based in the United States', re.I)
+SPONSOR_US_REJECT = re.compile(r'copyright|©|usa-today|1 out of 5|Pharmacopeia|not available in (?:all|every)|\bnot (?:yet )?(?:licensed|offered)', re.I)
+
+
+def sponsor_fit(text):
+    """Commercial first-party excerpt, not a seed/domain or generic blog keyword."""
+    if RESEARCH_ONLY.search(text):
+        return None
+    for category, pattern in CATEGORY.items():
+        for match in pattern.finditer(text):
+            excerpt = text[max(0, match.start()-120):match.end()+180].strip()
+            if COMMERCIAL.search(excerpt) and not re.search(r"\b(?:not|never|cannot|no longer|\w+n['’]t)\b", excerpt, re.I):
+                return category, excerpt
+    return None
+
+
+def research_only_organization(host, org, campaign):
+    for page in org.get('discovery', {}).get('_markup', []):
+        markup = page.get('html', '')
+        if campaign.source_on_provider(page.get('final_url', page.get('url')), host) and hashlib.sha256(markup.encode('utf-8', 'replace')).hexdigest() == page.get('sha256'):
+            if RESEARCH_ONLY.search(campaign.public_page_hits(markup)[1]):
+                return True
+    return False
+
+
+def sponsor_scope_current(host, organization, campaign, at):
+    import glp_sponsor_readiness as readiness
+    qualified = []
+    for ev in organization.get('scope_evidence', []):
+        if not campaign.source_on_provider(ev.get('source_url'), host) or not readiness.current_evidence(
+                {'captured_at_utc': ev.get('observed_utc'), 'evidence_sha256': ev.get('sha256')}, at):
+            continue
+        for page in organization.get('discovery', {}).get('_markup', []):
+            markup = page.get('html', '')
+            if page.get('final_url', page.get('url')) != ev['source_url'] or hashlib.sha256(markup.encode('utf-8', 'replace')).hexdigest() != ev['sha256']:
+                continue
+            _, text = campaign.public_page_hits(markup)
+            if RESEARCH_ONLY.search(text):
+                return []
+            norm = lambda s: ' '.join(str(s).split()).casefold()
+            excerpt = ev.get('sponsor_category_excerpt') or ev.get('country_excerpt')
+            if not excerpt or norm(excerpt) not in norm(text):
+                continue
+            if ev.get('sponsor_category') in CATEGORY and sponsor_fit(excerpt) and CATEGORY[ev['sponsor_category']].search(excerpt):
+                qualified.append(ev)
+            elif ev.get('country') == 'US' and not SPONSOR_US_REJECT.search(excerpt) and (SPONSOR_US_SCOPE.search(excerpt) or US_ADDRESS.search(excerpt)):
+                qualified.append(ev)
+    return qualified
+
+
+def sponsor_rows(discovery, registry_rows, local, campaign, at):
+    """Supplement the existing recipient census; never write a provider registry row."""
+    from glp328_outreach_policy import _same_adverse_org
+    held = {r['host'] for r in registry_rows if r.get('blocks_org') and r.get('host')}
+    held_names = {campaign.normalize(r.get('program', '')) for r in registry_rows if r.get('blocks_org')}
+    blocked = held | {x['domain'] for x in local['suppression']['entries']} | {x['domain'] for x in local['conversations']}
+    out = {}
+    if not local['suppression']['complete']:
+        return out
+    for host, org in sorted(discovery.get('organizations', {}).items()):
+        name = str(org.get('provider') or host)
+        if ('fella' in (host + name).lower() or campaign.normalize(name) in held_names
+                or host.endswith(campaign.PLATFORMS) or any(_same_adverse_org(host, h) for h in blocked)
+                or research_only_organization(host, org, campaign)):
+            continue
+        scope = sponsor_scope_current(host, org, campaign, at)
+        if any(x.get('sponsor_category') for x in scope) and any(x.get('country') == 'US' for x in scope):
+            out[host] = [{'program': name, 'host': host, 'row': None, 'population': 'pending', 'eligible': True}]
+    return out
+
+
 def recipients(values,discovery,local):
  """Census every registry row; only public business-purpose contacts survive.
 
@@ -261,11 +346,15 @@ def recipients(values,discovery,local):
   med_evidenced=any(x.get('medication_provider_excerpt') for x in scope)
   us_evidenced=any(x.get('country')=='US' and re.search(r'customers|residents|areaServed|PostalAddress|available|across|pricing|states|doctors|WW USA',x.get('country_excerpt',''),re.I) and not re.search(r'copyright|usa-today|1 out of 5',x.get('country_excerpt',''),re.I) for x in scope)
   if any(same(h,b) for b in held_hosts) or normalize(name) in held_names or 'fella' in name.lower():reason='held_or_excluded_organization'
+  elif research_only_organization(h,discovery.get('organizations',{}).get(h,{}),sys.modules[__name__]):reason='research_use_only_excluded'
   elif any(h.endswith(p) for p in PLATFORMS):reason='registry_official_host_is_portal_unresolved'
   elif not (MEDICATION.search(' '.join(map(str,[raw[3],raw[7],name]))) or med_evidenced) or re.search(r'snack|nutrition|serum|ring|tracker|belt|supplement',name,re.I):reason='not_glp_medication_provider'
   elif not (re.search(r'\bUS\b|United States|USA', ' '.join(map(str,[raw[3],raw[7],name])),re.I) or us_evidenced):reason='us_program_scope_unknown'
   if reason:exclusions.append({**r,'reason':reason});continue
   organizations.setdefault(h,[]).append(r)
+ # Sponsor discovery is a separate commercial census, not a registry mutation.
+ for h,rs in sponsor_rows(discovery,rows,local,sys.modules[__name__],now()).items():
+  organizations.setdefault(h,rs)
  candidates=[]
  import glp_sponsor_readiness as readiness
  for h,rs in sorted(organizations.items()):

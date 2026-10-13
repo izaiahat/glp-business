@@ -124,3 +124,115 @@ def test_merged_rows_are_reaccepted_by_installed_scope_gate_with_real_page_parse
     assert len(campaign.scope_evidence_current('example.com', org, at)) == 2
     # Script-only text is never evidence.
     assert 'semaglutide' not in ' '.join(r['medication_provider_excerpt'] for r in rows)
+
+
+def test_nonregistry_sponsors_require_current_us_fit_and_preserve_all_exclusions(monkeypatch):
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    def org(host, text):
+        html = '<p>' + text + '</p>'
+        sha = hashlib.sha256(html.encode()).hexdigest()
+        rows, contacts = supply.evidence(host, 'https://' + host + '/', html, sha, at.isoformat(),
+                                        campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+        return {'provider': host, 'scope_evidence': rows, 'discovery': {'_markup': [
+            {'html': html, 'sha256': sha, 'url': 'https://' + host + '/', 'final_url': 'https://' + host + '/'}], 'candidates': contacts}}
+    text = 'We sell protein nutrition shakes. We ship to customers across the United States. For partnerships email partners@{host}.'
+    hosts = ['nutrition.example', 'fella.example', 'held.example', 'suppressed.example', 'conversation.example', 'research.example']
+    organizations = {h: org(h, text.format(host=h)) for h in hosts}
+    organizations['research.example'] = org('research.example', text.format(host='research.example') + ' Our peptides are for research use only and not for human consumption.')
+    organizations['unknown.example'] = org('unknown.example', 'We sell protein nutrition shakes. For partnerships email partners@unknown.example.')
+    values = [list(policy.EXPECTED_HEADERS), [''] * len(policy.EXPECTED_HEADERS)]
+    monkeypatch.setattr(policy, 'classify_row', lambda i, r: {'host':'held.example','program':'Held','eligible':False,'blocks_org':True,'row':i,'reason':'status_hold_preserved'})
+    local = {'suppression': {'complete':True, 'entries':[{'domain':'suppressed.example'}]},
+             'conversations':[{'domain':'conversation.example'}]}
+    plan = campaign.recipients(values, {'organizations':organizations}, local)
+    assert [r['host'] for r in plan['recipients']] == ['nutrition.example']
+    # A forged excerpt, stale evidence, or an unbound page cannot qualify a sponsor.
+    next(r for r in organizations['nutrition.example']['scope_evidence'] if r.get('sponsor_category'))['sponsor_category_excerpt'] = 'We sell fitness coaching.'
+    assert not campaign.recipients(values, {'organizations':organizations}, local)['recipients']
+    organizations['nutrition.example'] = org('nutrition.example', text.format(host='nutrition.example'))
+    for row in organizations['nutrition.example']['scope_evidence']:
+        row['observed_utc'] = '2020-01-01T00:00:00+00:00'
+    assert not campaign.recipients(values, {'organizations':organizations}, local)['recipients']
+
+
+def test_unsealed_supply_helpers_cannot_change_campaign_admission(monkeypatch):
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    host = 'unqualified.example'
+    html = '<p>Commercial partnerships email partners@unqualified.example</p>'
+    sha = hashlib.sha256(html.encode()).hexdigest()
+    observed = dt.datetime.now(dt.timezone.utc).isoformat()
+    rows, contacts = supply.evidence(host, 'https://'+host+'/', html, sha, observed,
+        campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+    discovery = {'organizations': {host: {'provider':host, 'scope_evidence':rows,
+        'discovery': {'_markup':[{'html':html,'sha256':sha,'url':'https://'+host+'/','final_url':'https://'+host+'/'}], 'candidates':contacts}}}}
+    local = {'suppression':{'complete':True,'entries':[]}, 'conversations':[]}
+    values = [list(policy.EXPECTED_HEADERS)]
+    assert campaign.recipients(values, discovery, local)['recipients'] == []
+    monkeypatch.setattr(supply, 'sponsor_rows', lambda *a: {host:[{'host':host,'program':host,'population':'pending','eligible':True,'row':None}]}, raising=False)
+    assert campaign.recipients(values, discovery, local)['recipients'] == []
+
+
+def test_sponsor_fit_refuses_negated_product_claims():
+    for text in ("We don't offer meal plans.", "We are not a meal delivery service.",
+                 "We no longer provide personal training.", "We do not offer protein shakes.",
+                 "We don’t sell protein shakes."):
+        assert supply.sponsor_fit(text) is None, text
+    assert supply.sponsor_fit('We offer protein shakes for our customers.')[0] == 'nutrition_protein'
+
+
+def test_failed_capture_reserves_credits_and_next_run_cannot_reset(monkeypatch, tmp_path):
+    import firecrawl_client
+    import glp_firecrawl_jobs as jobs
+    calls = []
+    class Client:
+        def __init__(self, *a, **kw): pass
+        def request(self, endpoint, *a, **kw):
+            if endpoint == 'team/credit-usage': return {'data':{'remainingCredits':10000}}
+            calls.append(endpoint)
+            raise OSError('uncertain paid effect')
+        def scrape(self, *a, **kw):
+            calls.append('scrape')
+            raise OSError('uncertain paid effect')
+    monkeypatch.setattr(firecrawl_client, 'FirecrawlClient', Client)
+    monkeypatch.setattr(jobs, 'spent_today', lambda *a: 0)
+    p = supply.Producer(state_dir=tmp_path, run_cap=3)
+    p.capture_host('first.example', max_pages=1)
+    assert p.budget.spent == 2 and calls == ['map','scrape']
+    p = supply.Producer(state_dir=tmp_path, run_cap=3)
+    assert p.budget.cap == 1
+    assert p.capture_host('second.example', max_pages=1)['skipped'] == 'budget'
+    assert calls == ['map','scrape']
+
+
+def test_entrypoint_budget_lock_refuses_before_usage_or_paid_call(monkeypatch, tmp_path):
+    import fcntl
+    import pytest
+    import glp_sponsor_campaign as campaign
+    monkeypatch.setattr(campaign, 'STATE', tmp_path)
+    monkeypatch.setattr(supply, 'Producer', lambda **kw: pytest.fail('contender entered producer'))
+    with (tmp_path/'firecrawl-supply-budget.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BlockingIOError):
+            supply.main(['daily'])
+
+
+def test_daily_cap_counts_legacy_and_installed_callers_without_reset(monkeypatch, tmp_path):
+    import firecrawl_client
+    import glp_firecrawl_jobs as jobs
+    class Client:
+        def __init__(self, *a, **kw): pass
+        def request(self, *a, **kw): return {'data': {'remainingCredits': 10000}}
+    monkeypatch.setattr(firecrawl_client, 'FirecrawlClient', Client)
+    seen = []
+    def spent(callers):
+        seen.extend(callers)
+        return 3833
+    monkeypatch.setattr(jobs, 'spent_today', spent)
+    p = supply.Producer(state_dir=tmp_path)
+    assert 'fc71_sponsor_supply' in seen and 'fc71_sponsor_alexandria' in seen
+    assert p.budget.cap == 0 and not p.budget.allow(1)
