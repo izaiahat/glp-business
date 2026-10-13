@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "ops/rook-mcp/rook_adapter_launch.py": {
+      "kind": "registered_launcher_source",
+      "callers": [
+        "systemd:user:rook-mcp-adapter.service -> /home/ubuntu/.hermes/scripts/rook_adapter_launch.py"
+      ],
+      "sha256": "b3ed8ea6ca35c98ea87cc81a313347ae32e7d3defd71f691356f764891198e72"
+    },
+    "ops/rook-mcp/ROOK_LAUNCHER_RUNBOOK.md": {
+      "kind": "runbook",
+      "callers": [
+        "manual:parent-owned exact-source Rook adapter restoration"
+      ],
+      "sha256": "f4b1d9e62320b4f65f3bd4871532d6f41fe616594e612414079857b943e89c4d"
+    },
     "scripts/auto_coordinator_receipt.py": {
       "kind": "script",
       "callers": [
@@ -6887,7 +6901,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "321cc01c5b8db70d781312a3803c98e19474fcb5fc6f96d8058a2ee99952a5e2"
+      "sha256": "d787f497ecc518f4c9a046eed3da7ff7c4748f1309a2d2dc2a285a9f52065278"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
@@ -7374,6 +7388,13 @@
       "kind": "source_control",
       "sha256": "9b07b675be9087ea19572c476ef8d061dabebc19837cc74fd7814b08413f4b77"
     },
+    "tests/test_host_disk_pin_protocol.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci host-disk exact-head offline suite"
+      ],
+      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
+    },
     "scripts/article_review_physical_lines.py": {
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py",
@@ -7409,13 +7430,6 @@
         "scripts/article_review_physical_lines.py"
       ],
       "sha256": "b2585e5a788e037ee055b8f94bf027568df60e51fd4d86fb4f1c94e93cce2f06"
-    },
-    "tests/test_host_disk_pin_protocol.py": {
-      "kind": "test",
-      "callers": [
-        "business-source-ci host-disk exact-head offline suite"
-      ],
-      "sha256": "9d35233e5c5d4f60026b31e042e7b1f35c3a6a1cacb3053ace29fe6b6b7b6a2c"
     }
   },
   "omitted_runtime_inputs": [
@@ -7426,5 +7440,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1089
+  "tracked_count": 1091
 }
