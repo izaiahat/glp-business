@@ -454,6 +454,35 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
     assert digest == 'fa3ed2ae517e6bd327cfd24ce6d809e5e1bfd8615b9fa3437655d0c0e773313f'
 
 
+def test_state_backup_successful_steps_are_paced(tmp_path):
+    """A WAL-readable snapshot must not treat backup(sleep=...) as a rate limit.
+
+    That argument only sleeps on SQLITE_BUSY/LOCKED. Exercise the registered
+    producer with successful SQLite page copies and highly compressible data
+    so wall time is governed by source copying rather than zstd/host disk.
+    """
+    import os
+    import sqlite3
+    import time
+    home = tmp_path / 'hermes'
+    home.mkdir()
+    (home / 'config.yaml').write_text('fixture: true\n')
+    with sqlite3.connect(home / 'state.db') as db:
+        db.execute('pragma journal_mode=wal')
+        db.execute('create table payload(data blob)')
+        for _ in range(40):
+            db.execute('insert into payload values (zeroblob(?))', (1024**2,))
+        db.commit()
+    producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
+    begin = time.monotonic()
+    run = subprocess.run(['bash', str(producer)], env={**os.environ,
+        'HERMES_HOME': str(home), 'HERMES_BACKUP_ROOT': str(tmp_path / 'backups'),
+        'TMPDIR': str(tmp_path)}, capture_output=True, text=True, timeout=90)
+    elapsed = time.monotonic() - begin
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert elapsed >= 3.8, ('successful page copies bypassed 10MiB/s pacing', elapsed)
+
+
 def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(tmp_path):
     """Real registered producer + SQLite restore, scratch only; not live coverage."""
     import hashlib

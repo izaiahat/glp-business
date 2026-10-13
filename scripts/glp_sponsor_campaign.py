@@ -702,7 +702,10 @@ def consume_reply_stops(ledger,db=None,at=None):
          or non_inbound<0 or found!=persisted+duplicates+non_inbound):return result
      for timestamp in (auth,read,complete,finished):
       age=at-dt.datetime.fromisoformat(timestamp)
-      if not dt.timedelta(0)<=age<=dt.timedelta(seconds=min(int(sla),900)):return result
+      if age<dt.timedelta(0):return result
+      if age>dt.timedelta(seconds=min(int(sla),900)):
+       result['reason']='stale_complete_poll'
+       return result
     result.update(status='read_complete',mailboxes=[r[0] for r in cursors])
    except (sqlite3.Error,ValueError,TypeError):
     return result
@@ -711,13 +714,50 @@ def consume_reply_stops(ledger,db=None,at=None):
  return result
 
 
+def refresh_canonical_poll():
+ """Use the installed read-only inbox producer under our existing poll flock.
+
+ Never call the flock-taking cron wrapper recursively. No dispatch, decisions,
+ provider drafts or sends; the canonical producer alone owns cursor writes.
+ This call must finish before opening the SQLite send transaction.
+ """
+ import subprocess
+ try:
+  proc=subprocess.run([sys.executable,str(ROOT/'inbox_control_plane/control_plane.py'),
+                       '--poll','--limit','250'],capture_output=True,text=True,timeout=240)
+  receipt=json.loads(proc.stdout)
+  if (proc.returncode!=0 or receipt.get('status')!='pass' or not receipt.get('run_id')
+      or receipt.get('outbound_send_count')!=0 or receipt.get('provider_draft_count')!=0
+      or receipt.get('provider_mutation_count')!=0 or receipt.get('secret_printed') is not False):
+   raise ValueError('poll_receipt_refused')
+ except (subprocess.TimeoutExpired,OSError,ValueError,TypeError,AttributeError) as exc:
+  # Provider stdout/stderr and exception strings may contain private data.
+  raise RuntimeError('canonical_sponsor_poll_refresh_failed') from None
+
+
+def reply_coverage(ledger,*,allow_poll_refresh=False):
+ """One actual poll can renew expired proof; a no-send forecast never writes it."""
+ result=consume_reply_stops(ledger)
+ if allow_poll_refresh and result.get('reason')=='stale_complete_poll':
+  applied=result['applied']
+  refresh_canonical_poll()
+  result=consume_reply_stops(ledger) # New effect time and newly committed stops.
+  result['applied']+=applied
+ return result
+
+
 from contextlib import contextmanager
 @contextmanager
-def canonical_send_boundary(ledger,at,required,*,persist_stops=True):
+def canonical_send_boundary(ledger,at,required,*,persist_stops=True,allow_poll_refresh=False):
  """Serialize canonical stop commits with the durable claim and send receipt."""
  if not required:
   yield
   return
+ if allow_poll_refresh:
+  readiness=reply_coverage(ledger,allow_poll_refresh=True)
+  if readiness['applied'] and persist_stops:save(STATE/'ledger.json',ledger)
+  if readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
+  at=now() # Never grant an expired caller time after a slow poll.
  import sqlite3
  db=sqlite3.connect(INBOX_DB.as_uri()+'?mode=rw',uri=True,timeout=5)
  try:
@@ -770,7 +810,7 @@ def refresh_paypal_orders(config,at,dry_run=False,finance_hosts=(),ledger=None):
      # is only initial admission (and an offline fixture seam), not a final
      # permission surviving merchant authentication or other slow reads.
      current_hosts=invoice_provider_hosts(read_values(),read_local()) if ledger is not None else finance_hosts
-     with canonical_send_boundary(ledger if ledger is not None else {},now(),ledger is not None):
+     with canonical_send_boundary(ledger if ledger is not None else {},now(),ledger is not None,allow_poll_refresh=not dry_run):
       host=order['provider_host']
       if host not in current_hosts:raise ValueError('sponsor_invoice_provider_held')
       if ledger is not None:
@@ -837,7 +877,7 @@ def send_interested_next_steps(ledger,config,finance_hosts,capacity):
   # Authentication can take time. Re-read current registry and suppression at
   # the same final boundary as invoice admission; canonical opt-outs win next.
   current_hosts=invoice_provider_hosts(read_values(),read_local())
-  with canonical_send_boundary(ledger,now(),True):
+  with canonical_send_boundary(ledger,now(),True,allow_poll_refresh=True):
    if entry.get('stopped')!='interested' or entry.get('stop_event_id')!=event or entry['host'] not in current_hosts:continue
    entry['next_step_claim']={'event_id':event,'at':stamp(),'packet_sha256':config['packet_sha256']}
    save(STATE/'ledger.json',ledger)
@@ -869,7 +909,7 @@ def run(config,dry_run=False,*,transport_preflight=False,preflight_at=None):
   import glp_sponsor_readiness as readiness
   if not local['suppression']['complete']:raise RuntimeError('suppression_ledger_incomplete:'+','.join(local['faults']))
   ledger=load(STATE/'ledger.json') if (STATE/'ledger.json').exists() else {}
-  reply_readiness=consume_reply_stops(ledger)
+  reply_readiness=reply_coverage(ledger,allow_poll_refresh=enabled and not transport_preflight and config.get('require_canonical_reply_coverage') is True)
   if reply_readiness['applied'] and not transport_preflight:save(STATE/'ledger.json',ledger)
   finance_hosts=invoice_provider_hosts(values,local) if reply_readiness['status']=='read_complete' else ()
   finance_hosts={host for host in finance_hosts if not any(same(host,row.get('host',email.split('@')[-1]))
@@ -931,7 +971,7 @@ def run(config,dry_run=False,*,transport_preflight=False,preflight_at=None):
    # Re-read suppression immediately before effect, unioned with all own stops.
    if not any(r['email']==recipient['email'] for r in recipients(read_values(),discovery,read_local())['recipients']):continue
    send_client=service('read' if transport_preflight else 'send') # Preflight requests no send-capable authentication.
-   with canonical_send_boundary(ledger,now(),config.get('require_canonical_reply_coverage') is True,persist_stops=not transport_preflight):
+   with canonical_send_boundary(ledger,now(),config.get('require_canonical_reply_coverage') is True,persist_stops=not transport_preflight,allow_poll_refresh=not transport_preflight):
     # Re-read the LAST shared-ledger decision after all contact/mail/auth work,
     # using effect-boundary time, not run-start time. This is a read, never a debit.
     boundary_at=at if transport_preflight else now();boundary_pt=boundary_at.astimezone(PT)
@@ -986,7 +1026,33 @@ def main():
  ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--scheduled',action='store_true')
  ap.add_argument('--transport-preflight',action='store_true');ap.add_argument('--preflight-at',type=dt.datetime.fromisoformat);args=ap.parse_args()
  config=campaign_config()
- r=run(config,dry_run=args.dry_run,transport_preflight=args.transport_preflight,preflight_at=args.preflight_at)
+ try:r=run(config,dry_run=args.dry_run,transport_preflight=args.transport_preflight,preflight_at=args.preflight_at)
+ except Exception as exc:
+  if args.dry_run or args.transport_preflight:raise
+  # A failed batch may have sent many messages. Report durable PT-day totals,
+  # never claim this exception means zero effects or authorize a blind replay.
+  failure={'status':'FAILED_RECONCILE_BEFORE_RETRY','error_class':type(exc).__name__,
+           'generated_utc':stamp(),'scope':'PT-day ledger totals, not current-run totals',
+           'replay_allowed':False,'day_sends':None,'outstanding_claims':None}
+  try:
+   ledger=load(STATE/'ledger.json');day=now().astimezone(PT).date()
+   day_sends=[];claims=[]
+   for email,entry in ledger.items():
+    for sent in entry.get('sent',[])+([entry['next_step_receipt']] if entry.get('next_step_receipt') else []):
+     if dt.datetime.fromisoformat(sent['sent_at']).astimezone(PT).date()==day:
+      day_sends.append({'email':email,'message_id':sent['message_id'],'sent_at':sent['sent_at']})
+    for key in ('claimed','next_step_claim'):
+     claim=entry.get(key)
+     if claim and dt.datetime.fromisoformat(claim['at']).astimezone(PT).date()==day:
+      claims.append({'email':email,'kind':key,'at':claim['at']})
+   failure.update(pt_day=day.isoformat(),day_sends=day_sends,outstanding_claims=claims)
+  except (OSError,ValueError,KeyError,TypeError,AttributeError):pass # Unknown is not zero.
+  try:save(STATE/'latest-failure.json',failure)
+  except OSError:pass
+  count='unknown' if failure['day_sends'] is None else len(failure['day_sends'])
+  claims='unknown' if failure['outstanding_claims'] is None else len(failure['outstanding_claims'])
+  print(f"Sponsor outreach FAILED ({failure['error_class']}); PT-day confirmed sends: {count}; outstanding claims: {claims}. Reconcile ledger and Gmail before retry; not current-run totals.",file=sys.stderr)
+  raise SystemExit(1) from None
  if args.dry_run or args.transport_preflight:print(json.dumps({k:v for k,v in r.items() if k not in ('previews','exclusions')},sort_keys=True))
  elif r['send_enabled']:print(f"Sponsor outreach: {r['sent']} sent; eligible {r['eligible_recipient_count']}. Replies stop follow-ups.")
 if __name__=='__main__':main()
