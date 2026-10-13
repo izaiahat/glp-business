@@ -312,6 +312,8 @@ def test_entrypoint_budget_lock_refuses_before_usage_or_paid_call(monkeypatch, t
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with pytest.raises(BlockingIOError):
             supply.main(['daily'])
+        with pytest.raises(BlockingIOError):
+            supply.main(['merge', '--retained-cohort', 'unused.json', '--cohort-sha256', '0' * 64])
 
 
 def test_daily_cap_counts_legacy_and_installed_callers_without_reset(monkeypatch, tmp_path):
@@ -439,3 +441,203 @@ def test_apollo_discovery_fails_closed_without_contact_execution(case):
         p.discover_apollo_contacts()
     assert not p.apollo_capabilities
     assert len(calls) <= 2
+
+
+def retained_fixture(tmp_path, monkeypatch):
+    """Synthetic decoded receipt + genuine-shaped ledger, never live effects."""
+    import hashlib
+    import firecrawl_client
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    url = 'https://example.com/scope'
+    html = '<p>We offer protein shakes. We ship to customers across the United States.</p>'
+    sha = hashlib.sha256(html.encode()).hexdigest()
+    receipt = {'host': 'example.com', 'requested_url': url, 'observed_at': at.isoformat(),
+        'response': {'success': True, 'data': {'rawHtml': html, 'metadata': {
+            'url': url, 'sourceURL': url, 'statusCode': 200, 'scrapeId': 'fixture-id'}}}}
+    path = tmp_path / 'receipt.json'
+    path.write_text(json.dumps(receipt))
+    row = {'host': 'example.com', 'source_url': url, 'requested_url': url,
+        'receipt': 'receipt.json', 'receipt_sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+        'sha256': sha, 'observed_utc': at.isoformat(), 'operation_id': 'fixture-op'}
+    manifest = tmp_path / 'cohort.json'
+    manifest.write_text(json.dumps({'schema': 'sponsor-retained-cohort-v1', 'pages': [row]}))
+    ledger = tmp_path / 'operations.jsonl'
+    base = {'caller': supply.CALLER, 'endpoint': '/v2/scrape', 'operation_id': 'fixture-op',
+        'at_utc': at.isoformat(), 'url_hash': [hashlib.sha256(url.encode()).hexdigest()]}
+    ledger.write_text(json.dumps(base | {'outcome': 'started'}) + '\n' + json.dumps(base | {
+        'outcome': 'success', 'http_status': 200,
+        'scrape_search_id': 'sha256:' + hashlib.sha256(b'fixture-id').hexdigest()}) + '\n')
+    monkeypatch.setattr(firecrawl_client, 'LEDGER', ledger)
+    monkeypatch.setattr(firecrawl_client, 'FirecrawlClient', lambda *a, **k: pytest.fail('network client created'))
+    monkeypatch.setattr(campaign, 'STATE', tmp_path)
+    monkeypatch.setattr(campaign, 'read_local', lambda: {'suppression': {'complete': True, 'entries': []}, 'conversations': [], 'faults': []})
+    monkeypatch.setattr(campaign, 'read_values', lambda: [list(policy.EXPECTED_HEADERS)])
+    monkeypatch.setattr(supply.Producer, 'capture_host', lambda *a, **k: pytest.fail('capture fallback'))
+    monkeypatch.setattr(supply.Producer, 'reserve', lambda *a, **k: pytest.fail('paid reservation'))
+    monkeypatch.setattr(campaign, 'mail_admit', lambda *a, **k: pytest.fail('mailbox admission'))
+    monkeypatch.setattr(supply.subprocess, 'run', lambda *a, **k: pytest.fail('effectful subprocess'))
+    p = supply.Producer(state_dir=tmp_path, import_only=True)
+    p.discovery = tmp_path / 'discovery.json'
+    p.discovery.write_text(json.dumps({'organizations': {'unrelated.example': {'professional_contacts': [{'id': 'keep'}]}}}))
+    return p, manifest, receipt, row, ledger
+
+
+def test_retained_cohort_merges_full_pages_without_transport_or_restamping(tmp_path, monkeypatch):
+    import hashlib
+    p, manifest, receipt, row, ledger = retained_fixture(tmp_path, monkeypatch)
+    before = ledger.read_bytes()
+    old_claim = tmp_path / 'old-enrichment-claim.json'
+    old_claim.write_text('{"status":"claimed","operation_id":"old-unknown"}')
+    reservation = tmp_path / 'firecrawl-supply-budget.json'
+    reservation.write_text('{"day":"2026-10-13","reserved":960}')
+    old_bytes, reserved_bytes = old_claim.read_bytes(), reservation.read_bytes()
+    digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    p.merge(retained_cohort=manifest, cohort_sha256=digest)
+    disc = json.loads(p.discovery.read_text())
+    org = disc['organizations']['example.com']
+    assert org['discovery']['candidates'] == []  # scope input is not a contact
+    assert {r.get('sponsor_category') for r in org['scope_evidence']} >= {'nutrition_protein'}
+    assert any(r.get('country') == 'US' for r in org['scope_evidence'])
+    page = org['discovery']['_markup'][0]
+    assert page['html'] == receipt['response']['data']['rawHtml']
+    assert page['fetched_at_utc'] == row['observed_utc']
+    assert page['provenance']['receipt_sha256'] == row['receipt_sha256']
+    first = p.discovery.read_bytes()
+    p.merge(retained_cohort=manifest, cohort_sha256=digest)
+    assert p.discovery.read_bytes() == first and ledger.read_bytes() == before
+    assert old_claim.read_bytes() == old_bytes and reservation.read_bytes() == reserved_bytes
+    assert not p.pages.exists() and not p.cache.exists()
+    assert disc['organizations']['unrelated.example']['professional_contacts'] == [{'id': 'keep'}]
+
+
+@pytest.mark.parametrize('case,why', [
+    ('requested_foreign', 'retained_source_mismatch'),
+    ('final_foreign', 'retained_source_mismatch'),
+    ('sourceURL_foreign', 'retained_source_mismatch'),
+    ('sourceURL_disagreement', 'retained_source_mismatch'),
+    ('subdomain', 'retained_source_mismatch'),
+    ('path_traversal', 'retained_receipt_path'),
+    ('expired', 'retained_evidence_expired'),
+    ('future', 'retained_evidence_expired'),
+    ('named_duplicate', 'retained_org_held_or_named'),
+    ('held_alias', 'retained_org_held_or_named'),
+    ('manifest_hash', 'retained_cohort_hash_mismatch'),
+    ('receipt_hash', 'retained_receipt_hash_mismatch'),
+    ('page_hash', 'retained_page_hash_mismatch'),
+    ('missing_terminal', 'retained_effect_uncertain'),
+    ('ambiguous_prior', 'retained_effect_uncertain'),
+    ('wrong_operation', 'retained_effect_mismatch'),
+    ('negative_product', 'retained_scope_refused'),
+    ('research_only', 'retained_scope_refused'),
+    ('unapproved_category', 'retained_scope_refused'),
+    ('suppressed', 'retained_org_held_or_named'),
+    ('contacted', 'retained_org_held_or_named'),
+    ('incomplete_suppression', 'suppression_or_local_sources_incomplete'),
+])
+def test_retained_cohort_denials_are_atomic_and_never_replay(tmp_path, monkeypatch, case, why):
+    import hashlib
+    p, manifest, receipt, row, ledger = retained_fixture(tmp_path, monkeypatch)
+    before = p.discovery.read_bytes()
+    meta = receipt['response']['data']['metadata']
+    if case == 'requested_foreign': row['requested_url'] = 'https://evil.example/scope'
+    if case == 'final_foreign': meta['url'] = 'https://evil.example/scope'
+    if case == 'sourceURL_foreign': meta['sourceURL'] = 'https://evil.example/scope'
+    if case == 'sourceURL_disagreement': meta['sourceURL'] = 'https://example.com/different'
+    if case == 'path_traversal': row['receipt'] = '../receipt.json'
+    if case in ('expired', 'future'):
+        row['observed_utc'] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=-31 if case == 'expired' else 1)).isoformat()
+        receipt['observed_at'] = row['observed_utc']
+    if case in ('named_duplicate', 'held_alias'):
+        import glp328_outreach_policy as policy
+        monkeypatch.setattr(p.c, 'read_values', lambda: [list(policy.EXPECTED_HEADERS), []])
+        monkeypatch.setattr(policy, 'classify_row', lambda *a: {'program': 'Example' if case == 'named_duplicate' else 'Held provider',
+            'host': '' if case == 'named_duplicate' else 'www.example.com', 'blocks_org': case == 'held_alias'})
+    if case == 'subdomain': row['source_url'] = 'https://other.example.com/scope'
+    if case == 'page_hash': row['sha256'] = '0' * 64
+    if case == 'missing_terminal': ledger.write_text(ledger.read_text().splitlines()[0] + '\n')
+    if case == 'ambiguous_prior':
+        started = json.loads(ledger.read_text().splitlines()[0]) | {'operation_id': 'old-uncertain'}
+        ledger.write_text(ledger.read_text() + json.dumps(started) + '\n')
+    if case == 'wrong_operation': row['operation_id'] = 'not-the-observed-effect'
+    if case in ('negative_product', 'research_only', 'unapproved_category'):
+        html = {
+            'negative_product': '<p>We do not sell protein shakes. We ship across the United States.</p>',
+            'research_only': '<p>We offer protein shakes for research use only. We ship across the United States.</p>',
+            'unapproved_category': '<p>We offer prescription-adjacent skin creams. We ship across the United States.</p>',
+        }[case]
+        receipt['response']['data']['rawHtml'] = html
+        row['sha256'] = hashlib.sha256(html.encode()).hexdigest()
+    if case in ('suppressed', 'contacted', 'incomplete_suppression'):
+        monkeypatch.setattr(p.c, 'read_local', lambda: {
+            'suppression': {'complete': case != 'incomplete_suppression',
+                            'entries': [{'domain': 'example.com'}] if case == 'suppressed' else []},
+            'conversations': [{'domain': 'example.com'}] if case == 'contacted' else [], 'faults': []})
+    (tmp_path / 'receipt.json').write_text(json.dumps(receipt))
+    row['receipt_sha256'] = hashlib.sha256((tmp_path / 'receipt.json').read_bytes()).hexdigest()
+    if case == 'receipt_hash': row['receipt_sha256'] = '0' * 64
+    manifest.write_text(json.dumps({'schema': 'sponsor-retained-cohort-v1', 'pages': [row]}))
+    digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    if case == 'manifest_hash': digest = '0' * 64
+    ledger_before = ledger.read_bytes()
+    with pytest.raises(RuntimeError, match=why):
+        p.merge(retained_cohort=manifest, cohort_sha256=digest)
+    assert p.discovery.read_bytes() == before
+    assert ledger.read_bytes() == ledger_before
+    assert not p.pages.exists() and not p.cache.exists()
+
+
+def test_retained_cli_refuses_combined_paid_phases_before_client_creation(monkeypatch):
+    import firecrawl_client
+    monkeypatch.setattr(firecrawl_client, 'FirecrawlClient', lambda *a, **k: pytest.fail('network client created'))
+    for args in (['daily', '--retained-cohort', 'x', '--cohort-sha256', '0' * 64],
+                 ['merge', '--retained-cohort', 'x']):
+        with pytest.raises(SystemExit) as exc:
+            supply.main(args)
+        assert exc.value.code == 2
+
+
+def test_retained_legacy_capture_preserves_owned_pages_conflicts_and_professional_contacts(tmp_path, monkeypatch):
+    import hashlib
+    p, manifest, receipt, row, ledger = retained_fixture(tmp_path, monkeypatch)
+    html = receipt['response']['data']['rawHtml']
+    page = {'url': row['source_url'], 'final_url': row['source_url'], 'html': html,
+        'sha256': row['sha256'], 'fetched_at_utc': row['observed_utc'], 'source': 'firecrawl_v2_scrape_rawHtml'}
+    receipt = {'host': row['host'], 'capture': {'host': row['host'], 'pages': [page]}}
+    (tmp_path / 'receipt.json').write_text(json.dumps(receipt))
+    row['receipt_sha256'] = hashlib.sha256((tmp_path / 'receipt.json').read_bytes()).hexdigest()
+    manifest.write_text(json.dumps({'schema': 'sponsor-retained-cohort-v1', 'pages': [row]}))
+    scope, _ = supply.evidence(row['host'], row['source_url'], html, row['sha256'], row['observed_utc'],
+        p.c.public_page_hits, p.c.BUSINESS_LOCALS, p.c.same, sponsor=True)
+    conflict = page | {'html': '<p>Earlier conflicting evidence</p>',
+        'sha256': hashlib.sha256(b'<p>Earlier conflicting evidence</p>').hexdigest()}
+    p.discovery.write_text(json.dumps({'organizations': {row['host']: {
+        'discovery': {'_markup': [page.copy(), conflict], 'candidates': []}, 'scope_evidence': scope,
+        'professional_contacts': [{'person_id': 'old-professional', 'status': 'unknown'}]}}}))
+    digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    p.merge(retained_cohort=manifest, cohort_sha256=digest)
+    result = json.loads(p.discovery.read_bytes())['organizations'][row['host']]
+    assert len(result['discovery']['_markup']) == 2
+    assert result['discovery']['_markup'][0]['source'] == page['source']
+    assert result['discovery']['_markup'][0]['retained_provenance'][0]['raw_http_provenance'] is False
+    assert result['discovery']['_markup'][1] == conflict
+    assert len(result['scope_evidence']) == len(scope)
+    assert result['professional_contacts'] == [{'person_id': 'old-professional', 'status': 'unknown'}]
+    first = p.discovery.read_bytes()
+    p.merge(retained_cohort=manifest, cohort_sha256=digest)
+    assert p.discovery.read_bytes() == first
+
+
+def test_retained_cli_import_executes_supported_writer_only(tmp_path, monkeypatch):
+    import hashlib
+    p, manifest, receipt, row, ledger = retained_fixture(tmp_path, monkeypatch)
+    def factory(**kwargs):
+        assert kwargs['import_only'] is True
+        return p
+    monkeypatch.setattr(supply, 'Producer', factory)
+    assert supply.main(['merge', '--retained-cohort', str(manifest), '--cohort-sha256',
+                       hashlib.sha256(manifest.read_bytes()).hexdigest()]) == 0
+    report = json.loads((tmp_path / 'firecrawl-supply-latest.json').read_text())
+    assert report['import_only'] and report['paid_calls'] == report['sends'] == 0
+    assert 'example.com' in json.loads(p.discovery.read_text())['organizations']

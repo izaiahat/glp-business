@@ -42,7 +42,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "1f098c25dd6ebf7e525e2203b830befa2e4de13ef65db542cfcb9c9368352be7"
+      "sha256": "60093655e2f14e3da07336977ae35a00f8312c6e23c941b36adb6b6ba85d09f2"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -51,7 +51,7 @@
         "firecrawl-integration"
       ],
       "kind": "test",
-      "sha256": "f12af65bdcc60753d2a258f9957589b810772e19d06b6049b5c1fc3e385c2013"
+      "sha256": "e8fcf2773b14687ec26809de986662bc00720a81f33b29d7c7a24b46b0de8a1c"
     },
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
       "callers": [
@@ -268,7 +268,7 @@
         "GitHub pull_request exact-head integration"
       ],
       "kind": "workflow",
-      "sha256": "de5a5b36711f45cef4b311f4f1eb2869b2b95be5d9e49ce510fbcbbcf1e39a69"
+      "sha256": "c19f08089d8d397a2bb41376ad07d90223e1cdf291f284a2b421ab5399e805c7"
     },
     ".github/workflows/fleet-ingest.yml": {
       "callers": [
