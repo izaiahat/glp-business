@@ -7,7 +7,7 @@
         "scripts/auto_coordinator_runner.py",
         "manual:GLP-358 read-only verifier"
       ],
-      "sha256": "b6197c531b5e98cda43f1792dd9bbcfe6883b4f59512c3a5ebb486108600bc87"
+      "sha256": "f541d4469bd33ef36dcd192ded909bf4e98330115aacf1daf5dc88b5e080339f"
     },
     "tests/test_auto_coordinator_receipt.py": {
       "kind": "test",
@@ -16,12 +16,19 @@
       ],
       "sha256": "ba9b9763021e6799c11f42d66123181a70058e6a99d6077340c349ea9b2b6cdb"
     },
+    "tests/test_rv451b_probes.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "92c106af72662fbf02eb74511082dcb2d8d3ac9ee9f67c04126d5639e3ca2bae"
+    },
     ".github/workflows/coordinator-receipt-ci.yml": {
       "kind": "repository_control",
       "callers": [
         "GitHub exact-head CI"
       ],
-      "sha256": "27b2cc55f06e9a94091aeafe2f5f6adf59b09a8a178aa96936b4a6803c876eac"
+      "sha256": "70751291aa2d5ff3e053bf504d9dd420f9f68623ec21eae2f344cbccb2423fe1"
     },
     "ops/linear/GLP358-CAUSAL-RECEIPTS.md": {
       "kind": "operations",
@@ -7354,5 +7361,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1079
+  "tracked_count": 1080
 }

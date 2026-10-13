@@ -215,11 +215,13 @@ def authenticate(root, directory, executions, native, output_root):
     text = output.read_text()
     require(decision['coordinator_session'] in text and str(directory) in text, 'native output lacks session/receipt binding')
     require(load(directory / 'RUNNER-TERMINAL.json')['coordinator_rc'] == 0, 'runner did not complete successfully')
+    observed_at = {}
     for ref in decision['readbacks']:
         observed = native.execute('SELECT * FROM messages WHERE id=? AND session_id=?', (ref['native_message_id'], session['id'])).fetchone()
         require(observed and observed['role'] == 'tool' and observed['tool_name'] == 'terminal', 'native input readback absent')
         payload = json.loads(observed['content'])
         require(payload['exit_code'] == 0 and ref['path'] in payload['output'] and ref['sha256'] in payload['output'], 'native input path/digest binding absent')
+        observed_at[ref['native_message_id']] = observed['timestamp']
     for rec in decision['reconciliation']:
         prior = rec['prior_effect']
         if 'child_session' in prior:
@@ -273,17 +275,16 @@ def authenticate(root, directory, executions, native, output_root):
         # A digest printed after dispatch is not evidence available at admission.
         # Only preconditions belong here; Done/worker outcome reads may be later.
         row = next(r for r in decision['eligibility'] if r['issue'] == a['issue'])
-        preconditions = set(row['evidence_paths'])
-        preconditions.update(ref['path'] for ref in decision['readbacks']
-                             if load(root / ref['path']) == decision['linear_readback'])
         require(session['started_at'] <= g['timestamp'] <= m['timestamp'] <= session['ended_at'],
                 'pre-effect evidence chronology: guard/effect outside causal order')
-        for ref in decision['readbacks']:
-            if ref['path'] in preconditions:
-                observed = native.execute('SELECT timestamp FROM messages WHERE id=? AND session_id=?',
-                                          (ref['native_message_id'], session['id'])).fetchone()
-                require(observed and session['started_at'] <= observed['timestamp'] <= g['timestamp'],
-                        'pre-effect evidence chronology: input was not observed before guard')
+        # Each action needs a causal copy of every required input, not every
+        # retained copy: a later board recheck must not void an earlier effect.
+        admitted = [ref for ref in decision['readbacks']
+                    if session['started_at'] <= observed_at[ref['native_message_id']] <= g['timestamp']]
+        require(any(load(root / ref['path']) == decision['linear_readback'] for ref in admitted),
+                'pre-effect evidence chronology: board was not observed before guard')
+        require(set(row['evidence_paths']) <= {ref['path'] for ref in admitted},
+                'pre-effect evidence chronology: input was not observed before guard')
         if a['kind'] == 'dispatch':
             calls = json.loads(m['tool_calls'])
             call = next(c for c in calls if c['id'] == effect['call_id'])
