@@ -13,6 +13,9 @@ def test_conftest_binds_scripts_before_installed_path_insertion(tmp_path):
     package = installed / 'scripts'
     package.mkdir(parents=True)
     (package / '__init__.py').write_text('INSTALLED_SOURCE = True\n')
+    foreign_tests = installed / 'tests'
+    foreign_tests.mkdir()
+    (foreign_tests / '__init__.py').write_text('INSTALLED_SOURCE = True\n')
     # Model the maintained modules that insert an installed BUSINESS root at
     # import time, after conftest but before the discovery/adoption suites.
     code = """
@@ -23,8 +26,9 @@ sys.path[:0] = [str(root), str(root / 'scripts'), str(root / 'tests')]
 runpy.run_path(str(root / 'tests/conftest.py'))
 sys.path.insert(0, str(installed))
 from scripts import discovery_predecessor_migration, glp44_scoped_adoption
+import tests
 print(json.dumps([str(Path(module.__file__).resolve()) for module in
-                  (discovery_predecessor_migration, glp44_scoped_adoption)]))
+                  (discovery_predecessor_migration, glp44_scoped_adoption, tests)]))
 """
     env = {**os.environ, 'PYTHONPATH': str(installed), 'PYTHONDONTWRITEBYTECODE': '1'}
     result = subprocess.run([sys.executable, '-c', code, str(ROOT), str(installed)],
@@ -33,4 +37,5 @@ print(json.dumps([str(Path(module.__file__).resolve()) for module in
     assert json.loads(result.stdout) == [
         str(ROOT / 'scripts/discovery_predecessor_migration.py'),
         str(ROOT / 'scripts/glp44_scoped_adoption.py'),
+        str(ROOT / 'tests/__init__.py'),
     ]

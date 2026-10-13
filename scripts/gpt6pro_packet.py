@@ -259,16 +259,23 @@ def build_freeform(spec: dict, wave: dict) -> Path:
             p = d / f"ATTACH-{n}-{root}-{rel.replace('/', '__')}"; p.write_text(load(src)); attach.append((p, f"{desc} — `{rel}` (root: {root}), full contents")); n += 1
         else:
             p = d / ("DRIVE-" + rel.replace("/", "__")); p.write_text(load(src)); drive_files.append((p, f"{desc} — `{rel}` (root: {root}), FULL contents, on Drive"))
+    prompt, manifest = render_freeform(spec, wave, attach, drive_files)
+    (d / "PROMPT.md").write_text(prompt)
+    (d / "MANIFEST.json").write_text(json.dumps(manifest, indent=1))
+    return d
+
+
+def render_freeform(spec: dict, wave: dict, attach, drive_files):
+    """Render producer payloads without writing; empty-file waves require no I/O."""
+    job = spec['job']
     input_table = "\n".join(f"- `{p.name}` — {desc}" for p, desc in attach) + ("\n" + "\n".join(f"- `{p.name}` — {desc}" for p, desc in drive_files) if drive_files else "") + repo_note(wave)
     prompt = TEMPLATE_FREEFORM.format(title=spec["title"], issue=wave["issue"], acceptance=wave["acceptance_verbatim"], situation=spec["situation"],
                              ruling_excerpt="\n".join("> " + l for l in spec.get("ruling", "").splitlines()) or "> (no separate ruling; the acceptance and the row text govern)",
                              task_items=spec["task"], input_table=input_table, json_schema=spec.get("json_schema", JSON_SCHEMA % (wave["issue"], job)), job=job)
-    (d / "PROMPT.md").write_text(prompt)
     manifest = {**packet_provenance(spec, wave), "job": job, "job_class": spec["job_class"], "kind": "freeform", "causes": spec.get("rows", []),
                 "attach": [str(p) for p, _ in attach], "drive_attach": [str(p) for p, _ in drive_files],
                 "inline_chars": len(prompt) + sum(p.stat().st_size for p, _ in attach), "producer": "scripts/gpt6pro_packet.py", "wave": wave.get("_path")}
-    (d / "MANIFEST.json").write_text(json.dumps(manifest, indent=1))
-    return d
+    return prompt, manifest
 
 
 def build_job(spec: dict, wave: dict, R: dict, ruling_text: str) -> Path:

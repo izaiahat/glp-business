@@ -537,6 +537,183 @@ def test_hash_skip_uses_batch_bytes_not_second_json_scrape_bytes():
     assert not p.monitor_changed({'markdown': raw}, raw)
 
 
+@pytest.mark.parametrize('failure_kind,expected_cost', [
+    ('billed_http', 1), ('unreported_http', None),
+    ('malformed_http', None), ('timeout', None), ('provider_error', 1),
+])
+def test_batch_fallback_failure_is_per_url_and_rest_of_run_completes(
+        tmp_path, monkeypatch, failure_kind, expected_cost):
+    import io
+    import urllib.error
+    import firecrawl_client as fc
+    from types import SimpleNamespace
+    urls = ['https://failed.example/pricing', 'https://recovered.example/pricing',
+            'https://existing.example/pricing']
+    raw = 'Offline unchanged source; no price evidence is supplied and no publication is authorized. ' * 2
+    release, state, out = tmp_path / 'release', tmp_path / 'state', tmp_path / 'run'
+    programs, profiles = [], {}
+    for i, url in enumerate(urls):
+        pid = f'clinic{i}'
+        programs.append({'program_id': pid, 'commercial_state': 'live'})
+        profiles[pid] = {'provider': pid, 'source_urls': [url]}
+        p.put(state / (p.digest(pid + '|' + url)[:24] + '.json'), {'markdown': raw})
+    p.put(release / 'data/program-registry.json', {
+        'programs': programs, 'provider_dynamic_profiles': {'profiles': profiles}})
+    p.put(release / 'data/provider-pricing-matrix.json', {'providers': {}})
+    p.put(release / 'data/affiliate-activation-selection.json', {})
+    before = (release / 'data/provider-pricing-matrix.json').read_bytes()
+    calls = []
+    def transport(request, **kwargs):
+        route = request.full_url.split('/v2/')[1]
+        body = json.loads(request.data or b'{}')
+        calls.append((route, body))
+        if route == 'batch/scrape':
+            payload = {'success': True, 'id': 'fixture-batch'}
+        elif route.endswith('/errors'):
+            payload = {'errors': [{'url': url, 'code': 'SCRAPE_ALL_ENGINES_FAILED'}
+                                  for url in [urls[0], urls[0], urls[1]]], 'robotsBlocked': []}
+        elif route == 'batch/scrape/fixture-batch':
+            payload = {'status': 'completed', 'creditsUsed': 1, 'data': [
+                {'markdown': raw, 'metadata': {'sourceURL': urls[2], 'statusCode': 200}}]}
+        else:
+            assert route == 'scrape'
+            assert body['proxy'] == 'auto' and body['maxAge'] == 0
+            assert body['formats'] == ['markdown']
+            if body['url'] == urls[0] and failure_kind == 'provider_error':
+                return io.BytesIO(b'{"success":false,"creditsUsed":1}')
+            if body['url'] == urls[0]:
+                if failure_kind == 'timeout':
+                    raise TimeoutError('offline ambiguous effect')
+                error_raw = (b'{"success":false,"creditsUsed":1}' if failure_kind == 'billed_http'
+                             else b'{"success":false}' if failure_kind == 'unreported_http' else b'not JSON')
+                raise urllib.error.HTTPError(request.full_url, 500, 'engines', {}, io.BytesIO(error_raw))
+            assert body['url'] == urls[1]
+            payload = {'success': True, 'data': {'markdown': raw, 'metadata': {
+                'sourceURL': urls[1], 'statusCode': 200, 'creditsUsed': 1}}}
+        return io.BytesIO(json.dumps(payload).encode())
+    monkeypatch.setattr(fc.urllib.request, 'urlopen', transport)
+    ledger = tmp_path / 'ops'
+    client = fc.FirecrawlClient('fixture', api_key='unused', ledger_path=ledger)
+    report = p.run(SimpleNamespace(release=str(release), output=str(out), state=str(state),
+                   concurrency=1, diligence=False, manual_registered=False), client)
+    assert report['completed_provider_count'] == 3
+    assert report['successful_pages'] == 2 and report['failed_pages'] == 1
+    assert report['status'] == 'PARTIAL_PRIMARY_SOURCE_FAILURE'
+    assert report['recovered_transport_pages'] == 1
+    assert report['json_extractions'] == 0 and report['confirmed_changes'] == 0
+    assert report['public_effects'] == 0 and report['prices_unchanged'] is None
+    failed_page = report['providers'][0]['pages'][0]
+    assert failed_page['status'] == 'ERROR'
+    assert failed_page['monitor_failure']['creditsUsed'] == expected_cost
+    assert failed_page['monitor_failure']['http_status'] == (None if failure_kind in ('timeout', 'provider_error') else 500)
+    fallbacks = p.read(out / 'BATCH-FALLBACKS.json')
+    assert set(fallbacks) == set(urls[:2])
+    assert fallbacks[urls[0]]['success'] is False
+    assert fallbacks[urls[0]]['monitor_failure'] == failed_page['monitor_failure']
+    assert fallbacks[urls[1]]['transport_recovery']['creditsUsed'] == 1
+    assert p.read(out / 'RESULT.json') == report
+    assert (release / 'data/provider-pricing-matrix.json').read_bytes() == before
+    assert sum(route == 'batch/scrape' for route, _ in calls) == 1
+    assert [body['url'] for route, body in calls if route == 'scrape'] == urls[:2]
+    terminals = [json.loads(line) for line in ledger.read_text().splitlines()
+                 if json.loads(line)['outcome'] != 'started']
+    failed_op = next(row for row in terminals if row['outcome'] in ('http_error', 'ambiguous_transport_error', 'provider_error'))
+    assert failed_op['creditsUsed'] == expected_cost
+
+
+
+@pytest.mark.parametrize('source_status,source_text,source_url,cost,expected_error', [
+    (404, None, None, 1, 'source_not_200'),  # RV-460's exact adverse probe.
+    (404, None, None, None, 'source_not_200'),
+    (200, 'short', None, 1, 'empty_source'),
+    (200, 'Verify you are human. ' * 8, None, None, 'challenge_not_evidence'),
+    (200, None, 'https://other.example/pricing', 1, 'unexpected_source_redirect'),
+    (None, None, None, None, 'source_status_not_2xx'),
+])
+def test_http200_fallback_with_rejected_source_is_failed_not_recovered(
+        tmp_path, monkeypatch, source_status, source_text, source_url, cost, expected_error):
+    """RV-460 probe: real run/client, only urlopen replaced, no live effects."""
+    import io
+    import firecrawl_client as fc
+    from types import SimpleNamespace
+    candidate = Path(__file__).resolve().parents[1]
+    assert Path(p.__file__).resolve() == candidate / 'scripts/glp_price_freshness.py'
+    assert Path(fc.__file__).resolve() == candidate / 'scripts/firecrawl_client.py'
+    urls = ['https://failed.example/pricing', 'https://recovered.example/pricing',
+            'https://existing.example/pricing']
+    raw = 'Offline unchanged source; no price evidence and no publication authorization. ' * 3
+    release, state, out = tmp_path / 'release', tmp_path / 'state', tmp_path / 'run'
+    programs, profiles = [], {}
+    for i, url in enumerate(urls):
+        pid = f'clinic{i}'
+        programs.append({'program_id': pid, 'commercial_state': 'live'})
+        profiles[pid] = {'provider': pid, 'source_urls': [url]}
+        p.put(state / (p.digest(pid + '|' + url)[:24] + '.json'), {'markdown': raw})
+    p.put(release / 'data/program-registry.json', {
+        'programs': programs, 'provider_dynamic_profiles': {'profiles': profiles}})
+    p.put(release / 'data/provider-pricing-matrix.json', {'providers': {}})
+    p.put(release / 'data/affiliate-activation-selection.json', {})
+    before = (release / 'data/provider-pricing-matrix.json').read_bytes()
+    calls = []
+
+    def transport(request, **kwargs):
+        route = request.full_url.split('/v2/')[1]
+        body = json.loads(request.data or b'{}')
+        calls.append({'method': request.get_method(), 'route': route, 'body': body})
+        if route == 'batch/scrape':
+            payload = {'success': True, 'id': 'offline-batch'}
+        elif route.endswith('/errors'):
+            payload = {'errors': [{'url': url, 'code': 'SCRAPE_ALL_ENGINES_FAILED'}
+                                  for url in [urls[0], urls[0], urls[1]]], 'robotsBlocked': []}
+        elif route == 'batch/scrape/offline-batch':
+            payload = {'status': 'completed', 'creditsUsed': 1, 'data': [
+                {'markdown': raw, 'metadata': {'sourceURL': urls[2], 'statusCode': 200}}]}
+        else:
+            assert route == 'scrape'
+            assert body['url'] in urls[:2]
+            assert body['proxy'] == 'auto' and body['maxAge'] == 0
+            failed = body['url'] == urls[0]
+            metadata = {'sourceURL': (source_url or body['url']) if failed else body['url']}
+            status = source_status if failed else 200
+            if status is not None:
+                metadata['statusCode'] = status
+            returned_cost = cost if failed else 1
+            if returned_cost is not None:
+                metadata['creditsUsed'] = returned_cost
+            payload = {'success': True, 'data': {
+                'markdown': (source_text if source_text is not None else raw) if failed else raw,
+                'metadata': metadata}}
+        return io.BytesIO(json.dumps(payload).encode())
+
+    monkeypatch.setattr(fc.urllib.request, 'urlopen', transport)
+    ledger = tmp_path / 'offline-operations.jsonl'
+    client = fc.FirecrawlClient('rv460-offline', run_id='rv460-source404', api_key='unused', ledger_path=ledger)
+    report = p.run(SimpleNamespace(release=str(release), output=str(out), state=str(state),
+                   concurrency=1, diligence=False, manual_registered=False), client)
+    rows = [json.loads(line) for line in ledger.read_text().splitlines()]
+    starts = [r for r in rows if r['outcome'] == 'started']
+    terminals = [r for r in rows if r['outcome'] != 'started']
+    assert report['completed_provider_count'] == 3
+    assert report['successful_pages'] == 2 and report['failed_pages'] == 1
+    assert report['status'] == 'PARTIAL_PRIMARY_SOURCE_FAILURE'
+    assert report['public_effects'] == 0 and report['prices_unchanged'] is None
+    assert (release / 'data/provider-pricing-matrix.json').read_bytes() == before
+    assert sum(c['method'] == 'POST' and c['route'] == 'batch/scrape' for c in calls) == 1
+    assert [c['body']['url'] for c in calls if c['route'] == 'scrape'] == urls[:2]
+    assert len(starts) == len(terminals) == len(calls) == 5
+    assert {r['operation_id'] for r in starts} == {r['operation_id'] for r in terminals}
+    assert report['recovered_transport_pages'] == 1
+    failed_page = report['providers'][0]['pages'][0]
+    assert failed_page['error'] == 'ValueError:' + expected_error
+    assert failed_page['monitor_failure']['creditsUsed'] == cost
+    assert 'monitor_transport_recovery' not in failed_page
+    fallbacks = p.read(out / 'BATCH-FALLBACKS.json')
+    assert fallbacks[urls[0]]['monitor_failure'] == failed_page['monitor_failure']
+    assert 'transport_recovery' not in fallbacks[urls[0]]
+    assert fallbacks[urls[1]]['transport_recovery']['creditsUsed'] == 1
+    assert p.read(out / 'RESULT.json') == report
+
+
 def test_weekly_pacific_guard_is_reached_on_utc_cron_host(monkeypatch):
     from croniter import croniter
     from datetime import datetime, timezone
