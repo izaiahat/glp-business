@@ -27,6 +27,44 @@ In this mode these rules supersede the maintenance/support actions below:
   individual executors, unassigned support tickets, publishing, ad changes or sends.
   A PLAN-assigned Rook/Finch dispatch is permitted only under its existing ticket,
   owner/correlation, standing authorization and duplicate-send guard.
+* Causal retention (source contract `scripts/auto_coordinator_receipt.py`): the
+  runner supplies `GLP_AUTO_COORDINATOR_RECEIPT_DIR` with immutable INPUT.json
+  containing exact PLAN/inbox bytes and the previous retained decision. Do not
+  alter it or reconstruct missing historical fields. Before an action, retain
+  actual Linear, dependency/hold and live-owner readbacks in this directory.
+  Write one exclusive-create DECISION.json using schema `glp-coordinator-causal-v1`:
+  `input_sha256`, `plan_sha256`, `execution_id`, `coordinator_session`,
+  `native_output`, `linear_readback` (issue-keyed actual board), `readbacks`
+  (path/sha256/native_message_id), and complete numeric-order `eligibility`
+  (order, issue, disposition, live_owner, dependencies_met, held, reason,
+  evidence_paths). Allowed dispositions are SELECT, SKIP_DONE, SKIP_HOLD,
+  SKIP_DEPENDENCY, SKIP_LIVE_OWNER, SKIP_RECONCILED; no invented S5/S6 rows.
+  `actions` bind issue/owner/kind/fingerprint/inbox_sha256, pre-effect guard and
+  guard_message_id, and `effect` with native message_id plus dispatch call_id,
+  exact brief and child_session (account for every task/child in a batched call),
+  or closure worker_result, preflight_message_id and done_readback. A closure
+  requires direct native `LINEAR_ROLE=orchestrator python3 scripts/linear_close.py
+  ISSUE WORKER --check-only` then `--apply` tool-call/result linkage; retain the
+  issue id, open state before the gate, and bound completed readback with genuine
+  updatedAt during apply, read back after apply. Historical Done/no-op is not a
+  new closure. Include this receipt
+  directory in every dispatched brief. Retain unknown/uncertain effects as
+  failures; never repeat them to fill the receipt. `reconciliation` covers each
+  preceding action's exact [issue,owner,kind,fingerprint] logical_key and
+  prior_effect, actual readback_path and UNCHANGED_NO_REPEAT only when observed.
+  A failed task continuation is NOT unchanged-output idempotence. Require the
+  selected child's genuine RESULT to bind issue, owner, child_session and exact
+  logical_key, with an output_receipt (path/sha256) containing the same issue/key
+  and an output object with a concrete observed business identifier/value. Have
+  that child retain and cite its RESULT path+sha256 in its final native message;
+  an unrelated DONE_READY_TO_CLOSE cannot stand in for its output. Include these
+  bindings in the original brief; do not backfill them after a failed run.
+  Prerequisite closure < activation < first verified natural execution is required.
+  Changed inputs
+  require a new decision, not a manufactured unchanged receipt. Print this
+  directory and the genuine coordinator session ID in the final native output.
+  Missing native/readback bindings leave acceptance incomplete. This retention
+  contract does not grant new action authority or weaken the closer.
 * Output at most ten lines for the registered ops-alerts delivery. Only the TUI
   parent writes shared STATE. Empty eligible PLAN/inbox means IDLE, not filler.
 Cron may remain enabled in this guarded mode while TUI children are live; such a
