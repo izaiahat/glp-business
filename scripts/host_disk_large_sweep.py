@@ -141,7 +141,8 @@ def cold_report_roots(pins, *, pressure):
     return roots
 
 
-def run(report,*,dry_run=False,budget=1800,external_pins=None):
+def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=False):
+    if completed_ci_only and not dry_run:raise ValueError('scoped completed-CI entry is dry-run only')
     report=Path(report);report.mkdir(parents=True,exist_ok=True)
     deadline=time.monotonic()+budget
     d=os.statvfs('/');before=d.f_bavail*d.f_frsize
@@ -157,6 +158,17 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
             'after_free_bytes':d.f_bavail*d.f_frsize,'df_delta_bytes':d.f_bavail*d.f_frsize-before,
             'rows':rows,'r2':r2info,'reference_veto_source':guarded.last_reference_veto,
             'attributable_bytes_freed':sum(r.get('bytes_freed',0) for r in rows)})
+    from host_disk_completed_dependencies import run as completed_dependencies
+    # Candidate-source qualification has a dry-only finite-class selector; the
+    # natural registered unit retains normal singleton/source-install custody.
+    dependency_policy=(Path(__file__).resolve().parent.parent/'ops/disk-retention-policy.json'
+                       if completed_ci_only else BUS/'ops/disk-retention-policy.json')
+    save('completed_ci_dependencies')
+    rows.extend(completed_dependencies(guarded,dependency_policy,pins=pins,
+                                      dry_run=dry_run,deadline=deadline))
+    if completed_ci_only:
+        save('terminal_completed_ci_dry_run')
+        return rows
     external_ok=not external_pins
     if external_pins:
         save('auto_classes')
@@ -251,6 +263,8 @@ if __name__=='__main__':
     parser.add_argument('--dry-run',action='store_true')
     parser.add_argument('--budget',type=int,default=1800)
     parser.add_argument('--external-pins')
+    parser.add_argument('--completed-ci-only',action='store_true',help='finite completed dependencies; requires --dry-run')
     args=parser.parse_args()
-    result=run(args.report,dry_run=args.dry_run,budget=args.budget,external_pins=args.external_pins)
+    result=run(args.report,dry_run=args.dry_run,budget=args.budget,external_pins=args.external_pins,
+               completed_ci_only=args.completed_ci_only)
     raise SystemExit(1 if any(not r.get('ok',True) for r in result) else 0)
