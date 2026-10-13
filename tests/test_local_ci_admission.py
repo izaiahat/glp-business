@@ -483,3 +483,13 @@ jobs:
 def test_unsupported_github_file_command_refuses(tmp_path):
     with pytest.raises(ValueError, match='unsupported_runner_file_command'):
         fixture_receipt(tmp_path, command='echo X=1 >> "$GITHUB_ENV"')
+
+
+
+def test_job_tmpdir_supports_nested_unix_socket_fixture(tmp_path):
+    # Native Chrome fixtures nest tempfile + profile + singleton socket paths.
+    command = "python -c 'import os,pathlib,socket; p=pathlib.Path(os.environ[\"TMPDIR\"])/ (\"nested-\"+\"x\"*20)/ (\"profile-\"+\"x\"*8); p.mkdir(parents=True); s=socket.socket(socket.AF_UNIX); s.bind(str(p/\"SingletonSocket\")); s.close()'"
+    ci, receipt, head, _, _ = fixture_receipt(tmp_path, command=command)
+    assert receipt['status'] == 'PASS'
+    ci.validate_local(receipt, repo=receipt['repo'], pr=receipt['pr'], head=head,
+                      changed_paths=['fixture.py'], authority_root=tmp_path)

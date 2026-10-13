@@ -31,8 +31,10 @@ workflow, job, step, exact command, environment, dependency checkout, working
 directory and workflow hash. There is no CLI command override or hand-selected
 step subset. Same-head checkout/setup actions are verified prerequisites, not fabricated PASS
 jobs. Each job gets a fresh exact-head clone (declared fetch-depth 0 or 1), HOME,
-venv with system-site-packages disabled, writable RUNNER_TEMP/TMPDIR, workspace,
-summary and PATH. Ignored files, user packages and venvs never carry between
+venv with system-site-packages disabled, writable RUNNER_TEMP, workspace,
+summary and PATH. TMPDIR is a separate short, job-private directory under the
+host scratch root so nested native/Chrome UNIX sockets stay below path limits;
+its unique path is recorded but disposable contents need not be retained. Ignored files, user packages and venvs never carry between
 jobs; within-job step state is preserved. No host VIRTUAL_ENV or PYTHONPATH is
 inherited. Default Python is the producer's base interpreter, recorded per job;
 a setup-python declaration instead selects and observes that exact available

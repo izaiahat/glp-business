@@ -7383,7 +7383,7 @@
         "scripts/glp_affiliate_sync_job.py",
         "scripts/glp_affiliate_release.py"
       ],
-      "sha256": "4e3f0299fe388a064173e2842851c4e871984fc10b145cc32f76021e9d2733c1"
+      "sha256": "c5af5087bc4b88f316d0a67fc61a41360edb4ea63314902de9a6da3bf4dd5f1a"
     },
     "scripts/local_ci_runner.py": {
       "kind": "script",
@@ -7404,14 +7404,14 @@
       "callers": [
         "ops/local-ci-runner.json"
       ],
-      "sha256": "0f5ac39bfea6453ec0e61e1ccfd0822f5324fc31817f94ebee83f8fb748a3cb0"
+      "sha256": "d50b963e08ae75790dae797d425e994dc671816c7ac183b3f5f46d1bf4a7ff52"
     },
     "tests/test_local_ci_admission.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "d795be0b84acad5f3ed374aba60fa053f91b2d31d5c9237c0d76c2993345323b"
+      "sha256": "49154e1ce1d443c7c61daa55fa003b964f3157448f661702a4bf424c3d79e864"
     }
   },
   "omitted_runtime_inputs": [

@@ -9,6 +9,7 @@ import re
 import subprocess
 import shutil
 import sys
+import tempfile
 
 ROOT = Path('/home/ubuntu/business')
 HERE = Path(__file__).resolve().parent
@@ -147,6 +148,7 @@ def workflow_plan(tree, head, changed_paths):
                                 options.get('persist-credentials', False) is False and
                                 options.get('fetch-depth', 1) in (0, 1), 'unsupported_checkout_options')
                         if options.get('repository'):
+                            require(options.get('fetch-depth', 1) == 1, 'unsupported_dependency_checkout_depth')
                             require(options['repository'] == 'izaiahat/hermes-agent' and
                                     re.fullmatch(r'[0-9a-f]{40}', str(options.get('ref', ''))) and
                                     re.fullmatch(r'[A-Za-z0-9_-]+', options.get('path', '')), 'unsupported_checkout_dependency')
@@ -229,6 +231,11 @@ def prepare_job(tree, head, rows, directory):
     directory.mkdir()
     source, home, temp = (directory / name for name in ('source', 'home', 'temp'))
     home.mkdir(); temp.mkdir()
+    # Chrome/native fixture UNIX sockets require a short path even when the
+    # external receipt lane is deeply nested. Keep this scratch job-private.
+    scratch = Path('/home/ubuntu/.hermes/cache/scratch')
+    scratch.mkdir(parents=True, exist_ok=True)
+    tmpdir = Path(tempfile.mkdtemp(prefix='lc-', dir=scratch))
     depth = rows[0]['checkout_depth']
     clone = ['git', 'clone', '--no-hardlinks', '--no-checkout']
     if depth == 1:
@@ -245,7 +252,7 @@ def prepare_job(tree, head, rows, directory):
             require(runtime_matches(observe_runtime(python, 'python'), setup['version']), 'declared_python_mismatch')
     runtime = directory / 'runtime'
     uv = shutil.which('uv')
-    environment = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(home), 'TMPDIR': str(temp),
+    environment = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(home), 'TMPDIR': str(tmpdir),
                    'LANG': 'C.UTF-8', 'PYTHONDONTWRITEBYTECODE': '1', 'PYTHONNOUSERSITE': '1',
                    'RUNNER_TEMP': str(temp), 'GITHUB_WORKSPACE': str(source),
                    'GITHUB_STEP_SUMMARY': str(directory / 'summary.txt')}
@@ -273,7 +280,7 @@ def prepare_job(tree, head, rows, directory):
     environment['PATH'] = str(runtime / 'bin') + ':' + str(bindir) + ':' + environment['PATH']
     environment['VIRTUAL_ENV'] = str(runtime)
     return {'workflow': rows[0]['workflow'], 'job': rows[0]['job'], 'worktree_before': before,
-            'worktree_after': before, 'home': str(home), 'runner_temp': str(temp),
+            'worktree_after': before, 'home': str(home), 'runner_temp': str(temp), 'tmpdir': str(tmpdir),
             'environment': environment, 'runtimes': observations, 'setup_log': pin(log)}
 
 
@@ -362,7 +369,7 @@ def validate_local(receipt, *, repo, pr, head, changed_paths, authority_root=ROO
     keys = list(dict.fromkeys((r['workflow'], r['job']) for r in plan))
     require(isinstance(jobs, list) and [(j['workflow'], j['job']) for j in jobs] == keys,
             'job_evidence_missing_or_changed')
-    sources, homes, temps, pythons = set(), set(), set(), set()
+    sources, homes, temps, pythons, tmpdirs = set(), set(), set(), set(), set()
     for job in jobs:
         source = job['worktree_before']
         require(source.get('clean') is True and source == job['worktree_after'] and
@@ -387,8 +394,12 @@ def validate_local(receipt, *, repo, pr, head, changed_paths, authority_root=ROO
                     observe_runtime(runtime['executable'], kind) == runtime, 'declared_runtime_mismatch')
         check_dependencies(source['path'], rows)
         require(pin(job['setup_log']['path']) == job['setup_log'], 'setup_log_drift')
+        short_tmp = Path(job['tmpdir'])
+        require(short_tmp.parent == Path('/home/ubuntu/.hermes/cache/scratch') and
+                re.fullmatch(r'lc-[a-z0-9_]{8}', short_tmp.name) is not None, 'job_tmpdir_evidence_changed')
+        tmpdirs.add(job['tmpdir'])
         sources.add(source['path']); homes.add(job['home']); temps.add(job['runner_temp']); pythons.add(python['executable'])
-    require(all(len(values) == len(jobs) for values in (sources, homes, temps, pythons)), 'job_isolation_missing')
+    require(all(len(values) == len(jobs) for values in (sources, homes, temps, pythons, tmpdirs)), 'job_isolation_missing')
     for row in results:
         require(pin(row['log']['path']) == row['log'], 'command_log_drift')
     started = datetime.fromisoformat(receipt['started'])
