@@ -631,3 +631,16 @@
 !/.github/workflows/review-tracking-successor.yml
 # S4 bounded canonical inbox poll admission
 !/tests/test_glp_sponsor_poll_lock.py
+
+# GLP349 history-preserving archive source cohort (no runtime receipts)
+!/scripts/disk_retention.py
+!/scripts/hermes_state_archive/archive.py
+!/scripts/hermes_state_archive/weekly.py
+!/scripts/hermes_state_archive/weekly-pins.json
+!/ops/systemd/hermes-state-archive-weekly.service
+!/ops/systemd/
+/ops/systemd/*
+!/ops/systemd/hermes-state-archive-weekly.service
+!/tests/test_glp349_archive_source.py
+!/.github/workflows/glp349-archive-source.yml
+!/ops/linear/GLP-349-ARCHIVE-SOURCE.md

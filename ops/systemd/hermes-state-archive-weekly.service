@@ -1,0 +1,18 @@
+[Unit]
+Description=Hermes weekly verified state archive (quiet-window only)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ubuntu/business
+Environment=HERMES_HOME=/home/ubuntu/.hermes
+Environment=TZ=America/Los_Angeles
+ExecStart=/home/ubuntu/.hermes/hermes-agent/venv/bin/python3 /home/ubuntu/business/scripts/hermes_state_archive/weekly.py
+TimeoutStartSec=infinity
+TimeoutStopSec=infinity
+Restart=no
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+StandardOutput=journal
+StandardError=journal

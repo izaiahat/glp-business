@@ -6,7 +6,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "ffc94fd490cb688182c3c120a927217cbc3e43b0fc23c9c58a06764f272bf057"
+      "sha256": "bd19d107c3541514533651ebd6a4a9604603ee45f67e4c7aca886b7165c26d1f"
     },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
@@ -437,7 +437,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bf21e1c4e8505fa222493133b4ab062997d33473f1fc5bac216fd631b48d8b45"
+      "sha256": "7ae6d93742891b930a9f6be3dc5ba5e62cd73b9b0f6aa02d681d2c1bf34f1fa1"
     },
     ".hermes.md": {
       "callers": [],
@@ -633,7 +633,7 @@
     "ops/disk-retention-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "525703a91cda939c52f8844e60a77016792fd99abee21fdfd337f1dd987dee3f"
+      "sha256": "53fa1c1a7b482859b4b4df98003f059c5167fc0ec41cd390a20b209bdeb2a911"
     },
     "ops/fable-mention-recovery.md": {
       "callers": [],
@@ -766,7 +766,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "48d393ba104315f2f9a7c2707cce93f394a7f44b750723476d77ebbc73944d5a"
+      "sha256": "b0181e598ae0153beae698f9a996e8fcb53e5de788ba10975f3027a20193ab9f"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -1247,7 +1247,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "7c8d53c861874d3262a4d5c53c499fc1e7c1514ff7a090626437057592a5fbfd"
+      "sha256": "b56681704de41039cf39bb35603a3642d170fa19b93c2a016985a227e4591525"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1402,7 +1402,7 @@
         "hermes:a0d5cb0609b9"
       ],
       "kind": "script",
-      "sha256": "036e61bf4476633314254bc16018a3c24220ce57ce4bb408c04ba58e5f3bfeee"
+      "sha256": "f460253c7f86153c9b0c319dd823e287b58f4a2add4071906ad5af8776d30d09"
     },
     "ops/hermes-cron-scripts/higgsfield_auth_keepalive.py": {
       "callers": [
@@ -2887,7 +2887,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "a46ba03586180fa0d845a8d853aab5ed45e755f61bbebbc2bf72893b96da536d"
+      "sha256": "3400a912789ba25f85931622bcdec4d1fc744c8386b637900ef7de1839983777"
     },
     "scripts/glp_affiliate_weekly_reporting_j7_job.py": {
       "callers": [
@@ -2895,7 +2895,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "f4f0f959bb0e7fd01530faac48aee7af8e5c0fabcaeed73fcf5831efec41eecb"
+      "sha256": "482a447e94b43a73f538e33e17e57c4f42b079607bb23e6b6625394d44af2538"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
@@ -3280,7 +3280,7 @@
         "L6 weekly-governed SEO machine"
       ],
       "kind": "registered_producer",
-      "sha256": "4e0c3f428afd2c1a02d90a0863b28026e5109334606575dc417654e786b25b42"
+      "sha256": "d84bd9789f0cd3a8d9b61e7e18152d21d7bb51efe4aa462d1ddc3afa016c301e"
     },
     "scripts/glp_served_test_contract.py": {
       "callers": [
@@ -3564,7 +3564,7 @@
         "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py"
       ],
       "kind": "script",
-      "sha256": "75b0bee361d7f5bed35f3f307d8de94f21e062c3ea6f4ccf6cfbb66f99346117"
+      "sha256": "caf579c2e3d6db145a7c55e7d65197308f74f89ca5b1435c3ef833d140d3870e"
     },
     "scripts/host_disk_reference_guard.py": {
       "callers": [
@@ -7542,7 +7542,7 @@
       "callers": [
         "business-source-ci: GLP349 owning pruner group"
       ],
-      "sha256": "36c477a69663ea46222162e5d2e6ba0d30fb1d6443423eb6c13cba7958d648ca"
+      "sha256": "2f63aa30c498f303c97f4677f421342e9142cb8422090dcb0f0e5043a43931e7"
     },
     "ops/rook-mcp/DOT-RECEIVING-GLP359.md": {
       "callers": [
@@ -7598,7 +7598,7 @@
         "scripts/article_health_acceptance.py"
       ],
       "kind": "script",
-      "sha256": "723d34b8d1c3cac01ebe3ad7e92064ec794bf5031b9a6b07ea2de01b87cd260b"
+      "sha256": "ca05d84ca6001a6b11a1ebbb910bd0743b44b15adbadf241f09c7069f13b5f52"
     },
     "scripts/glp_release_search_notify.py": {
       "callers": [
@@ -7612,7 +7612,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "98e963cae6c7c10aaa7c2bd3794798774e8d68c5909032d5ebd20a874028b1b5"
+      "sha256": "c59dc2217332b01808f4e58bfbda1664225263d00c3fa58eca89618ffc2165df"
     },
     "systems/seo-blog-machine/tests/test_guide_render_contract.py": {
       "callers": [
@@ -7676,6 +7676,78 @@
         "GitHub Actions"
       ],
       "sha256": "d66f03201ae8f9a53a847d3bef53b999293bca80e39dc290ecf37e129f506a67"
+    },
+    "scripts/disk_retention.py": {
+      "kind": "script",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "f0cdcaceaf8b7e33c14db9c87035e30da4ad7b294ac74b0bba0d7a02c790ad23"
+    },
+    "scripts/hermes_state_archive/archive.py": {
+      "kind": "script",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "d00b8e73b0647bc7635d818a6371df871e5eb48ff38cee8b9a2a6637d10853b2"
+    },
+    "scripts/hermes_state_archive/weekly.py": {
+      "kind": "script",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "b765cfac44b12522ff7a74a306bbad258d66f2d8604e70da93f08a9e84b15a37"
+    },
+    "scripts/hermes_state_archive/weekly-pins.json": {
+      "kind": "repository_control",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "3685ba1acac0916e7c53cabae6fe710b52fd4d46d8b2a054be9f97ad5d6a4757"
+    },
+    "ops/systemd/hermes-state-archive-weekly.service": {
+      "kind": "repository_control",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "b523fe7a326b413d5c6b33cc38174ba8cc5775fc262c48a4123987dfc08ea3df"
+    },
+    "tests/test_glp349_archive_source.py": {
+      "kind": "test",
+      "callers": [
+        "GLP349 effects-denied source review"
+      ],
+      "sha256": "2114bb9956da1ac62c0245812059e51375224de29f20391eb9cc3d912c3fd101"
+    },
+    ".github/workflows/glp349-archive-source.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "GLP349 effects-denied source review"
+      ],
+      "sha256": "4a0c65d4992863ecff442cd8d04b391cfa0e6e13b8ec673765d58fa2176e9534"
+    },
+    "ops/linear/GLP-349-ARCHIVE-SOURCE.md": {
+      "kind": "repository_control",
+      "callers": [
+        "GLP349 effects-denied source review"
+      ],
+      "sha256": "27c18a8bdeb55328d0d73949a243b548769edc070d1d54824aa466f2bca06dcb"
+    },
+    "tests/test_j7_run_http_budget.py": {
+      "callers": [
+        "j7-reporting exact-head CI"
+      ],
+      "kind": "test",
+      "scope": "Effects-denied actual J7 main run-wide outbound32 including authentication, corroboration, failed attempts and retries; no financial or provider effects.",
+      "sha256": "c4f2042bbfe3a0ffe744eec98290db46bd89545f4166473bd28afe5ab774a176"
+    },
+    "tests/test_j7_start_marketplace.py": {
+      "callers": [
+        "j7-reporting exact-head CI"
+      ],
+      "kind": "test",
+      "scope": "Effects-denied J7 actual-entry full-roster selection rotation; invalid and duplicate selectors refuse before collectors; unchanged shared32/240 and null money.",
+      "sha256": "ffd2c025635c52f14198eb74523d6e3323806ea42c58cfd5089bd6cdc4ba4e7c"
     }
   },
   "omitted_runtime_inputs": [
@@ -7686,5 +7758,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1126
+  "tracked_count": 1136
 }

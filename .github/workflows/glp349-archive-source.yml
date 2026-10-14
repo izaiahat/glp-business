@@ -1,0 +1,37 @@
+name: glp349-archive-source
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/disk_retention.py
+      - scripts/host_disk_pruner.py
+      - scripts/hermes_state_archive/**
+      - scripts/bounded_pruner.py
+      - ops/discord_fmt.py
+      - ops/hermes-cron-scripts/hermes_state_archive_weekly.py
+      - ops/systemd/hermes-state-archive-weekly.service
+      - ops/linear/GLP-349-ARCHIVE-SOURCE.md
+      - tests/test_glp349_archive_source.py
+      - .github/workflows/glp349-archive-source.yml
+permissions:
+  contents: read
+jobs:
+  effects-denied-archive-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Actual exact-head checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git log -1 --format=%H
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Owning helper and refusal regression (no SQL or process effects)
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -B -m unittest discover -s tests -p test_glp349_archive_source.py -v
