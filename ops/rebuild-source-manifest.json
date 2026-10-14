@@ -1,48 +1,6 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "scripts/fable_deferred_handoff.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/fable_bridge.py --dispatch-deferred-review"
-      ],
-      "sha256": "d5c3f43e767becc63dc14ddb04c40b025e8ab94d8f82b439165456e2a256fb9d"
-    },
-    "tests/test_fable_deferred_handoff.py": {
-      "kind": "test",
-      "callers": [
-        "business-source-ci"
-      ],
-      "sha256": "6b9119348c11c86edcb466a1bc6c2118b6f3f2ed232c0a6b0dd422cddb4823dd"
-    },
-    "tests/test_recovery_copied_authorship.py": {
-      "kind": "test",
-      "callers": [
-        "business-source-ci"
-      ],
-      "sha256": "83f24f5dae9e018f912628e74d7f8b777f9561a06ace5492c25a7bafed1e8865"
-    },
-    "tests/test_cf_editorial_share.py": {
-      "kind": "test",
-      "callers": [
-        "business-source-ci"
-      ],
-      "sha256": "f3f75ee34c8badbe83763fd8b629289c77e33ac84d2788a4563f696d4034086a"
-    },
-    "tests/fixtures/cf-editorial-share/expected.html.gz": {
-      "kind": "data",
-      "callers": [
-        "tests/test_cf_editorial_share.py"
-      ],
-      "sha256": "57cdad00b2e1cee8d1db0c417ff8b63a64ed10f981b6abb47a82613c797959fa"
-    },
-    "tests/fixtures/cf-editorial-share/observed.html.gz": {
-      "kind": "data",
-      "callers": [
-        "tests/test_cf_editorial_share.py"
-      ],
-      "sha256": "f7c26114833c41a14c011689054e775694c752525a58148a8cec77911a44c8e0"
-    },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
       "callers": [
@@ -1195,7 +1153,7 @@
         "native GLP334 reconciliation job"
       ],
       "kind": "script",
-      "sha256": "a4306d2d1d6456e1020f381cb960c5b04be72769e254af61a6f3b64b85178a93"
+      "sha256": "7ef469a95d9690d25d5c128dc158062d90ac90f5551884cdf4a88000d44d81b5"
     },
     "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py": {
       "callers": [],
@@ -2772,7 +2730,7 @@
         "ops/hermes-cron-scripts/glp334_live_reconciliation.sh"
       ],
       "kind": "script",
-      "sha256": "edc0de2f4f632d28a6871ffe8c271baee03f5c763a88f6aca0879e9c5b35371c"
+      "sha256": "511a6f3b2c014195e9776ded2e1451bbd11ee0d9b83e0ee55d7a26584bca7dbc"
     },
     "scripts/glp345_a4_adoption.py": {
       "callers": [
@@ -3925,7 +3883,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "061cbe3ea1f0dc9df83f2780490e4ee76e5c431b694b241eb8c75b9fcded277b"
+      "sha256": "061b364b1bc59062ef69e9abc8288a3d68c555341454eca6c99dc68968f5c380"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -5975,6 +5933,13 @@
       "kind": "test",
       "sha256": "612b3752f4bb7da7ce745d09a3b9fad8f6f0d68c1d7a3801635c36b61245a8bf"
     },
+    "tests/test_glp334_native_financial_intake.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "0344b5f796d027c1d1cee9802afcb3baf83cce9de31fec7c15dfd50ab5190f12"
+    },
     "tests/test_glp85_cj_reporting_identity.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -7550,6 +7515,70 @@
       ],
       "sha256": "19822da26ebae81f8ae04371d5630e81835ecc20a551006351f6ca0dcc030b15"
     },
+    "scripts/screenshot_pruner.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/evidence_preserving_pruner.py:run_D",
+        "GLP-349 native image qualification/receipt admission"
+      ],
+      "sha256": "be7cd1ea13187c9973a725241d5c227becb5708b136287e7f74c7727b8795d7d"
+    },
+    "tests/test_host_disk_screenshot_receipt.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci: GLP349 owning pruner group"
+      ],
+      "sha256": "36c477a69663ea46222162e5d2e6ba0d30fb1d6443423eb6c13cba7958d648ca"
+    },
+    "ops/rook-mcp/DOT-RECEIVING-GLP359.md": {
+      "callers": [
+        "manual:parent-reviewed exact GLP-359 receiving handoff; no live apply"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "47f55e35f979494779a88af9944729502bc3336f6c8b94b315da8578ba9dae4d"
+    },
+    "scripts/fable_deferred_handoff.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/fable_bridge.py --dispatch-deferred-review"
+      ],
+      "sha256": "d5c3f43e767becc63dc14ddb04c40b025e8ab94d8f82b439165456e2a256fb9d"
+    },
+    "tests/test_fable_deferred_handoff.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "6b9119348c11c86edcb466a1bc6c2118b6f3f2ed232c0a6b0dd422cddb4823dd"
+    },
+    "tests/test_recovery_copied_authorship.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "83f24f5dae9e018f912628e74d7f8b777f9561a06ace5492c25a7bafed1e8865"
+    },
+    "tests/test_cf_editorial_share.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "f3f75ee34c8badbe83763fd8b629289c77e33ac84d2788a4563f696d4034086a"
+    },
+    "tests/fixtures/cf-editorial-share/expected.html.gz": {
+      "kind": "data",
+      "callers": [
+        "tests/test_cf_editorial_share.py"
+      ],
+      "sha256": "57cdad00b2e1cee8d1db0c417ff8b63a64ed10f981b6abb47a82613c797959fa"
+    },
+    "tests/fixtures/cf-editorial-share/observed.html.gz": {
+      "kind": "data",
+      "callers": [
+        "tests/test_cf_editorial_share.py"
+      ],
+      "sha256": "f7c26114833c41a14c011689054e775694c752525a58148a8cec77911a44c8e0"
+    },
     "scripts/article_review_recovery.py": {
       "callers": [
         "scripts/article_health_acceptance.py"
@@ -7584,28 +7613,6 @@
       ],
       "kind": "test",
       "sha256": "73b763f31d0339de2a3759e6085ba764cd8d0cc816ee2eff1024e73bf181a032"
-    },
-    "ops/rook-mcp/DOT-RECEIVING-GLP359.md": {
-      "callers": [
-        "manual:parent-reviewed exact GLP-359 receiving handoff; no live apply"
-      ],
-      "kind": "instruction_or_policy",
-      "sha256": "47f55e35f979494779a88af9944729502bc3336f6c8b94b315da8578ba9dae4d"
-    },
-    "scripts/screenshot_pruner.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/evidence_preserving_pruner.py:run_D",
-        "GLP-349 native image qualification/receipt admission"
-      ],
-      "sha256": "be7cd1ea13187c9973a725241d5c227becb5708b136287e7f74c7727b8795d7d"
-    },
-    "tests/test_host_disk_screenshot_receipt.py": {
-      "kind": "test",
-      "callers": [
-        "business-source-ci: GLP349 owning pruner group"
-      ],
-      "sha256": "36c477a69663ea46222162e5d2e6ba0d30fb1d6443423eb6c13cba7958d648ca"
     }
   },
   "omitted_runtime_inputs": [
@@ -7616,5 +7623,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1116
+  "tracked_count": 1117
 }
