@@ -143,6 +143,26 @@ def test_terminal_accepts_shared_attachment_renderer_without_weakening_custody(t
     assert lane.terminal(directory, state) == row
 
 
+def test_terminal_binds_attachment_completion_to_registered_channel(tmp_path):
+    import dot_lane as lane
+    import native_reply_consumer as native
+    directory, state, row, registration = attachment_ticket(tmp_path)
+    assert row['channel_id'] == registration.scope.channel
+    assert lane.terminal(directory, state) == row
+    unchanged = {name: (directory/name).read_bytes()
+                 for name in ('TICKET.json', 'NATIVE-CONFIG.json', 'REPLY.md')}
+    expected_sha = state['reply_sha256']
+    bad = dict(row, channel_id=native.SHARED_CHANNEL)
+    assert bad['channel_id'] != registration.scope.channel
+    (directory/'COMPLETION.json').write_text(json.dumps({'results': [bad]}))
+    assert all((directory/name).read_bytes() == data for name, data in unchanged.items())
+    assert hashlib.sha256(unchanged['REPLY.md']).hexdigest() == expected_sha == state['reply_sha256']
+    with pytest.raises(ValueError, match='native_custody_registration_mismatch'):
+        lane.terminal(directory, state)
+    (directory/'COMPLETION.json').write_text(json.dumps({'results': [row]}))
+    assert lane.terminal(directory, state) == row
+
+
 def test_exact_ticket_owner_handoff_disposes_staged_receipt_without_impersonation(tmp_path, capsys):
     import native_reply_consumer as native
     import dot_lane as lane
