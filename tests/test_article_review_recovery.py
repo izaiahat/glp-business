@@ -306,6 +306,83 @@ def test_ten_subject_publication_context_is_bound_to_original_and_candidate(tmp_
         check_context(context)
 
 
+@pytest.mark.parametrize('fault', [None, 'wrong_article', 'wrong_qa', 'wrong_review', 'native_refusal', 'publication_context', 'dirty_source', 'successor_drift', 'wrong_head'])
+def test_retained_successor_adoption_exact_source_binding_and_refusal(tmp_path, monkeypatch, fault):
+    """Source IO regression with explicit authentication doubles, never model evidence."""
+    import subprocess
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'systems/analytics-brain'))
+    import glp_seo_updater_source as updater
+    assert Path(updater.__file__).resolve() == Path(__file__).resolve().parents[1] / 'scripts/glp_seo_updater_source.py'
+    workspace = tmp_path / 'site'; workspace.mkdir()
+    subprocess.run(['git', 'init', '-q', workspace], check=True)
+    packet = tmp_path / 'packet'; packet.mkdir()
+    history = tmp_path / 'history'; history.mkdir()
+    entry_path = tmp_path / 'entry.json'
+    entry_path.write_text(json.dumps({'target_route': '/guides/test/', 'article_id': 'test'}))
+    context = {'first_publication': {'date': '2026-10-11', 'timezone': 'America/Los_Angeles'}}
+    (packet / '09-publication-context.json').write_text(json.dumps(context))
+    for name, value in {'06-article.json': {'article_id': 'test', 'canonical_path': '/guides/test/'},
+                        '07-qa-receipt.json': {'fixture': 'reviewed QA'}}.items():
+        (packet / name).write_text(json.dumps(value))
+    review = history / 'round-01-receipt.json'; review.write_text('{"fixture":"reviewed receipt"}')
+    base = workspace / 'data/blog/accepted-guides/test'; base.mkdir(parents=True)
+    row = {'route': '/guides/test/', 'entry_id': 'retained', 'before_sha256': 'unchanged',
+           'weekly_strategy_sha256': None, 'semantic_materiality': {'material': True},
+           'first_publication': context['first_publication']}
+    for key in ('article', 'qa', 'review'):
+        file = base / (key + '.json')
+        file.write_text(json.dumps({'article_id': 'test', 'canonical_path': '/guides/test/', 'predecessor': key}))
+        row[key] = {'path': file.relative_to(workspace).as_posix(), 'sha256': recovery.sha(file)}
+    other = {'route': '/guides/untouched/', 'fixture': 'untouched'}
+    manifest_path = base.parent / 'updates.json'
+    manifest_path.write_text(json.dumps({'schema': 'glp-accepted-guide-updates-v1', 'entries': [other, row]}))
+    def git(*args):
+        return subprocess.check_output(['git', '-C', str(workspace), *args], text=True).strip()
+    git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture')
+    head = git('rev-parse', 'HEAD')
+    document = {'review': recovery.spec(review), 'candidate': {'path': str(packet / recovery.CANDIDATE)}}
+    subject_files = [dict(path=n, sha256=recovery.sha(packet / n)) for n in ('06-article.json', '07-qa-receipt.json')]
+    monkeypatch.setattr(recovery, 'successor_documents', lambda *a, **kw: document)
+    authenticated = []
+    def authenticate(*args, **kwargs):
+        authenticated.append((args, kwargs))
+        if fault == 'native_refusal':
+            raise ValueError('fixture_native_refusal')
+        if fault == 'successor_drift':
+            (packet / '07-qa-receipt.json').write_text('{}')
+        return {'document': document, 'manifest': {'subject_files': subject_files}}
+    monkeypatch.setattr(recovery, 'validate_successor_documents', authenticate)
+    if fault in ('wrong_article', 'wrong_qa', 'wrong_review'):
+        key = fault.removeprefix('wrong_')
+        (workspace / row[key]['path']).write_text('{}')
+        git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'wrong preimage')
+        head = git('rev-parse', 'HEAD')
+    if fault == 'publication_context':
+        context['first_publication']['date'] = '2026-10-12'
+        (packet / '09-publication-context.json').write_text(json.dumps(context))
+    if fault == 'dirty_source':
+        manifest_path.write_text(manifest_path.read_text() + '\n')
+    if fault == 'wrong_head':
+        head = '0' * 40
+    before = {p.relative_to(workspace): p.read_bytes() for p in workspace.rglob('*') if p.is_file() and '.git' not in p.parts}
+    call = lambda: updater.adopt_successor(workspace, entry_path, packet, history, expected_head=head)
+    if fault:
+        with pytest.raises((ValueError, RuntimeError)):
+            call()
+        assert before == {p.relative_to(workspace): p.read_bytes() for p in workspace.rglob('*') if p.is_file() and '.git' not in p.parts}
+        return
+    result = call()
+    assert authenticated and result['status'] == 'SUCCESSOR_SOURCE_STAGED_NOT_ACCEPTED'
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest['entries'][0] == other
+    adopted = manifest['entries'][1]
+    assert {k: v for k, v in adopted.items() if k not in ('article', 'qa', 'review')} == {k: v for k, v in row.items() if k not in ('article', 'qa', 'review')}
+    for key, origin in {'article': packet / '06-article.json', 'qa': packet / '07-qa-receipt.json', 'review': review}.items():
+        assert adopted[key]['sha256'] == recovery.sha(origin)
+        assert (workspace / adopted[key]['path']).read_bytes() == origin.read_bytes()
+        assert (workspace / row[key]['path']).read_bytes() == before[Path(row[key]['path'])]
+
+
 def test_natural_cannot_be_recovered(tmp_path):
     with pytest.raises(ValueError, match='postpublication_review_not_natural'):
         recovery.validate_recovery(tmp_path/'entry.json', root=tmp_path, natural=True)

@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path('/home/ubuntu/business')
 SCRIPTS = Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts'
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'systems/analytics-brain'))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from weekly_strategy_consumer import load_strategy
 from seo_weekly_governance import CADENCE
@@ -212,15 +213,97 @@ def stage_source(workspace, packet, entry, before):
     source.run(['gh','pr','merge',pr['url'],'--merge','--match-head-commit',pr['headRefOid']], timeout=90)
     return source.gh('pr','view',pr['url'],'--json','url,state,headRefOid,mergeCommit')
 
+def adopt_successor(workspace, entry_path, packet, history, *, expected_head,
+                    root=ROOT, source_author_packet=None, source_author_review=None):
+    """Stage retained authenticated successor inputs in private Git source only.
+
+    No review invocation, commit/PR/merge, build, live read or recovery seal.
+    The full recovery consumer still requires exact deployed and live bytes.
+    """
+    import re
+    import article_review_recovery as recovery
+    workspace = workspace.resolve(strict=True)
+    if (source.run(['git', 'rev-parse', '--show-toplevel'], cwd=workspace).strip() != str(workspace)
+        or source.run(['git', 'rev-parse', 'HEAD'], cwd=workspace).strip() != expected_head
+        or source.run(['git', 'status', '--porcelain'], cwd=workspace).strip()):
+        raise RuntimeError('successor_source_checkout_drift')
+    doc = recovery.successor_documents(entry_path, history, packet, root=root,
+        source_author_packet=source_author_packet, source_author_review=source_author_review)
+    validated = recovery.validate_successor_documents(entry_path, doc, root=root)
+    entry = recovery.read(entry_path)
+    manifest_path = workspace / 'data/blog/accepted-guides/updates.json'
+    manifest = recovery.read(manifest_path)
+    rows = [r for r in manifest['entries'] if r['route'] == entry['target_route']]
+    recovery.require(manifest['schema'] == 'glp-accepted-guide-updates-v1' and len(rows) == 1,
+                     'successor_source_row_invalid')
+    row = rows[0]
+    for key in ('article', 'qa', 'review'):
+        relative = row[key]['path']
+        recovery.require(re.fullmatch(r'data/blog/accepted-guides/[a-z0-9-]+/[a-z0-9_.-]+\.json', relative)
+                         and not any(p.is_symlink() for p in [(workspace / relative), *(workspace / relative).parents]
+                                     if p.is_relative_to(workspace))
+                         and (workspace / relative).resolve(strict=True).is_relative_to(workspace),
+                         'successor_source_path_invalid')
+        recovery.require(source.digest(workspace / relative) == row[key]['sha256'],
+                         'successor_source_preimage_drift')
+    before, article = recovery.read(workspace / row['article']['path']), recovery.read(packet / '06-article.json')
+    recovery.require(before['article_id'] == article['article_id'] == entry['article_id']
+                     and before['canonical_path'] == article['canonical_path'] == row['route'],
+                     'successor_source_identity_invalid')
+    context = recovery.read(packet / recovery.PUBLICATION_CONTEXT)
+    recovery.require(row.get('first_publication') == context['first_publication'],
+                     'successor_source_publication_context_drift')
+    originals = {'article': packet / '06-article.json', 'qa': packet / '07-qa-receipt.json',
+                 'review': recovery.checked(doc['review'])}
+    pins = {r['path']: r['sha256'] for r in validated['manifest']['subject_files']}
+    expected = {'article': pins['06-article.json'], 'qa': pins['07-qa-receipt.json'],
+                'review': doc['review']['sha256']}
+    content = {key: original.read_bytes() for key, original in originals.items()}
+    recovery.require(all(hashlib.sha256(content[key]).hexdigest() == expected[key] for key in content),
+                     'successor_source_reviewed_bytes_drift')
+    rel = Path(row['article']['path']).parent
+    specs = {key: {'path': (rel / (key + '-successor-' + expected[key] + '.json')).as_posix(),
+                   'sha256': expected[key]} for key, original in originals.items()}
+    # All refusal checks precede source writes; never overwrite predecessor bytes.
+    for spec in specs.values():
+        target = workspace / spec['path']
+        recovery.require(not target.is_symlink() and (not target.exists() or source.digest(target) == spec['sha256']),
+                         'successor_source_destination_drift')
+    for key, original in originals.items():
+        target = workspace / specs[key]['path']
+        if not target.exists():
+            with target.open('xb') as stream:
+                stream.write(content[key])
+    row.update(specs)  # Preserve first-publication, materiality, predecessor and all unrelated rows.
+    save(manifest_path, manifest)
+    return {'status': 'SUCCESSOR_SOURCE_STAGED_NOT_ACCEPTED', 'route': row['route'],
+            'source_head': expected_head, 'bindings': specs, 'published': False,
+            'scope': 'retained_native_subjects_only_not_design_fullpackage_or_recovery_acceptance'}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['plan','stage'])
+    parser.add_argument('mode', choices=['plan','stage','adopt-successor'])
     parser.add_argument('--packet', type=Path)
     parser.add_argument('--route')
+    parser.add_argument('--workspace', type=Path)
+    parser.add_argument('--entry', type=Path)
+    parser.add_argument('--history', type=Path)
+    parser.add_argument('--expected-source-head')
+    parser.add_argument('--source-author-packet', type=Path)
+    parser.add_argument('--source-author-review', type=Path)
     args = parser.parse_args()
     if args.mode == 'stage' and (not args.packet or not args.route):
         parser.error('stage requires --packet and --route')
-    result = plan() if args.mode == 'plan' else stage(args.packet.resolve(), args.route)
+    if args.mode == 'adopt-successor':
+        if not all((args.workspace, args.entry, args.packet, args.history, args.expected_source_head)):
+            parser.error('adopt-successor requires --workspace --entry --packet --history --expected-source-head')
+        result = adopt_successor(args.workspace, args.entry.resolve(strict=True),
+            args.packet.resolve(strict=True), args.history.resolve(strict=True),
+            expected_head=args.expected_source_head, source_author_packet=args.source_author_packet,
+            source_author_review=args.source_author_review)
+    else:
+        result = plan() if args.mode == 'plan' else stage(args.packet.resolve(), args.route)
     if args.mode == 'plan':
         result = {key:value for key,value in result.items() if key != 'selection'}
         result['strategy'] = {key:value for key,value in result['strategy'].items() if key != 'source_observations'}
