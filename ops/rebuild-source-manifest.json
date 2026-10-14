@@ -7541,7 +7541,7 @@
         "scripts/article_health_acceptance.py"
       ],
       "kind": "script",
-      "sha256": "52906632e183f61ff44d8668fdccb5c3e82df4cb7aaa428d723364400066474a"
+      "sha256": "c21762a0e1125fad09b391f3809f9ae5980174705b4907aa734b865b205c7987"
     },
     "scripts/glp_release_search_notify.py": {
       "callers": [

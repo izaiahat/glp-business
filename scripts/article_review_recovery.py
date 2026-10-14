@@ -65,17 +65,6 @@ def require_live_matches_sealed(raw: bytes, expected: bytes):
     require(compared == expected, 'reviewed_live_deployment_drift')
 
 
-def normalize_live(text):
-    def decode(value):
-        raw = bytes.fromhex(value)
-        return bytes(v ^ raw[0] for v in raw[1:]).decode()
-    text = re.sub(r'/cdn-cgi/l/email-protection#([0-9a-f]+)',
-                  lambda m: 'mailto:' + decode(m[1]), text)
-    text = re.sub(r'<span class="__cf_email__" data-cfemail="([0-9a-f]+)">\[email&#160;protected\]</span>',
-                  lambda m: decode(m[1]), text)
-    return text.replace('<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>', '')
-
-
 def site_wording(text):
     """The site build's global dated-wording pass (scripts/build-staging.mjs)."""
     text = re.sub(r'\bwas checked (2026-\d{2}-\d{2})(?!\d)', r'is current as of \1', text, flags=re.I)
@@ -92,9 +81,10 @@ def article_projection(page):
     section) through the source list: evidence dates, quick answer, medical /
     evidence-boundary disclosure, TOC, sections, FAQ and sources. Only the site
     shell outside that region (navigation, hero imagery, share links, footer)
-    and the narrow Cloudflare/dated-wording normalizations are excluded.
+    and dated-wording differences are excluded. Inputs here are sealed HTML;
+    live CF transformations are authenticated separately by the owning oracle.
     """
-    page = site_wording(normalize_live(page))
+    page = site_wording(page)
     meta = re.findall(r'<meta name="description" content="([^"]*)"', page)
     h1 = re.findall(r'<h1\b[^>]*>(.*?)</h1>', page, flags=re.S)
     answer = page.find('<section class="answer">')
