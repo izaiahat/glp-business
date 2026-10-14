@@ -440,6 +440,22 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
     assert ast.unparse(branch.test) == "p == self.business / 'ops/email_flows/scheduler-heartbeat.json'"
     lines = source.splitlines(keepends=True)
     source = ''.join(lines[:branch.lineno-1] + lines[branch.end_lineno:])
+    # Project ONLY the newly tested additive relay binding branch out of the
+    # authenticated predecessor comparison; do not rebaseline any old oracle.
+    added_init = """        from host_disk_relay_custody import collect as relay_custody
+        bindings=relay_custody(bus=self.business)
+        self.relay_source_identities=bindings.identities
+        self.ancestor_pins=list(bindings)
+"""
+    added_check = """        from host_disk_relay_custody import signature as binding_signature
+        for source,expected in self.relay_source_identities.items():
+            try: unchanged=binding_signature(source)==expected
+            except OSError: unchanged=False
+            if not unchanged:
+                self.last_changed_source=source;return True
+"""
+    assert source.count(added_init) == source.count(added_check) == 1
+    source = source.replace(added_init, '        self.ancestor_pins=[]\n').replace(added_check, '')
     names = {'ReferenceIndex', 'archive_candidates', 'archive_tree', 'dedupe',
              'git_veto', 'inventory', 'protected', 'recover_retirements',
              'reference_files', 'regenerable', 'sig', 'verify_archive'}

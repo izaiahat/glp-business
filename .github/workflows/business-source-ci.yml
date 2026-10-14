@@ -104,7 +104,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 python3 -B tests/test_host_disk_tmp_custody.py
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_disk_reference_refresh.py tests/test_host_disk_archive_order.py tests/test_glp110_archive_admission.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_disk_reference_refresh.py tests/test_host_disk_archive_order.py tests/test_host_disk_relay_custody.py tests/test_glp110_archive_admission.py
       - name: GLP335 registered current-contract reconciliation (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

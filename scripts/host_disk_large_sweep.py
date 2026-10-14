@@ -47,6 +47,10 @@ def references(report):
     pins.update(Path(p) for p in policy['protected_roots'])
     pins.update([root,BUS/'site-system/flagship-v2/releases',BUS/'reports/disk-reclaim-20261008-r2',report])
     pins.update(m.live_symlink_targets())
+    from host_disk_relay_custody import collect as relay_custody
+    bindings=relay_custody(bus=BUS)
+    pins.update(bindings)
+    source_identities.update(bindings.identities)
     m.write_json(report/'references.json',{'pins':sorted(map(str,pins)),
         'reference_source_sha256':source_hashes,'reference_source_identity':source_identities,
         'generic_layout_roots_retained_not_retired':sorted(map(str,layout))})

@@ -202,7 +202,10 @@ class ReferenceIndex:
                 raise ValueError('reference_source_unreadable:'+str(p))
             self.sources.append((p,hashlib.sha256(self.consumer_text(p).encode()).hexdigest(),sig(p.stat())))
         self.texts=[self.consumer_text(p) for p,_,_ in self.sources]
-        self.ancestor_pins=[]
+        from host_disk_relay_custody import collect as relay_custody
+        bindings=relay_custody(bus=self.business)
+        self.relay_source_identities=bindings.identities
+        self.ancestor_pins=list(bindings)
         def pins(value,source):
             if isinstance(value,dict):
                 for key,item in value.items():
@@ -226,6 +229,12 @@ class ReferenceIndex:
         # positives preserve evidence; unknown/mutated reference input gates all.
         p=Path(p)
         if hasattr(self,'last_changed_source'): del self.last_changed_source
+        from host_disk_relay_custody import signature as binding_signature
+        for source,expected in self.relay_source_identities.items():
+            try: unchanged=binding_signature(source)==expected
+            except OSError: unchanged=False
+            if not unchanged:
+                self.last_changed_source=source;return True
         for source,digest,signature in self.sources:
             if p in source.parents: return True
             if not source.exists() or source.is_symlink():
