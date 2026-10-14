@@ -147,7 +147,7 @@ def firstparty_research_host(row):
         return None
     # Ranked guides and outbound shopping references describe someone else's
     # offer even when the publisher's own brand occurs in the title.
-    if (re.search(r'\b(?:best|top)\b.*\b(?:services?|kits?|brands?|powders?|supplements?)\b', title, re.I)
+    if (re.search(r'\b(?:best|top)\b.*\b(?:services?|kits?|brands?|powders?|supplements?|plans?)\b', title, re.I)
             or re.search(r'\bshop at\b', description, re.I)):
         return None
     if re.search(r'/(?:company|companies|posts|groups|forum|articles|reports|p|watch)/', parts.path, re.I):
@@ -163,8 +163,16 @@ def firstparty_research_host(row):
     sentences = re.split(r'[.!?\n]+', text)
     if any(category(s) and re.search(r"\b(?:not|never|neither|nor|cannot|\w+n['’]t)\b|\bno\s+(?:protein|prepared meals?|meal (?:prep|delivery)|training|telehealth)\b", LEGAL_NEGATOR.sub('', s), re.I) for s in sentences):
         return None
+    # Category wording is not independent evidence of a merchant: e.g. a
+    # publisher's "Classifying Meal Delivery Companies" only names the industry.
+    # Require an additional offer/transaction signal beyond the category span.
+    title_offer = title
+    for pattern in CATEGORY.values():
+        title_offer = pattern.sub('', title_offer)
+    title_offer = re.sub(r'\bmeal prep\b', '', title_offer, flags=re.I)
     branded_offer = (brand in normalize(title) and category(title)
-                     and (COMMERCIAL.search(title) or offer.search(title)))
+                     and (offer.search(title_offer) or re.search(
+                         r'\b(?:shop|buy|order|subscribe|membership|products|get started)\b', title_offer, re.I)))
     own_offer = any(category(s) and re.search(r'\b(?:our|we)\b', s, re.I)
                     and (COMMERCIAL.search(s) or offer.search(s)) for s in sentences)
     own_commercial = any(re.search(r'\b(?:our|we)\b', s, re.I)

@@ -959,6 +959,8 @@ def test_daily_selector_binds_real_firstparty_leads_not_search_noise(monkeypatch
     paths[0].write_text(paths[0].read_text() + json.dumps(negative)+'\n')
     (paths[0].parent / negative['receipt']).write_text(json.dumps({'success':True,'data':{'web':[negative]}}))
     p.daily(retained_leads=paths)
+    # Owning residual-class regression: both original best-plans and
+    # classifying-companies rows refuse alongside the unchanged six merchants.
     assert set(p.report['selected']) == set(fixture['expected_positive_hosts'])
     assert len(p.report['target_universe']['retained_lead_inputs']) == 4
     assert not set(p.report['selected']) & set(fixture['expected_negative_hosts'])

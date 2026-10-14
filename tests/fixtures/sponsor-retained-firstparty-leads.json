@@ -21,6 +21,44 @@
     {
       "input": "DISCOVERY-HITS.jsonl",
       "lead": {
+        "at": "2026-10-13T22:19:41.630206+00:00",
+        "batch": 3,
+        "description": "These partnerships or the commission we may earn do not affect our ... Prepared meals arrive at your doorstep completely ready and all ...",
+        "query": "\"prepared meals\" \"partnerships\" \"United States\"",
+        "receipt": "search-03.json",
+        "title": "Best Prepared Meal Delivery Plans - AginginPlace.org",
+        "url": "https://aginginplace.org/meal-delivery/best-prepared-meal-delivery-plans/"
+      },
+      "receipt_sha256": "1b140b98073dd76a0a3c434dd14cddf34f8269a40b80cf7da1742a1e1c4179f8",
+      "web_row": {
+        "description": "These partnerships or the commission we may earn do not affect our ... Prepared meals arrive at your doorstep completely ready and all ...",
+        "position": 7,
+        "title": "Best Prepared Meal Delivery Plans - AginginPlace.org",
+        "url": "https://aginginplace.org/meal-delivery/best-prepared-meal-delivery-plans/"
+      }
+    },
+    {
+      "input": "BATCH-3/DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:45:52.626110+00:00",
+        "batch": 2,
+        "description": "Fraud in California's Workers' Compensation System ... Many meal delivery companies have arrangements with restaurants to purchase prepared meals ...",
+        "query": "\"prepared meals\" \"delivery\" \"California\" company",
+        "receipt": "search-02.json",
+        "title": "Classifying Meal Delivery Companies - WCIRB California",
+        "url": "https://www.wcirb.com/research-and-education/learning-articles/classifying-meal-delivery-companies"
+      },
+      "receipt_sha256": "407c3d1ef1954838bd1a4f2916314c1b965178a0d5fd4e303519e36365747dde",
+      "web_row": {
+        "description": "Fraud in California's Workers' Compensation System ... Many meal delivery companies have arrangements with restaurants to purchase prepared meals ...",
+        "position": 10,
+        "title": "Classifying Meal Delivery Companies - WCIRB California",
+        "url": "https://www.wcirb.com/research-and-education/learning-articles/classifying-meal-delivery-companies"
+      }
+    },
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
         "at": "2026-10-13T22:19:41.630171+00:00",
         "batch": 3,
         "description": "... prepared meals and quick-service alternatives. Providers have increasingly ... United States. Afghanistan (\u0627\u0641\u063a\u0627\u0646\u0633\u062a\u0627\u0646); Albania (Shqip\u00ebria) ...",
@@ -256,6 +294,8 @@
     "wpbulk.com"
   ],
   "expected_negative_hosts": [
+    "aginginplace.org",
+    "wcirb.com",
     "wired.com",
     "ibisworld.com",
     "linkedin.com",
