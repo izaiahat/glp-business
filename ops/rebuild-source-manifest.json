@@ -2079,7 +2079,7 @@
         "scripts/affiliate_best_terms_machine.py"
       ],
       "kind": "script",
-      "sha256": "5d54653462b04c9c9f1ffa923ad9dc79bea49308be45c69c59f9be84255410a3"
+      "sha256": "5c8c37f332346dbdc36af6098effeb49efed65ccd77c541947615635d97b9626"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "callers": [
@@ -3749,7 +3749,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "a86e01d09a41fa3e747c511c197d4c1a06739524a9f3c6842363dc7db156ff6e"
+      "sha256": "c220a4f72194e7002666a5719f52f18a6be518e58c281bca3cd3e99c2906f1d6"
     },
     "scripts/marketplace_adapters/portal_apply.py": {
       "callers": [
@@ -6497,7 +6497,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
+      "sha256": "4ed064776d487dd8f1a0d96dc01cca078d9f319340477a719973ee6752777f10"
     },
     "tests/test_j4_refersion_catalog.py": {
       "callers": [
@@ -7619,7 +7619,7 @@
         "GLP-93 scoped vendor catalog readback"
       ],
       "kind": "script",
-      "sha256": "c6963d49c4996f4c6afcc2d55cc3ad6f8110ee483874e46195a660b8c9dbe903"
+      "sha256": "c3ec05b3e480f66d720da4f23c7f36eff29b29cd8ec52a8bc0dd5b78a57b0166"
     }
   },
   "omitted_runtime_inputs": [

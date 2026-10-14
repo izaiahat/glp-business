@@ -267,23 +267,42 @@ def partnerize_inventory(legacy, transport):
     if discovery and discovery.get('http_status') != 200:
         blockers.append({'error_class': 'partnerize_brand_discovery_v2_blocked',
                          'http_status': discovery.get('http_status')})
-    seen = {row.get('program_id') for row in programs}
+    blockers.extend(discovery.get('blockers') or [])
+    # The union is keyed only by exact campaign ID, never advertiser ID/name.
+    retained = {row['program_id']: dict(row) for row in programs
+                if isinstance(row.get('program_id'), str) and row['program_id']}
+    discovered_ids = set()
     missing_campaign = 0
     for row in discovery.get('advertisers') or []:
         key = row.get('campaign_id')
         if not isinstance(key, str) or not key:
             missing_campaign += 1
             continue
-        if key in seen:
-            continue
-        seen.add(key)
-        programs.append({'program_id': key, 'advertiser_id': row.get('advertiser_id'),
-                         'name': row.get('name') or '', 'description': row.get('description') or '',
-                         'relationship': 'notjoined', 'url': row.get('url') or ''})
+        discovered_ids.add(key)
+        status = row.get('network_status') or ''
+        relationship = {'AVAILABLE': 'notjoined', 'REQUESTED': 'pending',
+                        'REJECTED': 'rejected', 'INVITED': 'invited'}.get(status, 'unknown')
+        projected = {**row, 'program_id': key, 'relationship': relationship,
+                     'discovery_relationship': relationship}
+        if key in retained:
+            # Keep successful relationship buckets as relationship authority;
+            # merge discovery metadata/status/provenance without stamping approval.
+            projected['relationship'] = retained[key].get('relationship') or relationship
+            retained[key].update(projected)
+        else:
+            retained[key] = projected
+    programs = list(retained.values())
     return legacy.b.readback_payload('Partnerize', 'PASS' if programs else 'BLOCKED', programs, {
         'reported_total': None, 'blockers': blockers,
+        'publisher_id': discovery.get('publisher_id') or getattr(adapter, 'PUBLISHER_ID', None),
         'statuses_swept': list(adapter.STATUSES),
+        'discovery_endpoint': discovery.get('endpoint'),
         'discovery_advertiser_count': discovery.get('advertiser_count'),
+        'discovery_advertiser_reported_total': discovery.get('reported_advertiser_total'),
+        'discovery_campaign_count': discovery.get('campaign_count'),
+        'discovery_campaign_unique_count': len(discovered_ids),
+        'discovery_campaign_reported_total': discovery.get('reported_campaign_total'),
+        'joined_only_enumerated': len(set(retained) - discovered_ids),
         'discovery_advertisers_without_campaign_id': missing_campaign,
         'denominator_scope': 'relationship_buckets_plus_exact_discovery_campaign_ids_no_campaign_total'})
 

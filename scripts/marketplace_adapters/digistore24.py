@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Digistore24 affiliate adapter (X-DS-API-KEY auth).
 
-The documented affiliate key can enumerate the marketplace and verify one
-product affiliation. There is no affiliate-side application mutation API:
+listMarketplaceEntries lists vendor-owned marketplace data, not the full
+affiliate marketplace. validateAffiliate verifies one product affiliation.
+There is no affiliate-side application mutation API:
 `requestMarketplaceEntryApproval` is vendor-owned. A returned `invite_url` is
 therefore handed to the authenticated portal executor, which performs at most
 one UI submit and then verifies with `validateAffiliate`.
@@ -70,7 +71,7 @@ MARKETPLACE_SORT_KEYS = ("name", "stars", "created", "rank", "profit",
 
 
 def marketplace(transport, *, sort_by: str = "rank") -> dict:
-    """Enumerate the provider's complete marketplace response in one documented call."""
+    """Read vendor-owned entries; the affiliate marketplace denominator is unknown."""
     if sort_by not in MARKETPLACE_SORT_KEYS:
         raise ValueError(
             f"digistore24 sort_by={sort_by!r} is not accepted by the provider; "
@@ -103,10 +104,13 @@ def marketplace(transport, *, sort_by: str = "rank") -> dict:
     if isinstance(body, dict):
         data = body.get("data") or {}
         if isinstance(data, dict):
-            reported = data.get("total") or data.get("count") or data.get("total_count")
+            reported = next((data[k] for k in ("total", "count", "total_count")
+                             if k in data and data[k] is not None), None)
     return {"ok": resp.ok and isinstance(body, dict) and body.get("result") in (None, "success"),
             "http_status": resp.status, "programs": programs,
-            "reported_total": int(reported) if str(reported or "").isdigit() else len(programs),
+            "scope": "vendor_owned_marketplace_entries", "affiliate_id": AFFILIATE_ID,
+            "scoped_reported_total": int(str(reported)) if str(reported).isdigit() else None,
+            "reported_total": None, "full_marketplace_total": None,
             "endpoint": f"GET {API}/listMarketplaceEntries"}
 
 
@@ -139,9 +143,14 @@ def readback(transport) -> dict:
     return b.readback_payload(
         DISPLAY, "PASS" if catalog["ok"] else "BLOCKED", programs,
         {"endpoint": catalog["endpoint"], "reported_total": catalog["reported_total"],
-         "marketplace_model": "full_catalog_plus_per_product_affiliation_readback",
-         "blockers": [] if catalog["ok"] else [{"error_class": "digistore24_marketplace_http",
-                                                   "http_status": catalog["http_status"]}]})
+         "scope": catalog["scope"], "affiliate_id": AFFILIATE_ID,
+         "scoped_reported_total": catalog["scoped_reported_total"],
+         "full_marketplace_total": None,
+         "marketplace_model": "vendor_owned_entries_plus_per_product_affiliation_readback",
+         "blockers": [{"error_class": "authorized_vault_browser_required",
+                       "reason": "vendor_owned_entries_do_not_enumerate_affiliate_marketplace"}]
+                     + ([] if catalog["ok"] else [{"error_class": "digistore24_marketplace_http",
+                                                   "http_status": catalog["http_status"]}])})
 
 
 def capture_terms(program_id, transport, terms_dir=None) -> dict:
