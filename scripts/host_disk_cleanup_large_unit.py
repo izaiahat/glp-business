@@ -106,7 +106,7 @@ def main():
     phases['D_A_B_C']=phase_result(evidence_result,report/'evidence-preserving.json',evidence_rows,partial_returncodes=(2,))
     after=disk();totals=collections.Counter()
     for row in rows:totals[row['rule']]+=int(row.get('bytes_freed',0))
-    receipt={**state,'status':'completed' if evidence_result.returncode==0 and large_result.returncode==0 and safe_result.returncode in (0,2) and all(r.get('ok',True) for r in rows) else 'completed_with_errors',
+    receipt={**state,'status':'completed' if all(p['status']=='completed' for p in phases.values()) else 'completed_with_errors',
         'root_after':after,'root_free_delta_bytes':after['free_bytes']-before['free_bytes'],
         'rows':rows,'bytes_freed_by_rule':dict(totals),'reclaimed_bytes':sum(totals.values()),
         'runtime_seconds':time.monotonic()-started,'phase_results':phases}

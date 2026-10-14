@@ -676,10 +676,12 @@ def test_glp349_d_cannot_starve_later_classes(owner, monkeypatch, full_pass):
     assert deadlines == {'D': 1050}, 'qualification-only scope lost its original cap'
 
 
-@pytest.mark.parametrize('large_rc,safe_rc,evidence_rc,safe_present', [
-    (0, 0, 2, True), (0, 1, 0, False), (1, 0, 0, True), (0, 2, 0, True)])
+@pytest.mark.parametrize('large_rc,safe_rc,evidence_rc,safe_present,evidence_partial', [
+    (0, 0, 2, True, True), (0, 1, 0, False, False),
+    (1, 0, 0, True, False), (0, 2, 0, True, False),
+    (0, 0, 0, False, False), (0, 0, 0, True, True)])
 def test_glp349_controller_preserves_each_phase_result(tmp_path, monkeypatch,
-        large_rc, safe_rc, evidence_rc, safe_present):
+        large_rc, safe_rc, evidence_rc, safe_present, evidence_partial):
     """Exact maintained controller AST; scratch reports and captured sink only.
 
     Dependencies are inert fixtures: no installed import, sudo, cleanup, native
@@ -718,7 +720,7 @@ def test_glp349_controller_preserves_each_phase_result(tmp_path, monkeypatch,
             return SimpleNamespace(returncode=safe_rc)
         assert '--max-seconds' in command and command[command.index('--max-seconds')+1] == '1050'
         report = Path(command[command.index('--report') + 1])
-        ep.atomic_json(report, {'rows': evidence_rows if evidence_rc == 2 else []})
+        ep.atomic_json(report, {'rows': evidence_rows if evidence_partial else []})
         phases.append('D_A_B_C')
         return SimpleNamespace(returncode=evidence_rc)
     monkeypatch.setitem(sys.modules, 'host_disk_auto_classes',
@@ -741,12 +743,13 @@ def test_glp349_controller_preserves_each_phase_result(tmp_path, monkeypatch,
     assert {key: result['returncode'] for key, result in actual.items()} == dict(
         large_classes=large_rc, legacy_safe_rules=safe_rc, D_A_B_C=evidence_rc)
     assert actual['legacy_safe_rules']['report_present'] is safe_present
-    if evidence_rc == 2:
+    if evidence_partial:
         assert actual['D_A_B_C']['status'] == 'partial_or_gated'
         assert actual['D_A_B_C']['status_counts'] == dict(
             TIME_BUDGET_PARTIAL=1, GATED_REFERENCE_INVENTORY_INCOMPLETE=1)
         assert actual['D_A_B_C']['partial_rows'] == 1
         assert actual['D_A_B_C']['gated_rows'] == 1
-    assert rc == (0 if (large_rc == 0 and safe_rc in (0, 2) and evidence_rc == 0) else 1)
+    assert rc == (0 if (large_rc == 0 and safe_rc in (0, 2) and evidence_rc == 0
+                       and safe_present and not evidence_partial) else 1)
     assert receipt['status'] == ('completed' if rc == 0 else 'completed_with_errors')
     assert receipt['reclaimed_bytes'] == 0 and len(capture) == 1
