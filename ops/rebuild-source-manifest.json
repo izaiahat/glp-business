@@ -2622,7 +2622,7 @@
         "manual:authorized-dot-ticket"
       ],
       "kind": "script",
-      "sha256": "8318e51fdfabec5ddaa9f5ad424e576b5348266296f56b0974060ef1a8fe1086"
+      "sha256": "a18b19d7925e6027c647e3ff86b2f7a59470d57b2760e704d3f4d8fc3b590af5"
     },
     "scripts/evidence_preserving_pruner.py": {
       "callers": [
@@ -3791,7 +3791,7 @@
         "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
       ],
       "kind": "script",
-      "sha256": "81fd2d27edd17b8d42cedbf95f8028ba2953d5ff561da612b52e296d69049609"
+      "sha256": "0dfc5c5007aebc160aad2d4d1d1c5ad9f93184d2a89f8c92bb0b4f50d9a9d0db"
     },
     "scripts/pallas_predecessor_migration.py": {
       "sha256": "96f1fe55bf8e19148470f5aced68ed049046c679cbf0ef31b34aa4f3e1b40b2c"
@@ -5013,7 +5013,7 @@
         "CI:native-reply-consumer"
       ],
       "kind": "test",
-      "sha256": "41c1406515baa32434f18c5f1d7975ea7d4554aa6663cf00ac4b526b13fcbe80"
+      "sha256": "81d2897ea6e1a4ba9515d3adf686a7253571ee6555d6b373c791853ba471310e"
     },
     "tests/test_f07_registered_weekly_entry.py": {
       "callers": [
@@ -6749,7 +6749,7 @@
         "tests/test_receive_one_discord_message.py"
       ],
       "kind": "test",
-      "sha256": "d873f3efe027fb966127f93ba9663741a7b0ee4cf739d79721e55989ce49bd4b"
+      "sha256": "f0020c921d5b0122e91d499c26c422a9d14808fbe187d7d01917f4c3c6da647a"
     },
     "tests/test_native_review_prompt_binding.py": {
       "callers": [
@@ -7522,6 +7522,13 @@
         "business-source-ci: GLP349 owning pruner group"
       ],
       "sha256": "078eec705403d18c376bc70ad21f799cbf23d49011c59ca7d729e2b2045e6b15"
+    },
+    "ops/rook-mcp/DOT-RECEIVING-GLP359.md": {
+      "callers": [
+        "manual:parent-reviewed exact GLP-359 receiving handoff; no live apply"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "47f55e35f979494779a88af9944729502bc3336f6c8b94b315da8578ba9dae4d"
     }
   },
   "omitted_runtime_inputs": [
@@ -7532,5 +7539,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1104
+  "tracked_count": 1105
 }
