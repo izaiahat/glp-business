@@ -6,7 +6,7 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "516f1489cac31e1097ea4cff6d55162425c58f0b421aed2e65c19c886a34dd6a"
+      "sha256": "83f24f5dae9e018f912628e74d7f8b777f9561a06ace5492c25a7bafed1e8865"
     },
     "tests/test_cf_editorial_share.py": {
       "kind": "test",
@@ -7541,7 +7541,7 @@
         "scripts/article_health_acceptance.py"
       ],
       "kind": "script",
-      "sha256": "690f152217156e2637f1f11c67eec12a59453255038998850dc0d94c6df24adf"
+      "sha256": "52906632e183f61ff44d8668fdccb5c3e82df4cb7aaa428d723364400066474a"
     },
     "scripts/glp_release_search_notify.py": {
       "callers": [

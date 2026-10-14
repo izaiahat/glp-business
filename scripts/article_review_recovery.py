@@ -150,6 +150,43 @@ def recovery_path(entry_path, root):
     return root / 'reports/glp-clinic-scout/seo-machine/article-review-recovery' / ident / 'RECOVERY.json'
 
 
+def authenticate_source_origin(packet, proof, names, root, database, before):
+    """Origin provenance only: authenticate an old native input's sealed hashes."""
+    import argparse
+    import hermes_sol_article_review as transport
+    import opus_review_loop as loop
+    manifest_path = checked(proof['manifest'])
+    raw_path = checked(proof['raw'])
+    require(packet.resolve() == manifest_path.parent.parent / 'packet', 'copied_source_review_path')
+    manifest, raw = read(manifest_path), read(raw_path)
+    require(manifest['manifest_sha256'] == loop.payload_hash(manifest, 'manifest_sha256'), 'copied_source_seal')
+    rows = {row['path']: row for row in manifest['subject_files']}
+    require(all(n in rows and sha(packet/n) == rows[n]['sha256'] for n in names), 'copied_source_sealed_bytes')
+    inputs, runtime = raw['review_input'], raw['hermes_runtime']
+    args = argparse.Namespace(prompt=inputs.get('inline_prompt'),
+        prompt_file=(inputs.get('prompt_file') or {}).get('path'),
+        context_file=[v['path'] for v in inputs['context_files']],
+        json_schema_file=(inputs.get('json_schema_file') or {}).get('path'),
+        max_context_chars=inputs['max_context_chars'], max_total_chars=inputs['max_total_chars'],
+        model=runtime['model'], provider=runtime['provider'], effort=runtime['effort'], disable_tools=True)
+    captured = {}
+    payload = transport.build_payload(args, captured, transport.load_schema(args, captured))
+    require(transport.review_input(args, payload, captured, runtime) == inputs, 'copied_source_input')
+    require(len(captured['context_files']) == 1, 'copied_source_context_count')
+    context = captured['context_files'][0]['content']
+    digest = manifest['manifest_sha256']
+    headers = ('SEALED ARTICLE SUBJECTS — READ ONLY\nmanifest_sha256=' + digest + '\n',
+               '# SEALED PACKET CONTENT — ALREADY IN BAND\n\nSubject manifest SHA-256: ' + digest + '\n')
+    require(context.startswith(headers), 'copied_source_context_seal')
+    custody = transport.authenticate_result(runtime['session_id'], payload, raw['result'],
+        model=runtime['model'], provider=runtime['provider'], effort=runtime['effort'], session_db=database)
+    require(custody == runtime['result_custody'], 'copied_source_native_custody')
+    from article_health_acceptance import timestamp
+    sealed = timestamp(manifest['sealed_at_utc'])
+    require(sealed <= custody['started_at'] <= custody['ended_at'] <= before, 'copied_source_chronology')
+    return sealed
+
+
 def copied_source_authors(fresh, names, origins, root, database, reviewer, sealed_at, *, authenticate=None):
     """Bind copied subjects to their original paths, retaining native writer checks."""
     if authenticate is None:
@@ -214,10 +251,17 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     require(timestamp(manifest['sealed_at_utc']) <= custody['started_at']
             and custody['ended_at'] <= timestamp(receipt['reviewed_at_utc']), 'fresh_review_chronology')
     runtime = raw['hermes_runtime']
+    author_seal = timestamp(manifest['sealed_at_utc'])
+    origins = doc.get('source_authorship', {})
+    if origins:
+        origin_dirs = {Path(v['path']).parent for v in origins.values()}
+        require(len(origin_dirs) == 1, 'copied_source_directory_set')
+        author_seal = authenticate_source_origin(next(iter(origin_dirs)),
+            doc['source_authorship_review'], derivation['source_repairs'], root, database, author_seal)
     successor_authors = copied_source_authors(fresh, derivation['source_repairs'],
-                                       doc.get('source_authorship', {}), root, database,
+                                       origins, root, database,
                                        {'model': runtime['model'], 'runtime': {'native_session_id': runtime['session_id']}},
-                                       timestamp(manifest['sealed_at_utc']))
+                                       author_seal)
     pointer = read(root / 'reports/glp-clinic-scout/seo-machine/current-content-base.json')
     release = Path(pointer['release_root'])
     rows = [r for r in read(release / 'data/blog/accepted-guides/updates.json')['entries']
@@ -249,7 +293,8 @@ def validate_recovery(entry_path, *, root=ROOT, natural=False, session_db=None):
     return result
 
 
-def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT, source_author_packet=None):
+def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
+         source_author_packet=None, source_author_review=None):
     sys.path.insert(0, str(root / 'systems/seo-blog-machine/scripts'))
     import compile_review_packet_article as compiler
     entry = read(entry_path)
@@ -272,6 +317,13 @@ def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT, sour
         names = doc['successor']['source_repairs']
         require(all(not (origin / n).is_symlink() for n in names), 'copied_source_symlink')
         doc['source_authorship'] = {n: spec(origin / n) for n in names}
+        require(source_author_review is not None, 'copied_source_native_review_required')
+        origin_review = read(source_author_review)
+        doc['source_authorship_review'] = {
+            'manifest': spec(origin_review['subject_manifest_path']),
+            'raw': spec(origin_review['raw_review_path'])}
+    else:
+        require(source_author_review is None, 'copied_source_review_without_packet')
     validate_documents(entry_path, doc, root=root)
     path = recovery_path(entry_path, root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -290,12 +342,15 @@ def main():
     parser.add_argument('--live-snapshot', type=Path, required=True)
     parser.add_argument('--source-author-packet', type=Path,
                         help='exact byte-identical source packet with native write/patch custody')
+    parser.add_argument('--source-author-review', type=Path,
+                        help='native origin review binding the copied source hashes (provenance only)')
     args = parser.parse_args()
     from glp_release_main import lock_module
     with lock_module().acquire('main-site-release', owner='article-review-recovery', root=ROOT):
         path = seal(args.entry.resolve(strict=True), args.history.resolve(strict=True),
                     args.packet.resolve(strict=True), args.live_binding.resolve(strict=True),
-                    args.live_snapshot.resolve(strict=True), source_author_packet=args.source_author_packet)
+                    args.live_snapshot.resolve(strict=True), source_author_packet=args.source_author_packet,
+                    source_author_review=args.source_author_review)
     print(json.dumps({'status': 'PASS_POSTPUBLICATION_REVIEW', 'recovery': spec(path)}))
 
 
