@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "inbox_control_plane/external_sent.py": {
+      "kind": "python_module",
+      "callers": [
+        "inbox_control_plane/control_plane.py --observe-glp125-external-sent"
+      ],
+      "sha256": "db19ccd00aac6f7d3071a09b8fb704dc05ef04fc2d6aea6332758614546fa74c"
+    },
+    "tests/test_glp125_external_sent.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "6bb54ec6f775a65869aee23412c53e4c26f81081d9dd9dda8cc7d8ca10450a76"
+    },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
       "callers": [
@@ -7620,20 +7634,6 @@
       ],
       "kind": "test",
       "sha256": "73b763f31d0339de2a3759e6085ba764cd8d0cc816ee2eff1024e73bf181a032"
-    },
-    "inbox_control_plane/external_sent.py": {
-      "kind": "python_module",
-      "callers": [
-        "inbox_control_plane/control_plane.py --observe-glp125-external-sent"
-      ],
-      "sha256": "db19ccd00aac6f7d3071a09b8fb704dc05ef04fc2d6aea6332758614546fa74c"
-    },
-    "tests/test_glp125_external_sent.py": {
-      "kind": "test",
-      "callers": [
-        "business-source-ci"
-      ],
-      "sha256": "6bb54ec6f775a65869aee23412c53e4c26f81081d9dd9dda8cc7d8ca10450a76"
     },
     "tests/fixtures/sponsor-ultimateperformance-terms.txt": {
       "kind": "data",
