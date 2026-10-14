@@ -43,6 +43,46 @@ def test_adverse_no_inference(case,damage):
     case.inferences.assert_not_called();assert not case.posts
 
 
+def test_host_capacity_refusal_preserves_exact_request_for_later_handoff(case):
+    """Synthetic regression for an observed pre-claim host-admission refusal.
+
+    A truthful top-stakes daemon deferral is not a missing dispatch producer.
+    Neither a depleted host slot nor its later availability permits a new issue,
+    a cursor rewind, a reviewer substitution, or fabricated invocation attempts.
+    """
+    from contextlib import contextmanager
+
+    before = case.state_path.read_bytes()
+    issue_path = case.issue_dir / (prior.ISSUE + '.json')
+    original_issue = issue_path.read_bytes()
+
+    @contextmanager
+    def full_host():
+        raise RuntimeError('parent_handoff_host_capacity')
+        yield  # pragma: no cover - contextmanager contract, no acquired lease
+
+    with patch.object(case, 'host', full_host):
+        with pytest.raises(RuntimeError, match='parent_handoff_host_capacity'):
+            invoke(case)
+
+    assert case.state_path.read_bytes() == before
+    assert issue_path.read_bytes() == original_issue
+    case.inferences.assert_not_called()
+    assert not case.posts
+    assert not case.host_events
+
+    # Same immutable fixture/request, after real admission would become available.
+    assert invoke(case)['status'] == 'posted'
+    case.inferences.assert_called_once()
+    state = prior.bridge.load_state()
+    assert state['last_id'] == json.loads(before)['last_id']
+    receipt = state['reviewer_receipts'][prior.REQUEST]
+    assert receipt['mode'] == 'deferred' and receipt['attempts'] == []
+    assert receipt['parent_handoff']['status'] == 'posted'
+    assert case.posts[0]['message_reference']['message_id'] == prior.REQUEST
+    assert issue_path.read_bytes() == original_issue
+
+
 def test_native_boundary_verdict_must_match(monkeypatch):
     import types
     import fable_deferred_handoff as module
