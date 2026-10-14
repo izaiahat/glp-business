@@ -7613,6 +7613,13 @@
       ],
       "kind": "test",
       "sha256": "73b763f31d0339de2a3759e6085ba764cd8d0cc816ee2eff1024e73bf181a032"
+    },
+    "scripts/marketplace_adapters/digistore24.py": {
+      "callers": [
+        "GLP-93 scoped vendor catalog readback"
+      ],
+      "kind": "script",
+      "sha256": "c6963d49c4996f4c6afcc2d55cc3ad6f8110ee483874e46195a660b8c9dbe903"
     }
   },
   "omitted_runtime_inputs": [
@@ -7623,5 +7630,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1117
+  "tracked_count": 1118
 }
