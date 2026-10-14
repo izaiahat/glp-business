@@ -96,7 +96,7 @@ def test_shared_rail_journal_spend_counts_toward_cap(tmp_path):
         make(tmp_path / 'b', alerts, journal=journal).reserve('dataforseo', VOLUME, [{'keywords': ['a']}], run_id='t')
 
 
-def test_exact_append_only_rail_reconciliation(tmp_path):
+def test_exact_append_only_rail_reconciliation(tmp_path, monkeypatch):
     """Real sticky-UNKNOWN regression and refusal controls; all evidence synthetic."""
     import hashlib
     from copy import deepcopy
@@ -105,16 +105,40 @@ def test_exact_append_only_rail_reconciliation(tmp_path):
     payload = [{'keyword': 'offline fixture', 'depth': 10}]
     request_hash = hashlib.sha256(json.dumps([endpoint, payload], sort_keys=True,
                                              allow_nan=False).encode()).hexdigest()
-    base = {'at': NOW.timestamp(), 'account': 'fixture-account', 'run_id': 'fixture-run',
+    from ops.glp import seo_data_rails as rails
+    task_id = '10121300-0000-0000-0000-000000000001'
+    base = {'at': NOW.timestamp(), 'account': 'tryboringai', 'run_id': 'fixture-run',
             'attempt_id': 'fixture-attempt', 'request_hash': request_hash}
     attempt = dict(base, event='ATTEMPT', endpoint=endpoint, cost=None)
-    ambiguous = dict(base, event='AMBIGUOUS', cost=None)
+    ambiguous = dict(base, at=base['at'] + 2, event='AMBIGUOUS', cost=None,
+                     provider_task_ids=[task_id])
+    # Native account/authenticated transport is mocked ONLY in this offline test.
+    # Local artifacts by themselves must never satisfy provider provenance.
+    def offline_init(self, **kwargs):
+        self._accounts = {'tryboringai': {'auth': 'OFFLINE-TRANSPORT-SENTINEL'}}
+    monkeypatch.setattr(rails.DataForSEO, '__init__', offline_init)
+    provider_record = {'id': task_id, 'url': 'v3' + endpoint, 'status': '20000',
+                       'datetime_posted': NOW.strftime('%Y-%m-%d %H:%M:%S +00:00'),
+                       'datetime_done': (NOW + dt.timedelta(seconds=1)).strftime('%Y-%m-%d %H:%M:%S +00:00'),
+                       'cost': '0.002', 'metadata': dict(payload[0], api='serp', function='live',
+                                                        se='google', se_type='organic')}
+    provider_rows = [provider_record]
+    provider_reads = []
+    def offline_http(url, **kwargs):
+        provider_reads.append((url, kwargs['body']))
+        assert url == rails.DataForSEO.BASE + '/serp/id_list'
+        assert kwargs['method'] == 'POST' and kwargs['retries'] == 1
+        assert kwargs['body'][0]['include_metadata'] is True
+        return {'status_code': 20000, 'cost': 0, 'tasks': [
+            {'status_code': 20000, 'cost': 0, 'path': ['v3', 'serp', 'id_list'],
+             'data': kwargs['body'][0], 'result': deepcopy(provider_rows)}]}
+    monkeypatch.setattr(rails, '_http', offline_http)
     artifact = tmp_path / 'provider-response.json'
     evidence = {**{k: base[k] for k in ('account', 'run_id', 'attempt_id', 'request_hash')},
                 'endpoint': endpoint, 'payload': payload,
                 'response': {'status_code': 20000, 'cost': '0.002',
-                             'tasks': [{'id': 'fixture-provider-task', 'status_code': 20000,
-                                        'cost': '0.002'}]}}
+                             'tasks': [{'id': task_id, 'status_code': 20000,
+                                        'cost': '0.002', 'data': deepcopy(provider_record['metadata'])}]}}
     artifact.write_text(json.dumps(evidence))
     proof = {'kind': 'dataforseo_response', 'path': str(artifact),
              'sha256': hashlib.sha256(artifact.read_bytes()).hexdigest()}
@@ -177,11 +201,55 @@ def test_exact_append_only_rail_reconciliation(tmp_path):
         artifact.write_text(json.dumps(bad_evidence))
         bad_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
         check([attempt, ambiguous, dict(result, provider_evidence=bad_proof)], ('0', True))
+    # Five independently reported failures, now also exercised with native identity.
+    artifact.write_text(json.dumps(evidence))
+    reads_before = len(provider_reads)
+    check([attempt, dict(ambiguous, provider_task_ids=[]), result], ('0', True))
+    assert len(provider_reads) == reads_before
+    local_approval = dict(result, provider_evidence=dict(proof, approved=True))
+    check([attempt, dict(ambiguous, provider_task_ids=[]), local_approval], ('0', True))
+    assert len(provider_reads) == reads_before
+    monkeypatch.setattr(rails, '_http', lambda *a, **k: (_ for _ in ()).throw(OSError('offline unavailable')))
+    check([attempt, ambiguous, result], ('0', True))
+    monkeypatch.setattr(rails, '_http', offline_http)
+    wrong_query = deepcopy(evidence)
+    wrong_query['response']['tasks'][0]['data']['keyword'] = 'unrelated'
+    artifact.write_text(json.dumps(wrong_query))
+    wrong_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+    check([attempt, ambiguous, dict(result, provider_evidence=wrong_proof)], ('0', True))
+    artifact.write_text(json.dumps(evidence))
+    conflicting = deepcopy(evidence)
+    conflicting['response']['tasks'][0]['id'] = '10121300-0000-0000-0000-000000000002'
+    second_artifact = tmp_path / 'conflicting.json'
+    second_artifact.write_text(json.dumps(conflicting))
+    second = dict(result, provider_evidence=dict(proof, path=str(second_artifact),
+        sha256=hashlib.sha256(second_artifact.read_bytes()).hexdigest()))
+    check([attempt, ambiguous, result, second], ('0', True))
+    check([attempt, ambiguous, dict(result, endpoint='/UNRELATED/ENDPOINT')], ('0', True))
+    check([attempt, ambiguous, dict(result, at=base['at'] + 1)], ('0', True))
+    # Native account read, not the local response, must independently establish
+    # exact cost, ID, request/endpoint and provider chronology. Missing != zero.
+    for field, value in [('id', 'other'), ('url', 'v3/other'), ('cost', '0.003'),
+                         ('status', '40400'), ('metadata', {'keyword': 'unrelated'}),
+                         ('datetime_posted', '2026-10-01 03:00:00 +00:00'),
+                         ('datetime_done', '2026-10-20 03:00:00 +00:00')]:
+        provider_rows[0] = dict(provider_record, **{field: value})
+        check([attempt, ambiguous, result], ('0', True))
+    provider_rows.clear()
+    check([attempt, ambiguous, result], ('0', True))
+    provider_rows[:] = [provider_record, deepcopy(provider_record)]
+    check([attempt, ambiguous, result], ('0', True))
+    provider_rows[:] = [provider_record]
+    artifact.write_text(json.dumps(evidence))
     zero_evidence = deepcopy(evidence)
     zero_evidence['response']['cost'] = zero_evidence['response']['tasks'][0]['cost'] = '0'
     artifact.write_text(json.dumps(zero_evidence))
     zero_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+    # Self-written zero still fails until authenticated task cost is also zero.
+    check([attempt, ambiguous, dict(result, cost='0', provider_evidence=zero_proof)], ('0', True))
+    provider_record['cost'] = '0'
     check([attempt, ambiguous, dict(result, cost='0', provider_evidence=zero_proof)], ('0', False))
+    provider_record['cost'] = '0.002'
     artifact.write_text(json.dumps(evidence))
     check([attempt, ambiguous, result, dict(result, cost='0.003')], ('0', True))
     check([attempt, ambiguous, dict(result, at=base['at'] - 1)], ('0', True))
@@ -194,6 +262,25 @@ def test_exact_append_only_rail_reconciliation(tmp_path):
         b.guarded('dataforseo', VOLUME, [{'keywords': ['a']}], lambda: sent.append(1),
                   run_id='fixture-run', cost_of=lambda _: 0)
     assert sent == []
+
+
+def test_native_ambiguous_preserves_only_provider_task_identity(monkeypatch):
+    import threading
+    from ops.glp import seo_data_rails as rails
+    rail = rails.DataForSEO.__new__(rails.DataForSEO)
+    rail._lock = threading.RLock()
+    rail._halted = False
+    rail._accounts = {'tryboringai': {'auth': 'OFFLINE', 'state': 'READY', 'balance': 1}}
+    records = []
+    monkeypatch.setattr(rail, '_record', lambda event, account, **fields: records.append(dict(event=event, **fields)))
+    task_id = '10121300-0000-0000-0000-000000000001'
+    monkeypatch.setattr(rails, '_http', lambda *a, **k: {'cost': None, 'tasks': [{'id': task_id}]})
+    with pytest.raises(rails.RailError, match='cost_or_envelope_unmeasured_no_retry'):
+        rail._post('/serp/google/organic/live/advanced', [{'keyword': 'fixture'}])
+    assert records[-1]['event'] == 'AMBIGUOUS'
+    assert records[-1]['provider_task_ids'] == [task_id]
+    assert 'payload' not in records[-1] and 'response' not in records[-1]
+    assert rail._halted is True
 
 
 def test_cap_cannot_exceed_operator_authority(tmp_path):

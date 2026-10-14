@@ -16,7 +16,8 @@ cost is settled per call; an unsettled or unmeasured call blocks the week.
 Week = the supply week governed by the Sunday review: Sunday's calls count
 toward the following Monday's week (Sunday..Saturday, America/Los_Angeles),
 matching weekly_strategy_consumer.review_week_start.
-No credentials are read or written here.
+Ordinary spend reduction reads no credentials. Exact recovery delegates only to
+existing account-authenticated, zero-cost SERP metadata readback; no paid replay.
 """
 from __future__ import annotations
 
@@ -157,20 +158,28 @@ class WeeklyBudget:
             return None
 
     @classmethod
-    def _recovery_cost(cls, result: dict[str, Any], attempt: dict[str, Any]) -> Decimal | None:
-        """Validate recovered exact response bytes, never balance/pricing estimates.
+    def _recovery_cost(cls, result: dict[str, Any], attempt: dict[str, Any],
+                       ambiguous: list[dict[str, Any]]) -> tuple[Decimal, str, str] | None:
+        """Local response bytes are hints, not authentic evidence.
 
-        RESULT.provider_evidence = {kind: dataforseo_response, path, sha256}.
-        The immutable JSON artifact binds account/run/attempt/request_hash/endpoint,
-        the original payload, and the provider response (cost plus task IDs/costs).
-        Recovery provenance must be independently reviewed before journal append;
-        a digest validates retained bytes, not who supplied them. No live writer,
-        credential lookup, provider call, or append is performed by this reducer.
+        Require one original native AMBIGUOUS task ID, then read its metadata
+        through the existing authenticated account rail. Bind exact payload,
+        endpoint, task, charge and original request interval. No original task
+        identity, incomplete metadata or unavailable provider means UNKNOWN.
+        Supported recovery is deliberately limited to one organic Live SERP task.
+        No journal append or paid request is performed here.
         """
         try:
             proof = result['provider_evidence']
-            if proof['kind'] != 'dataforseo_response' or result.get('state') != 'MEASURED':
+            if (proof['kind'] != 'dataforseo_response' or result.get('state') != 'MEASURED'
+                    or attempt.get('endpoint') != '/serp/google/organic/live/advanced'
+                    or not ambiguous):
                 return None
+            native_ids = ambiguous[0].get('provider_task_ids')
+            if (not isinstance(native_ids, list) or len(native_ids) != 1
+                    or not isinstance(native_ids[0], str)
+                    or any(r.get('provider_task_ids') != native_ids for r in ambiguous)):
+                return None  # no local receipt/approval flag can supply native identity
             raw = Path(proof['path']).read_bytes()
             if hashlib.sha256(raw).hexdigest() != proof['sha256']:
                 return None
@@ -179,7 +188,7 @@ class WeeklyBudget:
                 if not isinstance(attempt.get(key), str) or not attempt[key] or doc.get(key) != attempt[key]:
                     return None
             payload = doc['payload']
-            if not isinstance(payload, list) or not payload or not all(isinstance(t, dict) for t in payload):
+            if not isinstance(payload, list) or len(payload) != 1 or not isinstance(payload[0], dict) or not payload[0]:
                 return None
             digest = hashlib.sha256(json.dumps([doc['endpoint'], payload], sort_keys=True,
                                                allow_nan=False).encode()).hexdigest()
@@ -187,21 +196,33 @@ class WeeklyBudget:
                 return None
             response = doc['response']
             tasks = response['tasks']
-            if response.get('status_code') != 20000 or not isinstance(tasks, list) or not tasks:
+            if response.get('status_code') != 20000 or not isinstance(tasks, list) or len(tasks) != 1:
                 return None
-            ids, costs = set(), []
-            for task in tasks:
-                task_id = task.get('id')
-                cost = cls._rail_cost(task.get('cost'))
-                if (not isinstance(task_id, str) or not task_id or task_id in ids
-                        or task.get('status_code') != 20000 or cost is None):
-                    return None
-                ids.add(task_id)
-                costs.append(cost)
+            task = tasks[0]
             measured = cls._rail_cost(response.get('cost'))
-            if measured is not None and measured == cls._rail_cost(result.get('cost')) == sum(costs, Decimal('0')):
-                return measured
-        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            expected = dict(payload[0], api='serp', function='live', se='google', se_type='organic')
+            if (task.get('id') != native_ids[0] or task.get('status_code') != 20000
+                    or measured is None or measured != cls._rail_cost(result.get('cost'))
+                    or measured != cls._rail_cost(task.get('cost'))
+                    or any(task.get('data', {}).get(k) != v for k, v in expected.items())):
+                return None
+            from ops.glp.seo_data_rails import DataForSEO
+            end_at = min(r['at'] for r in ambiguous)
+            record = DataForSEO().recovery_serp_task(attempt['account'], native_ids[0], attempt['at'], end_at)
+            if (not isinstance(record, dict) or record.get('id') != native_ids[0]
+                    or record.get('url') != 'v3' + attempt['endpoint']
+                    or record.get('status') != '20000'
+                    or cls._rail_cost(record.get('cost')) != measured
+                    or any(record.get('metadata', {}).get(k) != v for k, v in expected.items())):
+                return None
+            posted, done = (dt.datetime.strptime(record[k], '%Y-%m-%d %H:%M:%S %z').timestamp()
+                            for k in ('datetime_posted', 'datetime_done'))
+            # Provider timestamps have second precision, unlike the local journal.
+            if not math.floor(attempt['at']) <= posted <= done <= math.floor(end_at) + 1:
+                return None
+            fingerprint = hashlib.sha256(json.dumps(response, sort_keys=True, allow_nan=False).encode()).hexdigest()
+            return measured, native_ids[0], fingerprint
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError):
             pass
         return None
 
@@ -245,7 +266,7 @@ class WeeklyBudget:
                 unknown = True
                 continue
             results = [r for r in rows if r['event'] == 'RESULT']
-            ambiguous = [i for i, r in enumerate(rows) if r['event'] == 'AMBIGUOUS']
+            ambiguous = [r for r in rows if r['event'] == 'AMBIGUOUS']
             costs = [self._rail_cost(r.get('cost')) for r in results]
             valid = bool(results) and all(c is not None for c in costs) and len(set(costs)) == 1
             valid = valid and all(r.get('state') in (None, 'MEASURED', 'EXHAUSTED', 'PROVIDER_ERROR') for r in results)
@@ -253,10 +274,22 @@ class WeeklyBudget:
             valid = valid and all(not isinstance(r.get('at'), bool)
                                   and isinstance(r.get('at'), (int, float))
                                   and math.isfinite(r['at']) and r['at'] >= at for r in rows)
+            # Omitted legacy endpoint is compatible; an explicit conflict is not.
+            valid = valid and all('endpoint' not in r or r['endpoint'] == anchor.get('endpoint') for r in rows)
             if ambiguous or any('provider_evidence' in r for r in results):
                 valid = valid and all(isinstance(k, str) and bool(k) for k in identity)
                 valid = valid and rows[-1]['event'] == 'RESULT'
-                valid = valid and all(self._recovery_cost(r, anchor) == costs[0] for r in results)
+                valid = valid and all(r['at'] >= a['at'] for r in results for a in ambiguous)
+                if valid:
+                    # Exact duplicate artifacts authenticate once per reduction.
+                    recovered = {}
+                    for r in results:
+                        key = json.dumps(r, sort_keys=True)
+                        if key not in recovered:
+                            recovered[key] = self._recovery_cost(r, anchor, ambiguous)
+                    identities = list(recovered.values())
+                    valid = (all(i is not None and i[0] == costs[0] for i in identities)
+                             and len(set(identities)) == 1)
             if valid and costs[0] is not None:
                 total += costs[0]
             else:
