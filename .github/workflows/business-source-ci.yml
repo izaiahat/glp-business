@@ -131,6 +131,7 @@ jobs:
           export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp337_shared_bridge_migration.py tests/test_glp337_shared_bridge_generation.py tests/test_glp44_reader_exclusion.py
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_host_transport.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_fable_deferred_handoff.py tests/test_fable_parent_handoff.py tests/test_fable_mention_recovery.py tests/test_fable_bridge_quota_resume.py tests/test_fable_bridge_native_review.py tests/test_fable_bridge_identity.py tests/test_fable_bridge_reviewer_routing.py tests/test_fable_bridge_oversize.py
       - name: GLP338 durable error intake action contract (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

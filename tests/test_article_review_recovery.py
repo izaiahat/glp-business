@@ -115,8 +115,13 @@ def test_cf_normalization_is_narrow():
     cipher = bytes([key])+bytes(x ^ key for x in b'support@glpclinicscout.com')
     text = ('<a href="/cdn-cgi/l/email-protection#'+cipher.hex()+'"><span class="__cf_email__" data-cfemail="'
             + cipher.hex()+'">[email&#160;protected]</span></a>')
-    assert recovery.normalize_live(text) == '<a href="mailto:support@glpclinicscout.com">support@glpclinicscout.com</a>'
-    assert recovery.normalize_live('<script>unsafe()</script>') == '<script>unsafe()</script>'
+    expected = b'<a href="mailto:support@glpclinicscout.com">support@glpclinicscout.com</a>'
+    # The owning comparator refuses even a recognized anchor if its decoder is
+    # absent; the former broad helper incorrectly admitted this partial shape.
+    with pytest.raises(RuntimeError, match='decoder_script_count_invalid'):
+        recovery.require_live_matches_sealed(text.encode(), expected)
+    with pytest.raises(ValueError, match='reviewed_live_deployment_drift'):
+        recovery.require_live_matches_sealed(b'<script>unsafe()</script>', b'')
 
 
 def page(body, meta='Learn how', answer='Start with a clinician. [S1]', disclosure='Not medical advice.',
