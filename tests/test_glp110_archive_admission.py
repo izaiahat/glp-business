@@ -623,3 +623,130 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
     finally:
         for conn in connections:
             conn.close()
+
+
+@pytest.mark.parametrize('full_pass', [False, True])
+def test_glp349_d_cannot_starve_later_classes(owner, monkeypatch, full_pass):
+    """Retained D=1049.947/1050 timing shape, synthetic clock; no effects.
+
+    C's authentic reference-walk refusal remains a refusal, not eligible work.
+    Images-only qualification must retain its entire original deadline.
+    """
+    clock = [0.0]
+    deadlines = {}
+    original_done = copy.deepcopy(owner.state['C_done'])
+    owner.state.update(A_cursor=['fixture unfinished'], A_pending=['fixture held'])
+    owner.state['B_scan'] = {'cursors': {'fixture': ['unfinished']}}
+    monkeypatch.setattr(ep.time, 'monotonic', lambda: clock[0])
+    def images(*args, deadline, **kwargs):
+        deadlines['D'] = deadline
+        clock[0] = deadline - 0.053
+        return [{'rule': 'D_cold_run_images_summary', 'ok': True,
+                 'status': 'TIME_BUDGET_PARTIAL', 'partial': True, 'bytes_freed': 0}]
+    def regenerable(*args, deadline, **kwargs):
+        deadlines['A'] = deadlines.get('A', 0) + deadline - clock[0]
+        clock[0] = deadline
+        return [{'rule': 'A_regenerable', 'ok': True,
+                 'status': 'TIME_BUDGET_PARTIAL', 'bytes_freed': 0}]
+    def dedupe(*args, deadline, **kwargs):
+        deadlines['B'] = deadlines.get('B', 0) + deadline - clock[0]
+        clock[0] = deadline
+        return {'rule': 'B_readonly_evidence_dedupe', 'ok': True,
+                'status': 'TIME_BUDGET_PARTIAL', 'bytes_freed': 0}
+    def references(config, deadline):
+        deadlines['C'] = deadline - clock[0]
+        raise ep.ScanBudget('reference_walk:/home/ubuntu/business/ops selected=0')
+    monkeypatch.setitem(sys.modules, 'screenshot_pruner', SimpleNamespace(run_rules=images))
+    monkeypatch.setattr(ep, 'regenerable', regenerable)
+    monkeypatch.setattr(ep, 'dedupe', dedupe)
+    monkeypatch.setattr(ep, 'reference_files', references)
+    rows = ep.run(owner.api, owner.config, owner.state, dry_run=False,
+                  deadline=1050, full_pass=full_pass)
+    assert deadlines['D'] == pytest.approx(262.5), deadlines
+    assert deadlines['A'] >= 180 and deadlines['B'] >= 150, deadlines
+    assert deadlines['C'] > 0 and clock[0] <= 1050
+    assert rows[-1]['status'] == 'GATED_REFERENCE_INVENTORY_INCOMPLETE'
+    assert owner.state['C_done'] == original_done
+    assert owner.state['A_cursor'] == ['fixture unfinished']
+    assert owner.state['B_scan']['cursors'] == {'fixture': ['unfinished']}
+    assert (owner.root / 'evidence.txt').read_text() == 'fixture evidence must stay intact'
+    clock[0] = 0
+    deadlines.clear()
+    ep.run(owner.api, owner.config, owner.state, dry_run=True, deadline=1050, images_only=True)
+    assert deadlines == {'D': 1050}, 'qualification-only scope lost its original cap'
+
+
+@pytest.mark.parametrize('large_rc,safe_rc,evidence_rc,safe_present', [
+    (0, 0, 2, True), (0, 1, 0, False), (1, 0, 0, True), (0, 2, 0, True)])
+def test_glp349_controller_preserves_each_phase_result(tmp_path, monkeypatch,
+        large_rc, safe_rc, evidence_rc, safe_present):
+    """Exact maintained controller AST; scratch reports and captured sink only.
+
+    Dependencies are inert fixtures: no installed import, sudo, cleanup, native
+    state, network or send. The retained coarse-error shape is evidence rc2 with
+    only ok=true partial/gated rows. A missing safe receipt must not hide rc1.
+    """
+    import ast
+    import collections
+    import datetime
+    import os
+    from typing import Any
+    scripts_root = Path(__file__).resolve().parents[1] / 'scripts'
+    assert ep.__file__ and Path(ep.__file__).resolve() == scripts_root / 'evidence_preserving_pruner.py'
+    source = (scripts_root / 'host_disk_cleanup_large_unit.py').read_text()
+    functions: list[ast.stmt] = [n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef)]
+    home = tmp_path / 'hermes'
+    (home / 'runstate').mkdir(parents=True)
+    capture = []
+    phases = []
+    evidence_rows = [
+        {'rule': 'D_cold_run_images_summary', 'ok': True, 'partial': True,
+         'status': 'TIME_BUDGET_PARTIAL', 'bytes_freed': 0},
+        {'rule': 'C_cold_evidence_archive', 'ok': True,
+         'status': 'GATED_REFERENCE_INVENTORY_INCOMPLETE', 'bytes_freed': 0}]
+    def run(command, **kwargs):
+        if '--budget' in command:
+            report = Path(command[command.index('--report') + 1])
+            ep.atomic_json(report / 'large-classes.json', {'rows': []})
+            phases.append('large_classes')
+            return SimpleNamespace(returncode=large_rc)
+        if '--safe-rules-only' in command:
+            report = Path(command[command.index('--report-dir') + 1])
+            if safe_present:
+                ep.atomic_json(report / 'receipt.json', {'reclaimed_bytes': 0})
+            phases.append('legacy_safe_rules')
+            return SimpleNamespace(returncode=safe_rc)
+        assert '--max-seconds' in command and command[command.index('--max-seconds')+1] == '1050'
+        report = Path(command[command.index('--report') + 1])
+        ep.atomic_json(report, {'rows': evidence_rows if evidence_rc == 2 else []})
+        phases.append('D_A_B_C')
+        return SimpleNamespace(returncode=evidence_rc)
+    monkeypatch.setitem(sys.modules, 'host_disk_auto_classes',
+                        SimpleNamespace(external_pins=lambda: []))
+    monkeypatch.setitem(sys.modules, 'post_discord_message', SimpleNamespace(
+        send=lambda channel, line: capture.append(line) or {'id': 'fixture'},
+        readback=lambda channel, mid: {'content': capture[-1], 'channel_id': channel}))
+    namespace: dict[str, Any] = dict(Path=Path, collections=collections, datetime=datetime, os=os,
+                     sys=sys, time=time, json=json, atomic_json=ep.atomic_json,
+                     fcntl=SimpleNamespace(LOCK_EX=1, LOCK_NB=2, flock=lambda *a: None),
+                     subprocess=SimpleNamespace(run=run), BUS=tmp_path, HOME=home,
+                     STATE=home/'runstate/host-disk-cleanup-last.json', UNIT='fixture.service')
+    exec(compile(ast.Module(body=functions, type_ignores=[]), '<candidate-controller-AST>', 'exec'), namespace)
+    namespace['disk'] = lambda: {'free_bytes': 100, 'total_bytes': 100}
+    rc = namespace['main']()
+    receipts = list((tmp_path / 'reports/host-disk-prune').glob('*/completion.json'))
+    assert len(receipts) == 1 and phases == ['large_classes', 'legacy_safe_rules', 'D_A_B_C']
+    receipt = json.loads(receipts[0].read_text())
+    actual = receipt['phase_results']
+    assert {key: result['returncode'] for key, result in actual.items()} == dict(
+        large_classes=large_rc, legacy_safe_rules=safe_rc, D_A_B_C=evidence_rc)
+    assert actual['legacy_safe_rules']['report_present'] is safe_present
+    if evidence_rc == 2:
+        assert actual['D_A_B_C']['status'] == 'partial_or_gated'
+        assert actual['D_A_B_C']['status_counts'] == dict(
+            TIME_BUDGET_PARTIAL=1, GATED_REFERENCE_INVENTORY_INCOMPLETE=1)
+        assert actual['D_A_B_C']['partial_rows'] == 1
+        assert actual['D_A_B_C']['gated_rows'] == 1
+    assert rc == (0 if (large_rc == 0 and safe_rc in (0, 2) and evidence_rc == 0) else 1)
+    assert receipt['status'] == ('completed' if rc == 0 else 'completed_with_errors')
+    assert receipt['reclaimed_bytes'] == 0 and len(capture) == 1

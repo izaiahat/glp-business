@@ -338,7 +338,7 @@
         "github-actions"
       ],
       "kind": "repository_control",
-      "sha256": "60594ac5dec25869d46aae78e4776a6032ed06117ad62113170300f8fc5714ab"
+      "sha256": "a93634714afb3f58ab45f0c1de34ef20440fec22c90bf43835033d7b7fd7a473"
     },
     ".github/workflows/glp331-carrier-closure.yml": {
       "callers": [
@@ -2671,7 +2671,7 @@
         "scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"
       ],
       "kind": "script",
-      "sha256": "fad02fe17764966f63624e825d6b628fdb819348a4594c9d90c2115d6c73303d"
+      "sha256": "1b92457135572cb8fd0a3dbe9110366eb2ef559bd22ba1fc9738afbcce9a91ce"
     },
     "scripts/f13_atop_retention_launcher.c": {
       "callers": [
@@ -3564,7 +3564,7 @@
         "systemd:host-disk-cleanup.service.d/large-classes.conf"
       ],
       "kind": "script",
-      "sha256": "64cbd9971d28ac08472501ed80762de4872a6045c86fe0bbb7a1bf350d9699e9"
+      "sha256": "36ad366aa287d38d6d5ac37017cc9640b157400949825969c68548d230c2cba3"
     },
     "scripts/host_disk_cold_classes.py": {
       "callers": [
@@ -5275,7 +5275,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "23b5d71e3d929a2794208c5ada9fd1c95190ef8e6bd1e342d5f42a8300f41a73"
+      "sha256": "ad164d07bcd5a0a76a2ca4c6d009f65a11ec38bacba3f0d083ea1f7fcc7d2ed6"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
