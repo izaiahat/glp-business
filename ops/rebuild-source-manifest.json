@@ -766,7 +766,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "098a4c48068a46649cb414b3c7c38f38110d2a6c347014c152d5312ae9aff974"
+      "sha256": "bfef07748558a1a9c4cca8fd790dc2d6b835f71dc10ea60702186bb8f52c6dd4"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -1218,7 +1218,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "d3218f87ffe4d5cd6b5fb4255aad607ba9184ae95e3d8a1fb6f4585f34aaec84"
+      "sha256": "6a9c4a226b425c35352938b6ddb138bfcf46310daed9e8d6b1f1cfe9b66f1fad"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh": {
       "callers": [
