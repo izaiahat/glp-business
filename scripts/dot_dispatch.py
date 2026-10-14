@@ -538,6 +538,17 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
         return state
 
 
+def reply_document(state, value):
+    """Canonical reviewed publication bytes, shared with downstream receiving."""
+    marker = 'LATE_REPLY_TO_EXPIRED_TICKET\n\n' if state.get('state') == 'expired' else ''
+    attachment_text = ''
+    if value.get('attachment') is not None:
+        attachment_text = ('\n\n## Authenticated assistant-copy attachment (NOT direct tool export)\n'
+            + canonical({k: v for k, v in value['attachment'].items() if k != 'text'})
+            + '\n\n' + value['attachment']['text'])
+    return f"# {state['ticket']}\n\n{TRUST}\n\n{marker}{value['text']}{attachment_text}\n"
+
+
 def publish_reply(ticket, state, completion):
     results = completion.get('results', [])
     if len(results) != 1:
@@ -552,13 +563,7 @@ def publish_reply(ticket, state, completion):
         or value.get('text_truncated') or not value.get('text')):
         raise ValueError('terminal_native_reply_required_no_ack_or_uncertainty')
     late = state.get('state') == 'expired'
-    marker = 'LATE_REPLY_TO_EXPIRED_TICKET\n\n' if late else ''
-    attachment_text = ''
-    if value.get('attachment') is not None:
-        attachment_text = ('\n\n## Authenticated assistant-copy attachment (NOT direct tool export)\n'
-            + canonical({k: v for k, v in value['attachment'].items() if k != 'text'})
-            + '\n\n' + value['attachment']['text'])
-    reply = f"# {state['ticket']}\n\n{TRUST}\n\n{marker}{value['text']}{attachment_text}\n"
+    reply = reply_document(state, value)
     if (ticket / 'REPLY.md').exists() and (ticket / 'REPLY.md').read_text() != reply:
         raise ValueError('reply_conflict')
     if late:

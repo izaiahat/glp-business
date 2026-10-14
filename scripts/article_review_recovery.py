@@ -106,13 +106,87 @@ def require_live_matches_candidate(live, candidate):
     require(article_projection(live) == article_projection(candidate), 'live_differs_from_reviewed_candidate')
 
 
-def successor_contract(original, fresh, rows, manifest, *, compile_packet):
+PUBLICATION_CONTEXT = '09-publication-context.json'
+
+
+def publication_context_contract(original_packet, fresh, old, *, root):
+    """Bind the native-reviewed supplement to the immutable original publication.
+
+    This is historical context, never release authority or a replacement for the
+    native ten-subject custody and complete live-byte checks in validate_documents.
+    """
+    from datetime import datetime
+    from email.utils import parsedate_to_datetime
+    from zoneinfo import ZoneInfo
+    ctx = read(fresh / PUBLICATION_CONTEXT)
+    require(ctx.get('scope') == 'POSTPUBLICATION_RECOVERY_REVIEW_ONLY_NOT_NEW_PUBLICATION'
+            and ctx.get('no_invocation_authority') is True, 'publication_context_scope')
+    require(ctx['fresh_native_build']['status'] == 'PASS_NATIVE_BUILD'
+            and ctx['fresh_native_build']['returncode'] == 0
+            and ctx['fresh_native_build']['candidate']['sha256'] == sha(fresh / CANDIDATE),
+            'publication_context_candidate_binding')
+    require(all(sha(original_packet / name) == digest for name, digest in old.items()),
+            'publication_context_original_bytes')
+    buffer = root / 'reports/glp-clinic-scout/seo-machine/article-buffer'
+    claim = checked(ctx['original_consumption']['claim'])
+    require(claim.parent == buffer / 'claims' and re.fullmatch(r'[a-f0-9]{64}\.json', claim.name),
+            'publication_context_claim')
+    consumed_path = buffer / 'consumed' / claim.name
+    consumed = read(consumed_path)
+    unsigned = {k: v for k, v in consumed.items() if k != 'consumption_sha256'}
+    # article_buffer's sealed consumption canonical format includes its newline.
+    digest = hashlib.sha256((json.dumps(unsigned, sort_keys=True, separators=(',', ':'),
+                                       ensure_ascii=False) + '\n').encode()).hexdigest()
+    require(consumed == ctx['original_consumption']
+            and consumed.get('schema') == 'glp-seo-article-buffer-consumption-v1'
+            and consumed.get('status') == 'PASS_BUFFER_PUBLISHED'
+            and consumed.get('consumption_sha256') == digest
+            and original_packet == buffer / 'entries' / consumed['entry_id'] / 'packet',
+            'publication_context_original_consumption')
+    publication = consumed['publication']
+    terminal_path = Path(publication['receipt']).resolve(strict=True)
+    require(terminal_path.name == '10-final-publication-receipt.json'
+            and terminal_path.parent.parent == buffer.parent
+            and terminal_path.parent.name.startswith('current-release-'),
+            'publication_context_original_release')
+    first = ctx['first_publication']
+    evidence = first['evidence']
+    expected_paths = [terminal_path.parent / 'CURRENT-RECEIPT.json', terminal_path, consumed_path]
+    require(len(evidence) == 4 and evidence[:3] == [
+        {'path': str(p.relative_to(root)), 'sha256': sha(p)} for p in expected_paths],
+        'publication_context_publication_evidence')
+    header_path = root / evidence[3]['path']
+    require(header_path.resolve().is_relative_to(root / 'reports'), 'publication_context_header_path')
+    headers = checked({'path': str(header_path), 'sha256': evidence[3]['sha256']}).read_text()
+    terminal, current = read(terminal_path), read(expected_paths[0])
+    deployment = current['stages']['pages_deployment']
+    intent = current['stages']['pages_deploy_intent']
+    require(ctx['original_terminal'] == terminal
+            and terminal.get('schema') == 'glp-opus-production-terminal-receipt-v1'
+            and terminal.get('status') == current.get('status') == 'PASS_PRODUCTION_TERMINAL'
+            and terminal['deployment']['deployment_id'] == deployment['deployment_id']
+            == publication['deployment_id'] == first['deployment_id']
+            and terminal['site_head'] == current['site_head'] == first['site_head']
+            == deployment['commit_hash'] == intent['commit_hash'], 'publication_context_deployment_binding')
+    earliest = datetime.fromisoformat(first['not_before_utc'].replace('Z', '+00:00'))
+    latest = datetime.fromisoformat(first['observed_live_by_utc'].replace('Z', '+00:00'))
+    observed_dates = re.findall(r'^date:\s*(.+)$', headers, re.I | re.M)
+    require(first.get('timezone') == 'America/Los_Angeles'
+            and first['not_before_utc'] == intent['created_at_utc']
+            and len(observed_dates) == 1 and earliest <= latest == parsedate_to_datetime(observed_dates[0])
+            and earliest.astimezone(ZoneInfo(first['timezone'])).date().isoformat()
+            == latest.astimezone(ZoneInfo(first['timezone'])).date().isoformat() == first['date'],
+            'publication_context_publication_dates')
+    return sha(fresh / PUBLICATION_CONTEXT)
+
+
+def successor_contract(original, fresh, rows, manifest, *, compile_packet, root=None):
     """Positively exercised derivation from the original packet to the successor."""
     expected = {row['path']: row['sha256'] for row in rows}
     actual = {row['path']: row['sha256'] for row in manifest['subject_files']}
     require(set(expected) == SUBJECTS and len(rows) == len(expected), 'original_subject_set')
-    require(set(actual) == SUBJECTS | {CANDIDATE} and len(manifest['subject_files']) == len(actual),
-            'recovery_subject_set')
+    require(set(actual) in (SUBJECTS | {CANDIDATE}, SUBJECTS | {CANDIDATE, PUBLICATION_CONTEXT})
+            and len(manifest['subject_files']) == len(actual), 'recovery_subject_set')
     for name, digest in actual.items():
         require(sha(fresh / name) == digest, 'successor_subject_drift')
     for name in IDENTITY:
@@ -129,9 +203,13 @@ def successor_contract(original, fresh, rows, manifest, *, compile_packet):
     require(bound == {name: actual[name] for name in SUBJECTS - {'07-qa-receipt.json'}}, 'successor_qa_unbound')
     require(qa['checked_at_utc'] <= manifest['sealed_at_utc'], 'successor_qa_after_seal')
     changed = sorted(name for name in SOURCE_REPAIRS if actual[name] != expected[name])
-    return {'identity': list(IDENTITY), 'source_repairs': changed,
-            'article_regenerated_sha256': hashlib.sha256(regenerated.encode()).hexdigest(),
-            'qa_sha256': actual['07-qa-receipt.json']}
+    result = {'identity': list(IDENTITY), 'source_repairs': changed,
+              'article_regenerated_sha256': hashlib.sha256(regenerated.encode()).hexdigest(),
+              'qa_sha256': actual['07-qa-receipt.json']}
+    if PUBLICATION_CONTEXT in actual:
+        result['publication_context_sha256'] = publication_context_contract(
+            original, fresh, expected, root=Path(root or ROOT).resolve())
+    return result
 
 
 def recovery_path(entry_path, root):
@@ -147,7 +225,8 @@ def authenticate_source_origin(packet, proof, names, root, database, before):
     import opus_review_loop as loop
     manifest_path = checked(proof['manifest'])
     raw_path = checked(proof['raw'])
-    require(packet.resolve() == manifest_path.parent.parent / 'packet', 'copied_source_review_path')
+    require(packet.is_dir() and not packet.is_symlink()
+            and packet.resolve().is_relative_to((root / 'reports').resolve()), 'copied_source_review_path')
     manifest, raw = read(manifest_path), read(raw_path)
     require(manifest['manifest_sha256'] == loop.payload_hash(manifest, 'manifest_sha256'), 'copied_source_seal')
     rows = {row['path']: row for row in manifest['subject_files']}
@@ -168,6 +247,14 @@ def authenticate_source_origin(packet, proof, names, root, database, before):
     headers = ('SEALED ARTICLE SUBJECTS — READ ONLY\nmanifest_sha256=' + digest + '\n',
                '# SEALED PACKET CONTENT — ALREADY IN BAND\n\nSubject manifest SHA-256: ' + digest + '\n')
     require(context.startswith(headers), 'copied_source_context_seal')
+    from article_review_physical_lines import physical_lines
+    for name in names:
+        lines = physical_lines((packet / name).read_bytes())
+        numbered = '\n'.join(f'{i:04d}|{line}' for i, line in enumerate(lines, 1))
+        legacy_lines = '\n'.join(f'{i}|{line}' for i, line in enumerate(lines, 1))
+        section = (f'===== {name} =====\n{numbered}\n' if context.startswith(headers[0])
+                   else f'## FILE: {name}\n\n{legacy_lines}\n')
+        require(section in context, 'copied_source_native_subject_bytes')
     custody = transport.authenticate_result(runtime['session_id'], payload, raw['result'],
         model=runtime['model'], provider=runtime['provider'], effort=runtime['effort'], session_db=database)
     require(custody == runtime['result_custody'], 'copied_source_native_custody')
@@ -194,6 +281,26 @@ def copied_source_authors(fresh, names, origins, root, database, reviewer, seale
                     and source.read_bytes() == (fresh / name).read_bytes(), 'copied_source_bytes')
         sources.append(source)
     return authenticate(database, sources, reviewer, sealed_at)
+
+
+def successor_source_authors(fresh, names, origins, proof, root, database, reviewer, sealed_at):
+    """Authenticate byte-identical aliases at their old seal, new edits at this seal."""
+    require(set(origins) <= set(names), 'copied_source_name_set')
+    authors = []
+    if origins:
+        require(len({Path(v['path']).parent for v in origins.values()}) == 1,
+                'copied_source_directory_set')
+        copied_names = sorted(origins)
+        alias_packet = Path(next(iter(origins.values()))['path']).parent
+        origin_seal = authenticate_source_origin(alias_packet, proof, copied_names,
+                                                root, database, sealed_at)
+        authors.extend(copied_source_authors(fresh, copied_names, origins, root,
+                                             database, reviewer, origin_seal))
+    direct_names = sorted(set(names) - set(origins))
+    if direct_names:
+        authors.extend(copied_source_authors(fresh, direct_names, {}, root,
+                                             database, reviewer, sealed_at))
+    return authors
 
 
 def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
@@ -229,7 +336,7 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     fresh = checked(doc['candidate']).parent
     require(doc['candidate']['path'] == str(fresh / CANDIDATE), 'candidate_path')
     derivation = successor_contract(entry_path.parent / 'packet', fresh, entry['packet_files'], manifest,
-                                    compile_packet=compiler.compile_packet)
+                                    compile_packet=compiler.compile_packet, root=root)
     require(doc['successor'] == derivation, 'successor_derivation_changed')
     payload = loop.parse_result(raw)
     loop.validate_review(payload, raw, manifest, receipt['round'])
@@ -241,17 +348,11 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     require(timestamp(manifest['sealed_at_utc']) <= custody['started_at']
             and custody['ended_at'] <= timestamp(receipt['reviewed_at_utc']), 'fresh_review_chronology')
     runtime = raw['hermes_runtime']
-    author_seal = timestamp(manifest['sealed_at_utc'])
-    origins = doc.get('source_authorship', {})
-    if origins:
-        origin_dirs = {Path(v['path']).parent for v in origins.values()}
-        require(len(origin_dirs) == 1, 'copied_source_directory_set')
-        author_seal = authenticate_source_origin(next(iter(origin_dirs)),
-            doc['source_authorship_review'], derivation['source_repairs'], root, database, author_seal)
-    successor_authors = copied_source_authors(fresh, derivation['source_repairs'],
-                                       origins, root, database,
-                                       {'model': runtime['model'], 'runtime': {'native_session_id': runtime['session_id']}},
-                                       author_seal)
+    successor_authors = successor_source_authors(
+        fresh, derivation['source_repairs'], doc.get('source_authorship', {}),
+        doc.get('source_authorship_review'), root, database,
+        {'model': runtime['model'], 'runtime': {'native_session_id': runtime['session_id']}},
+        timestamp(manifest['sealed_at_utc']))
     pointer = read(root / 'reports/glp-clinic-scout/seo-machine/current-content-base.json')
     release = Path(pointer['release_root'])
     rows = [r for r in read(release / 'data/blog/accepted-guides/updates.json')['entries']
@@ -298,13 +399,15 @@ def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
            'raw_review': spec(receipt['raw_review_path']), 'subject_manifest': spec(receipt['subject_manifest_path']),
            'candidate': spec(packet / CANDIDATE),
            'successor': successor_contract(entry_path.parent / 'packet', packet, entry['packet_files'], manifest,
-                                           compile_packet=compiler.compile_packet),
+                                           compile_packet=compiler.compile_packet, root=root),
            'live_snapshot': spec(snapshot), 'live_binding': read(binding_path),
            'historical_custody_repaired': False, 'natural_acceptance': False}
     if source_author_packet is not None:
         origin = Path(source_author_packet)
         require(origin.is_absolute() and origin.is_dir() and not origin.is_symlink(), 'copied_source_directory')
-        names = doc['successor']['source_repairs']
+        names = [n for n in doc['successor']['source_repairs']
+                 if (origin / n).is_file() and (origin / n).read_bytes() == (packet / n).read_bytes()]
+        require(names, 'copied_source_matching_subjects_missing')
         require(all(not (origin / n).is_symlink() for n in names), 'copied_source_symlink')
         doc['source_authorship'] = {n: spec(origin / n) for n in names}
         require(source_author_review is not None, 'copied_source_native_review_required')

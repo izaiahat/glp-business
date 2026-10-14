@@ -18,7 +18,7 @@ from __future__ import annotations
 import csv
 import io
 import re
-from collections import deque
+
 
 from . import _base as b
 
@@ -79,29 +79,6 @@ def readback(transport, statuses: tuple = STATUSES) -> dict:
          "endpoint": f"GET {API}/user/publisher/{PUBLISHER_ID}/campaign/<status>"})
 
 
-def _discovery_records(doc) -> list[dict]:
-    """Bounded recursive extraction for Partnerize's nested v2 response."""
-    found: list[dict] = []
-    queue = deque([(doc, 0)])
-    seen_objects: set[int] = set()
-    while queue and len(found) < 10000:
-        value, depth = queue.popleft()
-        if depth > 10 or id(value) in seen_objects:
-            continue
-        seen_objects.add(id(value))
-        if isinstance(value, dict):
-            keys = {str(k).lower() for k in value}
-            if keys & {"advertiser_id", "advertiserid", "campaign_id", "campaignid"}:
-                found.append(value)
-            for child in value.values():
-                if isinstance(child, (dict, list)):
-                    queue.append((child, depth + 1))
-        elif isinstance(value, list):
-            for child in value[:10000]:
-                if isinstance(child, (dict, list)):
-                    queue.append((child, depth + 1))
-    return found
-
 
 def discovery(transport) -> dict:
     """Official Brand Discovery v2 catalogue (read-only, publisher-scoped)."""
@@ -114,36 +91,50 @@ def discovery(transport) -> dict:
                 "effects": {"provider_mutations": 0, "tracking_clicks": 0},
                 "secret_printed": False}
     doc = resp.json()
-    advertisers = []
-    seen: set[tuple[str, str]] = set()
-    for row in _discovery_records(doc):
-        advertiser = row.get("advertiser") if isinstance(row.get("advertiser"), dict) else row
-        aid = str(advertiser.get("advertiser_id") or advertiser.get("advertiserId")
-                  or advertiser.get("id") or "")
-        cid = str(advertiser.get("campaign_id") or advertiser.get("campaignId") or "")
-        key = (aid, cid)
-        if key == ("", "") or key in seen:
+    rows, blockers = [], []
+    endpoint = f"GET {API}/v2/publishers/{PUBLISHER_ID}/discovery/advertisers"
+    advertisers = doc.get("advertisers") if isinstance(doc, dict) else None
+    if not isinstance(advertisers, list):
+        blockers.append({"error_class": "partnerize_discovery_invalid_advertisers"})
+        advertisers = []
+    for adv in advertisers:
+        aid = adv.get("id") if isinstance(adv, dict) else None
+        campaigns = adv.get("campaigns") if isinstance(adv, dict) else None
+        if not isinstance(aid, str) or not aid or not isinstance(campaigns, list):
+            blockers.append({"error_class": "partnerize_discovery_invalid_advertiser"})
             continue
-        seen.add(key)
-        advertisers.append({
-            "advertiser_id": aid,
-            "campaign_id": cid,
-            "name": str(advertiser.get("title") or advertiser.get("name")
-                        or advertiser.get("advertiser_name") or ""),
-            "description": str(advertiser.get("description") or advertiser.get("vertical") or ""),
-            "region": str(advertiser.get("country") or advertiser.get("region") or ""),
-            "currency": str(advertiser.get("currency") or ""),
-            "categories": [str(value) for value in (
-                advertiser.get("categories") or advertiser.get("category") or [])]
-                if isinstance(advertiser.get("categories") or advertiser.get("category") or [], list)
-                else [str(advertiser.get("categories") or advertiser.get("category") or "")],
-            "url": str(advertiser.get("url") or advertiser.get("website")
-                       or advertiser.get("destination_url") or ""),
-        })
-    return {"status": "PASS" if advertisers else "EVIDENCED_EMPTY",
-            "http_status": resp.status, "advertisers": advertisers,
-            "advertiser_count": len(advertisers),
-            "endpoint": f"GET {API}/v2/publishers/{PUBLISHER_ID}/discovery/advertisers",
+        for campaign in campaigns:
+            cid = campaign.get("id") if isinstance(campaign, dict) else None
+            if not isinstance(cid, str) or not cid:
+                blockers.append({"error_class": "partnerize_discovery_invalid_campaign_id",
+                                 "advertiser_id": aid})
+                continue
+            countries = campaign.get("promotional_countries") or []
+            vertical = campaign.get("vertical") or {}
+            currency = campaign.get("currency") or {}
+            rows.append({
+                "advertiser_id": aid, "campaign_id": cid,
+                "name": campaign.get("title") or "",
+                "advertiser_name": adv.get("display_name") or adv.get("name") or "",
+                "description": adv.get("description") or "",
+                "url": campaign.get("default_destination") or "",
+                "network_status": campaign.get("status") or "",
+                "categories": [vertical["name"]] if vertical.get("name") else [],
+                "vertical": vertical, "promotional_countries": countries,
+                "region": ",".join(c["iso"] for c in countries if c.get("iso")),
+                "currency": currency.get("iso") or "", "publisher_id": PUBLISHER_ID,
+                "discovery_provenance": {"endpoint": endpoint, "publisher_id": PUBLISHER_ID,
+                                         "advertiser_id": aid, "campaign_id": cid},
+            })
+    return {"status": "EVIDENCED_BLOCKED" if blockers else ("PASS" if rows else "EVIDENCED_EMPTY"),
+            "http_status": resp.status, "advertisers": rows,
+            "publisher_id": PUBLISHER_ID, "advertiser_count": len(advertisers),
+            "advertiser_unique_count": len({a['id'] for a in advertisers
+                                            if isinstance(a, dict) and isinstance(a.get('id'), str)}),
+            "campaign_count": len(rows), "campaign_unique_count": len({r['campaign_id'] for r in rows}),
+            "reported_advertiser_total": doc.get("count") if isinstance(doc, dict) else None,
+            "reported_campaign_total": None, "blockers": blockers,
+            "endpoint": endpoint,
             "effects": {"provider_mutations": 0, "tracking_clicks": 0},
             "secret_printed": False}
 

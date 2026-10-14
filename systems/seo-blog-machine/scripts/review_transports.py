@@ -130,6 +130,19 @@ ASTRA_TRANSPORT: dict[str, Any] = {
 AUTHORIZED_TRANSPORTS[ASTRA_TRANSPORT["transport_id"]] = ASTRA_TRANSPORT
 DEFAULT_TRANSPORT_ID = ASTRA_TRANSPORT["transport_id"]
 
+# GLP320 RELEASE-OWNER explicit distinct-model route. Additive only: Astra
+# remains default and every historical identity remains receipt-reading only.
+SOL61_TRANSPORT: dict[str, Any] = {
+    **ASTRA_TRANSPORT,
+    "transport_id": "hermes-openai-codex-sol61-independent",
+    "model": "gpt-6.1-sol",
+    "speed": "fast",
+    "service_tier": "priority",
+    "authorized_since": "2026-10-14",
+}
+AUTHORIZED_TRANSPORTS[SOL61_TRANSPORT["transport_id"]] = SOL61_TRANSPORT
+NATIVE_INVOCATION_TRANSPORT_IDS = (ASTRA_TRANSPORT["transport_id"], SOL61_TRANSPORT["transport_id"])
+
 # The retired Bridge-review path. It was never packet-bound, never tool-free and
 # never schema-pinned, so it stays forbidden in every active source regardless of
 # which authorized transport is in use.
@@ -193,7 +206,7 @@ def validate_raw_review_runtime(raw: dict[str, Any], *, error: type[Exception] =
     # demand new fields from authentic historical transport identities.
     if "service_tier" in row:
         for block in (review_input, runtime):
-            if any(block.get(key) != row[key] for key in ("effort", "speed", "service_tier")):
+            if any(block.get(key) != row[key] for key in ("transport_id", "effort", "speed", "service_tier")):
                 raise error(f"{prefix}_current_route_pin_invalid:{row['transport_id']}")
 
     if (review_input.get("provider") != row["provider"]

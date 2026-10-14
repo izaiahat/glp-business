@@ -96,6 +96,242 @@ def test_shared_rail_journal_spend_counts_toward_cap(tmp_path):
         make(tmp_path / 'b', alerts, journal=journal).reserve('dataforseo', VOLUME, [{'keywords': ['a']}], run_id='t')
 
 
+def test_exact_append_only_rail_reconciliation(tmp_path, monkeypatch):
+    """Real sticky-UNKNOWN regression and refusal controls; all evidence synthetic."""
+    import hashlib
+    from copy import deepcopy
+
+    endpoint = '/serp/google/organic/live/advanced'
+    payload = [{'keyword': 'offline fixture', 'depth': 10}]
+    request_hash = hashlib.sha256(json.dumps([endpoint, payload], sort_keys=True,
+                                             allow_nan=False).encode()).hexdigest()
+    from ops.glp import seo_data_rails as rails
+    task_id = '10121300-0000-0000-0000-000000000001'
+    base = {'at': NOW.timestamp(), 'account': 'tryboringai', 'run_id': 'fixture-run',
+            'attempt_id': 'fixture-attempt', 'request_hash': request_hash}
+    attempt = dict(base, event='ATTEMPT', endpoint=endpoint, cost=None)
+    ambiguous = dict(base, at=base['at'] + 2, event='AMBIGUOUS', cost=None,
+                     provider_task_ids=[task_id])
+    # Native account/authenticated transport is mocked ONLY in this offline test.
+    # Local artifacts by themselves must never satisfy provider provenance.
+    def offline_init(self, **kwargs):
+        self._accounts = {'tryboringai': {'auth': 'OFFLINE-TRANSPORT-SENTINEL'}}
+    monkeypatch.setattr(rails.DataForSEO, '__init__', offline_init)
+    provider_record = {'id': task_id, 'url': 'v3' + endpoint, 'status': '20000',
+                       'datetime_posted': NOW.strftime('%Y-%m-%d %H:%M:%S +00:00'),
+                       'datetime_done': (NOW + dt.timedelta(seconds=1)).strftime('%Y-%m-%d %H:%M:%S +00:00'),
+                       'cost': '0.002', 'metadata': dict(payload[0], api='serp', function='live',
+                                                        se='google', se_type='organic')}
+    provider_rows = [provider_record]
+    provider_reads = []
+    def offline_http(url, **kwargs):
+        provider_reads.append((url, kwargs['body']))
+        assert url == rails.DataForSEO.BASE + '/serp/id_list'
+        assert kwargs['method'] == 'POST' and kwargs['retries'] == 1
+        assert kwargs['body'][0]['include_metadata'] is True
+        return {'status_code': 20000, 'cost': 0, 'tasks': [
+            {'status_code': 20000, 'cost': 0, 'path': ['v3', 'serp', 'id_list'],
+             'data': kwargs['body'][0], 'result': deepcopy(provider_rows)}]}
+    monkeypatch.setattr(rails, '_http', offline_http)
+    artifact = tmp_path / 'provider-response.json'
+    evidence = {**{k: base[k] for k in ('account', 'run_id', 'attempt_id', 'request_hash')},
+                'endpoint': endpoint, 'payload': payload,
+                'response': {'status_code': 20000, 'cost': '0.002',
+                             'tasks': [{'id': task_id, 'status_code': 20000,
+                                        'cost': '0.002', 'data': deepcopy(provider_record['metadata'])}]}}
+    artifact.write_text(json.dumps(evidence))
+    proof = {'kind': 'dataforseo_response', 'path': str(artifact),
+             'sha256': hashlib.sha256(artifact.read_bytes()).hexdigest()}
+    result = dict(base, at=base['at'] + 8 * 86400, event='RESULT', state='MEASURED',
+                  cost='0.002', provider_evidence=proof)
+    journal = tmp_path / 'rail.jsonl'
+
+    def check(rows, expected=('0.002', False), week=dt.date(2026, 10, 12)):
+        journal.write_text('\n'.join(json.dumps(r) for r in rows) + '\n')
+        before = journal.read_bytes()
+        b = WeeklyBudget(ledger_root=tmp_path / 'budget', rail_journal=journal, alert=None,
+                         clock=lambda: NOW)
+        cost, unknown = b._rail_spend(week)
+        assert (str(cost), unknown) == expected
+        assert journal.read_bytes() == before  # reducer never rewrites history
+        return b
+
+    check([attempt, ambiguous, result, result])  # charge once, in original week
+    check([attempt, ambiguous, result], ('0', False), dt.date(2026, 10, 19))
+    # Ordinary maintained rail RESULT still needs no recovery artifact.
+    ordinary = dict(base, event='RESULT', state='MEASURED', cost='0.002')
+    check([attempt, ordinary, ordinary])
+    check([attempt, ambiguous], ('0', True))
+    check([attempt, ambiguous, ordinary], ('0', True))  # bare label is not recovery proof
+    # A different raw hash without a competing payload cannot exclude ownership.
+    check([attempt, ambiguous, result, dict(base, event='ATTEMPT', attempt_id='other', request_hash='other')],
+          ('0', True))
+    check([attempt, ambiguous, result, dict(base, event='ATTEMPT', attempt_id='overlapping')], ('0', True))
+    check([result], ('0', True), dt.date(2026, 10, 19))  # orphan result
+    for field in ('account', 'run_id', 'attempt_id', 'request_hash'):
+        bad = dict(result, **{field: 'different'})
+        check([attempt, ambiguous, bad], ('0', True))
+    for cost in (None, True, -1, 'NaN', 'Infinity', 'estimate'):
+        check([attempt, ambiguous, dict(result, cost=cost)], ('0', True))
+    for state in ('UNKNOWN', 'BALANCE', 'ESTIMATED', 'EXHAUSTED', 'PROVIDER_ERROR'):
+        check([attempt, ambiguous, dict(result, state=state)], ('0', True))
+    for bad_proof in ({}, dict(proof, kind='balance'), dict(proof, path=str(tmp_path / 'missing')),
+                      dict(proof, sha256='0' * 64)):
+        check([attempt, ambiguous, dict(result, provider_evidence=bad_proof)], ('0', True))
+    # Authenticated bytes with mismatched or incomplete contents still refuse.
+    for field, value in [('account', 'other'), ('run_id', 'other'), ('attempt_id', 'other'),
+                         ('request_hash', 'other'), ('endpoint', '/other'), ('payload', []),
+                         ('response', {'cost': 0, 'tasks': []})]:
+        bad_evidence = deepcopy(evidence)
+        bad_evidence[field] = value
+        artifact.write_text(json.dumps(bad_evidence))
+        bad_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+        check([attempt, ambiguous, dict(result, provider_evidence=bad_proof)], ('0', True))
+    for change in ('missing_task_id', 'duplicate_task', 'task_cost', 'envelope_cost', 'task_status'):
+        bad_evidence = deepcopy(evidence)
+        response = bad_evidence['response']
+        if change == 'missing_task_id':
+            response['tasks'][0].pop('id')
+        elif change == 'duplicate_task':
+            response['tasks'].append(deepcopy(response['tasks'][0]))
+        elif change == 'task_cost':
+            response['tasks'][0]['cost'] = '0.003'
+        elif change == 'envelope_cost':
+            response['cost'] = None
+        else:
+            response['tasks'][0]['status_code'] = 40200
+        artifact.write_text(json.dumps(bad_evidence))
+        bad_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+        check([attempt, ambiguous, dict(result, provider_evidence=bad_proof)], ('0', True))
+    # Five independently reported failures, now also exercised with native identity.
+    artifact.write_text(json.dumps(evidence))
+    reads_before = len(provider_reads)
+    check([attempt, dict(ambiguous, provider_task_ids=[]), result], ('0', True))
+    assert len(provider_reads) == reads_before
+    local_approval = dict(result, provider_evidence=dict(proof, approved=True))
+    check([attempt, dict(ambiguous, provider_task_ids=[]), local_approval], ('0', True))
+    assert len(provider_reads) == reads_before
+    monkeypatch.setattr(rails, '_http', lambda *a, **k: (_ for _ in ()).throw(OSError('offline unavailable')))
+    check([attempt, ambiguous, result], ('0', True))
+    monkeypatch.setattr(rails, '_http', offline_http)
+    wrong_query = deepcopy(evidence)
+    wrong_query['response']['tasks'][0]['data']['keyword'] = 'unrelated'
+    artifact.write_text(json.dumps(wrong_query))
+    wrong_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+    check([attempt, ambiguous, dict(result, provider_evidence=wrong_proof)], ('0', True))
+    artifact.write_text(json.dumps(evidence))
+    conflicting = deepcopy(evidence)
+    conflicting['response']['tasks'][0]['id'] = '10121300-0000-0000-0000-000000000002'
+    second_artifact = tmp_path / 'conflicting.json'
+    second_artifact.write_text(json.dumps(conflicting))
+    second = dict(result, provider_evidence=dict(proof, path=str(second_artifact),
+        sha256=hashlib.sha256(second_artifact.read_bytes()).hexdigest()))
+    check([attempt, ambiguous, result, second], ('0', True))
+    check([attempt, ambiguous, dict(result, endpoint='/UNRELATED/ENDPOINT')], ('0', True))
+    check([attempt, ambiguous, dict(result, at=base['at'] + 1)], ('0', True))
+    # Native account read, not the local response, must independently establish
+    # exact cost, ID, request/endpoint and provider chronology. Missing != zero.
+    for field, value in [('id', 'other'), ('url', 'v3/other'), ('cost', '0.003'),
+                         ('status', '40400'), ('metadata', {'keyword': 'unrelated'}),
+                         ('metadata', dict(provider_record['metadata'], target='UNRELATED')),
+                         ('datetime_posted', '2026-10-01 03:00:00 +00:00'),
+                         ('datetime_done', '2026-10-20 03:00:00 +00:00')]:
+        provider_rows[0] = dict(provider_record, **{field: value})
+        check([attempt, ambiguous, result], ('0', True))
+    provider_rows.clear()
+    check([attempt, ambiguous, result], ('0', True))
+    provider_rows[:] = [provider_record, deepcopy(provider_record)]
+    check([attempt, ambiguous, result], ('0', True))
+    provider_rows[:] = [provider_record]
+    artifact.write_text(json.dumps(evidence))
+    zero_evidence = deepcopy(evidence)
+    zero_evidence['response']['cost'] = zero_evidence['response']['tasks'][0]['cost'] = '0'
+    artifact.write_text(json.dumps(zero_evidence))
+    zero_proof = dict(proof, sha256=hashlib.sha256(artifact.read_bytes()).hexdigest())
+    # Self-written zero still fails until authenticated task cost is also zero.
+    check([attempt, ambiguous, dict(result, cost='0', provider_evidence=zero_proof)], ('0', True))
+    provider_record['cost'] = '0'
+    check([attempt, ambiguous, dict(result, cost='0', provider_evidence=zero_proof)], ('0', False))
+    provider_record['cost'] = '0.002'
+    artifact.write_text(json.dumps(evidence))
+    check([attempt, ambiguous, result, dict(result, cost='0.003')], ('0', True))
+    check([attempt, ambiguous, dict(result, at=base['at'] - 1)], ('0', True))
+    check([result, attempt, ambiguous, result], ('0', True))
+    check([attempt, ambiguous, result, ambiguous], ('0', True))  # later uncertainty wins
+    check([attempt, dict(attempt, endpoint='/other'), ambiguous, result], ('0', True))
+    b = check([attempt, ambiguous, dict(result, provider_evidence={})], ('0', True))
+    sent = []
+    with pytest.raises(BudgetRefused, match='unknown_prior_spend_this_week'):
+        b.guarded('dataforseo', VOLUME, [{'keywords': ['a']}], lambda: sent.append(1),
+                  run_id='fixture-run', cost_of=lambda _: 0)
+    assert sent == []
+
+
+@pytest.fixture
+def competing_recovery(tmp_path, monkeypatch):
+    """Synthetic native transport only; never a live billing receipt."""
+    import hashlib
+    from ops.glp import seo_data_rails as rails
+
+    endpoint = '/serp/google/organic/live/advanced'
+    payload = [{'keyword': 'offline fixture', 'depth': 10}]
+    digest = hashlib.sha256(json.dumps([endpoint, payload], sort_keys=True).encode()).hexdigest()
+    attempt = dict(event='ATTEMPT', at=NOW.timestamp() + .8, endpoint=endpoint,
+                   account='tryboringai', run_id='offline-run', attempt_id='offline-attempt',
+                   request_hash=digest)
+    ambiguous = dict(attempt, event='AMBIGUOUS', at=NOW.timestamp() + 2)
+    task_id = '10121300-0000-0000-0000-000000000001'
+    echo = dict(payload[0], api='serp', function='live', se='google', se_type='organic')
+    record = dict(id=task_id, url='v3' + endpoint, status='20000', cost='0.002',
+                  metadata=dict(echo, os='windows'), datetime_posted=NOW.strftime('%Y-%m-%d %H:%M:%S %z'),
+                  datetime_done=NOW.strftime('%Y-%m-%d %H:%M:%S %z'))
+    def init(self, **kwargs):
+        self._accounts = {'tryboringai': {'auth': 'OFFLINE-ONLY'}}
+    def http(url, **kwargs):
+        assert url == rails.DataForSEO.BASE + '/serp/id_list'
+        assert kwargs['headers'] == {'Authorization': 'Basic OFFLINE-ONLY'}
+        return dict(status_code=20000, cost=0, tasks=[dict(status_code=20000, cost=0,
+                    path=['v3', 'serp', 'id_list'], data=kwargs['body'][0], result=[record])])
+    monkeypatch.setattr(rails.DataForSEO, '__init__', init)
+    monkeypatch.setattr(rails, '_http', http)
+    artifact = tmp_path / 'offline-response.json'
+    artifact.write_text(json.dumps(dict(attempt, payload=payload, response=dict(status_code=20000,
+        cost='0.002', tasks=[dict(id=task_id, status_code=20000, cost='0.002', data=echo)]))))
+    result = dict(attempt, event='RESULT', at=NOW.timestamp() + 3, state='MEASURED', cost='0.002',
+                  provider_evidence=dict(kind='dataforseo_response', path=str(artifact),
+                      sha256=hashlib.sha256(artifact.read_bytes()).hexdigest()))
+    journal = tmp_path / 'offline-rail.jsonl'
+    def reduce(competitor):
+        rows = [*competitor, attempt, ambiguous, result]
+        journal.write_text(''.join(json.dumps(r) + '\n' for r in rows))
+        return make(tmp_path, [], journal).receipt()
+    positive = reduce([])
+    assert positive['rail_journal_usd'] == '0.002' and positive['within_cap'] is True
+    return attempt, payload, reduce
+
+
+def test_same_second_disjoint_native_attempts_refuse_recovery(competing_recovery):
+    attempt, payload, reduce = competing_recovery
+    other = dict(attempt, at=NOW.timestamp() + .1, attempt_id='offline-other')
+    terminal = dict(other, at=NOW.timestamp() + .4, event='RESULT', cost='0.002', state='MEASURED')
+    receipt = reduce([other, terminal])
+    assert receipt['rail_journal_usd'] == '0.002'  # ordinary measured request only
+    assert receipt['rail_journal_unknown'] is True and receipt['within_cap'] is False
+
+
+def test_default_equivalent_native_requests_refuse_recovery(competing_recovery):
+    import hashlib
+    attempt, payload, reduce = competing_recovery
+    explicit_default = [dict(payload[0], os='windows')]
+    digest = hashlib.sha256(json.dumps([attempt['endpoint'], explicit_default], sort_keys=True).encode()).hexdigest()
+    assert digest != attempt['request_hash']
+    other = dict(attempt, attempt_id='offline-other', request_hash=digest)
+    terminal = dict(other, at=NOW.timestamp() + 1, event='RESULT', cost='0.002', state='MEASURED')
+    receipt = reduce([other, terminal])
+    assert receipt['rail_journal_usd'] == '0.002'
+    assert receipt['rail_journal_unknown'] is True and receipt['within_cap'] is False
+
+
 def test_cap_cannot_exceed_operator_authority(tmp_path):
     with pytest.raises(ValueError, match='weekly_cap_outside_operator_authority'):
         WeeklyBudget(ledger_root=tmp_path, rail_journal=None, cap_usd='25.01', alert=None)

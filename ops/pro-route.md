@@ -31,6 +31,16 @@ The queue is `ops/gpt6pro-relay/route/queue/*.json`; registered wave packets and
 - `fetch` only polls/fetches an already bound running/done request. It never submits. An absent or unverifiable outbox is held for owner review; no synthetic manifest or locally manufactured Pro output is accepted.
 - Legacy packet records without frozen packet hashes can still be polled/fetched; they cannot be newly submitted by the hardened route.
 
+## Future native receiving (source only; no installation or effect grant)
+
+The maintained producer is `scripts/gpt6pro_relay.py`, registered in `ops/rebuild-source-manifest.json` under the on-demand wave caller. `gpt6pro_wave.py`, the route's fetch subprocess, and manual receiving use its `fetch-outbox` entry. Historical report-local native helpers are not installed producers and must not be reused for future effects.
+
+After a distinct exact-head safety verdict, parent installation/effect approval, and normal singleton/heavy/account custody, the existing entry accepts explicit `fetch-outbox --job <exact-bound-done-job> --download-dir <new-empty-original-directory> --receive-native`. Dispatch and normal fetch never add this flag automatically. The caller must own the account-wide download-behavior interval with default behavior as its baseline; finally restores that default and disables download events. This is not permission to receive any old acknowledged or uncertain effect again.
+
+Before opening a preview or clicking, a private fsynced exclusive intent in that existing JOB directory freezes job/conversation/tab/file/input/reply/digest/destination identity. Any previous intent blocks a second attempt, including ERROR, CANCELED and UNKNOWN. Browser events are enabled before the click; matching fresh frame/filename/GUID events retain URL, progress, bytes and native destination locally. Stale, other-frame/name/GUID and ambiguous events cannot establish completion. Missing events or optional CDP `filePath` stay UNKNOWN even when an expected-name file exists. Only a completed native event, exact destination and original expected SHA256 establish transfer completion. Native receipts must never be published: their URLs may be private.
+
+The original final-chat/manifest/input/reply-token/payload verifier still runs before outbox promotion, and checks manifest identity before authorizing declared payload clicks. Transfer completion is not delivery or GLP-357 acceptance. An UNKNOWN result authorizes no click, reload, send, followup, reconstruction or Drive substitution. Preserve historical acknowledged-download receipts unchanged; this candidate neither recovers nor retries them. Independent review and an eligible future source-bound entry remain prerequisites for live validation.
+
 ## Observed deployment blockers (2026-10-07)
 
 The parent-authorized old account-2 terminal disposition succeeded and preserved its draft. However, ChatGPT restores that 13,323-character draft into every new normal chat. Temporary mode was empty; switching back restored the draft while the original remained unchanged. Account 2 is explicitly held. Do not clear its draft, reload its retained target or resend the old job. An isolated authenticated normal-chat context or a separately accepted draft-preservation recovery is still needed.

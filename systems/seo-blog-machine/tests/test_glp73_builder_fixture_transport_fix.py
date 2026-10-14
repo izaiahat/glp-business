@@ -163,7 +163,8 @@ def test_t01_runtime_isolation_denial_overrides_input_but_absence_replays():
 def current_runtime(row):
     raw = runtime(row)
     for name in ("review_input", "review_runtime"):
-        raw[name].update(effort=row["effort"], speed="normal", service_tier="default")
+        raw[name].update(transport_id=row["transport_id"], effort=row["effort"],
+                         speed="normal", service_tier="default")
     return raw
 
 
@@ -218,7 +219,7 @@ def test_native_reviewer_pins_standard_and_refuses_legacy_or_tools():
     assert inp["transport_id"] == "hermes-openai-codex-astra-independent"
     assert inp["speed"] == "normal" and inp["service_tier"] == "default"
     for field, bad in (("provider", "anthropic"), ("model", "gpt-5.6-sol"),
-                       ("model", "gpt-6.1-sol"), ("effort", "xhigh"), ("disable_tools", False)):
+                       ("model", "unregistered-sol"), ("effort", "xhigh"), ("disable_tools", False)):
         altered = copy.copy(args)
         setattr(altered, field, bad)
         with pytest.raises(ValueError):
