@@ -1026,3 +1026,23 @@ def test_capture_unknown_operation_has_no_ambiguous_replay(monkeypatch, tmp_path
         p.capture_admissible('scrape', 'https://example.com/')
     assert ledger.read_bytes() == before
     p.capture_admissible('scrape', 'https://different.example/')
+
+
+@pytest.mark.parametrize('proxy,formats,expected', [('basic',['rawHtml'],1), ('auto',['markdown'],5), ('auto',['json'],None)])
+def test_null_capture_cost_is_unknown_bounded_or_refused(monkeypatch, tmp_path, proxy, formats, expected):
+    import glp_firecrawl_jobs as jobs
+    import firecrawl_client
+    ledger = tmp_path/'operations.jsonl'
+    monkeypatch.setattr(firecrawl_client, 'LEDGER', ledger)
+    monkeypatch.setattr(jobs, 'spent_today', lambda *a: 0)
+    at = supply.now()
+    ledger.write_text(json.dumps({'operation_id':'unknown-capture-cost', 'caller':supply.CALLER,
+        'at_utc':at.isoformat(), 'endpoint':'/v2/scrape', 'outcome':'success', 'creditsUsed':None,
+        'url_hash':['hash-only'], 'options':{'proxy':proxy,'formats':formats}})+'\n')
+    p = supply.Producer.__new__(supply.Producer); p.report = {}
+    if expected is None:
+        with pytest.raises(RuntimeError, match='sponsor_ledger_credit_cost_unknown'):
+            p.daily_accounted(at.date().isoformat())
+    else:
+        assert p.daily_accounted(at.date().isoformat()) == expected
+        assert p.report['unknown_credit_costs'] == [{'operation_id':'unknown-capture-cost', 'creditsUsed':None, 'accounted_ceiling':expected}]

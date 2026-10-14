@@ -405,7 +405,13 @@ class Producer:
             elif row.get('endpoint') == '/v2/scrape' and row.get('url_hash'):
                 # Basic single raw-HTML page = 1; prior auto/enhanced capture
                 # can consume 5. Preserve UNKNOWN, account its upper bound.
-                ceiling = 1 if row.get('options', {}).get('proxy') == 'basic' else 5
+                options = row.get('options') or {}
+                formats = options.get('formats')
+                if not isinstance(formats, list) or not formats or not set(formats) <= {'rawHtml','html','markdown','links'}:
+                    raise RuntimeError('sponsor_ledger_credit_cost_unknown')
+                if options.get('proxy') not in (None, 'basic', 'auto', 'enhanced'):
+                    raise RuntimeError('sponsor_ledger_credit_cost_unknown')
+                ceiling = 1 if options.get('proxy') == 'basic' else 5
             elif row.get('caller') in (ALEX_CALLER, 'fc71_sponsor_alexandria'):
                 ceiling = 30
             else:
