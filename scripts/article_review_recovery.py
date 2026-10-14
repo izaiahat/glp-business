@@ -17,6 +17,7 @@ Copying old QA into the successor cannot manufacture equality: 07 must hash the
 successor 06 and the recompiled 06 must match.
 """
 import argparse
+import fcntl
 import hashlib
 import html as htmllib
 import json
@@ -438,8 +439,12 @@ def main():
     parser.add_argument('--source-author-review', type=Path,
                         help='native origin review binding the copied source hashes (provenance only)')
     args = parser.parse_args()
-    from glp_release_main import lock_module
-    with lock_module().acquire('main-site-release', owner='article-review-recovery', root=ROOT):
+    from glp_release_main import RUNS
+    RUNS.mkdir(parents=True, exist_ok=True)
+    # Same nonblocking lock as hourly main release and the :17 sync job;
+    # retain it through all input admission, full-byte validation and sealing.
+    with (RUNS / 'run.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         path = seal(args.entry.resolve(strict=True), args.history.resolve(strict=True),
                     args.packet.resolve(strict=True), args.live_binding.resolve(strict=True),
                     args.live_snapshot.resolve(strict=True), source_author_packet=args.source_author_packet,
