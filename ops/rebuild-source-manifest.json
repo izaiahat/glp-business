@@ -675,7 +675,7 @@
     "ops/disk-retention-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "57ab552256e98cd724adc5c73e056005a8974b5954bc870b58ce66edb557e48f"
+      "sha256": "525703a91cda939c52f8844e60a77016792fd99abee21fdfd337f1dd987dee3f"
     },
     "ops/fable-mention-recovery.md": {
       "callers": [],
@@ -7612,7 +7612,7 @@
       "callers": [
         "business-source-ci: GLP349 owning pruner group"
       ],
-      "sha256": "078eec705403d18c376bc70ad21f799cbf23d49011c59ca7d729e2b2045e6b15"
+      "sha256": "36c477a69663ea46222162e5d2e6ba0d30fb1d6443423eb6c13cba7958d648ca"
     }
   },
   "omitted_runtime_inputs": [

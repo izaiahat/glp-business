@@ -238,5 +238,28 @@ class ScreenshotReceiptTests(unittest.TestCase):
             self.assertFalse(self.invoke()[0])
 
 
+class CurrentPolicyPointerTests(unittest.TestCase):
+    def test_exact_live_preimage_preserved_except_genuine_receipt_pointer(self):
+        # Complete authenticated policy preimage, not an assumed checkout policy.
+        # This static source regression does not install policy or qualify images.
+        source = SOURCE.parents[1] / 'ops/disk-retention-policy.json'
+        raw = source.read_text()
+        policy = json.loads(raw)
+        pointer = policy['rule_D']['dry_run_receipt']
+        old_path = '/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/pr233-qualification-20261004T075713Z-231834/dry-run-images.json'
+        new_path = '/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/host-repair-20261014T004149Z/dry-run-images.json'
+        old_sha = 'b99d3c4244402a18217ac39b210dd5fcefe06ee4e6391d4520a9f035bdd369c4'
+        new_sha = 'fc4b4aa14bba8122cd770c2477b90a5b9b4b7d5ccb6a4c41089f3221bf58b3e6'
+        self.assertEqual(pointer, {'path': new_path, 'sha256': new_sha})
+        self.assertEqual(raw.count(new_path), 1)
+        self.assertEqual(raw.count(new_sha), 1)
+        restored = raw.replace(new_path, old_path).replace(new_sha, old_sha).encode()
+        self.assertEqual(hashlib.sha256(restored).hexdigest(),
+                         '0438bdf671da6098f14343cce2cd4983dc376f7a48a3303f2b388cd60d3d4d73')
+        self.assertIn('/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13',
+                      policy['protected_roots'])
+        self.assertNotIn('completed_ci_dependencies', policy)
+
+
 if __name__ == '__main__':
     unittest.main()
