@@ -101,6 +101,8 @@ def test_omitted_invoice_arrays_do_not_become_explicit_empty(intake):
 
 def test_existing_main_actually_receives_evidence_without_conversion_promotion(intake, tmp_path, monkeypatch):
     import sys
+    old_umask = m.os.umask(0o077)
+    m.os.umask(old_umask)
     old = {name: sys.modules.get(name) for name in m.DEPENDENCIES}
     monkeypatch.setattr(m, 'ROOT', ROOT)
     try:
@@ -128,6 +130,7 @@ def test_existing_main_actually_receives_evidence_without_conversion_promotion(i
         assert result['commission_minor'] is result['cash_minor'] is None
         assert result['networks'][0]['financial_input_records'] == []
     finally:
+        m.os.umask(old_umask)
         for name, value in old.items():
             if value is None: sys.modules.pop(name,None)
             else: sys.modules[name]=value
