@@ -203,9 +203,6 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     targets=idle_targets(scratch,include_declared=bool(external_pins) and external_ok)
     rows.extend(m.idle_scratch(guarded,targets,pins=pins,dry_run=dry_run,deadline=deadline))
     save('cold_evidence')
-    roots=cold_report_roots(pins,pressure=pressure)
-    estimates,ranking_refusals=rank_reports(roots,deadline)
-    rows.extend(ranking_refusals)
     class Unavailable:
         def store(self,*args):raise RuntimeError('R2 destination unavailable')
     remote=Unavailable();r2info={'bucket':'glp-cold-evidence','status':'DRY_RUN_NO_CONTACT'}
@@ -217,6 +214,16 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
         except Exception as error:
             r2info.update(status='UNAVAILABLE_LOCAL_FALLBACK',error_type=type(error).__name__)
 
+    # Reserve site archive time before the unbounded report backlog.
+    # Custody/age/net-savings gates and the overall scheduled cap are unchanged.
+    if external_pins and external_ok and time.monotonic()<deadline:
+        import host_disk_auto_classes as auto
+        save('site_cold_archive')
+        site_deadline=min(deadline,time.monotonic()+budget/3)
+        rows.extend(auto.site_cold_archive(guarded,m,report,pins=pins,deadline=site_deadline,dry_run=dry_run,archive_destination=remote))
+    roots=cold_report_roots(pins,pressure=pressure)
+    estimates,ranking_refusals=rank_reports(roots,deadline)
+    rows.extend(ranking_refusals)
     if external_ok and time.monotonic()<deadline:
         from host_disk_r2 import migrate_archives
         save('r2_existing_archives')
@@ -258,10 +265,6 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     if time.monotonic()<deadline:
         rows.extend(m.verified_duplicates(guarded,duplicate_targets,report/'duplicate-manifest.json',
             pins=pins,dry_run=dry_run,deadline=deadline))
-    if external_pins and external_ok and time.monotonic()<deadline:
-        import host_disk_auto_classes as auto
-        save('site_cold_archive')
-        rows.extend(auto.site_cold_archive(guarded,m,report,pins=pins,deadline=deadline,dry_run=dry_run,archive_destination=remote))
     if external_ok and not dry_run and hasattr(remote,'summary'):
         try:r2info=remote.summary()
         except Exception as error:r2info.update(status='OBJECT_COUNTS_UNKNOWN',error_type=type(error).__name__)
