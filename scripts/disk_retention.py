@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import time
+from bounded_pruner import ScanBudget, tree_stats, discovery
 
 BUS = Path('/home/ubuntu/business')
 FLAG = BUS / 'site-system/flagship-v2'
@@ -24,13 +25,21 @@ def digest(path):
     return h.hexdigest()
 
 
+def protected_name(path):
+    p = Path(path)
+    return ((p.suffix in {'.db', '.sqlite', '.sqlite3'} and
+             not p.name.startswith(('state-archive-', 'archive.'))) or
+            any(n.startswith(('sealed-', 'tmux-', '.org.chromium.', 'state.db',
+                              'chrome-profile', 'chromium-profile', 'cdp-', 'financial')) or
+                n in {'secrets', 'state', 'sessions', 'evidence', 'finance', 'payments',
+                      'browser-profiles', 'chromium', 'claude-1000', 'hermes-results', '.git', '.worktrees'}
+                for n in p.parts))
+
+
 def protected(path):
     p = Path(path)
-    names = p.parts
-    return (p.is_symlink() or p.resolve() != p.absolute() or
-            any(n.startswith(('sealed-', 'tmux-', '.org.chromium.', 'state.db')) or
-                n in {'secrets', 'browser-profiles', 'chromium', 'claude-1000', 'hermes-results', '.git'}
-                for n in names))
+    return (protected_name(p) or p.is_symlink() or p.resolve() != p.absolute() or
+            (p.is_dir() and (p/'.git').exists()))
 
 
 def growth_sensor():
@@ -174,7 +183,106 @@ def decompressed_digest(path):
     return h.hexdigest()
 
 
-def run_extensions(api, *, dry_run, pressure, maintenance_state, now):
+REGENERABLE_ROOT = BUS / 'reports/ops'
+REGENERABLE_FILES = ('trace.zip', 'video.webm')
+REGENERABLE_FILE_PREFIXES = ('test-failed-',)
+REGENERABLE_DIRS = ('snapshot', 'snapshot-ro', 'apply')
+REGENERABLE_MIN_AGE = 3 * 86400
+LIVE_REFERENCE_FILES = (BUS / 'ops/seat-standing-work.json',)
+
+
+def live_references():
+    """Paths named by live seat briefs; anything they mention stays."""
+    text = ''
+    for ref in LIVE_REFERENCE_FILES:
+        try:
+            raw = ref.read_text()
+        except OSError:
+            continue
+        text += raw
+        for brief in set(__import__('re').findall(r'/home/ubuntu/business/ops/linear/briefs/[\w.\-]+\.md', raw)):
+            try:
+                text += Path(brief).read_text()
+            except OSError:
+                pass
+    return text
+
+
+def regenerable_test_artifacts(api, policy, *, dry_run, now=None, root=REGENERABLE_ROOT,
+                               min_age=REGENERABLE_MIN_AGE, time_budget=30,
+                               maintenance_state=None):
+    """Same name/age allowlist; checkpoint discovery and prune whole eligible dirs.
+
+    JSON/log/receipt evidence is never matched. Noneligible dependency, Git and
+    browser subtrees are refused early. Incomplete descendant scans cannot grant
+    deletion, and a fresh process/identity check precedes each effect.
+    """
+    now = time.time() if now is None else now
+    started = time.monotonic()
+    deadline = started + time_budget
+    refs = live_references()
+    guard = [str(Path(x).resolve()).rstrip('/') for x in policy.get('protected_roots', [])]
+    state = maintenance_state if maintenance_state is not None else {}
+    cursor = state.setdefault('artifact_scan', {})
+    if cursor.get('root') != str(root):
+        cursor.clear(); cursor['root'] = str(root)
+    def blocked(p):
+        text = str(p)
+        return (protected_name(p) or 'node_modules' in p.parts
+                or (p.is_dir() and (p/'.git').exists())
+                or any(text == g or text.startswith(g+'/') for g in guard))
+    if root.is_symlink() or root.resolve() != root.absolute():
+        return [{'ok': True, 'rule': 'regenerable_test_artifacts', 'status': 'ROOT_SYMLINK_REFUSED',
+                 'removed': 0, 'bytes_freed': 0}]
+    procs = api.process_inventory()
+    rows, freed, count, partial = [], 0, 0, False
+    walker = discovery(root, cursor, deadline=deadline, skip=blocked)
+    def checkpoint():
+        if not dry_run and maintenance_state is not None:
+            api.write_maintenance_state(state)
+    try:
+        item = next(walker)
+        while True:
+            p, is_dir = item
+            hit = ((is_dir and p.name in REGENERABLE_DIRS and p.parent.name != 'public')
+                   or (not is_dir and (p.name in REGENERABLE_FILES or
+                                       p.name.startswith(REGENERABLE_FILE_PREFIXES))))
+            descend = is_dir and not hit
+            if hit and not blocked(p):
+                rel = str(p.relative_to(BUS))
+                if rel not in refs and str(p) not in refs:
+                    identity = api.path_identity(p)
+                    newest, amount = tree_stats(p, cutoff=now-min_age, deadline=deadline,
+                                                 protected=blocked)
+                    if now-newest > min_age and not api.path_is_active(p, procs):
+                        valid, reason = api.revalidate_candidate(p, identity, require_directory=is_dir)
+                        if valid:
+                            if not dry_run:
+                                result = api.remove_disposable(p, deadline=deadline)
+                                if not result:
+                                    rows.append({'path': str(p), 'ok': True, 'skipped': 'removal_partial'})
+                                    raise ScanBudget()
+                                # Discovery acknowledges after this effect returns;
+                                # names, not shifting scandir offsets, are checkpointed.
+                            freed += amount; count += 1
+                            cursor['reclaimed_bytes'] = cursor.get('reclaimed_bytes', 0) + (0 if dry_run else amount)
+                            checkpoint()
+            item = walker.send(descend)
+    except StopIteration:
+        state.pop('artifact_scan', None)
+    except ScanBudget:
+        partial = True
+    finally:
+        walker.close()
+        checkpoint()
+    rows.append({'rule': 'regenerable_test_artifacts', 'ok': True, 'removed': count,
+                 'status': 'TIME_BUDGET_PARTIAL' if partial else 'COMPLETE',
+                 'runtime_seconds': round(time.monotonic()-started, 3),
+                 'eligible_bytes': freed if dry_run else 0, 'bytes_freed': 0 if dry_run else freed})
+    return rows
+
+
+def legacy_run_extensions_disabled(api, *, dry_run, pressure, maintenance_state, now):
     policy = load_policy()
     rows = []
     pointer_ok = False
@@ -194,6 +302,8 @@ def run_extensions(api, *, dry_run, pressure, maintenance_state, now):
             if p.exists() and not protected(p) and not api.path_is_active(p, api.process_inventory()):
                 rows.append(api.safe_remove_cache(p, dry_run=dry_run))
     rows.extend(archive_retention(api, policy, dry_run=dry_run, now=now))
+    rows.extend(regenerable_test_artifacts(api, policy, dry_run=dry_run, now=now,
+                                            maintenance_state=maintenance_state))
     # Seal removal remains fail-closed until the current deployment AND open-chain
     # owners supply exact pins. Age or an ACCEPT string alone never grants deletion.
     rows.append({'ok': True, 'rule': 'superseded_intermediate_seals', 'status': 'GATED',
@@ -204,19 +314,32 @@ def run_extensions(api, *, dry_run, pressure, maintenance_state, now):
         # modes and ownership instead of chmodding them or failing every cadence.
         # The helper still refuses all sealed/symlink/mutable files and limits time.
         command = ['sudo', '-n', '/usr/bin/python3', str(BUS/'scripts/hardlink_dedup.py'),
-                   str(BUS/'reports'), str(FLAG/'candidates'), '--max-seconds', '600']
+                   str(BUS/'reports'), str(FLAG/'candidates'), '--max-seconds', '20',
+                   '--state-file', '/home/ubuntu/.hermes/runstate/host-disk-dedup-scan.json']
         if dry_run:
             command.append('--dry-run')
         for path in policy.get('protected_roots', []):
             command.extend(['--exclude', path])
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=650)
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=60)
         try:
             result = json.loads(completed.stdout)
-            result['ok'] = bool(result.get('ok')) and completed.returncode == 0
+            # A time-budgeted partial pass is progress, not failure; the next cadence resumes.
+            partial = result.get('status') == 'TIME_BUDGET_PARTIAL' and not result.get('errors')
+            result['ok'] = partial or (bool(result.get('ok')) and completed.returncode == 0)
         except ValueError:
             result = {'ok': False, 'status': 'DEDUP_TRANSPORT_FAILED', 'returncode': completed.returncode}
         result['rule'] = 'weekly_evidence_hardlink_dedup'
         rows.append(result)
         if result['ok'] and not dry_run:
-            maintenance_state['evidence_dedup_at'] = now
+            if result.get('status') != 'TIME_BUDGET_PARTIAL':
+                maintenance_state['evidence_dedup_at'] = now
+            api.write_maintenance_state(maintenance_state)
     return rows
+
+
+def run_extensions(api, *, dry_run, pressure, maintenance_state, now):
+    # Expanded operator policy protects ALL reports/evidence, including formerly
+    # regenerable debug artifacts. The old report cleanup/dedup is not dispatched.
+    from safe_regenerable_pruner import run_rules
+    return run_rules(api,dry_run=dry_run,maintenance_state=maintenance_state,now=now)
+

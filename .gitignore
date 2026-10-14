@@ -641,3 +641,6 @@
 !/ops/systemd/
 /ops/systemd/*
 !/ops/systemd/hermes-state-archive-weekly.service
+!/tests/test_glp349_archive_source.py
+!/.github/workflows/glp349-archive-source.yml
+!/ops/linear/GLP-349-ARCHIVE-SOURCE.md

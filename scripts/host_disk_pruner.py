@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Deterministic host-disk retention and conservative cleanup.
 
-The only Git worktree deletion path is ``git worktree remove --force``. The
-script never deletes protected business/runtime data, and cache/temp cleanup is
-skipped while build processes are active.
+The only Git worktree deletion path is ``git worktree remove`` after a clean,
+remote-reachable commit and fresh all-UID process-reference check. The script
+never deletes protected business/runtime data; regenerable rules are explicit,
+age-checked, no-follow and bounded.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -24,7 +26,8 @@ from typing import Any
 sys.path.insert(0, "/home/ubuntu/business/ops")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from discord_fmt import meaning, render, title  # noqa: E402
-from disk_retention import AMBER_FREE, RED_FREE, growth_sensor, run_extensions
+from disk_retention import AMBER_FREE, RED_FREE, growth_sensor, run_extensions, protected
+from bounded_pruner import ScanBudget, tree_stats
 
 GIB = 1024 ** 3
 REPO = Path("/home/ubuntu/.hermes/hermes-agent")
@@ -45,6 +48,9 @@ DEFAULT_NPX_MIN_AGE_HOURS = 720
 JOURNAL_VACUUM_THRESHOLD = 256 * 1024 ** 2
 BUILDER_TOKENS = ("wrangler", "npm", "npx", "claude")
 PROTECTED_PATHS = (
+    Path('/home/ubuntu/.hermes/secrets'),
+    Path('/home/ubuntu/.hermes/state'),
+    Path('/home/ubuntu/business/.worktrees'),
     Path("/home/ubuntu/.hermes/state.db"),
     Path("/home/ubuntu/.hermes/checkpoints"),
     Path("/home/ubuntu/business/.enzyme"),
@@ -72,11 +78,49 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def enzyme_vault_usage(root: Path = Path('/home/ubuntu/business/.enzyme')) -> dict[str, Any]:
+    """Metadata only. Missing/racing storage is UNKNOWN, never a zero-sized vault."""
+    try:
+        if root.is_symlink() or root.resolve() != root.absolute() or not root.is_dir():
+            raise ValueError('vault_path')
+        logical = allocated = files = targets = 0
+        seen = set()
+        for path in root.rglob('*'):
+            info = path.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                raise ValueError('vault_symlink')
+            if not stat.S_ISREG(info.st_mode):
+                continue
+            logical += info.st_size
+            files += 1
+            identity = (info.st_dev, info.st_ino)
+            if identity not in seen:
+                allocated += info.st_blocks * 512
+                seen.add(identity)
+            targets += int(path.parent == root / 'targets' and path.suffix == '.db')
+        return {'ok': True, 'path': str(root), 'logical_bytes': logical,
+                'allocated_bytes': allocated, 'regular_files': files,
+                'target_databases': targets, 'primary_db_bytes': (root / 'enzyme.db').stat().st_size,
+                'method': 'lstat_no_symlinks_unique_inode_allocated_bytes'}
+    except (OSError, ValueError) as exc:
+        return {'ok': False, 'path': str(root), 'status': 'ENZYME_VAULT_UNKNOWN',
+                'error_type': type(exc).__name__}
+
+
 def stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+_RUN_DEADLINE = None
+
+
+def remaining_budget(limit):
+    if _RUN_DEADLINE is None: return float(limit)
+    return max(0.01,min(float(limit),_RUN_DEADLINE-time.monotonic()))
+
+
 def run(cmd: list[str], *, cwd: Path = REPO, timeout: int = 300, env: dict[str, str] | None = None) -> dict[str, Any]:
+    timeout = remaining_budget(min(timeout,60))
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
@@ -100,6 +144,7 @@ def run(cmd: list[str], *, cwd: Path = REPO, timeout: int = 300, env: dict[str, 
         return {
             "cmd": cmd,
             "returncode": 124,
+            "status": "TIME_BUDGET_PARTIAL",
             "stdout_tail": (exc.stdout or "")[-4000:] if isinstance(exc.stdout, str) else "",
             "stderr_tail": "timeout",
         }
@@ -108,12 +153,13 @@ def run(cmd: list[str], *, cwd: Path = REPO, timeout: int = 300, env: dict[str, 
 def allocated_bytes(path: Path) -> int:
     if not path.exists():
         return 0
-    proc = subprocess.run(
-        ["du", "-sx", "--block-size=1", str(path)],
-        text=True,
-        capture_output=True,
-        timeout=300,
-    )
+    try:
+        proc = subprocess.run(
+            ["du", "-sx", "--block-size=1", str(path)],
+            text=True, capture_output=True, timeout=remaining_budget(10),
+        )
+    except subprocess.TimeoutExpired:
+        return 0  # Unknown size cannot authorize a cache deletion.
     if proc.returncode != 0 or not proc.stdout.strip():
         return 0
     return int(proc.stdout.split()[0])
@@ -133,17 +179,54 @@ def protected_delete_target(path: Path) -> bool:
 
 
 def process_inventory() -> list[dict[str, Any]]:
+    """Collect argv/env/cwd AND fd/maps references once per inventory, not per file."""
     rows: list[dict[str, Any]] = []
-    for proc_dir in Path("/proc").iterdir():
+    for proc_dir in Path('/proc').iterdir():
         if not proc_dir.name.isdigit():
             continue
         try:
-            cmdline = (proc_dir / "cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
-            cwd = os.readlink(proc_dir / "cwd")
-            environ = (proc_dir / "environ").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
-            rows.append({"pid": int(proc_dir.name), "cmdline": cmdline, "cwd": cwd, "environ": environ})
-        except (FileNotFoundError, PermissionError, ProcessLookupError, OSError):
+            cmdline = (proc_dir/'cmdline').read_bytes().replace(b'\0', b' ').decode('utf-8', 'replace')
+            cwd = os.readlink(proc_dir/'cwd')
+            environ = (proc_dir/'environ').read_bytes().replace(b'\0', b' ').decode('utf-8', 'replace')
+            refs = {cwd}
+            for name in ('cwd', 'exe', 'root'):
+                try:
+                    refs.add(os.readlink(proc_dir/name))
+                except OSError:
+                    pass
+            try:
+                with os.scandir(proc_dir/'fd') as fds:
+                    for fd in fds:
+                        try:
+                            refs.add(os.readlink(fd.path))
+                        except OSError:
+                            pass
+            except OSError:
+                pass
+            try:
+                for line in (proc_dir/'maps').read_text(errors='ignore').splitlines():
+                    fields = line.split(maxsplit=5)
+                    if len(fields) == 6 and fields[5].startswith('/'):
+                        refs.add(fields[5])
+            except OSError:
+                pass
+            rows.append({'pid': int(proc_dir.name), 'cmdline': cmdline,
+                         'cwd': cwd, 'environ': environ, '_raw_refs': refs})
+        except OSError:
             continue
+    # Resolve each unique reference just ONCE, preserving the old symlink semantics.
+    normalized = {}
+    for row in rows:
+        row['_refs'] = []
+        for ref in row.pop('_raw_refs'):
+            if not ref.startswith('/'):
+                continue
+            if ref not in normalized:
+                try:
+                    normalized[ref] = str(Path(ref.removesuffix(' (deleted)')).resolve(strict=False))
+                except (OSError, ValueError):
+                    normalized[ref] = ref.removesuffix(' (deleted)')
+            row['_refs'].append(normalized[ref])
     return rows
 
 
@@ -155,7 +238,7 @@ def active_builders(processes: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         hay = row["cmdline"].lower()
         if any(token in hay for token in BUILDER_TOKENS):
-            out.append({"pid": row["pid"], "command": hay[:240]})
+            out.append({"pid": row["pid"], "command": hay.split()[0] if hay.split() else 'unknown'})
     return out
 
 
@@ -170,6 +253,11 @@ def path_is_active(path: Path, processes: list[dict[str, Any]]) -> bool:
     """Fail closed on argv/env/cwd plus live /proc executable/root/fd/maps references."""
     path_s = str(path.resolve(strict=False))
     for row in processes:
+        if '_refs' in row:
+            if (any(ref == path_s or ref.startswith(path_s.rstrip('/')+'/') for ref in row['_refs'])
+                    or path_s in row.get('cmdline', '') or path_s in row.get('environ', '')):
+                return True
+            continue
         if _reference_is_under(row.get("cwd", "/"), path):
             return True
         if path_s in row.get("cmdline", "") or path_s in row.get("environ", ""):
@@ -208,33 +296,24 @@ def path_identity(path: Path) -> tuple[int, int, int, int, int, int] | None:
         return None
 
 
-def newest_descendant_mtime(path: Path) -> float:
+def path_is_active_privileged(path: Path) -> bool:
+    """Fresh all-UID veto; UNKNOWN/permission errors are active, never deletion."""
+    command=['sudo','-n','/usr/bin/python3','-I',str(Path(__file__).parent/'pruner_process_reference_guard.py'),
+             str(path),str(os.getpid())]
+    result=run(command,cwd=Path('/'),timeout=3)
+    return result['returncode']!=0 or result['stdout_tail'].strip()!='INACTIVE'
+
+
+def newest_descendant_mtime(path: Path, *, cutoff=None, deadline=None) -> float:
+    # Young entries return immediately; no per-file Path.resolve or second du walk.
+    # Without an age cutoff this retains the old exact-newest API.
     try:
-        newest = path.lstat().st_mtime
-    except (FileNotFoundError, PermissionError, OSError):
-        return float("inf")
-    if path.is_symlink() or not path.is_dir():
+        newest, _ = tree_stats(path, cutoff=cutoff,
+                               deadline=deadline or time.monotonic()+20,
+                               protected=protected)
         return newest
-    for root, dirs, files in os.walk(path, followlinks=False):
-        root_path = Path(root)
-        safe_dirs = []
-        for name in dirs:
-            child = root_path / name
-            try:
-                if child.is_symlink():
-                    newest = max(newest, child.lstat().st_mtime)
-                else:
-                    newest = max(newest, child.stat().st_mtime)
-                    safe_dirs.append(name)
-            except (FileNotFoundError, PermissionError, OSError):
-                return float("inf")
-        dirs[:] = safe_dirs
-        for name in files:
-            try:
-                newest = max(newest, (root_path / name).lstat().st_mtime)
-            except (FileNotFoundError, PermissionError, OSError):
-                return float("inf")
-    return newest
+    except ScanBudget:
+        return float('inf')
 
 
 def revalidate_candidate(
@@ -252,8 +331,10 @@ def revalidate_candidate(
         return False, "not_real_directory"
     if not require_directory and not (path.is_dir() or path.is_file()):
         return False, "unsupported_type"
-    if path_is_active(path, process_inventory()):
-        return False, "active_reference_rescan"
+    if path_is_active_privileged(path):
+        return False, "active_or_unknown_all_uid_reference"
+    if path_identity(path)!=expected_identity:
+        return False,"identity_changed_during_reference_scan"
     return True, "ok"
 
 
@@ -407,47 +488,47 @@ def choose_removals(
 
 
 def remove_worktree(record: WorktreeRecord, *, dry_run: bool) -> dict[str, Any]:
-    path = Path(record.path)
-    if protected_delete_target(path):
-        return {"path": record.path, "ok": False, "reason": "protected path refusal"}
-    if dry_run:
-        return {"path": record.path, "ok": True, "dry_run": True, "allocated_bytes": record.allocated_bytes, "eligible_bytes": record.allocated_bytes, "bytes_freed": 0}
-    result = run(["git", "worktree", "remove", "--force", record.path], timeout=900)
-    ok = result["returncode"] == 0 and not path.exists()
-    branch_result = None
-    if ok and record.branch and record.branch.startswith("kael/update-rehearsal-"):
-        branch_result = run(["git", "branch", "-D", record.branch], timeout=180)
-        ok = branch_result["returncode"] == 0
-    return {
-        "path": record.path,
-        "ok": ok,
-        "allocated_bytes": record.allocated_bytes,
-        "bytes_freed": record.allocated_bytes if ok and not dry_run else 0,
-        "worktree_remove": result,
-        "branch_delete": branch_result,
-    }
+    # Tracked content is a hard exclusion in the current operator authorization.
+    return {'path': record.path, 'ok': True,
+            'skipped': 'tracked_worktree_requires_operator_decision', 'bytes_freed': 0}
 
 
-def safe_remove_cache(path: Path, *, dry_run: bool) -> dict[str, Any]:
-    if protected_delete_target(path):
+def remove_disposable(path: Path, *, deadline=None, as_root=False) -> bool:
+    """Delete one already-validated allowlisted object, bounded, no shell/globs.
+
+    A subprocess timeout leaves the exact candidate for a future revalidated pass;
+    no detached worker survives. The child only uses shutil's symlink-safe rmtree.
+    """
+    timeout = remaining_budget(20 if deadline is None else min(20, max(0.01, deadline-time.monotonic())))
+    command = [sys.executable, '-I', '-c',
+               'import pathlib,shutil,sys; p=pathlib.Path(sys.argv[1]); '
+               'shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink(missing_ok=True)',
+               str(path)]
+    if as_root:
+        if path.parent not in {Path('/var/log/atop'),Path('/var/log/nginx')} or not path.is_file() or path.is_symlink():
+            return False
+        command = ['sudo','-n','/usr/bin/python3',*command[1:]]
+    try:
+        result = subprocess.run(command, capture_output=True, timeout=timeout)
+        return result.returncode == 0 and not path.exists()
+    except subprocess.TimeoutExpired:
+        # subprocess.run has killed/reaped the exact child. A completed deletion
+        # may precede its delayed exit; count that verified effect, not a false zero.
+        return not path.exists() and not path.is_symlink()
+
+
+def safe_remove_cache(path: Path, *, dry_run: bool, known_bytes=None, deadline=None) -> dict[str, Any]:
+    if protected_delete_target(path) or protected(path):
         return {"path": str(path), "ok": False, "reason": "protected path refusal"}
-    before = allocated_bytes(path)
+    before = allocated_bytes(path) if known_bytes is None else known_bytes
     if before == 0:
         return {"path": str(path), "ok": True, "bytes_freed": 0}
-    if not dry_run:
-        try:
-            if path.is_dir() and not path.is_symlink():
-                shutil.rmtree(path)
-            else:
-                path.unlink(missing_ok=True)
-        except (PermissionError, OSError) as exc:
-            return {"path": str(path), "ok": False, "reason": type(exc).__name__, "bytes_freed": 0}
+    if not dry_run and not remove_disposable(path, deadline=deadline):
+        return {'path': str(path), 'ok': True, 'status': 'TIME_BUDGET_PARTIAL', 'bytes_freed': 0}
     return {
-        "path": str(path),
-        "ok": True,
-        "dry_run": dry_run,
+        "path": str(path), "ok": True, "dry_run": dry_run,
         "eligible_bytes": before if dry_run else 0,
-        "bytes_freed": 0 if dry_run else max(0, before - allocated_bytes(path)),
+        "bytes_freed": 0 if dry_run else before,
     }
 
 
@@ -455,92 +536,74 @@ def is_safe_tmp_name(name: str) -> bool:
     return name in SAFE_TMP_EXACT or any(name.startswith(prefix) for prefix in SAFE_TMP_PREFIXES)
 
 
-def stale_tmp_cleanup(
-    processes: list[dict[str, Any]],
-    *,
-    dry_run: bool,
-    min_age_hours: float = DEFAULT_TMP_MIN_AGE_HOURS,
-    root: Path = Path("/tmp"),
-) -> list[dict[str, Any]]:
-    """Delete only exact, producer-owned disposable artifacts; never arbitrary /tmp."""
-    cutoff = time.time() - min_age_hours * 3600
-    uid = os.getuid()
-    rows: list[dict[str, Any]] = []
+def _aged_children(processes, *, dry_run, min_age_hours, root, time_budget,
+                   maintenance_state, npx):
+    cutoff = time.time() - min_age_hours*3600
+    deadline = time.monotonic()+remaining_budget(time_budget)
+    state = maintenance_state if maintenance_state is not None else {}
+    key = 'npx_scan' if npx else 'tmp_scan'
+    scan = state.setdefault(key, {'done': []})
+    done = set(scan['done'])
+    rows = []
     if not root.exists():
-        return rows
-    for path in root.iterdir():
+        state.pop(key, None); return rows
+    # Only top-level allowlisted children. Sort small candidate lists by known
+    # reclaimable size from previous scans, NEVER recursively sort the filesystem.
+    with os.scandir(root) as entries:
+        paths = [Path(e.path) for e in entries
+                 if (bool(re.fullmatch(r'[0-9a-f]{16}', e.name)) if npx else is_safe_tmp_name(e.name))]
+    sizes = state.setdefault('child_sizes', {})
+    paths.sort(key=lambda p: sizes.get(str(p), 0), reverse=True)
+    for path in paths:
+        if path.name in done:
+            continue
+        if time.monotonic() >= deadline:
+            rows.append({'ok': True, 'rule': key, 'status': 'TIME_BUDGET_PARTIAL'}); break
         try:
-            stat = path.lstat()
-        except (FileNotFoundError, PermissionError):
-            continue
-        if (
-            stat.st_uid != uid
-            or path.is_symlink()
-            or not is_under(path, root)
-            or not is_safe_tmp_name(path.name)
-            or newest_descendant_mtime(path) >= cutoff
-        ):
-            continue
-        identity = path_identity(path)
-        if identity is None:
-            continue
-        if path_is_active(path, processes):
-            rows.append({"path": str(path), "ok": True, "skipped": "active_reference", "bytes_freed": 0})
-            continue
-        if not dry_run:
-            valid, reason = revalidate_candidate(path, identity, require_directory=False)
-            if not valid:
-                rows.append({"path": str(path), "ok": True, "skipped": reason, "bytes_freed": 0})
-                continue
-        row = safe_remove_cache(path, dry_run=dry_run)
-        row["min_age_hours"] = min_age_hours
-        row["rule"] = "exact_known_disposable"
-        rows.append(row)
+            s = path.lstat()
+            if (s.st_uid != os.getuid() or protected(path) or path.is_symlink()
+                    or not is_under(path, root) or (npx and not path.is_dir())):
+                done.add(path.name); continue
+            identity = path_identity(path)
+            newest, amount = tree_stats(path, cutoff=cutoff, deadline=deadline, protected=protected)
+            if newest < cutoff:
+                sizes[str(path)] = amount
+                if path_is_active(path, processes):
+                    rows.append({'path': str(path), 'ok': True, 'skipped': 'active_reference', 'bytes_freed': 0})
+                else:
+                    valid, reason = (True, 'ok') if dry_run else revalidate_candidate(path, identity, require_directory=npx)
+                    if valid:
+                        row = safe_remove_cache(path, dry_run=dry_run, known_bytes=amount, deadline=deadline)
+                        row.update(min_age_hours=min_age_hours, rule='inactive_npx_child' if npx else 'exact_known_disposable')
+                        rows.append(row)
+                        if row.get('status') == 'TIME_BUDGET_PARTIAL':
+                            break
+                    else:
+                        rows.append({'path': str(path), 'ok': True, 'skipped': reason, 'bytes_freed': 0})
+            done.add(path.name)
+        except ScanBudget:
+            rows.append({'path': str(path), 'ok': True, 'rule': key, 'status': 'TIME_BUDGET_PARTIAL'}); break
+        except OSError:
+            done.add(path.name)
+        finally:
+            scan['done'] = list(done)
+            if not dry_run and maintenance_state is not None:
+                write_maintenance_state(state)
+    else:
+        state.pop(key, None)
     return rows
 
 
-def stale_npx_cleanup(
-    processes: list[dict[str, Any]],
-    *,
-    dry_run: bool,
-    min_age_hours: float = DEFAULT_NPX_MIN_AGE_HOURS,
-    root: Path = NPX_CACHE,
-) -> list[dict[str, Any]]:
-    """Remove only old real per-invocation npx directories with no live reference."""
-    cutoff = time.time() - min_age_hours * 3600
-    rows: list[dict[str, Any]] = []
-    if not root.exists():
-        return rows
-    for path in root.iterdir():
-        try:
-            stat = path.lstat()
-        except (FileNotFoundError, PermissionError):
-            continue
-        if (
-            stat.st_uid != os.getuid()
-            or path.is_symlink()
-            or not path.is_dir()
-            or path.parent.resolve(strict=False) != root.resolve(strict=False)
-            or not re.fullmatch(r"[0-9a-f]{16}", path.name)
-            or newest_descendant_mtime(path) >= cutoff
-        ):
-            continue
-        identity = path_identity(path)
-        if identity is None:
-            continue
-        if path_is_active(path, processes):
-            rows.append({"path": str(path), "ok": True, "skipped": "active_reference", "bytes_freed": 0})
-            continue
-        if not dry_run:
-            valid, reason = revalidate_candidate(path, identity, require_directory=True)
-            if not valid:
-                rows.append({"path": str(path), "ok": True, "skipped": reason, "bytes_freed": 0})
-                continue
-        row = safe_remove_cache(path, dry_run=dry_run)
-        row["min_age_hours"] = min_age_hours
-        row["rule"] = "inactive_npx_child"
-        rows.append(row)
-    return rows
+def stale_tmp_cleanup(processes, *, dry_run, min_age_hours=DEFAULT_TMP_MIN_AGE_HOURS,
+                      root=Path('/tmp'), time_budget=20, maintenance_state=None):
+    return _aged_children(processes, dry_run=dry_run, min_age_hours=min_age_hours,
+                          root=root, time_budget=time_budget, maintenance_state=maintenance_state, npx=False)
+
+
+def stale_npx_cleanup(processes, *, dry_run, min_age_hours=DEFAULT_NPX_MIN_AGE_HOURS,
+                      root=NPX_CACHE, time_budget=20, maintenance_state=None):
+    return _aged_children(processes, dry_run=dry_run, min_age_hours=min_age_hours,
+                          root=root, time_budget=time_budget, maintenance_state=maintenance_state, npx=True)
 
 
 def journal_vacuum(*, dry_run: bool) -> dict[str, Any]:
@@ -548,8 +611,9 @@ def journal_vacuum(*, dry_run: bool) -> dict[str, Any]:
     if before < JOURNAL_VACUUM_THRESHOLD:
         return {"name": "journal_vacuum", "ok": True, "skipped": "below_threshold", "bytes_before": before, "bytes_freed": 0}
     if dry_run:
-        return {"name": "journal_vacuum", "ok": True, "dry_run": True, "eligible_bytes": max(0, before - 200 * 1024 ** 2), "bytes_freed": 0}
-    result = run(["sudo", "-n", "journalctl", "--vacuum-size=200M"], cwd=Path("/"), timeout=300)
+        return {"name": "journal_vacuum", "ok": True, "dry_run": True, "age_hours": 336,
+                "eligible_bytes": 0, "eligible_attribution_known": False, "bytes_freed": 0}
+    result = run(["sudo", "-n", "journalctl", "--vacuum-time=14d"], cwd=Path("/"), timeout=20)
     after = allocated_bytes(JOURNAL_ROOT)
     return {
         "name": "journal_vacuum",
@@ -561,9 +625,26 @@ def journal_vacuum(*, dry_run: bool) -> dict[str, Any]:
     }
 
 
+def evidence_maintenance(*, dry_run, report_path):
+    """Privileged scoped helper, bounded independently of the gateway ticker."""
+    budget=min(1050,max(1,int(remaining_budget(1080))-30))
+    command=['sudo','-n','/usr/bin/python3','-I',
+             str(Path(__file__).parent/'evidence_preserving_pruner.py'),
+             '--report',str(report_path),'--max-seconds',str(budget)]
+    if dry_run: command.append('--dry-run')
+    completed=subprocess.run(command,capture_output=True,text=True,
+                             timeout=budget+25,cwd='/')
+    if completed.returncode or not report_path.is_file():
+        return [{'rule':'evidence_preserving_maintenance','ok':False,
+                 'status':'HELPER_FAILED','returncode':completed.returncode,'bytes_freed':0}]
+    result=json.loads(report_path.read_text())
+    return result['rows']
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument('--safe-rules-only',action='store_true')
     parser.add_argument("--worktrees-only", action="store_true")
     parser.add_argument("--force-maintenance", action="store_true")
     parser.add_argument("--emit-noop", action="store_true")
@@ -577,6 +658,16 @@ def main() -> int:
     parser.add_argument("--protect-path", action="append", default=[])
     parser.add_argument("--report-dir")
     args = parser.parse_args()
+    report_dir = Path(args.report_dir) if args.report_dir else REPORT_ROOT / stamp()
+    report_dir.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    phase_seconds = {}
+    def timed_phase(name, operation):
+        phase_start = time.monotonic()
+        try:
+            return operation()
+        finally:
+            phase_seconds[name] = round(time.monotonic()-phase_start, 3)
 
     LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
     with LOCK_PATH.open("a+") as lock:
@@ -586,6 +677,8 @@ def main() -> int:
             print(render(title("warn", "Host Disk", "another retention run holds the lock"), meaning("no action; the active run owns cleanup"), output_class="alert"))
             return 0
 
+        global _RUN_DEADLINE
+        _RUN_DEADLINE = started+(210 if args.safe_rules_only else 1150)
         before = shutil.disk_usage("/")
         now = time.time()
         processes = process_inventory()
@@ -641,55 +734,66 @@ def main() -> int:
         npm_result: dict[str, Any] | None = None
         journal_result: dict[str, Any] | None = None
 
+        # Explicit regenerable roots run in measured-size order. Reports/evidence
+        # are protected; no full-root recursive inventory delays the cron effect.
+        extension_results = [] if args.worktrees_only else timed_phase('extensions', lambda: run_extensions(
+            sys.modules[__name__], dry_run=args.dry_run, pressure=before.free < RED_FREE,
+            maintenance_state=maintenance_state, now=now))
+
         if routine_due:
-            tmp_results = stale_tmp_cleanup(
-                processes,
-                dry_run=args.dry_run,
-                min_age_hours=max(DEFAULT_TMP_MIN_AGE_HOURS, args.tmp_min_age_hours),
-            )
-            npx_results = stale_npx_cleanup(
-                processes,
-                dry_run=args.dry_run,
-                min_age_hours=max(DEFAULT_NPX_MIN_AGE_HOURS, args.npx_min_age_hours),
-            )
-            uv_result = command_maintenance(
+            routine_roots = [('tmp', Path('/tmp')), ('npx', NPX_CACHE)]
+            sizes = maintenance_state.get('child_sizes', {})
+            routine_roots.sort(key=lambda pair: sum(v for p, v in sizes.items()
+                                if str(p).startswith(str(pair[1]).rstrip('/')+'/')), reverse=True)
+            for kind, root in routine_roots:
+                action = stale_tmp_cleanup if kind == 'tmp' else stale_npx_cleanup
+                threshold = (max(DEFAULT_TMP_MIN_AGE_HOURS, args.tmp_min_age_hours) if kind == 'tmp'
+                             else max(DEFAULT_NPX_MIN_AGE_HOURS, args.npx_min_age_hours))
+                result = timed_phase(kind, lambda: action(processes, dry_run=args.dry_run,
+                                     min_age_hours=threshold, root=root, maintenance_state=maintenance_state))
+                if kind == 'tmp': tmp_results = result
+                else: npx_results = result
+            uv_result = timed_phase('uv', lambda: command_maintenance(
                 "uv_cache_prune",
                 [UV_BIN, "cache", "prune", "--no-progress"],
                 (UV_CACHE,),
                 dry_run=args.dry_run,
-                timeout=360,
+                timeout=30,
                 env={"HOME": "/home/ubuntu", "UV_CACHE_DIR": str(UV_CACHE)},
-            )
-            journal_result = journal_vacuum(dry_run=args.dry_run)
+            ))
+            journal_result = timed_phase('journal', lambda: journal_vacuum(dry_run=args.dry_run))
             routine_ok = all(
-                row.get("ok", True)
+                row.get("ok", True) and row.get('status') != 'TIME_BUDGET_PARTIAL'
                 for row in tmp_results + npx_results + [uv_result, journal_result]
             )
             if routine_ok and not args.dry_run:
                 maintenance_state["routine_checked_at"] = now
+                write_maintenance_state(maintenance_state)
 
         if npm_due:
-            npm_result = command_maintenance(
+            npm_result = timed_phase('npm', lambda: command_maintenance(
                 "npm_cache_verify",
                 [NPM_BIN, "cache", "verify"],
                 (NPM_CACHE,),
                 dry_run=args.dry_run,
-                timeout=900,
+                timeout=60,
                 env={"HOME": "/home/ubuntu", "npm_config_cache": "/home/ubuntu/.npm"},
-            )
+            ))
             if npm_result.get("ok", False) and not args.dry_run:
                 maintenance_state["npm_verified_at"] = now
+                write_maintenance_state(maintenance_state)
 
-        # No broad cache roots are ever removed automatically. Cache-native
-        # maintenance above is the only automated npm/uv cleanup path.
+        # No arbitrary broad roots are removed: new regenerable chunks have
+        # explicit age/reference proofs; native npm/uv maintenance complements them.
 
-        extension_results = [] if args.worktrees_only else run_extensions(
-            sys.modules[__name__], dry_run=args.dry_run, pressure=before.free < RED_FREE,
-            maintenance_state=maintenance_state, now=now)
         growth = growth_sensor()
         if not args.dry_run:
             maintenance_state["updated_at"] = utc_now()
             write_maintenance_state(maintenance_state)
+
+        if not args.worktrees_only and not args.safe_rules_only:
+            extension_results.extend(timed_phase('evidence_preserving',lambda: evidence_maintenance(
+                dry_run=args.dry_run,report_path=report_dir/'evidence-preserving.json')))
 
         after = shutil.disk_usage("/")
         final_inventory = run(["git", "worktree", "list", "--porcelain"], timeout=180)
@@ -708,13 +812,18 @@ def main() -> int:
             planned_remaining = [r for r in records if r.path not in {x.path for x in removals}]
             cap_ok = len(planned_remaining) <= args.max_count and sum(r.allocated_bytes for r in planned_remaining) <= args.max_bytes
 
-        report_dir = Path(args.report_dir) if args.report_dir else REPORT_ROOT / stamp()
-        report_dir.mkdir(parents=True, exist_ok=True)
         receipt = {
             "timestamp_utc": utc_now(),
+            "runtime_budget_seconds": 1150,
+            "runtime_budget_exhausted": remaining_budget(1)<0.02,
+            "runtime_seconds": round(time.monotonic()-started, 3),
+            "phase_seconds": phase_seconds,
+            "incremental_safe_rules_pending": bool(maintenance_state.get('safe_rule_cursors') or maintenance_state.get('git_safe_cursor')),
+            "incremental_artifact_scan_pending": 'artifact_scan' in maintenance_state,
             "thresholds": {"amber_free_bytes": AMBER_FREE, "red_free_bytes": RED_FREE},
             "extension_results": extension_results,
             "growth_sensor": growth,
+            "enzyme_vault": enzyme_vault_usage(),
             "exit_semantics": {"0": "completed", "1": "maintenance_failed", "2": "acted_and_still_RED"},
             "dry_run": args.dry_run,
             "triggered": pressure_trigger,
