@@ -26,7 +26,7 @@ def free_space_pressure(d):
 
 def phase_result(result, report, rows, *, accepted_returncodes=(0,), partial_returncodes=()):
     statuses=collections.Counter(r.get('status','UNSPECIFIED') for r in rows)
-    partial=sum(bool(r.get('partial')) or any(s in r.get('status','') for s in ('PARTIAL','PENDING')) for r in rows)
+    partial=sum(bool(r.get('partial')) or r.get('status') in ('INCOMPLETE','UNKNOWN') or any(s in r.get('status','') for s in ('PARTIAL','PENDING')) for r in rows)
     gated=sum(r.get('status','').startswith(('GATED','REFUSED')) for r in rows)
     failed=sum(not r.get('ok',True) for r in rows)
     present=report.exists()

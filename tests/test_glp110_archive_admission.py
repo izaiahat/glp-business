@@ -753,3 +753,77 @@ def test_glp349_controller_preserves_each_phase_result(tmp_path, monkeypatch,
                        and safe_present and not evidence_partial) else 1)
     assert receipt['status'] == ('completed' if rc == 0 else 'completed_with_errors')
     assert receipt['reclaimed_bytes'] == 0 and len(capture) == 1
+
+
+def test_glp349_native_ranking_incomplete_is_not_controller_completion(tmp_path, monkeypatch):
+    """Real expired ranker branch -> controller main; private reports, no effects.
+
+    UNKNOWN is an explicit fixture; COMPLETE/REMOVED and status-less summaries
+    remain complete, including the safe phase's accepted rc2. No live imports.
+    """
+    import ast
+    import collections
+    import datetime
+    import os
+    from typing import Any
+    scripts = Path(__file__).resolve().parents[1] / 'scripts'
+    def functions(name, selected=None) -> list[ast.stmt]:
+        return [n for n in ast.parse((scripts / name).read_text()).body
+                if isinstance(n, ast.FunctionDef) and (selected is None or n.name in selected)]
+    def denied(*args, **kwargs):
+        raise AssertionError('ranker subprocess/effect boundary denied')
+    ranker: dict[str, Any] = dict(time=SimpleNamespace(monotonic=lambda: 2),
+                  subprocess=SimpleNamespace(run=denied, TimeoutExpired=TimeoutError))
+    exec(compile(ast.Module(body=functions('host_disk_large_sweep.py', {'rank_reports'}),
+                           type_ignores=[]), '<native-ranker-AST>', 'exec'), ranker)
+    ranking, incomplete = ranker['rank_reports']([tmp_path / 'unranked-report'], 1)
+    assert ranking == [] and incomplete == [dict(rule='cold_report_ranking',
+        path=str(tmp_path / 'unranked-report'), bytes_freed=0, status='INCOMPLETE', reason='budget')]
+    assert not any(not r.get('ok', True) for r in incomplete), 'native large-sweep rc0 shape'
+    complete = [dict(rule='D_cold_run_images_summary', status='COMPLETE', ok=True, bytes_freed=0),
+                dict(rule='A_regenerable', status='REMOVED', ok=True, bytes_freed=0),
+                dict(rule='B_readonly_evidence_dedupe', ok=True, bytes_freed=0)]
+    cases = [('native-INCOMPLETE', incomplete, [], 1, 'large_classes', {'INCOMPLETE': 1}),
+             ('explicit-UNKNOWN', [], [dict(rule='evidence_preserving_summary',
+                 status='UNKNOWN', ok=True, bytes_freed=0)], 1, 'D_A_B_C', {'UNKNOWN': 1}),
+             ('complete', [], complete, 0, 'D_A_B_C', {'COMPLETE': 1, 'REMOVED': 1, 'UNSPECIFIED': 1})]
+    for name, large_rows, evidence_rows, expected_rc, phase, counts in cases:
+        root = tmp_path / name
+        home = root / 'hermes'
+        (home / 'runstate').mkdir(parents=True)
+        capture = []
+        def run(argv, **kwargs):
+            if '--budget' in argv:
+                report = Path(argv[argv.index('--report') + 1]) / 'large-classes.json'
+                ep.atomic_json(report, {'rows': large_rows})
+                return SimpleNamespace(returncode=0)
+            if '--safe-rules-only' in argv:
+                report = Path(argv[argv.index('--report-dir') + 1]) / 'receipt.json'
+                ep.atomic_json(report, {'reclaimed_bytes': 0})
+                return SimpleNamespace(returncode=2)
+            assert argv[argv.index('--max-seconds') + 1] == '1050'
+            ep.atomic_json(Path(argv[argv.index('--report') + 1]), {'rows': evidence_rows})
+            return SimpleNamespace(returncode=0)
+        monkeypatch.setitem(sys.modules, 'host_disk_auto_classes', SimpleNamespace(external_pins=lambda: []))
+        monkeypatch.setitem(sys.modules, 'post_discord_message', SimpleNamespace(
+            send=lambda channel, line: capture.append(line) or {'id': 'fixture'},
+            readback=lambda channel, mid: {'content': capture[-1], 'channel_id': channel}))
+        ns: dict[str, Any] = dict(Path=Path, collections=collections, datetime=datetime, os=os, sys=sys,
+                  time=time, json=json, atomic_json=ep.atomic_json,
+                  fcntl=SimpleNamespace(LOCK_EX=1, LOCK_NB=2, flock=lambda *a: None),
+                  subprocess=SimpleNamespace(run=run), BUS=root, HOME=home,
+                  STATE=home/'runstate/state.json', UNIT='fixture.service')
+        exec(compile(ast.Module(body=functions('host_disk_cleanup_large_unit.py'),
+                               type_ignores=[]), '<candidate-controller-AST>', 'exec'), ns)
+        ns['disk'] = lambda: {'free_bytes': 100, 'total_bytes': 100}
+        rc = ns['main']()
+        receipt, = (root / 'reports/host-disk-prune').glob('*/completion.json')
+        receipt = json.loads(receipt.read_text())
+        assert rc == expected_rc, (name, receipt['phase_results'])
+        assert receipt['status'] == ('completed' if rc == 0 else 'completed_with_errors')
+        actual = receipt['phase_results'][phase]
+        assert actual['status'] == ('completed' if rc == 0 else 'partial_or_gated')
+        assert actual['partial_rows'] == expected_rc and actual['status_counts'] == counts
+        assert receipt['rows'] == large_rows + [dict(rule='legacy_safe_rules', bytes_freed=0, ok=True)] + evidence_rows
+        assert receipt['phase_results']['legacy_safe_rules']['status'] == 'completed'
+        assert actual['returncode'] == 0 and len(capture) == 1

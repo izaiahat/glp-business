@@ -3522,7 +3522,7 @@
         "systemd:host-disk-cleanup.service.d/large-classes.conf"
       ],
       "kind": "script",
-      "sha256": "75f9a3f5cfc648e5c1975c81bd1d9d5d98a7f50a877d406d8c614a89e672041a"
+      "sha256": "ba9faaa3920e3aaaaff5e5eaa1e6c7dda3b2e494ee67b63d8af435a2fc0f4784"
     },
     "scripts/host_disk_cold_classes.py": {
       "callers": [
@@ -5233,7 +5233,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "7107cd4636a0585ab2f8b9e0c26f337da23ffb5018fd978cbc8ff33865bda166"
+      "sha256": "9b82fe5e9410e8b9944dc0bf79f0840881c7b45a65841f8e67ccdeb4815b0c1f"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
