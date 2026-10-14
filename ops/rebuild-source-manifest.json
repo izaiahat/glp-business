@@ -78,7 +78,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "4f1c84f1334d967d2ee187552644b7859e4ed1387b232396c9bceb6b7f986049"
+      "sha256": "af9726e07e8bb2ee5c5d1f06b2b2eb5a6c7efff43137af9e4d9153b1ea1d46ef"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -290,7 +290,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "21022790e39bbe60a7c290e9e661b28738b46a87dd384fcd396bbdf3c49cbae1"
+      "sha256": "bc6afdf1d767e07e7e1a74b0a91ea3281685b7248a7409741084c751f5dbe201"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3407,7 +3407,7 @@
         "scripts/glp_sponsor_campaign.py"
       ],
       "kind": "source_control",
-      "sha256": "4f988082d932ffb1da57dce951827cfd7cfc7fd068c4964864f171583acf3284"
+      "sha256": "6fe29410f4e61dea28ec1af580461e07e8aba6f008022183a695e9b0c4c480bf"
     },
     "scripts/glp_sponsor_site_payment.py": {
       "callers": [
@@ -7677,6 +7677,20 @@
         "tests/test_glp_sponsor_firecrawl_supply.py"
       ],
       "sha256": "5d997ca346c92179c34d5d711a6b5497c490fe2c5a2f7417d08ffb0b07735ec5"
+    },
+    "tests/test_glp_sponsor_sender_budget.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "9d4a1dee56a89915a03d9c479a54e55b2d77d054a328aa05acad6eeafaa72df1"
+    },
+    ".github/workflows/sponsor-sender-credit-boundary.yml": {
+      "kind": "config",
+      "callers": [
+        "GitHub Actions"
+      ],
+      "sha256": "d66f03201ae8f9a53a847d3bef53b999293bca80e39dc290ecf37e129f506a67"
     },
     "scripts/disk_retention.py": {
       "kind": "script",

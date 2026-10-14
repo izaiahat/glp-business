@@ -44,7 +44,7 @@ ALEX_CALLER = 'sponsor_firecrawl_alexandria'
 FLOOR_CREDITS = 3000
 RUN_CREDIT_CAP = 1500
 PERIOD_CREDIT_CAP = 45000
-SPONSOR_CALLERS = (CALLER, ALEX_CALLER, 'fc71_sponsor_supply', 'fc71_sponsor_alexandria')
+SPONSOR_CALLERS = (CALLER, ALEX_CALLER, 'fc71_sponsor_supply', 'fc71_sponsor_alexandria', 'sponsor_campaign')
 MATCH_CAP = 25
 GAPS = {'us_program_scope_unknown', 'not_glp_medication_provider', 'no_verified_business_purpose_contact',
         'contact_purpose_unverified', 'contact_evidence_incomplete', 'public_source_or_role_evidence_unknown'}
@@ -373,7 +373,7 @@ class Producer:
         usage = self.client.request('team/credit-usage', method='GET').get('data') or {}
         from glp_firecrawl_jobs import spent_today
         # Caller renames do not reset the same daily sponsor job allowance.
-        self.start_spent = spent_today((CALLER, ALEX_CALLER, 'fc71_sponsor_supply', 'fc71_sponsor_alexandria'))
+        self.start_spent = spent_today(SPONSOR_CALLERS)
         self.budget_day = now().date().isoformat()
         self.reservations = self.state / 'firecrawl-supply-budget.json'
         if self.reservations.exists():

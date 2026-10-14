@@ -49,7 +49,16 @@ def apollo_transport(method,path,payload):
     from firecrawl_client import FirecrawlClient
     capability='people/match' if path.endswith('/people/match') else 'people/search'
     options={k:v for k,v in payload.items() if k not in ('run_waterfall_email','run_waterfall_phone')}
-    response=FirecrawlClient('sponsor_campaign').scrape({'alexandria':[{'provider':'apollo','capability':capability,'options':options}]})
+    request={'alexandria':[{'provider':'apollo','capability':capability,'options':options}]}
+    if capability=='people/match':
+        # The sender shares the supply producer's fresh global/daily/reserve
+        # guard and current catalogue; an approved email is not spend authority.
+        from glp_sponsor_firecrawl_supply import Producer
+        producer=Producer()
+        producer.discover_apollo_contacts()
+        response=producer.paid_match(request)
+    else:
+        response=FirecrawlClient('sponsor_campaign').scrape(request)
     entries=response.get('data',{}).get('alexandria',[])
     if response.get('success') is not True or len(entries)!=1:
         raise RuntimeError('alexandria_response_unknown')
