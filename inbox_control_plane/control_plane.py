@@ -6400,6 +6400,12 @@ def restore_test(backup_path: Path) -> dict[str, Any]:
     return {"status": "pass" if integrity == "ok" and not foreign_keys else "fail", "integrity_check": integrity, "foreign_key_failures": len(foreign_keys), "events": events, "audits": audits, "production_provider_touched": False, "external_send": False}
 
 
+def observe_glp125_external_sent(db_path: Path = DB_PATH, *, apply: bool = False) -> dict[str, Any]:
+    """Receive the retained external SENT effect without composing or sending."""
+    from inbox_control_plane.external_sent import observe
+    return observe(db_path, apply=apply)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", type=Path, default=DB_PATH)
@@ -6417,7 +6423,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--decision-message-id")
     parser.add_argument("--card-message-id")
     parser.add_argument("--limit", type=int, default=250)
+    parser.add_argument("--observe-glp125-external-sent", action="store_true")
+    parser.add_argument("--apply-external-observation", action="store_true")
     args = parser.parse_args(argv)
+    if args.apply_external_observation and not args.observe_glp125_external_sent:
+        parser.error("--apply-external-observation requires --observe-glp125-external-sent")
+    if args.observe_glp125_external_sent:
+        if any((args.init, args.poll, args.bootstrap, args.dispatch, args.decision_sync,
+                args.status, args.backup, args.restore_test, args.resolve_externally)):
+            parser.error("external SENT observation cannot be combined with monitor mutations")
+        try:
+            output = observe_glp125_external_sent(args.db, apply=args.apply_external_observation)
+        except Exception as exc:
+            # Provider failures can contain URLs/credentials; do not echo them.
+            output = {"status": "blocked", "recorded": False, "error_class": type(exc).__name__,
+                      "reason": str(exc) if isinstance(exc, ValueError) and str(exc).startswith("external_sent_") else "external_sent_verification_failed",
+                      "provider_mutations": 0, "outbound_send": False}
+        print(json.dumps(output, indent=2, sort_keys=True))
+        return 0 if output.get("status") == "pass" else 2
     if args.resolve_externally and bool(args.decision_message_id) != bool(args.card_message_id):
         parser.error("resolved-externally bindings require both --decision-message-id and --card-message-id, or neither")
     registry = load_registry()
