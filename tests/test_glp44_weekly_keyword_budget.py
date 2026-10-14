@@ -163,8 +163,9 @@ def test_exact_append_only_rail_reconciliation(tmp_path, monkeypatch):
     check([attempt, ordinary, ordinary])
     check([attempt, ambiguous], ('0', True))
     check([attempt, ambiguous, ordinary], ('0', True))  # bare label is not recovery proof
+    # A different raw hash without a competing payload cannot exclude ownership.
     check([attempt, ambiguous, result, dict(base, event='ATTEMPT', attempt_id='other', request_hash='other')],
-          ('0.002', True))
+          ('0', True))
     check([attempt, ambiguous, result, dict(base, event='ATTEMPT', attempt_id='overlapping')], ('0', True))
     check([result], ('0', True), dt.date(2026, 10, 19))  # orphan result
     for field in ('account', 'run_id', 'attempt_id', 'request_hash'):
@@ -264,6 +265,71 @@ def test_exact_append_only_rail_reconciliation(tmp_path, monkeypatch):
         b.guarded('dataforseo', VOLUME, [{'keywords': ['a']}], lambda: sent.append(1),
                   run_id='fixture-run', cost_of=lambda _: 0)
     assert sent == []
+
+
+@pytest.fixture
+def competing_recovery(tmp_path, monkeypatch):
+    """Synthetic native transport only; never a live billing receipt."""
+    import hashlib
+    from ops.glp import seo_data_rails as rails
+
+    endpoint = '/serp/google/organic/live/advanced'
+    payload = [{'keyword': 'offline fixture', 'depth': 10}]
+    digest = hashlib.sha256(json.dumps([endpoint, payload], sort_keys=True).encode()).hexdigest()
+    attempt = dict(event='ATTEMPT', at=NOW.timestamp() + .8, endpoint=endpoint,
+                   account='tryboringai', run_id='offline-run', attempt_id='offline-attempt',
+                   request_hash=digest)
+    ambiguous = dict(attempt, event='AMBIGUOUS', at=NOW.timestamp() + 2)
+    task_id = '10121300-0000-0000-0000-000000000001'
+    echo = dict(payload[0], api='serp', function='live', se='google', se_type='organic')
+    record = dict(id=task_id, url='v3' + endpoint, status='20000', cost='0.002',
+                  metadata=dict(echo, os='windows'), datetime_posted=NOW.strftime('%Y-%m-%d %H:%M:%S %z'),
+                  datetime_done=NOW.strftime('%Y-%m-%d %H:%M:%S %z'))
+    def init(self, **kwargs):
+        self._accounts = {'tryboringai': {'auth': 'OFFLINE-ONLY'}}
+    def http(url, **kwargs):
+        assert url == rails.DataForSEO.BASE + '/serp/id_list'
+        assert kwargs['headers'] == {'Authorization': 'Basic OFFLINE-ONLY'}
+        return dict(status_code=20000, cost=0, tasks=[dict(status_code=20000, cost=0,
+                    path=['v3', 'serp', 'id_list'], data=kwargs['body'][0], result=[record])])
+    monkeypatch.setattr(rails.DataForSEO, '__init__', init)
+    monkeypatch.setattr(rails, '_http', http)
+    artifact = tmp_path / 'offline-response.json'
+    artifact.write_text(json.dumps(dict(attempt, payload=payload, response=dict(status_code=20000,
+        cost='0.002', tasks=[dict(id=task_id, status_code=20000, cost='0.002', data=echo)]))))
+    result = dict(attempt, event='RESULT', at=NOW.timestamp() + 3, state='MEASURED', cost='0.002',
+                  provider_evidence=dict(kind='dataforseo_response', path=str(artifact),
+                      sha256=hashlib.sha256(artifact.read_bytes()).hexdigest()))
+    journal = tmp_path / 'offline-rail.jsonl'
+    def reduce(competitor):
+        rows = [*competitor, attempt, ambiguous, result]
+        journal.write_text(''.join(json.dumps(r) + '\n' for r in rows))
+        return make(tmp_path, [], journal).receipt()
+    positive = reduce([])
+    assert positive['rail_journal_usd'] == '0.002' and positive['within_cap'] is True
+    return attempt, payload, reduce
+
+
+def test_same_second_disjoint_native_attempts_refuse_recovery(competing_recovery):
+    attempt, payload, reduce = competing_recovery
+    other = dict(attempt, at=NOW.timestamp() + .1, attempt_id='offline-other')
+    terminal = dict(other, at=NOW.timestamp() + .4, event='RESULT', cost='0.002', state='MEASURED')
+    receipt = reduce([other, terminal])
+    assert receipt['rail_journal_usd'] == '0.002'  # ordinary measured request only
+    assert receipt['rail_journal_unknown'] is True and receipt['within_cap'] is False
+
+
+def test_default_equivalent_native_requests_refuse_recovery(competing_recovery):
+    import hashlib
+    attempt, payload, reduce = competing_recovery
+    explicit_default = [dict(payload[0], os='windows')]
+    digest = hashlib.sha256(json.dumps([attempt['endpoint'], explicit_default], sort_keys=True).encode()).hexdigest()
+    assert digest != attempt['request_hash']
+    other = dict(attempt, attempt_id='offline-other', request_hash=digest)
+    terminal = dict(other, at=NOW.timestamp() + 1, event='RESULT', cost='0.002', state='MEASURED')
+    receipt = reduce([other, terminal])
+    assert receipt['rail_journal_usd'] == '0.002'
+    assert receipt['rail_journal_unknown'] is True and receipt['within_cap'] is False
 
 
 def test_cap_cannot_exceed_operator_authority(tmp_path):

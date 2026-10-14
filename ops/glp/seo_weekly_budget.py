@@ -330,19 +330,23 @@ class WeeklyBudget:
                 valid = valid and rows[-1]['event'] == 'RESULT'
                 valid = valid and all(r['at'] >= a['at'] for r in results for a in ambiguous)
                 if valid:
-                    # Two native requests with overlapping exact-query intervals
-                    # cannot both claim one authenticated task; keep them UNKNOWN.
+                    # The journal lacks competing payloads: different raw hashes
+                    # cannot exclude provider-default-equivalent queries.
                     end = min((a['at'] for a in ambiguous), default=at)
                     for other_id, other_rows in groups.items():
-                        if other_id == identity or other_id[0] != identity[0] or other_id[3] != identity[3]:
+                        if (other_id == identity or other_id[0] != identity[0]
+                                or other_rows[0].get('endpoint') not in (None, anchor.get('endpoint'))):
                             continue
-                        other_start = other_rows[0].get('at')
-                        times = [r.get('at') for r in other_rows if r['event'] in ('RESULT', 'AMBIGUOUS')]
-                        if any(type(t) not in (int, float) or not math.isfinite(t) for t in [other_start, *times]):
+                        other_start = other_rows[0].get('at', float('nan'))
+                        times = [r.get('at', float('nan')) for r in other_rows if r['event'] in ('RESULT', 'AMBIGUOUS')]
+                        if (type(other_start) not in (int, float) or not math.isfinite(other_start)
+                                or any(type(t) not in (int, float) or not math.isfinite(t) for t in times)):
                             valid = False
                             continue
-                        other_end = min(times, default=float('inf'))
-                        if other_start <= end and other_end >= at:
+                        other_end = math.floor(min(times)) + 1 if times else float('inf')
+                        # Use the same whole-second uncertainty as provider
+                        # metadata admission, not disjoint subsecond local times.
+                        if math.floor(other_start) <= math.floor(end) + 1 and other_end >= math.floor(at):
                             valid = False
                     recovered = {}
                     for r in results:
