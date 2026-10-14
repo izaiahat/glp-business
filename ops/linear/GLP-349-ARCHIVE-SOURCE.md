@@ -53,11 +53,13 @@ closure is `pinned_json -> protected/protected_name + digest`,
 `process_inventory/path_is_active -> _reference_is_under/is_under`.
 `archive_retention`, `pinned_json`, `digest`, `decompressed_digest`,
 `_reference_is_under`, and `is_under` are AST-identical to K4c.
-`protected` now delegates name exclusions to `protected_name`: database
-suffixes (with archive-name exceptions), sealed/tmux/Chromium/state.db/profile/
-CDP/financial prefixes, and exact secrets/state/sessions/evidence/finance/
-payments/browser-profile/Chromium/claude-1000/hermes-results/.git/.worktrees
-components. `reports` is not a blanket name exclusion. Symlink/resolved-path/
+`protected` now delegates name exclusions to `protected_name`: `.db`,
+`.sqlite`, `.sqlite3` suffixes except names starting `state-archive-` or
+`archive.`; component prefixes `sealed-`, `tmux-`, `.org.chromium.`,
+`state.db`, `chrome-profile`, `chromium-profile`, `cdp-`, `financial`; and exact
+components `secrets`, `state`, `sessions`, `evidence`, `finance`, `payments`,
+`browser-profiles`, `chromium`, `claude-1000`, `hermes-results`, `.git`,
+`.worktrees`. `reports` is not a blanket name exclusion. Symlink/resolved-path/
 Git-directory refusal remains; this wording correction broadens no behavior.
 
 Both process helpers changed: the inventory now snapshots cwd/exe/root,
