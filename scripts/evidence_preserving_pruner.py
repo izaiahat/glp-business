@@ -729,6 +729,7 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
         done=[]
         pending_statuses={'TIME_BUDGET_PARTIAL','ARCHIVE_BUILD_PARTIAL','ARCHIVE_VERIFY_PENDING','RETIREMENT_PENDING','GATED_REFERENCE_CHANGED'}
         save('C_cold_evidence_archive')
+        reference_refresh_attempted=False
         for p in candidates:
             if str(p) in done: continue
             if time.monotonic()+45>=deadline: break
@@ -742,6 +743,19 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
             archive_progress['roots_evaluated']=[str(root) for root in roots
                     if all(str(p) in done for p in candidates if root in p.parents)]
             save('C_cold_evidence_archive')
+            if result.get('status')=='GATED_REFERENCE_CHANGED' and not reference_refresh_attempted:
+                # Retain this refusal; never retry it from an old snapshot.
+                # A complete fresh inventory admits only subsequent candidates.
+                reference_refresh_attempted=True
+                try:
+                    pins=ReferenceIndex(reference_files(config,min(deadline,time.monotonic()+1200)),config['business'])
+                except (OSError,ValueError,ScanBudget) as exc:
+                    state['full_pass_complete']=False
+                    rows.append({'rule':'C_cold_evidence_archive','ok':True,
+                        'status':'GATED_REFERENCE_INVENTORY_INCOMPLETE',
+                        'reason':str(exc)[:300],'bytes_freed':0})
+                    save('C_reference_refresh_gated')
+                    return rows
         archive_progress['roots_evaluated']=[str(root) for root in roots
                 if all(str(p) in done for p in candidates if root in p.parents)]
         state['full_pass_complete']=not (d_partial or (not archive_only and (state.get('A_cursor') or state.get('A_pending') or bstate.get('cursors')))

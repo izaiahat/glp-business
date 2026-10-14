@@ -104,6 +104,10 @@ class DeclaredTmpTests(unittest.TestCase):
         self.assertFalse(self.candidate.exists())
         self.assertEqual(self.api.removed, [self.candidate])
 
+    def test_runtime_user_unit_is_a_scheduler_source(self):
+        self.assertTrue(custody._schedule(Path('/run/user/1000/systemd/user/reader.service')))
+        self.assertFalse(custody._schedule(Path('/run/user/1000/package/systemd/reader.service')))
+
     def test_hermes_cron_bytecode_is_not_a_scheduler_source(self):
         cache = self.links / 'hermes-agent/cron/__pycache__'
         cache.mkdir(parents=True)
