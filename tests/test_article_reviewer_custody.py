@@ -154,6 +154,7 @@ def test_custodian_replays_physical_lines_without_backfilling(tmp_path, monkeypa
     custody = review.authenticate_result('reviewer', payload, response, model=args.model,
                                          provider=args.provider, effort=args.effort, session_db=db)
     runtime = {'session_id': 'reviewer', 'model': args.model, 'provider': args.provider,
+               'transport_id': review.target_route(args.provider, args.model, args.effort)['transport_id'],
                'effort': args.effort, 'result_custody': custody}
     raw = {'session_id': 'reviewer', 'result': response, 'hermes_runtime': runtime,
            'review_input': review.review_input(args, payload, captured, runtime)}
@@ -352,6 +353,24 @@ def test_registered_sol61_route_preserves_author_exclusions(tmp_path, monkeypatc
         with pytest.raises((RuntimeError, transports.TransportError)):
             transports.validate_raw_review_runtime(forged)
             review.validate_result_custody(forged, manifest=manifest, packet=packet)
+    # Runtime IDs must bind independently, not merely inherit input/model pins.
+    # Rehash only the forged receipt; native DB/model/input stay genuine Sol61.
+    for runtime_id in (transports.DEFAULT_TRANSPORT_ID, 'UNREGISTERED-RV489', None):
+        forged = copy.deepcopy(raw)
+        if runtime_id is None:
+            forged['hermes_runtime'].pop('transport_id')
+        else:
+            forged['hermes_runtime']['transport_id'] = runtime_id
+        forged.pop('record_sha256', None)
+        forged['record_sha256'] = review.sha_bytes(json.dumps(forged, sort_keys=True, separators=(',', ':'),
+                                                            ensure_ascii=False).encode())
+        # Test each consumer separately so an earlier refusal cannot mask a gap.
+        with pytest.raises(RuntimeError, match='current_route_pin_invalid'):
+            transports.validate_raw_review_runtime(forged)
+        with pytest.raises(RuntimeError, match='custody'):
+            review.validate_result_custody(forged, manifest=manifest, packet=packet)
+        with pytest.raises(RuntimeError, match='current_route_pin_invalid'):
+            loop.validate_review(loop.parse_result(forged), forged, manifest, 1)
     assert db.read_bytes() == before  # consumers never backfill native custody
     assert 'priority' in (tmp_path / 'history/round-01-review-prompt.md').read_text()
     for legacy in (None, *[r['transport_id'] for r in (transports.SOL_TRANSPORT, transports.OPUS_TRANSPORT,

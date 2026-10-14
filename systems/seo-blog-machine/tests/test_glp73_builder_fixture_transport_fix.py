@@ -163,7 +163,8 @@ def test_t01_runtime_isolation_denial_overrides_input_but_absence_replays():
 def current_runtime(row):
     raw = runtime(row)
     for name in ("review_input", "review_runtime"):
-        raw[name].update(effort=row["effort"], speed="normal", service_tier="default")
+        raw[name].update(transport_id=row["transport_id"], effort=row["effort"],
+                         speed="normal", service_tier="default")
     return raw
 
 

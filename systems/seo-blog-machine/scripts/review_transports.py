@@ -206,7 +206,7 @@ def validate_raw_review_runtime(raw: dict[str, Any], *, error: type[Exception] =
     # demand new fields from authentic historical transport identities.
     if "service_tier" in row:
         for block in (review_input, runtime):
-            if any(block.get(key) != row[key] for key in ("effort", "speed", "service_tier")):
+            if any(block.get(key) != row[key] for key in ("transport_id", "effort", "speed", "service_tier")):
                 raise error(f"{prefix}_current_route_pin_invalid:{row['transport_id']}")
 
     if (review_input.get("provider") != row["provider"]

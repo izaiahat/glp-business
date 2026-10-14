@@ -362,6 +362,9 @@ def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_
     try:
         inputs, runtime = raw['review_input'], raw['hermes_runtime']
         claimed = runtime['result_custody']
+        route = target_route(runtime['provider'], runtime['model'], runtime['effort'])
+        if runtime.get('transport_id') != route['transport_id']:
+            raise ValueError('runtime transport identity differs')
         if raw['session_id'] != runtime['session_id']:
             raise ValueError('reviewer session mismatch')
         args = argparse.Namespace(
