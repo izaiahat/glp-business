@@ -2102,9 +2102,231 @@ def read_terminal_reply(st: dict) -> dict:
     return reply  # unchanged final-hash gate must still reject a genuinely changed reply
 
 
+# Executed in the existing browser-use process, with its native event queue.
+# The on-disk receipt, not stdout or an expected filename, survives IPC failure.
+NATIVE_DOWNLOAD_CODE = r'''
+import hashlib, os
+from pathlib import Path
+
+def _native_save():
+    tmp = receipt_path.with_suffix('.tmp')
+    with open(tmp, 'w', opener=lambda p, f: os.open(p, f, 0o600)) as fh:
+        json.dump(receipt, fh, sort_keys=True)
+        fh.flush(); os.fsync(fh.fileno())
+    os.replace(tmp, receipt_path)
+    fd = os.open(str(receipt_path.parent), os.O_RDONLY)
+    try: os.fsync(fd)
+    finally: os.close(fd)
+
+try:
+    _select(receipt['tab'])
+    probe = lambda expression: _bound_js(receipt['tab'], receipt['conversation_url'], expression)
+    probe('location.href')
+    frame = cdp('Page.getFrameTree', session_id=_sessions[receipt['tab']])['frameTree']['frame']['id']
+    receipt['frame_id'] = frame
+    # Discard no unattributed event silently into this transfer's history.
+    prior = {e.get('params', {}).get('guid') for e in drain_events()
+             if e.get('method', '').startswith('Browser.download')}
+    opened = probe(open_expression)
+    receipt['preview'] = opened; _native_save()
+    if opened.get('opened') is not True:
+        raise ValueError('PREVIEW_NOT_UNIQUE')
+    time.sleep(2)
+    cdp('Browser.setDownloadBehavior', behavior='allow',
+        downloadPath=receipt['destination'], eventsEnabled=True)
+    prior.update(e.get('params', {}).get('guid') for e in drain_events()
+                 if e.get('method', '').startswith('Browser.download'))
+    receipt['click_attempted'] = True; _native_save()
+    receipt['click_result'] = probe(click_expression); _native_save()
+    if receipt['click_result'].get('clicked') is not True:
+        raise ValueError('DOWNLOAD_NOT_UNIQUE')
+    deadline = time.monotonic() + 30
+    guid = None
+    completed = None
+    while time.monotonic() < deadline:
+        for event in drain_events():
+            method = event.get('method'); params = event.get('params', {})
+            if method == 'Browser.downloadWillBegin':
+                if (params.get('frameId') != frame or params.get('suggestedFilename') != receipt['filename']
+                        or not params.get('guid') or params['guid'] in prior):
+                    receipt['unattributed_events'] += 1
+                    continue
+                if guid is not None and guid != params['guid']:
+                    raise ValueError('AMBIGUOUS_NATIVE_GUID')
+                guid = params['guid']; receipt['guid'] = guid
+                receipt['events'].append({'method': method, 'params': params}); _native_save()
+            elif method == 'Browser.downloadProgress':
+                if not guid or params.get('guid') != guid:
+                    receipt['unattributed_events'] += 1
+                    continue
+                receipt['events'].append({'method': method, 'params': params})
+                receipt['progress'] = params; _native_save()
+                state = params.get('state')
+                if state == 'canceled':
+                    receipt.update(result='CANCELED', transfer_state='canceled', reason='NATIVE_CANCELED')
+                elif state == 'completed':
+                    completed = params; receipt['transfer_state'] = 'completed'
+                elif state != 'inProgress':
+                    raise ValueError('INVALID_NATIVE_STATE')
+        if receipt['result'] == 'CANCELED':
+            break
+        if completed is not None:
+            actual = completed.get('filePath')
+            # CDP permits omitted filePath: that is UNKNOWN, never guessed success.
+            if actual is not None and actual != receipt['expected_path']:
+                raise ValueError('NATIVE_DESTINATION_MISMATCH')
+            target = Path(receipt['expected_path'])
+            if actual and target.is_file():
+                if any(p.is_symlink() for p in (target, *target.parents)):
+                    raise ValueError('NATIVE_DESTINATION_SYMLINK')
+                raw = target.read_bytes()
+                if hashlib.sha256(raw).hexdigest() != receipt['expected_sha256']:
+                    raise ValueError('NATIVE_FILE_HASH')
+                receipt.update(result='COMPLETED', reason='NATIVE_COMPLETED',
+                               resolved_destination=actual, bytes=len(raw),
+                               sha256=hashlib.sha256(raw).hexdigest())
+                break
+        time.sleep(0.2)
+    if receipt['result'] == 'UNKNOWN':
+        receipt['reason'] = 'NATIVE_CAPTURE_OR_DESTINATION_UNKNOWN'
+except BaseException as exc:
+    # Binding helper SystemExit and transport failures cannot be called canceled.
+    receipt['reason'] = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+    receipt['result'] = 'ERROR' if isinstance(exc, ValueError) or not receipt['click_attempted'] else 'UNKNOWN'
+finally:
+    if receipt.get('preview', {}).get('opened') is True:
+        try:
+            probe('location.href')
+            for typ in ['keyDown', 'keyUp']:
+                cdp('Input.dispatchKeyEvent', session_id=_sessions[receipt['tab']],
+                    type=typ, key='Escape', code='Escape', windowsVirtualKeyCode=27)
+            receipt['preview_restoration'] = {'restored': True}
+        except BaseException as exc:
+            receipt['preview_restoration'] = {'restored': False, 'error': type(exc).__name__}
+    try:
+        cdp('Browser.setDownloadBehavior', behavior='default', eventsEnabled=False)
+        receipt['restoration'] = {'restored': True}
+    except BaseException as exc:
+        receipt['restoration'] = {'restored': False, 'error': type(exc).__name__}
+    _native_save()
+print('RELAY_JSON:' + json.dumps({'result': receipt['result']}))
+'''
+
+
+def receive_native_download(st, tab, name, directory, expected_sha256):
+    """One future, explicitly admitted native effect; any prior intent forbids it.
+
+    Normal route/heavy/account custody is still required. Never use this API to
+    replay historical report-local attempts. It does not accept or deliver output.
+    """
+    require_binding(st)
+    if (st.get('status') != 'done' or not binding_url(st) or
+            not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', name) or
+            not re.fullmatch(r'[0-9a-f]{64}', expected_sha256) or
+            not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', st['job'])):
+        raise ValueError('NATIVE_RECEIVE_AUTHORITY')
+    directory = Path(directory).absolute()
+    if any(p.is_symlink() for p in (directory, *directory.parents)):
+        raise ValueError('NATIVE_RECEIVE_SYMLINK')
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / name
+    path = JOBS / st['job'] / ('native-download-' + name + '.json')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    receipt = {'schema': 'native-download-v1', 'job': st['job'], 'at': now_iso(),
+               'conversation_id': st['conversation_id'], 'conversation_url': binding_url(st),
+               'tab': tab, 'filename': name, 'destination': str(directory), 'expected_path': str(target),
+               'expected_sha256': expected_sha256, 'input_sha256': st['input_sha256'],
+               'final_reply_sha256': st['last_text_sha'], 'result': 'UNKNOWN',
+               'retry_blocked': True, 'click_attempted': False, 'events': [],
+               'unattributed_events': 0, 'reason': 'INTENT_CAPTURE_PENDING'}
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        raise ValueError('NATIVE_RECEIVE_PRIOR_INTENT') from None
+    with os.fdopen(fd, 'w') as fh:
+        json.dump(receipt, fh, sort_keys=True); fh.flush(); os.fsync(fh.fileno())
+    parent_fd = os.open(str(path.parent), os.O_RDONLY)
+    try: os.fsync(parent_fd)
+    finally: os.close(parent_fd)
+    if target.exists():
+        receipt.update(result='ERROR', reason='NATIVE_RECEIVE_PREEXISTING_DESTINATION')
+        _atomic_json(path, receipt)
+        return receipt
+    opened = ('(()=>{const es=[...document.querySelectorAll("main button[aria-label]")].filter(e=>'
+              'e.getAttribute("aria-label")===' + json.dumps('Open preview of ' + name) +
+              ');if(es.length!==1)return {opened:false,count:es.length};es[0].click();return {opened:true}})()')
+    click = ('(()=>{const es=[...document.querySelectorAll("button[aria-label=Download]")]'
+             '.filter(e=>e.getClientRects().length);if(es.length!==1)return {clicked:false,count:es.length};'
+             'es[0].click();return {clicked:true}})()')
+    script = (BU_PRELUDE + '\nreceipt_path=__import__("pathlib").Path(' + repr(str(path)) +
+              ')\nreceipt=json.loads(receipt_path.read_text())\nopen_expression=' + repr(opened) +
+              '\nclick_expression=' + repr(click) + '\n' + NATIVE_DOWNLOAD_CODE)
+    transport_error = None
+    try:
+        bu_json(script, timeout=90)
+    except BaseException as exc:
+        transport_error = type(exc).__name__
+    finally:
+        # Even a malformed/missing stdout capture must restore behavior. Preserve
+        # the native journal after a timeout, not the browser wrapper's return.
+        receipt = json.loads(path.read_text())
+        if transport_error:
+            receipt['transport_error'] = transport_error
+        if transport_error or not receipt.get('restoration', {}).get('restored'):
+            try:
+                restored = bu_json(BU_PRELUDE + "\ncdp('Browser.setDownloadBehavior',behavior='default',eventsEnabled=False)\nprint('RELAY_JSON:'+json.dumps({'restored':True}))", timeout=30)
+                receipt['restoration'] = {'restored': restored.get('restored') is True, 'outer_finally': True}
+            except BaseException as restore:
+                receipt['restoration'] = {'restored': False, 'error': type(restore).__name__}
+        # mkstemp keeps native URL/event custody private across atomic updates.
+        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix='.native-receive-')
+        with os.fdopen(fd, 'w') as fh:
+            json.dump(receipt, fh, sort_keys=True); fh.flush(); os.fsync(fh.fileno())
+        os.replace(tmp, path)
+        parent_fd = os.open(str(path.parent), os.O_RDONLY)
+        try: os.fsync(parent_fd)
+        finally: os.close(parent_fd)
+    return receipt
+
+
+def _receive_native_outbox(st, reply, directory, marker):
+    """Explicit future-entry preparation, then the unchanged verifier runs below."""
+    def receive(name, digest):
+        result = receive_native_download(st, reply['tab'], name, directory, digest)
+        if (result['result'] != 'COMPLETED' or not result.get('restoration', {}).get('restored')
+                or not result.get('preview_restoration', {}).get('restored')):
+            raise ValueError('NATIVE_RECEIVE_' + result['result'] + ' no retry')
+        return (directory / name).read_bytes()
+    raw = receive('OUTPUT-MANIFEST.json', marker[2])
+    manifest = json.loads(raw)
+    # Check the same identity gates BEFORE authorizing any payload click.
+    if manifest.get('job') != st['job'] or manifest.get('input_sha256') != st['input_sha256']:
+        raise ValueError('native manifest job/input')
+    if manifest.get('schema') == 'gpt6pro-output-manifest-v2':
+        if not st.get('reply_token') or manifest.get('reply_token') != st['reply_token']:
+            raise ValueError('native manifest reply token')
+    else:
+        if manifest.get('conversation_id') != st['conversation_id'] or manifest.get('source_reply_sha256') != hashlib.sha256(marker[1].encode()).hexdigest():
+            raise ValueError('native manifest conversation/reply')
+    if ('conversation_id' in manifest and manifest['conversation_id'] != st['conversation_id'] or
+            'source_reply_sha256' in manifest and manifest['source_reply_sha256'] != hashlib.sha256(marker[1].encode()).hexdigest()):
+        raise ValueError('native manifest optional identity')
+    files = manifest.get('files')
+    if not isinstance(files, dict) or not files or 'OUTPUT-MANIFEST.json' in files:
+        raise ValueError('native manifest file set')
+    # Validate the WHOLE declaration before the first payload effect.
+    if any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', n) or
+           not isinstance(h, str) or not re.fullmatch(r'[0-9a-f]{64}', h) for n, h in files.items()):
+        raise ValueError('native manifest filename/hash')
+    for name, digest in files.items():
+        receive(name, digest)
+
+
 def _cmd_fetch_outbox(a) -> int:
     """Folder names locate data; only a final-chat-bound manifest authorizes it."""
     cfg = load_config(); st = job_state(a.job)
+    if getattr(a, 'receive_native', False) and getattr(a, 'download_dir', None) is None:
+        raise SystemExit('NATIVE_RECEIVE_REQUIRES_DOWNLOAD_DIR')
     require_binding(st)
     if not st.get('conversation_url'):
         raise SystemExit('BINDING_PENDING poll before fetch-outbox')
@@ -2135,6 +2357,11 @@ def _cmd_fetch_outbox(a) -> int:
             need(marker, 'missing final-chat manifest receipt')
             directory = Path(download_dir)
             need(not any(p.is_symlink() for p in (directory, *directory.parents)), 'download symlink')
+            if getattr(a, 'receive_native', False):
+                need(st.get('fetch_verification', {}).get('state') != 'VERIFIED', 'already verified')
+                need(not directory.exists() or not any(directory.iterdir()), 'native destination not empty')
+                directory.mkdir(parents=True, exist_ok=True)
+                _receive_native_outbox(st, r, directory, marker)
             need(directory.is_dir(), 'missing download directory')
             by_name = {p.name: p for p in directory.iterdir()}
             need(all(p.is_file() and not p.is_symlink() for p in by_name.values()), 'download non-file')
@@ -4351,6 +4578,7 @@ def main() -> int:
     s.add_argument("--max-wait", type=int, default=3600)
     fo = sub.add_parser("fetch-outbox"); fo.add_argument("--job", required=True)
     fo.add_argument('--download-dir', type=Path, help='exact original native downloads; same final-chat hash/token/payload checks, never rewrite Drive artifacts')
+    fo.add_argument('--receive-native', action='store_true', help='explicit future receiving only: one journaled native download per exact file; requires download-dir, normal heavy admission and separate effect authority; never replay historical attempts')
     f = sub.add_parser("followup")
     f.add_argument("--job", required=True)
     f.add_argument("--text-file", help="message text; default = resume-after-disconnect")
