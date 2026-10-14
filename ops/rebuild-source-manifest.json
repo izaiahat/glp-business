@@ -6,7 +6,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "ffc94fd490cb688182c3c120a927217cbc3e43b0fc23c9c58a06764f272bf057"
+      "sha256": "bd19d107c3541514533651ebd6a4a9604603ee45f67e4c7aca886b7165c26d1f"
     },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
@@ -766,7 +766,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "48d393ba104315f2f9a7c2707cce93f394a7f44b750723476d77ebbc73944d5a"
+      "sha256": "e16fbc267069eeedb155a4faca90d853e09224bca5b2c0f58d56b7981ace4a66"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -1247,7 +1247,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "7c8d53c861874d3262a4d5c53c499fc1e7c1514ff7a090626437057592a5fbfd"
+      "sha256": "122754f97b624f6ebc3a1535b6ac32695bebe36f214e555b1e3023e86f66fd4b"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2887,7 +2887,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "a46ba03586180fa0d845a8d853aab5ed45e755f61bbebbc2bf72893b96da536d"
+      "sha256": "afa97d1f6970c9f2cb67f6c26b2ab4c9d9a8ad628334a83c9278f32ae4eedfef"
     },
     "scripts/glp_affiliate_weekly_reporting_j7_job.py": {
       "callers": [
@@ -6582,6 +6582,14 @@
       "scope": "Registered shell rejects mismatched imported job source before provider reads.",
       "sha256": "af5bb23204a31eaaf9dc6756a4573ac9e6d17c8909775c3e5d092a4e4f091e98"
     },
+    "tests/test_j7_run_http_budget.py": {
+      "callers": [
+        "j7-reporting exact-head CI"
+      ],
+      "kind": "test",
+      "scope": "Effects-denied actual J7 main run-wide outbound32 including authentication, corroboration, failed attempts and retries; no financial or provider effects.",
+      "sha256": "c4f2042bbfe3a0ffe744eec98290db46bd89545f4166473bd28afe5ab774a176"
+    },
     "tests/test_j7_xentraffic_financial.py": {
       "callers": [
         "hermes:aadf6677c7f0"
@@ -7665,5 +7673,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1123
+  "tracked_count": 1124
 }

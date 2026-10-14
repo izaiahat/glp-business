@@ -33,13 +33,14 @@ def git_bytes(commit, relative):
 
 class CatalogDependentClosureTests(unittest.TestCase):
     def test_exact_genuine_preimage_to_successor_closure(self):
-        # No invented predecessor bytes or report-only proposals as authority.
+        # Immutable accepted PR498 co-pin history, not a freeze of future J7.
+        # Keep exact historical bytes; current pin closure is checked separately.
         failures = []
-        new_pz = sha((ROOT / PZ).read_bytes())
+        new_pz = sha(git_bytes(PACKAGED, PZ))
         manifests = {}
         for relative in MANIFESTS:
             before = git_bytes(PREIMAGE, relative)
-            after = (ROOT / relative).read_bytes()
+            after = git_bytes(PACKAGED, relative)
             old = json.loads(before)['files'][PREFIX + PZ]
             expected = before.replace(old.encode(), new_pz.encode())
             if after != expected:
@@ -56,7 +57,7 @@ class CatalogDependentClosureTests(unittest.TestCase):
 
         for relative, manifest in zip(WRAPPERS, MANIFESTS):
             before = git_bytes(PREIMAGE, relative)
-            after = (ROOT / relative).read_bytes()
+            after = git_bytes(PACKAGED, relative)
             old, new = map(sha, manifests[manifest])
             self.assertEqual(before.count(old.encode()), 2)
             expected = before.replace(old.encode(), new.encode())
@@ -66,23 +67,23 @@ class CatalogDependentClosureTests(unittest.TestCase):
                 self.assertEqual(after.replace(new.encode(), old.encode()), before)
 
         before = git_bytes(PREIMAGE, DAILY)
-        after = (ROOT / DAILY).read_bytes()
+        after = git_bytes(PACKAGED, DAILY)
         match = re.search(rb"== '([a-f0-9]{64})'", before)
         assert match is not None
         old = match.group(1)
-        new = sha((ROOT / BATCH).read_bytes()).encode()
+        new = sha(git_bytes(PACKAGED, BATCH)).encode()
         self.assertEqual(before.count(old), 1)
         if after != before.replace(old, new):
             failures.append(DAILY + ': not exact reviewed batch digest substitution')
         else:
             self.assertEqual(after.replace(new, old), before)
 
-        # All four generations close against candidate bytes, not installed paths.
+        # All four historical generations close against their accepted Git tree.
         for relative in ('ops/glp/reporting-v2/source-manifest.json',) + MANIFESTS:
-            pins = json.loads((ROOT / relative).read_bytes())['files']
+            pins = json.loads(git_bytes(PACKAGED, relative))['files']
             for absolute, expected in pins.items():
                 self.assertTrue(absolute.startswith(PREFIX))
-                actual = sha((ROOT / absolute.removeprefix(PREFIX)).read_bytes())
+                actual = sha(git_bytes(PACKAGED, absolute.removeprefix(PREFIX)))
                 if actual != expected:
                     failures.append(relative + ': leaf mismatch ' + absolute)
 
@@ -91,6 +92,7 @@ class CatalogDependentClosureTests(unittest.TestCase):
                          'tests/test_j4_partnerize_partial_catalog.py',
                          'ops/glp/reporting-v2/source-manifest.json',
                          'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh'):
+            self.assertEqual(git_bytes(PACKAGED, relative), git_bytes(REVIEWED, relative))
             self.assertEqual((ROOT / relative).read_bytes(), git_bytes(REVIEWED, relative))
 
         self.assertEqual(failures, [], '\n'.join(failures))
@@ -170,6 +172,16 @@ class CatalogDependentClosureTests(unittest.TestCase):
                              'committed package stale: ' + relative)
         self.assertEqual((ROOT / package).read_bytes(), committed_package,
                          'workspace package differs from committed HEAD')
+        # Legitimate J7 successors must close their CURRENT reporting leaf pins,
+        # independently of immutable PR498 reverse-byte history above. Translate
+        # absolute installed destinations to this isolated source root only.
+        for relative in ('ops/glp/reporting-v2/source-manifest.json',) + MANIFESTS:
+            pins = json.loads(git_bytes('HEAD', relative))['files']
+            for absolute, expected in pins.items():
+                self.assertTrue(absolute.startswith(PREFIX))
+                leaf = absolute.removeprefix(PREFIX)
+                self.assertEqual(expected, sha(git_bytes('HEAD', leaf)),
+                                 'current reporting leaf pin stale: ' + relative + ': ' + leaf)
 
     def test_committed_unrelated_advance_preserves_historical_closure(self):
         # Real disposable Git successor, not a working-tree self-repin authority.
