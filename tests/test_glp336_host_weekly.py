@@ -89,3 +89,22 @@ def test_wrong_week_and_failed_budget_cannot_complete(tmp_path):
         return result
     with pytest.raises(ValueError, match='host_weekly_budget_unproved'):
         owner.run_owned(tmp_path/'over', over, now=NOW)
+
+
+def test_free_analysis_completes_with_explicit_metered_hold(tmp_path):
+    def held(path):
+        result = producer(path)
+        report = json.loads(Path(result['report']).read_text())
+        report['module_statuses']['keyword_gap'] = 'UNKNOWN_INPUT'
+        report['weekly_spend'] = {'within_cap': False, 'cap_usd': '25',
+            'committed_usd': '1.308552', 'rail_journal_unknown': True,
+            'open_reservations': [], 'unknown_cost_reservations': [],
+            'refusals': [{'reason': 'unknown_prior_spend_this_week'}]}
+        atomic(Path(result['report']), report)
+        return result
+    result = owner.run_owned(tmp_path, held, now=NOW)
+    done = owner.verify_completion(result['host_completion'])
+    assert done['analysis_rows'] == 1
+    assert done['weekly_spend']['within_cap'] is False
+    assert done['metered_collection_status'] == 'HELD_UNKNOWN_PRIOR_SPEND'
+    assert owner.consume(result, '020bcdd7f0e1')['ack_count'] == 1

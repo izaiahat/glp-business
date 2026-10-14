@@ -8,6 +8,7 @@ import datetime as dt
 import fcntl
 import hashlib
 import json
+from decimal import Decimal
 from pathlib import Path
 import uuid
 
@@ -16,6 +17,27 @@ from ops.glp.weekly_strategy_sync import atomic
 
 ROOT = Path('/home/ubuntu/business/reports/glp-clinic-scout/weekly-analytics-owner')
 CONSUMER = '020bcdd7f0e1'
+
+
+def metered_status(report):
+    spend = report.get('weekly_spend', {})
+    cap = Decimal(str(spend.get('cap_usd', 0)))
+    known = Decimal(str(spend.get('committed_usd', 0)))
+    if cap != 25 or not known.is_finite() or not 0 <= known <= cap:
+        raise ValueError('host_weekly_budget_unproved')
+    if spend.get('within_cap') is True:
+        return 'WITHIN_CAP'
+    # Completion of free, nonempty analysis is not permission to spend.
+    # Carry the unchanged guard's genuine hold rather than claiming a known
+    # total or stalling GSC/GA4 planning on an unrelated ambiguous SERP charge.
+    if (spend.get('rail_journal_unknown') is True
+            and not spend.get('open_reservations')
+            and not spend.get('unknown_cost_reservations')
+            and any(r.get('reason') == 'unknown_prior_spend_this_week'
+                    for r in spend.get('refusals', []))
+            and report.get('module_statuses', {}).get('keyword_gap') == 'UNKNOWN_INPUT'):
+        return 'HELD_UNKNOWN_PRIOR_SPEND'
+    raise ValueError('host_weekly_budget_unproved')
 
 
 def binding(path):
@@ -43,9 +65,7 @@ def validate(result, week):
             not any((n or 0) > 0 for n in report.get('gsc_rows', {}).values()) or
             report.get('module_statuses', {}).get('page2') != 'PASS_ANALYSIS_ONLY'):
         raise ValueError('nonempty_weekly_analysis_required')
-    spend = report.get('weekly_spend', {})
-    if spend.get('within_cap') is not True or float(spend.get('cap_usd', 0)) != 25:
-        raise ValueError('host_weekly_budget_unproved')
+    metered_status(report)
     strategy = result['strategy_update']
     if strategy.get('status') != 'HOST_DURABLE_STRATEGY_INPUT':
         raise ValueError('host_strategy_required')
@@ -93,7 +113,6 @@ def run_owned(root, producer, *, now=None):
                     'consumer': CONSUMER, 'claimed_at_utc': now.isoformat()})
                 output = folder/('analysis-' + uuid.uuid4().hex[:8])
                 result = producer(output)
-                validate(result, week)
                 atomic(staged, result)
             report, rows = validate(result, week)
             analysis_bindings = {'report': binding(result['report']),
@@ -106,6 +125,7 @@ def run_owned(root, producer, *, now=None):
                 'input_observations': report.get('input_observations'),
                 'module_statuses': report['module_statuses'],
                 'weekly_spend': report['weekly_spend'],
+                'metered_collection_status': metered_status(report),
                 'analysis_bindings': analysis_bindings, 'result': binding(staged),
                 'cogny_queued_task_dependency': False})
         result = dict(result)
