@@ -177,6 +177,92 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(audit['matching_reply_count'], 2)
         self.assertFalse((ticket/'COMPLETION.json').exists())
 
+    def test_second_exact_correlation_status_retained_without_hiding_other_reply(self):
+        replies = []
+        calls = []
+        def api(method, route, payload=None):
+            calls.append((method, route))
+            if method == 'POST':
+                self.message['content'] = payload['content']
+                return self.message
+            if '?limit=100' in route:
+                return [self.message] + replies
+            return next((m for m in replies if route.endswith('/'+m['id'])), self.message)
+        result = self.dispatch(api)
+        ticket = Path(result['ticket_dir'])
+        row = json.loads((ticket/'TICKET.json').read_text())
+        handoff = dict(id='1560000000000000000', channel_id=row['channel_id'], type=19,
+            author={'id':d.DOTS['rook']['user']}, attachments=[],
+            message_reference=dict(message_id=row['request_id'], channel_id=row['channel_id'], guild_id=d.GUILD),
+            content=f"<@{d.SENDER}> RESULT {row['ticket']}\nEvidence. Delivery is authorized direct fallback, NOT native-correlated: no request_id.")
+        context = dict(id='1560000000000000002', channel_id=row['channel_id'], type=0,
+            author={'id':d.DOTS['rook']['user']}, attachments=[], message_reference=None,
+            content=f"<@{d.SENDER}> Please reconcile {row['ticket']}; no replay.")
+        reconciliation = dict(context, id='1560000000000000001',
+            content=f"<@{d.SENDER}> RV472 reconciliation facts: {row['correlation']}. No native reply or replay.")
+        kwargs = dict(reason='reviewed exact terminal and both nonterminal statuses', owner='coordinator', api=api,
+            probe=lambda _: {'status':'request_expired'}, handoff_reply_id=handoff['id'],
+            handoff_content_sha256=d.digest(handoff['content']), handoff_context_id=context['id'],
+            handoff_context_sha256=d.digest(context['content']),
+            handoff_reconciliation_id=reconciliation['id'],
+            handoff_reconciliation_sha256=d.digest(reconciliation['content']))
+        with patch.object(d.time, 'time', return_value=row['sent_at']+21601):
+            replies[:] = [handoff, context, reconciliation]
+            before = (ticket/'TICKET.json').read_bytes()
+            with self.assertRaisesRegex(ValueError, 'handoff_binding_refused'):
+                d.expire(ticket, **{k:v for k,v in kwargs.items() if not k.startswith('handoff_reconciliation')})
+            for field, value in [('author', {'id':'foreign'}), ('channel_id', 'foreign'),
+                    ('guild_id', 'foreign'), ('type', 19), ('webhook_id', 'hook'),
+                    ('attachments', [{'id':'attachment'}]), ('message_reference', handoff['message_reference']),
+                    ('content', reconciliation['content']+' drift'),
+                    ('content', f"<@{d.SENDER}> \nBLOCKED {row['correlation']} other terminal"),
+                    ('content', f"<@{d.SENDER}> reconciliation foreign correlation")]:
+                bad = dict(reconciliation, **{field:value})
+                replies[:] = [handoff, context, bad]
+                tested = dict(kwargs)
+                if field == 'content' and not value.endswith(' drift'):
+                    tested['handoff_reconciliation_sha256'] = d.digest(value)
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    d.expire(ticket, **tested)
+                self.assertEqual((ticket/'TICKET.json').read_bytes(), before)
+                self.assertFalse((ticket/'EXPIRY.json').exists())
+            replies[:] = [handoff, context, reconciliation, dict(reconciliation,id='1560000000000000003')]
+            with self.assertRaisesRegex(ValueError, 'handoff_binding_refused'):
+                d.expire(ticket, **kwargs)
+            replies[:] = [handoff, context, reconciliation]
+            outcome = d.expire(ticket, **kwargs)
+            self.assertEqual(outcome['state'], 'expired')
+            self.assertEqual(d.expire(ticket, **kwargs), outcome)
+            with self.assertRaisesRegex(ValueError, 'audit_handoff_conflict'):
+                d.expire(ticket, **dict(kwargs, handoff_reconciliation_sha256='0'*64))
+        audit = json.loads((ticket/'EXPIRY.json').read_text())
+        self.assertEqual(audit['external_reconciliation'], reconciliation)
+        self.assertEqual(audit['external_reconciliation_content_sha256'], kwargs['handoff_reconciliation_sha256'])
+        self.assertEqual(audit['matching_reply_count'], 3)
+        self.assertFalse((ticket/'COMPLETION.json').exists())
+        self.assertEqual(sum(method == 'POST' for method, _ in calls), 1)
+
+    def test_second_context_cli_passes_exact_bindings_and_requires_primary(self):
+        import contextlib
+        import io
+        import sys
+        argv = ['dot_dispatch.py', '--expire', str(self.root/'ticket'), '--reason', 'reviewed',
+                '--owner', 'coordinator', '--external-handoff-id', '111',
+                '--external-handoff-sha256', 'a'*64, '--external-context-id', '113',
+                '--external-context-sha256', 'b'*64, '--external-reconciliation-id', '112',
+                '--external-reconciliation-sha256', 'c'*64]
+        with patch.object(sys, 'argv', argv), patch.object(d, 'expire', return_value={'state':'expired'}) as expiry, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(d.main(), 0)
+        self.assertEqual(expiry.call_args.kwargs['handoff_reconciliation_id'], '112')
+        self.assertEqual(expiry.call_args.kwargs['handoff_reconciliation_sha256'], 'c'*64)
+        for params in ({'handoff_reconciliation_id':'112'},
+                {'handoff_reconciliation_sha256':'c'*64},
+                {'handoff_reconciliation_id':'112', 'handoff_reconciliation_sha256':'c'*64}):
+            with self.subTest(params=params), self.assertRaisesRegex(ValueError,'context_binding_refused'):
+                d.expire(self.root/'missing', reason='reviewed', owner='coordinator', **params)
+        self.assertFalse((self.root/'missing').exists())
+
     def test_discord_api_allows_only_numeric_read_only_before_cursor(self):
         import post_discord_message as poster
         from unittest.mock import MagicMock

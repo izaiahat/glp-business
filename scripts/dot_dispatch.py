@@ -453,7 +453,8 @@ def expiry_history(channel, request_id, api):
 
 def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
            probe=native_expiry_probe, handoff_reply_id=None, handoff_content_sha256=None,
-           handoff_context_id=None, handoff_context_sha256=None):
+           handoff_context_id=None, handoff_context_sha256=None,
+           handoff_reconciliation_id=None, handoff_reconciliation_sha256=None):
     """Explicit orchestrator-only administrative expiry; never a dot-authored reply.
 
     Refuse uncertain sends, confirmed/staged replies, live native grants/effects,
@@ -480,6 +481,14 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
                 or not isinstance(handoff_context_sha256, str)
                 or not re.fullmatch(r'[0-9a-f]{64}', handoff_context_sha256)):
             raise ValueError('expiry_external_context_binding_refused')
+    if handoff_reconciliation_id is not None or handoff_reconciliation_sha256 is not None:
+        if (handoff_context_id is None or not isinstance(handoff_reconciliation_id, str)
+                or not re.fullmatch(r'[0-9]+', handoff_reconciliation_id)
+                or handoff_reconciliation_id == handoff_context_id
+                or int(handoff_reconciliation_id) <= int(handoff_reply_id)
+                or not isinstance(handoff_reconciliation_sha256, str)
+                or not re.fullmatch(r'[0-9a-f]{64}', handoff_reconciliation_sha256)):
+            raise ValueError('expiry_external_context_binding_refused')
     with locked(ticket.parent):
         private_dir(ticket)
         state = json.loads((ticket / 'TICKET.json').read_text())
@@ -490,7 +499,9 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
                 raise ValueError('expiry_audit_handoff_conflict')
             if (audit.get('external_handoff',{}).get('id') != handoff_reply_id
                     or audit.get('external_context',{}).get('id') != handoff_context_id
-                    or audit.get('external_context_content_sha256') != handoff_context_sha256):
+                    or audit.get('external_context_content_sha256') != handoff_context_sha256
+                    or audit.get('external_reconciliation',{}).get('id') != handoff_reconciliation_id
+                    or audit.get('external_reconciliation_content_sha256') != handoff_reconciliation_sha256):
                 raise ValueError('expiry_audit_handoff_conflict')
             if (audit['reason'], audit['recorded_by'], audit['timeout_seconds']) != (reason, owner, timeout_seconds):
                 raise ValueError('expiry_audit_conflict')
@@ -517,24 +528,33 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
                  or state['correlation'] in m.get('content', ''))]
         handoff = None
         context = None
+        reconciliation = None
         handoff_replies = replies
-        if handoff_context_id is not None:
-            context = api('GET', f"/channels/{state['channel_id']}/messages/{handoff_context_id}")
-            text = context.get('content', '')
-            matches = [m for m in replies if m.get('id') == handoff_context_id]
-            if (state['dot'] != 'rook' or len(matches) != 1 or context != matches[0]
-                    or context.get('id') != handoff_context_id or context.get('type') != 0
-                    or context.get('channel_id') != state['channel_id']
-                    or context.get('guild_id', GUILD) != GUILD
-                    or context.get('author', {}).get('id') != DOTS['rook']['user']
-                    or context.get('webhook_id') is not None or context.get('attachments') != []
-                    or context.get('message_reference') is not None
+        for context_id, context_hash, binding in (
+                (handoff_context_id, handoff_context_sha256, state['ticket']),
+                (handoff_reconciliation_id, handoff_reconciliation_sha256, state['correlation'])):
+            if context_id is None:
+                continue
+            message_context = api('GET', f"/channels/{state['channel_id']}/messages/{context_id}")
+            text = message_context.get('content', '')
+            matches = [m for m in replies if m.get('id') == context_id]
+            if (state['dot'] != 'rook' or len(matches) != 1 or message_context != matches[0]
+                    or message_context.get('id') != context_id or message_context.get('type') != 0
+                    or message_context.get('channel_id') != state['channel_id']
+                    or message_context.get('guild_id', GUILD) != GUILD
+                    or message_context.get('author', {}).get('id') != DOTS['rook']['user']
+                    or message_context.get('webhook_id') is not None or message_context.get('attachments') != []
+                    or message_context.get('message_reference') is not None
                     or not isinstance(text, str) or len(text) > 8000
-                    or not text.startswith('<@'+SENDER+'> ') or state['ticket'] not in text
+                    or not text.startswith('<@'+SENDER+'> ') or binding not in text
                     or re.match(r'^<@'+SENDER+r'>\s*(?:RESULT|BLOCKED|DIRECT FALLBACK)\b', text, re.I)
-                    or digest(text) != handoff_context_sha256):
+                    or digest(text) != context_hash):
                 raise ValueError('expiry_external_context_binding_refused')
-            handoff_replies = [m for m in replies if m.get('id') != handoff_context_id]
+            if context_id == handoff_context_id:
+                context = message_context
+            else:
+                reconciliation = message_context
+            handoff_replies = [m for m in handoff_replies if m.get('id') != context_id]
         if handoff_reply_id is not None:
             if native['status'] != 'request_expired' or len(handoff_replies) != 1 or handoff_replies[0].get('id') != handoff_reply_id:
                 raise ValueError('expiry_external_handoff_binding_refused')
@@ -579,12 +599,17 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
                 audit['external_handoff_content_sha256'] = handoff_content_sha256
         if context is not None:
             audit.update(external_context=context, external_context_content_sha256=handoff_context_sha256)
+        if reconciliation is not None:
+            audit.update(external_reconciliation=reconciliation,
+                         external_reconciliation_content_sha256=handoff_reconciliation_sha256)
         audit_path = ticket / 'EXPIRY.json'
         if audit_path.exists():  # recover an interrupted audit-before-state commit
             old = json.loads(audit_path.read_text())
-            if old.get('external_handoff') != handoff or old.get('external_context') != context:
+            if (old.get('external_handoff') != handoff or old.get('external_context') != context
+                    or old.get('external_reconciliation') != reconciliation):
                 raise ValueError('expiry_audit_handoff_conflict')
-            if old.get('external_context_content_sha256') != handoff_context_sha256:
+            if (old.get('external_context_content_sha256') != handoff_context_sha256
+                    or old.get('external_reconciliation_content_sha256') != handoff_reconciliation_sha256):
                 raise ValueError('expiry_audit_handoff_conflict')
             if any(old.get(k) != audit.get(k) for k in ('schema','external_handoff_sha256','external_handoff_content_sha256')) or old.get('external_handoff',{}).get('id') != handoff_reply_id:
                 raise ValueError('expiry_audit_handoff_conflict')
@@ -750,6 +775,8 @@ def main():
     p.add_argument('--external-handoff-sha256', help='Parent-reviewed exact full-wire hash required for external RESULT alternative')
     p.add_argument('--external-context-id', help='One exact later Rook nonterminal status; never a completion')
     p.add_argument('--external-context-sha256', help='Reviewed exact content hash of that status; all other replies still refuse')
+    p.add_argument('--external-reconciliation-id', help='One additional exact Rook correlation-bound nonterminal status')
+    p.add_argument('--external-reconciliation-sha256', help='Reviewed full-wire hash; requires the original exact context')
     p.add_argument('--migrate-receiving', type=Path, help='Explicit parent-reviewed exact pending Finch ticket')
     p.add_argument('--receiving-migration-plan', type=Path, help='Private reviewed DOT_RECEIVING_MIGRATION_V1 plan')
     p.add_argument('--expiry-timeout-seconds', type=float, default=21600,
@@ -774,7 +801,9 @@ def main():
                             timeout_seconds=a.expiry_timeout_seconds,handoff_reply_id=a.external_handoff_id,
                             handoff_content_sha256=a.external_handoff_sha256,
                             handoff_context_id=a.external_context_id,
-                            handoff_context_sha256=a.external_context_sha256)
+                            handoff_context_sha256=a.external_context_sha256,
+                            handoff_reconciliation_id=a.external_reconciliation_id,
+                            handoff_reconciliation_sha256=a.external_reconciliation_sha256)
         elif a.consume:
             result = consume(a.root, a.max_wait_seconds)
         elif a.reconcile:
