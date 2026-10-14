@@ -389,6 +389,9 @@ def _prose_strings(article: dict) -> list[tuple[str, str]]:
         if not isinstance(section, dict):
             continue
         add(f"sections[{index}].heading", section.get("heading"))
+        for sub_index, sub in enumerate(section.get("subheadings") or []):
+            if isinstance(sub, dict):
+                add(f"sections[{index}].subheadings[{sub_index}].heading", sub.get("heading"))
         for key in ("paragraphs", "bullets", "ordered", "items"):
             for item_index, item in enumerate(section.get(key) or []):
                 add(f"sections[{index}].{key}[{item_index}]", item)
