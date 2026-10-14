@@ -110,15 +110,26 @@ def terminal(directory, state):
     if len(rows) != 1:
         raise ValueError('native_custody_single_terminal_required')
     row = rows[0]
-    reply = '# '+state['ticket']+'\n\n'+dots.TRUST+'\n\n'+row.get('text','')+'\n'
     if (row.get('status') != 'staged' or row.get('outcome') not in {'result','blocked'}
         or row.get('correlation') != state.get('correlation')
         or row.get('author_id') != dots.DOTS[state['dot']]['user']
         or row.get('trust') != dots.TRUST or row.get('operator_approval') is not False
         or row.get('text_truncated') or not row.get('text')
         or row.get('reply_id') != state.get('reply_id')
-        or row.get('result_key') != state['ticket']
-        or (directory/'REPLY.md').read_text() != reply
+        or row.get('result_key') != state['ticket']):
+        raise ValueError('native_custody_mismatch')
+    if row.get('attachment') is not None:
+        import native_reply_consumer as native
+        _, entries = native.load_registrations(directory/'NATIVE-CONFIG.json')
+        if (len(entries) != 1 or entries[0].result_key != state['ticket']
+            or entries[0].parent != state.get('parent')
+            or entries[0].task_owner != state.get('task_owner')
+            or row.get('registration_sha256') != entries[0].registration_sha256
+            or row.get('receipt_id') != entries[0].receipt_id):
+            raise ValueError('native_custody_registration_mismatch')
+        native.check_saved_attachment(row, entries[0])
+    reply = dots.reply_document(state, row)
+    if ((directory/'REPLY.md').read_bytes() != reply.encode('utf-8')
         or hashlib.sha256(reply.encode()).hexdigest() != state.get('reply_sha256')):
         raise ValueError('native_custody_mismatch')
     return row

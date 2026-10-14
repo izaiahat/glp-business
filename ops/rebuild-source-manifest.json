@@ -249,14 +249,14 @@
         "ops/cron.d/glp-dot-refill"
       ],
       "kind": "script",
-      "sha256": "ccf50cfd188657ce900d5d018417a76854c080ff912f54c90ee36ef6a358ca21"
+      "sha256": "2b2fc65d68533a2f8ad4eda6881db0dc70e1c7b7fa81f4e578503445ac43fdc6"
     },
     "tests/test_dot_lane.py": {
       "callers": [
         ".github/workflows/dot-lane.yml"
       ],
       "kind": "test",
-      "sha256": "8a63ffcbf3e13481e6efb09ebd6e4fc6c78fcc604da796e224cf479e24ad2384"
+      "sha256": "da4da2d38d61573726cc5a3e3b40434f26994773c261724c137538d0a3c18beb"
     },
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [
@@ -2664,7 +2664,7 @@
         "manual:authorized-dot-ticket"
       ],
       "kind": "script",
-      "sha256": "a18b19d7925e6027c647e3ff86b2f7a59470d57b2760e704d3f4d8fc3b590af5"
+      "sha256": "6657e298a49f8dcbb35ccb2f65f47d81eb1ae5618c9ba5c4ac4a38ece08f912e"
     },
     "scripts/evidence_preserving_pruner.py": {
       "callers": [
@@ -3833,7 +3833,7 @@
         "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
       ],
       "kind": "script",
-      "sha256": "0dfc5c5007aebc160aad2d4d1d1c5ad9f93184d2a89f8c92bb0b4f50d9a9d0db"
+      "sha256": "71cf4ec5dfb4547b831fdd80baa40f8f3bd5778591c8670276f5fffd3b14db13"
     },
     "scripts/pallas_predecessor_migration.py": {
       "sha256": "96f1fe55bf8e19148470f5aced68ed049046c679cbf0ef31b34aa4f3e1b40b2c"
