@@ -1,20 +1,6 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "inbox_control_plane/external_sent.py": {
-      "kind": "python_module",
-      "callers": [
-        "inbox_control_plane/control_plane.py --observe-glp125-external-sent"
-      ],
-      "sha256": "db19ccd00aac6f7d3071a09b8fb704dc05ef04fc2d6aea6332758614546fa74c"
-    },
-    "tests/test_glp125_external_sent.py": {
-      "kind": "test",
-      "callers": [
-        "business-source-ci"
-      ],
-      "sha256": "6bb54ec6f775a65869aee23412c53e4c26f81081d9dd9dda8cc7d8ca10450a76"
-    },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
       "callers": [
@@ -780,7 +766,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "098a4c48068a46649cb414b3c7c38f38110d2a6c347014c152d5312ae9aff974"
+      "sha256": "bfef07748558a1a9c4cca8fd790dc2d6b835f71dc10ea60702186bb8f52c6dd4"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -1232,7 +1218,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "d3218f87ffe4d5cd6b5fb4255aad607ba9184ae95e3d8a1fb6f4585f34aaec84"
+      "sha256": "6a9c4a226b425c35352938b6ddb138bfcf46310daed9e8d6b1f1cfe9b66f1fad"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh": {
       "callers": [
@@ -2093,7 +2079,7 @@
         "scripts/affiliate_best_terms_machine.py"
       ],
       "kind": "script",
-      "sha256": "5d54653462b04c9c9f1ffa923ad9dc79bea49308be45c69c59f9be84255410a3"
+      "sha256": "f18656bb1cc6d9b2a244f03079e9c2da56c990c3821000c13736f52cc6ece777"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "callers": [
@@ -3763,7 +3749,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "a86e01d09a41fa3e747c511c197d4c1a06739524a9f3c6842363dc7db156ff6e"
+      "sha256": "c220a4f72194e7002666a5719f52f18a6be518e58c281bca3cd3e99c2906f1d6"
     },
     "scripts/marketplace_adapters/portal_apply.py": {
       "callers": [
@@ -6511,7 +6497,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
+      "sha256": "5f07a6970a238e5aa04ebd405d9b3376c6259d23c717ece8b56f7e0796e5240a"
     },
     "tests/test_j4_refersion_catalog.py": {
       "callers": [
@@ -7628,6 +7614,27 @@
       "kind": "test",
       "sha256": "73b763f31d0339de2a3759e6085ba764cd8d0cc816ee2eff1024e73bf181a032"
     },
+    "scripts/marketplace_adapters/digistore24.py": {
+      "callers": [
+        "GLP-93 scoped vendor catalog readback"
+      ],
+      "kind": "script",
+      "sha256": "c3ec05b3e480f66d720da4f23c7f36eff29b29cd8ec52a8bc0dd5b78a57b0166"
+    },
+    "inbox_control_plane/external_sent.py": {
+      "kind": "python_module",
+      "callers": [
+        "inbox_control_plane/control_plane.py --observe-glp125-external-sent"
+      ],
+      "sha256": "db19ccd00aac6f7d3071a09b8fb704dc05ef04fc2d6aea6332758614546fa74c"
+    },
+    "tests/test_glp125_external_sent.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "6bb54ec6f775a65869aee23412c53e4c26f81081d9dd9dda8cc7d8ca10450a76"
+    },
     "tests/fixtures/sponsor-ultimateperformance-terms.txt": {
       "kind": "data",
       "callers": [
@@ -7644,5 +7651,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1120
+  "tracked_count": 1121
 }
