@@ -130,6 +130,19 @@ ASTRA_TRANSPORT: dict[str, Any] = {
 AUTHORIZED_TRANSPORTS[ASTRA_TRANSPORT["transport_id"]] = ASTRA_TRANSPORT
 DEFAULT_TRANSPORT_ID = ASTRA_TRANSPORT["transport_id"]
 
+# GLP320 RELEASE-OWNER explicit distinct-model route. Additive only: Astra
+# remains default and every historical identity remains receipt-reading only.
+SOL61_TRANSPORT: dict[str, Any] = {
+    **ASTRA_TRANSPORT,
+    "transport_id": "hermes-openai-codex-sol61-independent",
+    "model": "gpt-6.1-sol",
+    "speed": "fast",
+    "service_tier": "priority",
+    "authorized_since": "2026-10-14",
+}
+AUTHORIZED_TRANSPORTS[SOL61_TRANSPORT["transport_id"]] = SOL61_TRANSPORT
+NATIVE_INVOCATION_TRANSPORT_IDS = (ASTRA_TRANSPORT["transport_id"], SOL61_TRANSPORT["transport_id"])
+
 # The retired Bridge-review path. It was never packet-bound, never tool-free and
 # never schema-pinned, so it stays forbidden in every active source regardless of
 # which authorized transport is in use.

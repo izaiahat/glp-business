@@ -218,7 +218,7 @@ def test_native_reviewer_pins_standard_and_refuses_legacy_or_tools():
     assert inp["transport_id"] == "hermes-openai-codex-astra-independent"
     assert inp["speed"] == "normal" and inp["service_tier"] == "default"
     for field, bad in (("provider", "anthropic"), ("model", "gpt-5.6-sol"),
-                       ("model", "gpt-6.1-sol"), ("effort", "xhigh"), ("disable_tools", False)):
+                       ("model", "unregistered-sol"), ("effort", "xhigh"), ("disable_tools", False)):
         altered = copy.copy(args)
         setattr(altered, field, bad)
         with pytest.raises(ValueError):

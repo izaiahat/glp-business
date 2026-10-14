@@ -3542,7 +3542,7 @@
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
       "kind": "review_transport",
-      "sha256": "518bd69dcfa9f66b350418e8c15bbd8a5c34481d3ca2055bca99784ea098cac7"
+      "sha256": "02cc7aa2ee4f8e592f52f78928201d99a4f5ab7d9ea49ff05a52b68452e483cd"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
@@ -4240,7 +4240,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "b674298a00b5cb311f8a389417aa53f077f10f1da4a6433fec5c32066b099179"
+      "sha256": "94543db589a59fe0a6ef99dc7c686e8149e97b8ffc45bceb9acb8ce2bf0176e4"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [
@@ -4289,7 +4289,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "6516757cd44bfe1d1c4d76b84df21c3cfb9e1a20f043193050e301a534655fa8"
+      "sha256": "d77984e87c9fcc7dcf7aafaf183de3f16e1dbec4e3717d221c9a6329cf2d2262"
     },
     "systems/seo-blog-machine/scripts/select_opus_content_queue.py": {
       "callers": [
@@ -4368,7 +4368,7 @@
         "GLP-73 B-01/F-01/T-01 source-only regressions"
       ],
       "kind": "test",
-      "sha256": "578b3659c7d2025a288d9e0c81e322ccfce10d871487a1255786528e02544a53"
+      "sha256": "d8624fd8a739a4a85e0664e38eaff8d623ff568cc2926ad985ddc0ad94899757"
     },
     "systems/seo-blog-machine/tests/test_glp73_image_lineage_fallback.py": {
       "callers": [
@@ -4878,7 +4878,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "3f40f82f6321c2155532a8b3f3b5d79bca62f5457e1b7012d762946a0229518c"
+      "sha256": "9e65d7efbfd9f5d3e5176eb4a9b2f5cb722e67f7c38ab587610a326c51ea4a4b"
     },
     "tests/test_article_source_carrier.py": {
       "callers": [
