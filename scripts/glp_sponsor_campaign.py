@@ -255,6 +255,12 @@ CATEGORY = {
 }
 COMMERCIAL = re.compile(r'\b(?:our|we|shop|buy|order|subscribe|membership|plans|products|program|patients|customers|offers?|provid\w+|prescri\w+|get started)\b', re.I)
 US_ADDRESS = re.compile(r'\b(?:CA|NY|TX|FL|MA|CO|WA|IL|AZ|NC|GA|PA|NJ|UT|TN|OH|OR|VA|NV|MD|CT|MN|MI|WI|MO|IN|KY|SC|AL|LA|OK|KS|NM|ID|IA|NE|AR|MS|NH|ME|RI|DE|VT|WV|MT|WY|ND|SD|HI|AK|DC)\s+\d{5}(?:-\d{4})?\b')
+LEGAL_NEGATOR = re.compile(
+    r'\b(?:Do Not Sell(?: or Share)? My Personal Information|Do Not Sell(?=["”] box to remove your consent)|'
+    r'no limit to the number of successful referrals|cannot be claimed again for subsequent referrals|'
+    r'If it is not claimed within this period, the offer will expire|'
+    r'not dependent on the referring client making any further successful referrals|'
+    r'Timeframes for results are not guaranteed)\b', re.I)
 SPONSOR_US_SCOPE = re.compile(r'(?:available|licensed|serv(?:e|es|ing)|operat\w*|residents|customers|patients|ship\w*|deliver\w*)\b.{0,80}(?:United States|U\.S\.|USA|\bUS\b|50 states)|(?:across|throughout|in all)\s+(?:the\s+)?(?:United States|U\.S\.|US|USA|50 states)|based in the United States', re.I)
 SPONSOR_US_REJECT = re.compile(r'copyright|©|usa-today|1 out of 5|Pharmacopeia|not available in (?:all|every)|\bnot (?:yet )?(?:licensed|offered)', re.I)
 
@@ -264,7 +270,8 @@ def sponsor_fit(text):
     # Refuse ambiguous/negative context before clipping: a long product list
     # must not lose its governing negator. Deliberately prefer false negatives
     # (including double negatives and "not only") to unsupported admission.
-    if RESEARCH_ONLY.search(text) or re.search(r"\b(?:no|not|never|neither|nor|cannot|no longer|\w+n['’]t)\b", text, re.I):
+    # Same narrow legal contexts as the producer; retain full-page product/RUO gate.
+    if RESEARCH_ONLY.search(text) or re.search(r"\b(?:no|not|never|neither|nor|cannot|no longer|\w+n['’]t)\b", LEGAL_NEGATOR.sub('', text), re.I):
         return None
     for category, pattern in CATEGORY.items():
         for match in pattern.finditer(text):

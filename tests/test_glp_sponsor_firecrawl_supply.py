@@ -178,6 +178,55 @@ def test_unsealed_supply_helpers_cannot_change_campaign_admission(monkeypatch):
     assert campaign.recipients(values, discovery, local)['recipients'] == []
 
 
+def test_daily_consumes_untouched_retained_firstparty_leads_before_cached_hosts(monkeypatch, tmp_path):
+    import json
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    p = supply.Producer(state_dir=tmp_path / 'state', import_only=True)
+    p.pages.mkdir(parents=True)
+    (p.pages / 'cached.example.json').write_text('{}')
+    leads = tmp_path / 'retained.jsonl'
+    leads.write_text('\n'.join(json.dumps({'url': u}) for u in (
+        'https://www.untouched.example/partners', 'https://untouched.example/contact',
+        'https://app.untouched.example/partners',
+        'https://sub.cached.example/contact', 'https://held.example/partners',
+        'https://daily-harvest.com/partners', 'https://fellahealth.com/',
+        'https://ww.com/contact', 'https://bad.example/?affiliate=1',
+        'http://insecure.example/', 'https://ui.awin.com/')))
+    registry = [{'host': 'dailyharvest.com', 'program': 'Daily Harvest'},
+                {'host': 'weightwatchers.com', 'program': 'WeightWatchers'}]
+    monkeypatch.setattr(policy, 'classify_row', lambda i, r: r)
+    monkeypatch.setattr(campaign, 'read_values', lambda: [[], *registry])
+    monkeypatch.setattr(campaign, 'ROOT', tmp_path)
+    monkeypatch.setattr(campaign, 'load', lambda path: {'organizations': {}})
+    monkeypatch.setattr(supply, 'SPONSOR_SEEDS', ['cached.example'])
+    local = {'suppression': {'complete': True, 'entries': [{'domain': 'held.example'}]}, 'conversations': []}
+    p.plan = lambda: (local, {'exclusions': []})
+    p.budget = supply.Budget(10000)
+    selected = []
+    p.capture = lambda hosts: selected.extend(hosts)
+    p.merge = p.apollo = p.verify = lambda: None
+    p.daily(retained_leads=[leads])
+    assert selected == ['untouched.example', 'cached.example']
+    assert p.report['target_universe']['untouched_retained_hosts'] == 1
+
+
+def test_real_ultimateperformance_legal_negatives_do_not_negate_training():
+    # Full text parsed from retained /2-2-referral-offer-terms-and-conditions;
+    # raw page sha256 f940c86e48fee23ca318072359be53877e164743eb48066dea956f20b311a03f.
+    import glp_sponsor_campaign as campaign
+    import hashlib
+    fixture = Path(__file__).parent / 'fixtures/sponsor-ultimateperformance-terms.txt'
+    text = fixture.read_text().rstrip('\n')
+    assert hashlib.sha256(text.encode()).hexdigest() == '00fad9e3cb7f3c15f28dde33d439bb780b505c11352933ef30809224093c8baf'
+    assert 'The offer is available across Ultimate Performance gyms in the UK, US,' in text
+    for fit in (supply.sponsor_fit, campaign.sponsor_fit):
+        assert fit(text)[0] == 'fitness'
+        # Privacy/eligibility language must never erase a product or RUO refusal.
+        assert fit(text + ' We do not offer personal training.') is None
+        assert fit(text + ' For research use only.') is None
+
+
 def test_sponsor_fit_refuses_negated_product_claims():
     for text in ("We don't offer meal plans.", "We are not a meal delivery service.",
                  "We no longer provide personal training.", "We do not offer protein shakes.",

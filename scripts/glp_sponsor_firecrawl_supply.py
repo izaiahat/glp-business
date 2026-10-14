@@ -92,6 +92,12 @@ CATEGORY = {
 }
 COMMERCIAL = re.compile(r'\b(?:our|we|shop|buy|order|subscribe|membership|plans|products|program|patients|customers|offers?|provid\w+|prescri\w+|get started)\b', re.I)
 US_ADDRESS = re.compile(r'\b(?:CA|NY|TX|FL|MA|CO|WA|IL|AZ|NC|GA|PA|NJ|UT|TN|OH|OR|VA|NV|MD|CT|MN|MI|WI|MO|IN|KY|SC|AL|LA|OK|KS|NM|ID|IA|NE|AR|MS|NH|ME|RI|DE|VT|WV|MT|WY|ND|SD|HI|AK|DC)\s+\d{5}(?:-\d{4})?\b')
+LEGAL_NEGATOR = re.compile(
+    r'\b(?:Do Not Sell(?: or Share)? My Personal Information|Do Not Sell(?=["”] box to remove your consent)|'
+    r'no limit to the number of successful referrals|cannot be claimed again for subsequent referrals|'
+    r'If it is not claimed within this period, the offer will expire|'
+    r'not dependent on the referring client making any further successful referrals|'
+    r'Timeframes for results are not guaranteed)\b', re.I)
 
 
 def sponsor_fit(text):
@@ -99,7 +105,9 @@ def sponsor_fit(text):
     # Refuse ambiguous/negative context before clipping: a long product list
     # must not lose its governing negator. Deliberately prefer false negatives
     # (including double negatives and "not only") to unsupported admission.
-    if RESEARCH_ONLY.search(text) or re.search(r"\b(?:no|not|never|neither|nor|cannot|no longer|\w+n['’]t)\b", text, re.I):
+    # Narrow literal legal contexts only: do not drop sentences or clip away
+    # governing product negation. Quotes/hashes/category matching use original text.
+    if RESEARCH_ONLY.search(text) or re.search(r"\b(?:no|not|never|neither|nor|cannot|no longer|\w+n['’]t)\b", LEGAL_NEGATOR.sub('', text), re.I):
         return None
     for category, pattern in CATEGORY.items():
         for match in pattern.finditer(text):
@@ -695,7 +703,7 @@ class Producer:
                                  'next_weekday_batch_capacity': min(25, len(verified)),
                                  'verified_hosts': verified, 'mail_refused': refused, 'verification_calls': calls}
 
-    def daily(self):
+    def daily(self, *, retained_leads=()):
         if self.budget.remaining <= FLOOR_CREDITS:
             self.report['status'] = 'STOPPED_CREDIT_FLOOR'
             return self.report
@@ -709,11 +717,38 @@ class Producer:
         discovery_dir = self.c.ROOT / 'data/firecrawl/jobs/provider-discovery'
         for path in discovery_dir.glob('*.json'):
             targets.update(x.get('host', '') for x in self.c.load(path).get('candidates', []))
+        # Explicit retained search receipts feed this same producer, never a new
+        # store/job. Search URLs are research leads, not qualification evidence.
+        from urllib.parse import urlsplit
+        known = {r['host'] for r in registry if r.get('host')}
+        organizations = self.c.load(self.discovery).get('organizations', {})
+        known.update(organizations)
+        known.update(f.stem for f in self.pages.glob('*.json'))
+        known_names = {self.c.normalize(r.get('program', '')) for r in registry}
+        known_names.update(self.c.normalize(o.get('provider', '')) for o in organizations.values())
+        retained_hosts = set()
+        for path in retained_leads:
+            for line in Path(path).read_text().splitlines():
+                row = json.loads(line)
+                url = row.get('url', '')
+                parts = urlsplit(url)
+                host = policy.canonical_host(url)
+                if (parts.scheme != 'https' or parts.query or parts.fragment or parts.username or parts.password
+                        or not host or not self.c.source_on_provider(url, host)
+                        or any(_same_adverse_org(host, h) for h in known | blocked)
+                        or self.c.normalize(host.split('.')[0]) in known_names):
+                    continue
+                retained_hosts.add(host)
+                known.add(host)  # Parent/subdomain aliases in this same batch.
+                known_names.add(self.c.normalize(host.split('.')[0]))
+        targets.update(retained_hosts)
         # Seeds have no authority; all must later prove first-party US/product scope.
-        hosts = sorted(h for h in targets if re.fullmatch(r'[a-z0-9.-]+\.[a-z]{2,}', h)
+        hosts = sorted((h for h in targets if re.fullmatch(r'[a-z0-9.-]+\.[a-z]{2,}', h)
                        and 'fella' not in h and not h.endswith(self.c.PLATFORMS)
-                       and not any(_same_adverse_org(h, b) for b in blocked))
-        self.report['target_universe'] = {'research_hosts': len(hosts), 'registry_dependency': False}
+                       and not any(_same_adverse_org(h, b) for b in blocked)),
+                       key=lambda h: ((self.pages / (h + '.json')).exists(), h))
+        self.report['target_universe'] = {'research_hosts': len(hosts), 'registry_dependency': False,
+            'untouched_retained_hosts': len(set(hosts) & retained_hosts)}
         self.capture(hosts)
         self.merge()
         self.apollo()
@@ -727,9 +762,13 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('phase', choices=('daily', 'merge', 'apollo', 'verify'))
     ap.add_argument('--run-cap', type=int, default=RUN_CREDIT_CAP)
+    ap.add_argument('--retained-leads', type=Path, action='append', default=[],
+                    help='Existing retained search-hit JSONL; untouched research leads for daily only')
     ap.add_argument('--retained-cohort', type=Path, help='Pinned exact first-party receipt manifest; import-only merge, never recapture')
     ap.add_argument('--cohort-sha256', help='SHA256 of independently reviewed manifest bytes')
     args = ap.parse_args(argv)
+    if args.retained_leads and args.phase != 'daily':
+        ap.error('retained leads only feed daily selection')
     if bool(args.retained_cohort) != bool(args.cohort_sha256) or (args.retained_cohort and args.phase != 'merge'):
         ap.error('retained cohort and hash are required together, only for merge')
     import glp_sponsor_campaign as campaign
@@ -741,7 +780,7 @@ def main(argv=None):
             producer.merge(retained_cohort=args.retained_cohort, cohort_sha256=args.cohort_sha256)
             report = producer.report
         else:
-            report = producer.daily() if args.phase == 'daily' else (getattr(producer, args.phase)() or producer.report)
+            report = producer.daily(retained_leads=args.retained_leads) if args.phase == 'daily' else (getattr(producer, args.phase)() or producer.report)
         path = producer.state / 'firecrawl-supply-latest.json'
         producer.c.save(path, report)
         print(json.dumps({k: v for k, v in report.items() if k != 'verify'} | {'verify': {k: v for k, v in (report.get('verify') or {}).items() if k != 'mail_refused'}}))
