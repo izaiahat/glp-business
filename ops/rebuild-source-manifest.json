@@ -1,6 +1,13 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_f01_catalog_dependent_copins.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "f4569bddfbf5f05958262e7f279b15ca5bab8b4f6adc2ad35bd7146a656fafe9"
+    },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
       "callers": [
@@ -744,14 +751,14 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "runtime-pins",
-      "sha256": "6d54e3b7a65e34202bc0034ce4ba70e33b8a0a1f4d5dc88f1f964bca9c43cffa"
+      "sha256": "7aa15cec141584166c0f9580426bcde98d57f842e8d6468de282826616154f7f"
     },
     "ops/glp/reporting-v2/source-manifest-j6.json": {
       "callers": [
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "repository_control",
-      "sha256": "49d514f7cfe04ae48ce3d7085ffad593c8752e13be389bc8d3dd12aa15371a41"
+      "sha256": "8f2c1866ffd57a98a48055dbbc52e8732eaa0d6f2aae4b15ea2fd79d393423c8"
     },
     "ops/glp/reporting-v2/source-manifest-j7.json": {
       "callers": [
@@ -759,7 +766,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "66105677630b09bbe14d50ed12b37d6777ef48ca26b9474aec9c1d20a92f42c2"
+      "sha256": "48d393ba104315f2f9a7c2707cce93f394a7f44b750723476d77ebbc73944d5a"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -1083,7 +1090,7 @@
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "ab52f8ed24b03363e542019a79ed53050084cd30459b7d267bdd7ee93619fa0d"
+      "sha256": "b39b5cbb08fe76393f9b15a1d88705285362c00be31f1e33439fc583d477125f"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -1225,14 +1232,14 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "7e4cb543d47d17e7eb8182400fcb4ac8a8976ab174c53b98947606f7a5f940bf"
+      "sha256": "d0f6abe3b352b7332ca9af54bfe3821fb6a976be4ca454a847566bcf9fea11d6"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh": {
       "callers": [
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "script",
-      "sha256": "70e1d56c8af68feea2fc749b69eaebf14601e95996a828cc8fba9269920504ef"
+      "sha256": "dcbec7256923d3e33d613bc7135be02cd1713865b89af9956db6af618165baf3"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh": {
       "callers": [
@@ -1240,7 +1247,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "8d904c02390969a61f4d0fa3fe254e885ca9f6d0219aa56ae2f99acbfa2e9b73"
+      "sha256": "7c8d53c861874d3262a4d5c53c499fc1e7c1514ff7a090626437057592a5fbfd"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -3883,7 +3890,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "061b364b1bc59062ef69e9abc8288a3d68c555341454eca6c99dc68968f5c380"
+      "sha256": "a4047b1bba42ebc45b158bf7f27dbb49c42377cfb85e73901dbe1da804964dc5"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -7658,5 +7665,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1122
+  "tracked_count": 1123
 }
