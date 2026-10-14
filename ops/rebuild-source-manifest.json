@@ -268,7 +268,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6b4aaf63cd366f4a12e4f538e2eaaf67e3f06d11d980483f24fd44774caa67f5"
+      "sha256": "21022790e39bbe60a7c290e9e661b28738b46a87dd384fcd396bbdf3c49cbae1"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -1711,7 +1711,7 @@
     "ops/pro-route.md": {
       "callers": [],
       "kind": "operations",
-      "sha256": "e0bef8e1db1e7461a732bbba94caa148ac7a74c578d5f53cdf897ca8b31a8322"
+      "sha256": "be7d8364de21613550511f93bb02b74dfe71a51a2f3f7ca54cdc9f3a36f7512f"
     },
     "ops/protected-oracles.json": {
       "callers": [],
@@ -3472,7 +3472,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "d5ea7a34e388e433076695a99716df7dbacc9ae3d39308af9d704cf26d16c66e"
+      "sha256": "90947c81e598b89df61b8c942a2f96b925b72167956a6059bf3e62ca280ea34c"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -6860,6 +6860,13 @@
       ],
       "kind": "test",
       "sha256": "eb5cb0640325b7c64c8b111cee346f656fa5c228740353b079ab084ce79a59d7"
+    },
+    "tests/test_pro_native_receive.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "8fa75ab87b0f72fb4d9112126774101985abe818b7195891798b16580700abdb"
     },
     "tests/test_pro_terminal_hydration.py": {
       "sha256": "ea3f37511a67b355921f9da22fc4febcf88d70b72fb196d811c5950df792fda4"
