@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "inbox_control_plane/external_sent.py": {
+      "kind": "python_module",
+      "callers": [
+        "inbox_control_plane/control_plane.py --observe-glp125-external-sent"
+      ],
+      "sha256": "db19ccd00aac6f7d3071a09b8fb704dc05ef04fc2d6aea6332758614546fa74c"
+    },
+    "tests/test_glp125_external_sent.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "6bb54ec6f775a65869aee23412c53e4c26f81081d9dd9dda8cc7d8ca10450a76"
+    },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
       "callers": [
@@ -268,7 +282,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "667c2353be7ef40cc539ee9935548a985d27ffc935a325e4443fd8ed1d19f62c"
+      "sha256": "6b4aaf63cd366f4a12e4f538e2eaaf67e3f06d11d980483f24fd44774caa67f5"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -496,7 +510,7 @@
     "inbox_control_plane/control_plane.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "b48cb3bb049a193a238b631ee6896df1cb3009f146377988c637c9527a385851"
+      "sha256": "0e949892da965cd22655fd029e9073576a468fae28fa374c7e830e87d123d4f2"
     },
     "inbox_control_plane/gmail_client.py": {
       "callers": [],
@@ -7623,5 +7637,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1117
+  "tracked_count": 1119
 }
