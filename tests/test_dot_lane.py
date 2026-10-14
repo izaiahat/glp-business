@@ -117,7 +117,7 @@ def test_terminal_accepts_shared_attachment_renderer_without_weakening_custody(t
     import dot_dispatch as d
     completion = (directory/'COMPLETION.json').read_bytes()
     reply = (directory/'REPLY.md').read_bytes()
-    for case in ('text', 'attachment-text', 'custody', 'wire-hash', 'full-hash', 'reply-bytes', 'author', 'provenance'):
+    for case in ('text', 'attachment-text', 'custody', 'wire-hash', 'full-hash', 'reply-bytes', 'author', 'provenance', 'parent', 'task-owner'):
         bad = copy.deepcopy(row)
         altered_state = dict(state)
         if case == 'text': bad['text'] += ' altered'
@@ -126,6 +126,8 @@ def test_terminal_accepts_shared_attachment_renderer_without_weakening_custody(t
         if case == 'wire-hash': bad['content_sha256'] = '0'*64
         if case == 'author': bad['author_id'] = '999'
         if case == 'provenance': bad['attachment']['provenance_kind'] = 'direct-tool-export'
+        if case == 'parent': bad['parent'] = 'FOREIGN'
+        if case == 'task-owner': bad['task_owner'] = 'FOREIGN'
         # Reseal the outer document to prove inner attachment custody still refuses.
         d.atomic_json(directory/'COMPLETION.json', {'results':[bad]})
         rendered = d.reply_document(altered_state, bad).encode()
@@ -169,6 +171,11 @@ def test_exact_ticket_owner_handoff_disposes_staged_receipt_without_impersonatio
                 receipts.record(registration.receipt_id, 'DOT-OWNER', 'received', 'No false ACK', handoff_plan=bad_plan)
             assert receipts.get(registration.receipt_id) == row
             assert (receipts_dir/'reply-consumers.sqlite3').read_bytes() == before
+        import dot_dispatch as d
+        with d.locked(directory.parent), pytest.raises(BlockingIOError):
+            receipts.record(registration.receipt_id, 'DOT-OWNER', 'received', 'No false ACK', handoff_plan=plan)
+        assert receipts.get(registration.receipt_id) == row
+        assert (receipts_dir/'reply-consumers.sqlite3').read_bytes() == before
         received = receipts.record(registration.receipt_id, 'DOT-OWNER', 'received',
             'Read original output', handoff_plan=plan)
         assert received['status'] == 'received'

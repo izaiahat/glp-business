@@ -124,6 +124,8 @@ def terminal(directory, state):
         if (len(entries) != 1 or entries[0].result_key != state['ticket']
             or entries[0].parent != state.get('parent')
             or entries[0].task_owner != state.get('task_owner')
+            or row.get('parent') != entries[0].parent
+            or row.get('task_owner') != entries[0].task_owner
             or row.get('registration_sha256') != entries[0].registration_sha256
             or row.get('receipt_id') != entries[0].receipt_id):
             raise ValueError('native_custody_registration_mismatch')

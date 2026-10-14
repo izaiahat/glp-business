@@ -235,6 +235,7 @@ def checked_owner_handoff(row, plan, directory):
     receipt_directory, entries = load_registrations(files['NATIVE-CONFIG.json'])
     if (state.get('state') not in {'complete', 'blocked'} or state.get('ticket') != ticket.name
             or state.get('parent') != plan['from_parent'] or state.get('task_owner') != plan['from_task_owner']
+            or row.get('parent') != plan['from_parent'] or row.get('task_owner') != plan['from_task_owner']
             or Path(receipt_directory) != ticket/'receipts' or Path(receipt_directory).resolve() != directory.resolve()
             or len(entries) != 1 or entries[0].parent != plan['from_parent']
             or entries[0].task_owner != plan['from_task_owner'] or entries[0].result_key != ticket.name
