@@ -8,6 +8,10 @@ from tests.test_glp336_host_weekly import (
     test_tampered_analysis_refuses_instead_of_recollecting,
     test_wrong_week_and_failed_budget_cannot_complete,
     test_free_analysis_completes_with_explicit_metered_hold,
+    test_report_changed_between_validation_and_binding_must_refuse,
+    test_completion_and_ack_require_validated_report_hash,
+    test_rebound_invalid_report_cannot_verify_or_ack,
+    test_report_drift_at_consumer_lock_refuses_ack,
 )
 
 ROOT=Path(__file__).resolve().parents[1]

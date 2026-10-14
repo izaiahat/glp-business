@@ -55,9 +55,19 @@ def read_bound(spec):
     return json.loads(raw)
 
 
-def validate(result, week):
-    report = json.loads(Path(result['report']).read_text())
-    topics = json.loads(Path(result['topic_recommendations']).read_text())
+def validate(result, week, *, analysis_bindings=None):
+    # Bind BEFORE validation; never substitute a later read's digest for the
+    # bytes that passed these checks. Replays validate the retained bindings.
+    if analysis_bindings is None:
+        analysis_bindings = {'report': binding(result['report']),
+            'topics': binding(result['topic_recommendations']),
+            'strategy': result['strategy_update']['updates']}
+    if (analysis_bindings['report']['path'] != str(Path(result['report']).resolve()) or
+            analysis_bindings['topics']['path'] != str(Path(result['topic_recommendations']).resolve()) or
+            analysis_bindings['strategy'] != result['strategy_update']['updates']):
+        raise ValueError('host_analysis_binding_mismatch')
+    report = read_bound(analysis_bindings['report'])
+    topics = read_bound(analysis_bindings['topics'])
     if topics['week_start'] != week:
         raise ValueError('host_analysis_week_mismatch')
     rows = topics.get('recommendations')
@@ -72,7 +82,7 @@ def validate(result, week):
     updates = read_bound(strategy['updates'])
     if updates['week_start'] != week or not updates.get('topic_priorities'):
         raise ValueError('host_strategy_week_or_rows_invalid')
-    return report, rows
+    return report, rows, analysis_bindings
 
 
 def verify_completion(spec):
@@ -83,6 +93,17 @@ def verify_completion(spec):
         raise ValueError('host_completion_contract')
     for item in completed['analysis_bindings'].values():
         read_bound(item)
+    if (not completed.get('validated_report_sha256') or
+            completed['validated_report_sha256'] != completed['analysis_bindings']['report']['sha256']):
+        raise ValueError('host_completion_validated_report_required')
+    result = read_bound(completed['result'])
+    report, rows, _ = validate(result, completed['week_start'],
+        analysis_bindings=completed['analysis_bindings'])
+    if (completed['analysis_rows'] != len(rows) or
+            any(completed.get(k) != report.get(k) for k in
+                ('gsc_rows', 'input_observations', 'module_statuses', 'weekly_spend')) or
+            completed.get('metered_collection_status') != metered_status(report)):
+        raise ValueError('host_completion_analysis_mismatch')
     return completed
 
 
@@ -114,10 +135,9 @@ def run_owned(root, producer, *, now=None):
                 output = folder/('analysis-' + uuid.uuid4().hex[:8])
                 result = producer(output)
                 atomic(staged, result)
-            report, rows = validate(result, week)
-            analysis_bindings = {'report': binding(result['report']),
-                'topics': binding(result['topic_recommendations']),
-                'strategy': result['strategy_update']['updates']}
+            report, rows, analysis_bindings = validate(result, week)
+            for item in analysis_bindings.values():
+                read_bound(item)
             atomic(completion, {'schema': 'glp-host-weekly-completion-v1',
                 'task_id': task_id, 'week_start': week, 'owner': 'host',
                 'completed_at_utc': now.isoformat(), 'completion_count': 1,
@@ -126,10 +146,12 @@ def run_owned(root, producer, *, now=None):
                 'module_statuses': report['module_statuses'],
                 'weekly_spend': report['weekly_spend'],
                 'metered_collection_status': metered_status(report),
+                'validated_report_sha256': analysis_bindings['report']['sha256'],
                 'analysis_bindings': analysis_bindings, 'result': binding(staged),
                 'cogny_queued_task_dependency': False})
         result = dict(result)
         result['host_completion'] = dict(binding(completion), task_id=task_id)
+        verify_completion(result['host_completion'])
         return result
 
 
@@ -137,13 +159,13 @@ def consume(result, consumer):
     if consumer != CONSUMER:
         raise ValueError('host_consumer_not_registered')
     spec = result['host_completion']
-    completed = verify_completion(spec)
-    expected = read_bound(completed['result'])
-    if {k: v for k, v in result.items() if k != 'host_completion'} != expected:
-        raise ValueError('host_consumer_result_mismatch')
     folder = Path(spec['path']).parent
     with (folder/'.owner.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        completed = verify_completion(spec)
+        expected = read_bound(completed['result'])
+        if {k: v for k, v in result.items() if k != 'host_completion'} != expected:
+            raise ValueError('host_consumer_result_mismatch')
         path = folder/'CONSUMED-GLP44.json'
         doc = {'schema': 'glp-host-weekly-consumer-ack-v1', 'task_id': completed['task_id'],
             'consumer': consumer, 'completion': spec, 'ack_count': 1,
