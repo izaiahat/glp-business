@@ -100,8 +100,14 @@ def main() -> int:
     fetched = readback(args.channel, message_id)
     exact_readback = fetched.get('channel_id') == args.channel and fetched.get('content') == sent_content
     if args.ping_user is not None:
-        exact_readback = exact_readback and args.ping_user in {
-            user.get('id') for user in fetched.get('mentions', []) if isinstance(user, dict)}
+        mentions = fetched.get('mentions')
+        # Match the outbound singleton scope, not just membership. A refusal
+        # follows the one POST/readback above and must never cause a resend.
+        exact_readback = (exact_readback and isinstance(mentions, list)
+            and len(mentions) == 1 and isinstance(mentions[0], dict)
+            and mentions[0].get('id') == args.ping_user
+            and fetched.get('mention_everyone', False) is False
+            and fetched.get('mention_roles', []) == [])
     if not exact_readback:
         raise RuntimeError(json.dumps({
             'error': 'Discord exact readback failed',

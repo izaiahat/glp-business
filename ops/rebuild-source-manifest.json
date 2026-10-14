@@ -3823,7 +3823,7 @@
         "scripts/receive_one_discord_message.py"
       ],
       "kind": "script",
-      "sha256": "1c59de6e12c98ef040bccacc83ddeada11adcfb967e48177d30fffa948df4c00"
+      "sha256": "854425f93f5a54f6a2b6d4a32e228824371f7b47ce6898348f328e6fc0a48336"
     },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
@@ -5020,7 +5020,7 @@
         "CI:native-reply-consumer"
       ],
       "kind": "test",
-      "sha256": "a2a13c0c1eb748e92c6ba7d7d44dd25bdf1662bbdebd0b358df1a82e9f0fcc5e"
+      "sha256": "c7b66c1fcd88e1ca3369df02a59b359f0ce7437824455a17ffda99d8711d0f57"
     },
     "tests/test_f07_registered_weekly_entry.py": {
       "callers": [

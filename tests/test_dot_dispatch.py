@@ -470,6 +470,43 @@ class DispatchTests(unittest.TestCase):
 
 
 class NotificationMentionTests(unittest.TestCase):
+    def assert_readback_refused(self, **changes):
+        import contextlib
+        import io
+        import post_discord_message as poster
+        user = d.DOTS['rook']['user']
+        channel = d.DOTS['rook']['channel']
+        content = '<@'+user+'> status'
+        fetched = dict(id='123', channel_id=channel, content=content,
+                       mentions=[{'id': user}], mention_everyone=False, mention_roles=[])
+        fetched.update(changes)
+        argv = ['poster', '--channel', channel, '--message', content, '--ping-user', user]
+        with patch.object(sys, 'argv', argv), \
+             patch.object(poster, 'send', return_value={'id': '123'}) as sender, \
+             patch.object(poster, 'readback', return_value=fetched) as reader, \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            with self.assertRaisesRegex(RuntimeError, 'exact readback failed'):
+                poster.main()
+            sender.assert_called_once_with(channel, content, ping_user=user)
+            reader.assert_called_once_with(channel, '123')
+            self.assertEqual(output.getvalue(), '')
+
+    def test_cli_refuses_intended_plus_foreign_user_readback(self):
+        self.assert_readback_refused(mentions=[{'id': d.DOTS['rook']['user']},
+                                               {'id': d.DOTS['finch']['user']}])
+
+    def test_cli_refuses_everyone_readback(self):
+        self.assert_readback_refused(mention_everyone=True)
+
+    def test_cli_refuses_role_readback(self):
+        self.assert_readback_refused(mention_roles=['1234567890123456'])
+
+    def test_cli_refuses_malformed_user_readback(self):
+        for mentions in (None, {}, 'not-a-list', [{'id': d.DOTS['rook']['user']}, {}],
+                         [{'id': d.DOTS['rook']['user']}, None], [{'id': 123}]):
+            with self.subTest(mentions=mentions):
+                self.assert_readback_refused(mentions=mentions)
+
     def test_cli_passes_explicit_ping_and_refuses_missing_structured_readback(self):
         import contextlib
         import io
