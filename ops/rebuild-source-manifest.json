@@ -2629,7 +2629,7 @@
         "manual:authorized-dot-ticket"
       ],
       "kind": "script",
-      "sha256": "6657e298a49f8dcbb35ccb2f65f47d81eb1ae5618c9ba5c4ac4a38ece08f912e"
+      "sha256": "d7051f98273c6bec4645c32b62fae12b228951b11e2b249a1bc3b822f4cf1414"
     },
     "scripts/evidence_preserving_pruner.py": {
       "callers": [
@@ -3823,7 +3823,7 @@
         "scripts/receive_one_discord_message.py"
       ],
       "kind": "script",
-      "sha256": "d00694849568b8846c1ab25ec5e53de52524eb7aecbbb4676a523204435c6ad6"
+      "sha256": "1c59de6e12c98ef040bccacc83ddeada11adcfb967e48177d30fffa948df4c00"
     },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
@@ -5020,7 +5020,7 @@
         "CI:native-reply-consumer"
       ],
       "kind": "test",
-      "sha256": "81d2897ea6e1a4ba9515d3adf686a7253571ee6555d6b373c791853ba471310e"
+      "sha256": "a2a13c0c1eb748e92c6ba7d7d44dd25bdf1662bbdebd0b358df1a82e9f0fcc5e"
     },
     "tests/test_f07_registered_weekly_entry.py": {
       "callers": [
