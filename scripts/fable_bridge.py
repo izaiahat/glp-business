@@ -1488,13 +1488,18 @@ if __name__ == "__main__":
         else:
             hermes_main()
     elif sys.argv[1:2] in (["--resume-preinvocation-quota"], ["--issue-no-decision-successor"],
-                          ["--recover-missing-mention"], ["--parent-review-handoff"]):
+                          ["--recover-missing-mention"], ["--parent-review-handoff"],
+                          ["--send-deferred-request"], ["--dispatch-deferred-review"]):
         if sys.argv[1] == "--parent-review-handoff" and len(sys.argv) != 6:
             raise SystemExit("usage: fable_bridge.py --parent-review-handoff REQUEST_ID ISSUE_ID TUPLE_SHA256 OPERATOR_INTENT_MESSAGE_ID")
         if len(sys.argv) != 5 and sys.argv[1] in {"--resume-preinvocation-quota", "--recover-missing-mention"}:
             raise SystemExit(f"usage: fable_bridge.py {sys.argv[1]} REQUEST_ID ISSUE_ID TUPLE_SHA256")
         if len(sys.argv) != 6 and sys.argv[1] == "--issue-no-decision-successor":
             raise SystemExit("usage: fable_bridge.py --issue-no-decision-successor REQUEST_ID ISSUE_ID TUPLE_SHA256 TERMINAL_REPLY_ID")
+        if sys.argv[1] == '--send-deferred-request' and len(sys.argv) != 5:
+            raise SystemExit('usage: --send-deferred-request ISSUE_ID TUPLE_SHA256 ADMISSION')
+        if sys.argv[1] == '--dispatch-deferred-review' and len(sys.argv) != 6:
+            raise SystemExit('usage: --dispatch-deferred-review REQUEST_ID ISSUE_ID TUPLE_SHA256 ADMISSION')
         TOKEN = token()
         HTTP = requests.Session()
         HTTP.headers.update({"Authorization": "Bot " + TOKEN,
@@ -1504,7 +1509,10 @@ if __name__ == "__main__":
             raise RuntimeError("fable_session_id_missing")
         SELF_ID = validate_startup_identity()
         from fable_parent_handoff import dispatch as parent_handoff_dispatch
-        result = {"--parent-review-handoff": lambda *args: parent_handoff_dispatch(sys.modules[__name__], *args),
+        from fable_deferred_handoff import send_request, dispatch as deferred_dispatch
+        result = {"--send-deferred-request": lambda *args: send_request(sys.modules[__name__], *args),
+                  "--dispatch-deferred-review": lambda *args: deferred_dispatch(sys.modules[__name__], *args),
+                  "--parent-review-handoff": lambda *args: parent_handoff_dispatch(sys.modules[__name__], *args),
                   "--resume-preinvocation-quota": resume_preinvocation_quota,
                   "--recover-missing-mention": recover_missing_mention,
                   "--issue-no-decision-successor": issue_no_decision_successor}[sys.argv[1]](*sys.argv[2:])

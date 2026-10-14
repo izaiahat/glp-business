@@ -2283,9 +2283,14 @@ CURRENT_CF_EMAIL_PLAIN_RE = re.compile(
 CURRENT_CF_EMAIL_DECODER_SCRIPT = b'<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
 
 
-def current_restore_cf_email(value: bytes) -> bytes:
-    """Reverse only proven CF shapes; the caller still requires all source bytes."""
-    def decode_cloudflare_hex(encoded: bytes, *, plaintext: bool = False) -> bytes:
+def current_restore_cf_email(value: bytes, *, expected: bytes | None = None) -> bytes:
+    """Reverse proven CF shapes, binding query shares to complete sealed source."""
+    # Do not entity-decode hrefs: raw & and literal &amp; are separate payloads.
+    share_payloads = set(re.findall(rb'<a\b[^<>]*\bhref="mailto:(\?[^"<>]+)"', expected or b''))
+    share_shape = rb'\?subject=(?:[A-Za-z0-9_.!~*\x27()-]|%[0-9A-Fa-f]{2})+(?:&|&amp;)body=https%3A%2F%2Fglpclinicscout\.com%2F(?:[A-Za-z0-9_.~-]|%[0-9A-Fa-f]{2})*'
+    share_payloads = {p for p in share_payloads if re.fullmatch(share_shape, p)}
+
+    def decode_cloudflare_hex(encoded: bytes, *, plaintext: bool = False, share: bool = False) -> bytes:
         if len(encoded) < 4 or len(encoded) % 2:
             fail("cloudflare_email_hex_invalid")
         try:
@@ -2297,9 +2302,22 @@ def current_restore_cf_email(value: bytes) -> bytes:
         # spelling is supported; this is not a general provider-email decoder.
         allowed = ({"care@BiltRx.com"} if plaintext else
                    {"ops@glpclinicscout.com", "support@glpclinicscout.com", "privacy@glpclinicscout.com"})
-        if decoded not in allowed:
+        if decoded not in allowed and not (share and decoded.encode('utf-8') in share_payloads):
             fail("cloudflare_email_unapproved")
         return decoded.encode("ascii")
+
+    share_re = re.compile(rb'(<a\b[^<>]*\bhref=")/cdn-cgi/l/email-protection#([0-9a-f]+)(">)')
+    shares = []
+
+    def restore_share(match: re.Match[bytes]) -> bytes:
+        payload = decode_cloudflare_hex(match.group(2), share=True)
+        if not payload.startswith(b'?'):
+            return match.group(0)  # Original support/span guard still owns this.
+        restored_tag = match.group(1) + b'mailto:' + payload + match.group(3)
+        if expected is None or restored_tag not in expected:
+            fail("cloudflare_email_share_source_mismatch")
+        shares.append(match)
+        return restored_tag
 
     def restore_anchor(match: re.Match[bytes]) -> bytes:
         href_address = decode_cloudflare_hex(match.group(1))
@@ -2316,12 +2334,13 @@ def current_restore_cf_email(value: bytes) -> bytes:
     # Neither shape permits arbitrary placement, scripts, or byte changes.
     if plain and (len(plain) != 1 or len(anchors) != 1 or plain[0].end() > anchors[0].start()):
         fail("cloudflare_email_plaintext_shape_invalid")
-    restored, count = CURRENT_CF_EMAIL_ANCHOR_RE.subn(restore_anchor, value)
+    restored = share_re.sub(restore_share, value) if expected is not None else value
+    restored, count = CURRENT_CF_EMAIL_ANCHOR_RE.subn(restore_anchor, restored)
     restored = CURRENT_CF_EMAIL_PLAIN_RE.sub(
         lambda match: decode_cloudflare_hex(match.group(1), plaintext=True), restored)
     script_count = value.count(CURRENT_CF_EMAIL_DECODER_SCRIPT)
-    if count or plain:
-        boundaries = {value.find(b"<script", match.end()) for match in [*anchors, *plain]}
+    if count or plain or shares:
+        boundaries = {value.find(b"<script", match.end()) for match in [*anchors, *plain, *shares]}
         if (script_count < 1 or script_count != len(boundaries)
                 or (plain and len(boundaries) != 2)):
             fail("cloudflare_email_decoder_script_count_invalid")
@@ -2380,7 +2399,7 @@ def current_route_probe(base: str, item: dict[str, Any], public: Path,
     compared, comparison = body, "raw_exact"
     if (status_code == 200 and body != expected and base == SITE and source.suffix == ".html"
             and headers.get("Content-Type", "").split(";", 1)[0].strip().lower() == "text/html"):
-        compared, comparison = current_restore_cf_email(body), "exact_cf_email_reversal"
+        compared, comparison = current_restore_cf_email(body, expected=expected), "exact_cf_email_reversal"
     if (status_code != 200 or len(compared) != item["bytes"] or sha_bytes(compared) != item["sha256"]
             or compared != expected):
         fail(f"route_probe_invariant_failed:{url}:{status_code}")

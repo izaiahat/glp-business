@@ -93,8 +93,15 @@ class NativeReviewerTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("policy_readback", ROOT / "ops/claude_model_policy.py")
         policy = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(policy)
-        self.assertEqual(policy.resolve("bridge"), ("claude-fable-5-1", "xhigh"))
-        self.assertEqual(policy.resolve(), ("claude-opus-5-5[1m]", "medium"))
+        # Exercise exact checkout policy bytes, not the receiving host's private
+        # default path (which is absent on hosted CI). Keep the real loader and
+        # all policy/seat validation unchanged.
+        with patch.object(policy, "POLICY", ROOT / "ops/claude-model-policy.json"):
+            self.assertEqual(policy.resolve("bridge"), ("claude-fable-5-1", "xhigh"))
+            self.assertEqual(policy.resolve(), ("claude-opus-5-5[1m]", "medium"))
+        with patch.object(policy, "POLICY", self.root / "missing-policy.json"):
+            with self.assertRaisesRegex(RuntimeError, "FAIL CLOSED"):
+                policy.resolve("bridge")
 
     def test_missing_or_mismatched_import_fails_closed(self):
         for value in ("", "20260922_120000_123456"):

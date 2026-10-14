@@ -381,6 +381,11 @@ def send_successor_issue(*, issue_record_path: Path | str) -> tuple[Path, dict[s
             or not _SNOWFLAKE_RE.fullmatch(str(issue.get("predecessor_reply_message_id", "")))
             or not _ISSUE_ID_RE.fullmatch(str(issue.get("predecessor_issue_id", "")))):
         raise BridgeAuthorityError("bridge_registered_successor_required")
+    return _send_registered_issue(path, issue)
+
+
+def _send_registered_issue(path, issue, *, before_post=None):
+    """Shared canonical sender; public callers separately authenticate their scope."""
     payload = successor_request_payload(issue)
     validate_successor_payload(issue, payload)  # Before token I/O or claim or send.
     if len(payload["content"]) > 2000:
@@ -404,6 +409,8 @@ def send_successor_issue(*, issue_record_path: Path | str) -> tuple[Path, dict[s
     if json.loads(path.read_text(encoding="utf-8")) != issue:
         raise BridgeAuthorityError("bridge_successor_issue_changed")
     validate_successor_payload(issue, payload)
+    if before_post is not None:
+        before_post()
     request = urllib.request.Request(
         f"{_DISCORD_API_BASE}/channels/{FIXED_BRIDGE_CHANNEL_ID}/messages",
         data=json.dumps(payload).encode("utf-8"), method="POST",
