@@ -7662,6 +7662,20 @@
         "tests/test_glp_sponsor_firecrawl_supply.py"
       ],
       "sha256": "5d997ca346c92179c34d5d711a6b5497c490fe2c5a2f7417d08ffb0b07735ec5"
+    },
+    "tests/test_glp_sponsor_sender_budget.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "9d4a1dee56a89915a03d9c479a54e55b2d77d054a328aa05acad6eeafaa72df1"
+    },
+    ".github/workflows/sponsor-sender-credit-boundary.yml": {
+      "kind": "config",
+      "callers": [
+        "GitHub Actions"
+      ],
+      "sha256": "d66f03201ae8f9a53a847d3bef53b999293bca80e39dc290ecf37e129f506a67"
     }
   },
   "omitted_runtime_inputs": [
@@ -7672,5 +7686,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1124
+  "tracked_count": 1126
 }
