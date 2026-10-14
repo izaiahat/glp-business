@@ -211,6 +211,40 @@ def test_daily_consumes_untouched_retained_firstparty_leads_before_cached_hosts(
     assert p.report['target_universe']['untouched_retained_hosts'] == 1
 
 
+def test_daily_refuses_held_named_alias_descendants_in_either_input_order(monkeypatch, tmp_path):
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    held = [''] * len(policy.EXPECTED_HEADERS)
+    held[policy.PROGRAM_COLUMN] = 'Daily Harvest'
+    held[policy.OFFICIAL_URL_COLUMN] = 'https://dailyharvest.com'
+    held[policy.STATUS_COLUMN] = 'hold'
+    values = [list(policy.EXPECTED_HEADERS), held]
+    assert policy.classify_row(2, held)['blocks_org']
+    monkeypatch.setattr(campaign, 'read_values', lambda: values)
+    monkeypatch.setattr(campaign, 'ROOT', tmp_path)
+    monkeypatch.setattr(supply, 'SPONSOR_SEEDS', [])
+    p = supply.Producer(state_dir=tmp_path / 'state', import_only=True)
+    p.discovery = tmp_path / 'discovery.json'
+    p.discovery.write_text('{"organizations":{}}')
+    p.budget = supply.Budget(10000)
+    p.plan = lambda: ({'suppression': {'complete': True, 'entries': []},
+                       'conversations': []}, {'exclusions': []})
+    p.merge = p.apollo = p.verify = lambda: None
+    selected = []
+    p.capture = lambda hosts: selected.extend(hosts)
+    leads = tmp_path / 'leads.jsonl'
+    urls = ['https://daily-harvest.com/partners',
+            'https://shop.daily-harvest.com/partners',
+            'https://deep.shop.daily-harvest.com/partners',
+            'https://fresh.example/partners', 'https://distinct.example/partners',
+            'https://not-daily-harvest.example/partners']
+    for cohort in (urls, list(reversed(urls))):
+        leads.write_text('\n'.join(json.dumps({'url': url}) for url in cohort))
+        selected.clear()
+        p.daily(retained_leads=[leads])
+        assert selected == ['distinct.example', 'fresh.example', 'not-daily-harvest.example']
+
+
 def test_real_ultimateperformance_legal_negatives_do_not_negate_training():
     # Full text parsed from retained /2-2-referral-offer-terms-and-conditions;
     # raw page sha256 f940c86e48fee23ca318072359be53877e164743eb48066dea956f20b311a03f.
@@ -225,6 +259,57 @@ def test_real_ultimateperformance_legal_negatives_do_not_negate_training():
         # Privacy/eligibility language must never erase a product or RUO refusal.
         assert fit(text + ' We do not offer personal training.') is None
         assert fit(text + ' For research use only.') is None
+
+
+def test_literal_legal_context_survives_excerpt_and_actual_receiving():
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    positive = 'We offer protein shakes for our customers.'
+    legal = (' Do Not Sell or Share My Personal Information. '
+             'There is no limit to the number of successful referrals. '
+             'The offer cannot be claimed again for subsequent referrals. '
+             'If it is not claimed within this period, the offer will expire. '
+             'It is not dependent on the referring client making any further successful referrals. '
+             'Timeframes for results are not guaranteed.')
+    cases = [
+        (positive + legal, 'The offer cannot be claimed again for subsequent referrals'),
+        (positive + ' Details apply.' * 10 + ' Do Not Sell" box to remove your consent.',
+         'Do Not Sell" box to remove your consent'),
+        ('It is not dependent on the referring client making any further successful referrals.'
+         + ' Details apply.' * 4 + ' ' + positive,
+         'not dependent on the referring client making any further successful referrals'),
+    ]
+    for content, complete_clause in cases:
+        text = (content + ' We ship to customers across the United States. '
+                'For partnerships email partners@fixture.example.')
+        for fit in (supply.sponsor_fit, campaign.sponsor_fit):
+            category, excerpt = fit(text)
+            assert category == 'nutrition_protein'
+            assert complete_clause in excerpt
+            assert excerpt in text
+            assert fit(excerpt)[0] == category
+            assert fit(text + ' We do not sell protein shakes.') is None
+            assert fit(text + ' Research use only.') is None
+        markup = '<p>' + text + '</p>'
+        sha = hashlib.sha256(markup.encode()).hexdigest()
+        url = 'https://fixture.example/'
+        at = campaign.stamp()
+        rows, contacts = supply.evidence('fixture.example', url, markup, sha, at,
+            campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+        category_row = next(row for row in rows if row.get('sponsor_category'))
+        assert category_row['sha256'] == sha
+        assert category_row['sponsor_category_excerpt'] in text
+        org = {'provider': 'fixture.example', 'scope_evidence': rows,
+               'discovery': {'candidates': contacts, '_markup': [
+                   {'url': url, 'final_url': url, 'html': markup, 'sha256': sha}]}}
+        plan = campaign.recipients([list(policy.EXPECTED_HEADERS)],
+            {'organizations': {'fixture.example': org}},
+            {'suppression': {'complete': True, 'entries': []}, 'conversations': []})
+        assert [r['host'] for r in plan['recipients']] == ['fixture.example']
+        assert category_row in campaign.sponsor_scope_current('fixture.example', org, campaign, campaign.now())
+        assert org['discovery']['_markup'][0]['html'] == markup
+        assert hashlib.sha256(markup.encode()).hexdigest() == category_row['sha256']
 
 
 def test_sponsor_fit_refuses_negated_product_claims():

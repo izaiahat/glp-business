@@ -256,7 +256,7 @@ CATEGORY = {
 COMMERCIAL = re.compile(r'\b(?:our|we|shop|buy|order|subscribe|membership|plans|products|program|patients|customers|offers?|provid\w+|prescri\w+|get started)\b', re.I)
 US_ADDRESS = re.compile(r'\b(?:CA|NY|TX|FL|MA|CO|WA|IL|AZ|NC|GA|PA|NJ|UT|TN|OH|OR|VA|NV|MD|CT|MN|MI|WI|MO|IN|KY|SC|AL|LA|OK|KS|NM|ID|IA|NE|AR|MS|NH|ME|RI|DE|VT|WV|MT|WY|ND|SD|HI|AK|DC)\s+\d{5}(?:-\d{4})?\b')
 LEGAL_NEGATOR = re.compile(
-    r'\b(?:Do Not Sell(?: or Share)? My Personal Information|Do Not Sell(?=["”] box to remove your consent)|'
+    r'\b(?:Do Not Sell(?: or Share)? My Personal Information|Do Not Sell["”] box to remove your consent|'
     r'no limit to the number of successful referrals|cannot be claimed again for subsequent referrals|'
     r'If it is not claimed within this period, the offer will expire|'
     r'not dependent on the referring client making any further successful referrals|'
@@ -275,7 +275,15 @@ def sponsor_fit(text):
         return None
     for category, pattern in CATEGORY.items():
         for match in pattern.finditer(text):
-            excerpt = text[max(0, match.start()-120):match.end()+180].strip()
+            start, end = max(0, match.start()-120), match.end()+180
+            # The receiver rechecks this original quote. Keep recognized literal
+            # legal clauses whole rather than leaving unexplained negators.
+            for clause in LEGAL_NEGATOR.finditer(text):
+                if clause.start() < start < clause.end():
+                    start = clause.start()
+                if clause.start() < end < clause.end():
+                    end = clause.end()
+            excerpt = text[start:end].strip()
             if COMMERCIAL.search(excerpt):
                 return category, excerpt
     return None
