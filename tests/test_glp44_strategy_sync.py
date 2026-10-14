@@ -1,6 +1,13 @@
 import importlib.util
 from pathlib import Path
 import pytest
+from tests.test_glp336_host_weekly import (
+    test_weekly_completion_and_consumer_ack_are_once_only,
+    test_empty_analysis_never_completes,
+    test_crash_after_analysis_resumes_without_collection,
+    test_tampered_analysis_refuses_instead_of_recollecting,
+    test_wrong_week_and_failed_budget_cannot_complete,
+)
 
 ROOT=Path(__file__).resolve().parents[1]
 def load():
