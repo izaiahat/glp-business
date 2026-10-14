@@ -1153,7 +1153,7 @@
         "native GLP334 reconciliation job"
       ],
       "kind": "script",
-      "sha256": "a4306d2d1d6456e1020f381cb960c5b04be72769e254af61a6f3b64b85178a93"
+      "sha256": "7ef469a95d9690d25d5c128dc158062d90ac90f5551884cdf4a88000d44d81b5"
     },
     "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py": {
       "callers": [],
@@ -2730,7 +2730,7 @@
         "ops/hermes-cron-scripts/glp334_live_reconciliation.sh"
       ],
       "kind": "script",
-      "sha256": "edc0de2f4f632d28a6871ffe8c271baee03f5c763a88f6aca0879e9c5b35371c"
+      "sha256": "511a6f3b2c014195e9776ded2e1451bbd11ee0d9b83e0ee55d7a26584bca7dbc"
     },
     "scripts/glp345_a4_adoption.py": {
       "callers": [
@@ -3883,7 +3883,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "061cbe3ea1f0dc9df83f2780490e4ee76e5c431b694b241eb8c75b9fcded277b"
+      "sha256": "061b364b1bc59062ef69e9abc8288a3d68c555341454eca6c99dc68968f5c380"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -5933,6 +5933,13 @@
       "kind": "test",
       "sha256": "612b3752f4bb7da7ce745d09a3b9fad8f6f0d68c1d7a3801635c36b61245a8bf"
     },
+    "tests/test_glp334_native_financial_intake.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "8054819b73422e2af9a49e1526d6f6a235d4c96d368996e66d346e92a94a34c3"
+    },
     "tests/test_glp85_cj_reporting_identity.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -7539,5 +7546,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1105
+  "tracked_count": 1106
 }
