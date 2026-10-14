@@ -344,7 +344,7 @@ def build_prompt(job: dict[str, Any], manifest: dict[str, Any], manifest_path: P
     rubric = RUBRIC.read_text(encoding="utf-8")
     active_transport = review_transports.transport(job.get("review_transport"))
     invocation_identity = {key: active_transport.get(key) for key in
-                           ("transport_id", "provider", "model", "effort", "service_tier", "authorized_since")}
+                           ("transport_id", "provider", "model", "effort", "speed", "service_tier", "authorized_since")}
     extension_note = ""
     if job.get("bridge_extension"):
         ruling = read_json(Path(job["bridge_extension"]["ruling"]["path"]))
@@ -390,7 +390,9 @@ or tool-call syntax, matching this shape:
 
 The reviewed transport registry authorizes this job's actual invocation:
 {json.dumps(invocation_identity, sort_keys=True)}
-The Astra/high/default row is authorized since 2026-10-07. Historical transports are receipt-reading only
+The Astra/high/default row remains the default. The explicit Sol6.1/high/Fast(priority) row supplies
+a distinct-model review route without waiving any original or successor author exclusion.
+Historical transports are receipt-reading only
 under the current native OpenAI invocation policy. Historical Sol-only or Claude instructions in the
 preserved rubric below do not override this current transport identity. This succession changes REVIEW
 TRANSPORT ONLY: it does not waive packet identity/isolation, tool-free one-turn review, actual runtime
@@ -661,7 +663,7 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
     # Which authorized transport runs this job. Jobs written before the
     # 2026-08-18 dual-transport authorization carry no field and stay on Sol.
     active_transport = review_transports.transport(job.get("review_transport"))
-    if active_transport["transport_id"] != review_transports.ASTRA_TRANSPORT["transport_id"]:
+    if active_transport["transport_id"] not in review_transports.NATIVE_INVOCATION_TRANSPORT_IDS:
         raise RuntimeError("astra_only_current_article_review_rematerialize_legacy_job")
     wrapper = Path(active_transport["wrapper"])
     if (sha_file(wrapper) != job.get("review_wrapper_sha256")
