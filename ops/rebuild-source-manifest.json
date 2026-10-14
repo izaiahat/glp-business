@@ -78,7 +78,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "af9726e07e8bb2ee5c5d1f06b2b2eb5a6c7efff43137af9e4d9153b1ea1d46ef"
+      "sha256": "ef5ce3864e37a62defe20284a34703629a172a99f85093149ad1b2ca3208f805"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -7683,7 +7683,7 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "9d4a1dee56a89915a03d9c479a54e55b2d77d054a328aa05acad6eeafaa72df1"
+      "sha256": "d539094d36415873a13bb2378210359a6f2b66a22f21adb94d40d6def7a39dc9"
     },
     ".github/workflows/sponsor-sender-credit-boundary.yml": {
       "kind": "config",

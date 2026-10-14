@@ -44,6 +44,10 @@ ALEX_CALLER = 'sponsor_firecrawl_alexandria'
 FLOOR_CREDITS = 3000
 RUN_CREDIT_CAP = 1500
 PERIOD_CREDIT_CAP = 45000
+# OPERATOR-DECISION-20261014-firecrawl-cap: prepaid period only, no purchase.
+# Default automatically remains 45k for every other authenticated period.
+PERIOD_CAP_END = dt.datetime(2026, 10, 19, 23, 59, 59, tzinfo=dt.timezone.utc)
+APPROVED_PERIOD_CREDIT_CAP = 60000
 SPONSOR_CALLERS = (CALLER, ALEX_CALLER, 'fc71_sponsor_supply', 'fc71_sponsor_alexandria', 'sponsor_campaign')
 MATCH_CAP = 25
 GAPS = {'us_program_scope_unknown', 'not_glp_medication_provider', 'no_verified_business_purpose_contact',
@@ -476,7 +480,8 @@ class Producer:
                     or self.budget.spent + credits > self.budget.cap
                     or accounted + pending.get(day, 0) + credits > RUN_CREDIT_CAP):
                 raise RuntimeError('sponsor_daily_credit_cap')
-            if plan - remaining + sum(pending.values()) + credits > PERIOD_CREDIT_CAP:
+            period_cap = APPROVED_PERIOD_CREDIT_CAP if end == PERIOD_CAP_END else PERIOD_CREDIT_CAP
+            if plan - remaining + sum(pending.values()) + credits > period_cap:
                 raise RuntimeError('sponsor_period_credit_cap')
             if remaining - sum(pending.values()) - credits <= FLOOR_CREDITS:
                 raise RuntimeError('sponsor_account_credit_floor')
