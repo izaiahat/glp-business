@@ -213,8 +213,25 @@ def stage_source(workspace, packet, entry, before):
     source.run(['gh','pr','merge',pr['url'],'--merge','--match-head-commit',pr['headRefOid']], timeout=90)
     return source.gh('pr','view',pr['url'],'--json','url,state,headRefOid,mergeCommit')
 
+# Independently accepted site PR77 / RV77 review5512946524, exact source head.
+# Canonical complete oral-guide row (including all three actual site preimages),
+# NOT the original buffer's article/QA/review hashes. No caller may repin it.
+ACCEPTED_SUCCESSOR_SOURCE_HEAD = 'ea07aa33ea6167081b854de3372722988d9c3569'
+ACCEPTED_SUCCESSOR_SOURCE_ROW_SHA256 = '089cdb8108b0706fde1d60a3cd15350fd5c455c5cb114b9346d6b4f2c3842c5d'
+
+
 def adopt_successor(workspace, entry_path, packet, history, *, expected_head,
                     root=ROOT, source_author_packet=None, source_author_review=None):
+    # Same serialization as ordinary stage and every content-base mutation;
+    # admission covers reads, native authentication, final recheck and writes.
+    with carrier_lock():
+        return _adopt_successor_locked(workspace, entry_path, packet, history,
+            expected_head=expected_head, root=root, source_author_packet=source_author_packet,
+            source_author_review=source_author_review)
+
+
+def _adopt_successor_locked(workspace, entry_path, packet, history, *, expected_head,
+                            root, source_author_packet, source_author_review):
     """Stage retained authenticated successor inputs in private Git source only.
 
     No review invocation, commit/PR/merge, build, live read or recovery seal.
@@ -227,16 +244,32 @@ def adopt_successor(workspace, entry_path, packet, history, *, expected_head,
         or source.run(['git', 'rev-parse', 'HEAD'], cwd=workspace).strip() != expected_head
         or source.run(['git', 'status', '--porcelain'], cwd=workspace).strip()):
         raise RuntimeError('successor_source_checkout_drift')
+    # Capture buffers before authentication, then authenticate those exact bytes.
+    # Do not reread mutable entry/context to derive the adoption after handoff.
+    entry_bytes = entry_path.read_bytes()
+    context_path = packet / recovery.PUBLICATION_CONTEXT
+    context_bytes = context_path.read_bytes()
+    manifest_path = workspace / 'data/blog/accepted-guides/updates.json'
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = json.loads(manifest_bytes)
     doc = recovery.successor_documents(entry_path, history, packet, root=root,
         source_author_packet=source_author_packet, source_author_review=source_author_review)
     validated = recovery.validate_successor_documents(entry_path, doc, root=root)
-    entry = recovery.read(entry_path)
-    manifest_path = workspace / 'data/blog/accepted-guides/updates.json'
-    manifest = recovery.read(manifest_path)
+    pins = {r['path']: r['sha256'] for r in validated['manifest']['subject_files']}
+    recovery.require(hashlib.sha256(entry_bytes).hexdigest() == doc['entry']['sha256']
+                     and hashlib.sha256(context_bytes).hexdigest() == pins[recovery.PUBLICATION_CONTEXT],
+                     'successor_source_authenticated_input_drift')
+    entry, context = json.loads(entry_bytes), json.loads(context_bytes)
     rows = [r for r in manifest['entries'] if r['route'] == entry['target_route']]
     recovery.require(manifest['schema'] == 'glp-accepted-guide-updates-v1' and len(rows) == 1,
                      'successor_source_row_invalid')
     row = rows[0]
+    row_digest = hashlib.sha256(json.dumps(row, sort_keys=True, separators=(',', ':'),
+                                         ensure_ascii=False).encode()).hexdigest()
+    recovery.require(context['source_head'] == ACCEPTED_SUCCESSOR_SOURCE_HEAD
+                     and row_digest == ACCEPTED_SUCCESSOR_SOURCE_ROW_SHA256,
+                     'successor_source_accepted_preimage_drift')
+    preimages = {manifest_path: manifest_bytes}
     for key in ('article', 'qa', 'review'):
         relative = row[key]['path']
         recovery.require(re.fullmatch(r'data/blog/accepted-guides/[a-z0-9-]+/[a-z0-9_.-]+\.json', relative)
@@ -244,18 +277,19 @@ def adopt_successor(workspace, entry_path, packet, history, *, expected_head,
                                      if p.is_relative_to(workspace))
                          and (workspace / relative).resolve(strict=True).is_relative_to(workspace),
                          'successor_source_path_invalid')
-        recovery.require(source.digest(workspace / relative) == row[key]['sha256'],
+        preimage_path = workspace / relative
+        preimages[preimage_path] = preimage_path.read_bytes()
+        recovery.require(hashlib.sha256(preimages[preimage_path]).hexdigest() == row[key]['sha256'],
                          'successor_source_preimage_drift')
-    before, article = recovery.read(workspace / row['article']['path']), recovery.read(packet / '06-article.json')
+    article_bytes = (packet / '06-article.json').read_bytes()
+    before, article = json.loads(preimages[workspace / row['article']['path']]), json.loads(article_bytes)
     recovery.require(before['article_id'] == article['article_id'] == entry['article_id']
                      and before['canonical_path'] == article['canonical_path'] == row['route'],
                      'successor_source_identity_invalid')
-    context = recovery.read(packet / recovery.PUBLICATION_CONTEXT)
     recovery.require(row.get('first_publication') == context['first_publication'],
                      'successor_source_publication_context_drift')
     originals = {'article': packet / '06-article.json', 'qa': packet / '07-qa-receipt.json',
                  'review': recovery.checked(doc['review'])}
-    pins = {r['path']: r['sha256'] for r in validated['manifest']['subject_files']}
     expected = {'article': pins['06-article.json'], 'qa': pins['07-qa-receipt.json'],
                 'review': doc['review']['sha256']}
     content = {key: original.read_bytes() for key, original in originals.items()}
@@ -269,6 +303,15 @@ def adopt_successor(workspace, entry_path, packet, history, *, expected_head,
         target = workspace / spec['path']
         recovery.require(not target.is_symlink() and (not target.exists() or source.digest(target) == spec['sha256']),
                          'successor_source_destination_drift')
+    # Final pre-effect validation while the genuine carrier owner is held.
+    recovery.require(entry_path.read_bytes() == entry_bytes
+                     and context_path.read_bytes() == context_bytes,
+                     'successor_source_authenticated_input_drift')
+    if (source.run(['git', 'rev-parse', 'HEAD'], cwd=workspace).strip() != expected_head
+        or source.run(['git', 'status', '--porcelain'], cwd=workspace).strip()):
+        raise RuntimeError('successor_source_checkout_drift')
+    recovery.require(all(not path.is_symlink() and path.read_bytes() == data
+                         for path, data in preimages.items()), 'successor_source_preimage_drift')
     for key, original in originals.items():
         target = workspace / specs[key]['path']
         if not target.exists():

@@ -3281,7 +3281,7 @@
         "manual:GLP-320 retained reviewed successor source adoption (no build/review/publication)"
       ],
       "kind": "registered_producer",
-      "sha256": "96730d5b43a1bef9e4a18df1742af8354956b1f65427d7b6063284d37ce67af1"
+      "sha256": "d84bd9789f0cd3a8d9b61e7e18152d21d7bb51efe4aa462d1ddc3afa016c301e"
     },
     "scripts/glp_served_test_contract.py": {
       "callers": [
@@ -7614,7 +7614,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "6f5b2d5679c7181dcbce1884c2fb115201721d456763b9263d2b9f1b87adbe89"
+      "sha256": "c59dc2217332b01808f4e58bfbda1664225263d00c3fa58eca89618ffc2165df"
     },
     "systems/seo-blog-machine/tests/test_guide_render_contract.py": {
       "callers": [
