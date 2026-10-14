@@ -22,15 +22,21 @@ def load_token() -> str:
     return m.group(1).strip().strip('"').strip("'")
 
 
-def send(channel_id: str, content: str) -> dict:
-    # This notification-only helper suppresses structured mentions. Registered
-    # reviews must use bridge_authority_guard.py send-successor, never this path.
+def send(channel_id: str, content: str, *, ping_user: str | None = None) -> dict:
+    # Default notifications never ping. Explicit opt-in permits only one actual
+    # user mention, never everyone/roles. Registered reviews retain their route.
+    allowed_mentions: dict = {'parse': []}
+    if ping_user is not None:
+        if (not isinstance(ping_user, str) or not re.fullmatch(r'[0-9]{16,22}', ping_user)
+                or '<@'+ping_user+'>' not in content):
+            raise ValueError('ping_user_requires_single_id_and_matching_content_mention')
+        allowed_mentions.update(users=[ping_user], replied_user=False)
     if 'TRUE-BRIDGE FABLE REVIEW REQUEST' in content.upper():
         raise RuntimeError('registered_bridge_sender_required')
     token = load_token()
     req = urllib.request.Request(
         f'https://discord.com/api/v10/channels/{channel_id}/messages',
-        data=json.dumps({'content': content, 'allowed_mentions': {'parse': []}}).encode('utf-8'),
+        data=json.dumps({'content': content, 'allowed_mentions': allowed_mentions}).encode('utf-8'),
         headers={
             'Authorization': f'Bot {token}',
             'Content-Type': 'application/json',
@@ -73,6 +79,7 @@ def readback(channel_id: str, message_id: str) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--channel', required=True)
+    parser.add_argument('--ping-user', help='Explicit single user ID; requires matching <@id> in content')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--message')
     group.add_argument('--file')
@@ -86,12 +93,21 @@ def main() -> int:
         raise RuntimeError('empty message')
 
     sent_content = content[:1900].rstrip('\r\n')
-    payload = send(args.channel, sent_content)
+    payload = send(args.channel, sent_content, ping_user=args.ping_user)
     message_id = str(payload.get('id') or '')
     if not message_id:
         raise RuntimeError('Discord POST response missing message ID')
     fetched = readback(args.channel, message_id)
     exact_readback = fetched.get('channel_id') == args.channel and fetched.get('content') == sent_content
+    if args.ping_user is not None:
+        mentions = fetched.get('mentions')
+        # Match the outbound singleton scope, not just membership. A refusal
+        # follows the one POST/readback above and must never cause a resend.
+        exact_readback = (exact_readback and isinstance(mentions, list)
+            and len(mentions) == 1 and isinstance(mentions[0], dict)
+            and mentions[0].get('id') == args.ping_user
+            and fetched.get('mention_everyone', False) is False
+            and fetched.get('mention_roles', []) == [])
     if not exact_readback:
         raise RuntimeError(json.dumps({
             'error': 'Discord exact readback failed',
@@ -109,6 +125,7 @@ def main() -> int:
         'channel_id': args.channel,
         'exact_readback': True,
         'allowed_mentions_parse': [],
+        'ping_user': args.ping_user,
     }, indent=2))
     return 0
 
