@@ -184,6 +184,79 @@ def test_known_full_build_markup_mismatch_stays_fail_closed():
         recovery.require_live_matches_candidate(live, candidate)
 
 
+def test_ten_subject_publication_context_is_bound_to_original_and_candidate(tmp_path, monkeypatch):
+    """Offline shape of the actual ten-subject successor; no runtime acceptance."""
+    monkeypatch.setattr(recovery, 'ROOT', tmp_path)
+    import hashlib
+    original, fresh, rows = build(tmp_path)
+    buffer = tmp_path/'reports/glp-clinic-scout/seo-machine/article-buffer'
+    registered = buffer/'entries'/('a'*24)/'packet'
+    registered.parent.mkdir(parents=True)
+    original.rename(registered); original = registered
+    claim = buffer/'claims'/('b'*64+'.json'); claim.parent.mkdir(parents=True)
+    claim.write_text('{}')
+    release = tmp_path/'reports/glp-clinic-scout/seo-machine/current-release-head'
+    release.mkdir(parents=True)
+    def store(path, value):
+        path.write_text(json.dumps(value)); return recovery.spec(path)
+    terminal = store(release/'10-final-publication-receipt.json', {
+        'schema': 'glp-opus-production-terminal-receipt-v1', 'status': 'PASS_PRODUCTION_TERMINAL',
+        'site_head': 'head', 'deployment': {'deployment_id': 'deployment'}})
+    current = store(release/'CURRENT-RECEIPT.json', {
+        'status': 'PASS_PRODUCTION_TERMINAL', 'site_head': 'head', 'stages': {
+            'pages_deploy_intent': {'created_at_utc': '2026-10-12T03:15:22Z', 'commit_hash': 'head'},
+            'pages_deployment': {'deployment_id': 'deployment', 'commit_hash': 'head'},
+            'route_probe_raw': [{'headers': {'Date': 'Mon, 12 Oct 2026 03:17:31 GMT'}}]}})
+    predecessor = store(release/'01-deployment-manifest.json', {'site_head': 'head'})
+    consumed = {'schema': 'glp-seo-article-buffer-consumption-v1', 'status': 'PASS_BUFFER_PUBLISHED',
+        'entry_id': 'a'*24, 'claim': recovery.spec(claim), 'publication': {
+            'receipt': terminal['path'], 'deployment_id': 'deployment'}}
+    consumed['consumption_sha256'] = hashlib.sha256((json.dumps(
+        consumed, sort_keys=True, separators=(',', ':'), ensure_ascii=False)+'\n').encode()).hexdigest()
+    consumed_path = buffer/'consumed'/claim.name; consumed_path.parent.mkdir()
+    consumed_path.write_text(json.dumps(consumed))
+    headers = tmp_path/'reports/live-guide.headers'
+    headers.write_text('HTTP/2 200\ndate: Mon, 12 Oct 2026 03:17:31 GMT\n')
+    context = {'scope': 'POSTPUBLICATION_RECOVERY_REVIEW_ONLY_NOT_NEW_PUBLICATION',
+        'no_invocation_authority': True, 'original_consumption': consumed,
+        'original_terminal': json.loads(Path(terminal['path']).read_text()),
+        'fresh_native_build': {'status': 'PASS_NATIVE_BUILD', 'returncode': 0,
+                              'candidate': recovery.spec(fresh/recovery.CANDIDATE)},
+        'first_publication': {'not_before_utc': '2026-10-12T03:15:22Z',
+            'observed_live_by_utc': '2026-10-12T03:17:31Z', 'date': '2026-10-11',
+            'deployment_id': 'deployment', 'site_head': 'head', 'timezone': 'America/Los_Angeles',
+            'evidence': [{'path': str(Path(s['path']).relative_to(tmp_path)), 'sha256': s['sha256']}
+                         for s in (current, terminal, recovery.spec(consumed_path), recovery.spec(headers))]}}
+    context_path = fresh/'09-publication-context.json'
+    def check_context(value):
+        context_path.write_text(json.dumps(value))
+        manifest = manifest_for(fresh)
+        manifest['subject_files'].append({'path': context_path.name, 'sha256': recovery.sha(context_path)})
+        return recovery.successor_contract(original, fresh, rows, manifest,
+                                           compile_packet=fake_compile)
+    assert check_context(context)['publication_context_sha256'] == recovery.sha(context_path)
+    unexpected = manifest_for(fresh)
+    unexpected['subject_files'].append({'path': context_path.name, 'sha256': recovery.sha(context_path)})
+    unexpected['subject_files'].append({'path': '10-unreviewed.json', 'sha256': '0'*64})
+    with pytest.raises(ValueError, match='recovery_subject_set'):
+        recovery.successor_contract(original, fresh, rows, unexpected, compile_packet=fake_compile)
+    bad = copy.deepcopy(context); bad['fresh_native_build']['candidate']['sha256'] = '0'*64
+    with pytest.raises(ValueError, match='publication_context_candidate_binding'):
+        check_context(bad)
+    bad = copy.deepcopy(context); bad['original_consumption']['entry_id'] = 'c'*24
+    with pytest.raises(ValueError, match='publication_context_original_consumption'):
+        check_context(bad)
+    bad = copy.deepcopy(context); bad['no_invocation_authority'] = False
+    with pytest.raises(ValueError, match='publication_context_scope'):
+        check_context(bad)
+    bad = copy.deepcopy(context); bad['first_publication']['date'] = '2026-10-12'
+    with pytest.raises(ValueError, match='publication_context'):
+        check_context(bad)
+    (release/'CURRENT-RECEIPT.json').write_text('{}')
+    with pytest.raises(ValueError):
+        check_context(context)
+
+
 def test_natural_cannot_be_recovered(tmp_path):
     with pytest.raises(ValueError, match='postpublication_review_not_natural'):
         recovery.validate_recovery(tmp_path/'entry.json', root=tmp_path, natural=True)
