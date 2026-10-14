@@ -178,6 +178,16 @@ def test_unsealed_supply_helpers_cannot_change_campaign_admission(monkeypatch):
     assert campaign.recipients(values, discovery, local)['recipients'] == []
 
 
+def write_search_leads(path, urls):
+    """Synthetic first-party-positive receipts for hold/alias regressions only."""
+    from urllib.parse import urlsplit
+    rows = [{'url':u, 'title':(urlsplit(u).hostname or '')+' Protein Powder',
+             'description':'Our protein powder products available to United States customers.',
+             'receipt':'fixture-search.json'} for u in urls]
+    path.write_text('\n'.join(json.dumps(r) for r in rows))
+    (path.parent/'fixture-search.json').write_text(json.dumps({'success':True,'data':{'web':rows}}))
+
+
 def test_daily_consumes_untouched_retained_firstparty_leads_before_cached_hosts(monkeypatch, tmp_path):
     import json
     import glp_sponsor_campaign as campaign
@@ -186,13 +196,13 @@ def test_daily_consumes_untouched_retained_firstparty_leads_before_cached_hosts(
     p.pages.mkdir(parents=True)
     (p.pages / 'cached.example.json').write_text('{}')
     leads = tmp_path / 'retained.jsonl'
-    leads.write_text('\n'.join(json.dumps({'url': u}) for u in (
+    write_search_leads(leads, (
         'https://www.untouched.example/partners', 'https://untouched.example/contact',
         'https://app.untouched.example/partners',
         'https://sub.cached.example/contact', 'https://held.example/partners',
         'https://daily-harvest.com/partners', 'https://fellahealth.com/',
         'https://ww.com/contact', 'https://bad.example/?affiliate=1',
-        'http://insecure.example/', 'https://ui.awin.com/')))
+        'http://insecure.example/', 'https://ui.awin.com/'))
     registry = [{'host': 'dailyharvest.com', 'program': 'Daily Harvest'},
                 {'host': 'weightwatchers.com', 'program': 'WeightWatchers'}]
     monkeypatch.setattr(policy, 'classify_row', lambda i, r: r)
@@ -239,7 +249,7 @@ def test_daily_refuses_held_named_alias_descendants_in_either_input_order(monkey
             'https://fresh.example/partners', 'https://distinct.example/partners',
             'https://not-daily-harvest.example/partners']
     for cohort in (urls, list(reversed(urls))):
-        leads.write_text('\n'.join(json.dumps({'url': url}) for url in cohort))
+        write_search_leads(leads, cohort)
         selected.clear()
         p.daily(retained_leads=[leads])
         assert selected == ['distinct.example', 'fresh.example', 'not-daily-harvest.example']
@@ -419,7 +429,9 @@ def test_failed_capture_reserves_credits_and_next_run_cannot_reset(monkeypatch, 
     class Client:
         def __init__(self, *a, **kw): pass
         def request(self, endpoint, *a, **kw):
-            if endpoint == 'team/credit-usage': return {'data':{'remainingCredits':10000}}
+            if endpoint == 'team/credit-usage': return {'data':{'remainingCredits':10000, 'planCredits':30000,
+                'billingPeriodStart':(supply.now()-dt.timedelta(days=1)).isoformat(),
+                'billingPeriodEnd':(supply.now()+dt.timedelta(days=30)).isoformat()}}
             calls.append(endpoint)
             raise OSError('uncertain paid effect')
         def scrape(self, *a, **kw):
@@ -872,3 +884,145 @@ def test_later_identical_capture_refreshes_without_rewriting_retained_receipts(t
     assert p.discovery.read_bytes() == first
     assert (tmp_path / 'receipt.json').read_bytes() == original_bytes and manifest.read_bytes() == original_manifest
     assert ledger.read_bytes() == ledger_before
+
+
+@pytest.mark.parametrize('boundary', ['period', 'floor', 'daily', 'durable', 'midnight', 'account_unknown'])
+def test_paid_match_rechecks_fresh_shared_budget_before_transport(monkeypatch, tmp_path, boundary):
+    """Actual reserve+paid_match; effects denied, stale constructor must not authorize."""
+    from types import SimpleNamespace
+    import glp_sponsor_campaign as campaign
+    import glp_firecrawl_jobs as jobs
+    import firecrawl_client
+    monkeypatch.setattr(firecrawl_client, 'LEDGER', tmp_path / 'operations.jsonl')
+    day = supply.now().date().isoformat()
+    p = supply.Producer.__new__(supply.Producer)
+    p.state = tmp_path
+    p.run = 'offline-repro'
+    p.budget = supply.Budget(56428, cap=1388)
+    p.start_spent = 112
+    p.budget_day = day
+    p.reservations = tmp_path / 'firecrawl-supply-budget.json'
+    p.c = campaign
+    p.report = {}
+    fresh, transport = [], []
+    usage = {'remainingCredits': 56428, 'planCredits': 100000,
+             'billingPeriodStart': (supply.now()-dt.timedelta(days=1)).isoformat(),
+             'billingPeriodEnd': (supply.now()+dt.timedelta(days=30)).isoformat()}
+    if boundary == 'period': usage['remainingCredits'] = 55010
+    if boundary == 'floor': usage.update(remainingCredits=3000, planCredits=30000)
+    if boundary == 'account_unknown': usage['planCredits'] = None
+    if boundary == 'midnight':
+        later = supply.now()+dt.timedelta(days=1)
+        monkeypatch.setattr(supply, 'now', lambda: later)
+    monkeypatch.setattr(jobs, 'spent_today', lambda *a, **k: 1490 if boundary == 'daily' else 112)
+    p.client = SimpleNamespace(request=lambda *a, **k: fresh.append(a[0]) or {'data':usage})
+    p.apollo_scrape = lambda payload: transport.append(payload) or {'success': True}
+    if boundary == 'durable':
+        campaign.save(p.reservations, {'day':day, 'reserved':1490})
+    before = p.reservations.read_bytes() if p.reservations.exists() else None
+    with pytest.raises(RuntimeError, match='sponsor_.*credit'):
+        p.paid_match({'alexandria':[{'provider':'apollo','capability':'people/match','options':{'id':'offline'}}]})
+    assert fresh == ['team/credit-usage'] and transport == []
+    assert (p.reservations.read_bytes() if p.reservations.exists() else None) == before
+
+
+def test_daily_selector_binds_real_firstparty_leads_not_search_noise(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    fixture = json.loads((Path(__file__).parent / 'fixtures/sponsor-retained-firstparty-leads.json').read_text())
+    paths = []
+    for source in fixture['inputs']:
+        path = tmp_path / source['path']; path.parent.mkdir(parents=True, exist_ok=True)
+        rows = [r for r in fixture['rows'] if r['input'] == source['path']]
+        path.write_text(''.join(json.dumps(r['lead'])+'\n' for r in rows))
+        by_receipt = {}
+        for row in rows: by_receipt.setdefault(row['lead']['receipt'], []).append(row['web_row'])
+        for name, hits in by_receipt.items():
+            (path.parent / name).write_text(json.dumps({'success':True,'data':{'web':hits}}))
+        paths.append(path)
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    monkeypatch.setattr(campaign, 'ROOT', tmp_path)
+    monkeypatch.setattr(campaign, 'read_values', lambda: [list(policy.EXPECTED_HEADERS)])
+    p = supply.Producer(state_dir=tmp_path/'state', import_only=True)
+    p.discovery = tmp_path/'discovery.json'
+    p.discovery.write_text('{"organizations":{}}')
+    p.pages.mkdir(parents=True)
+    p.budget = supply.Budget(10000)
+    p.plan = lambda: ({'suppression':{'entries':[], 'complete':True}, 'conversations':[]}, {'exclusions':[]})
+    p.capture = lambda hosts: p.report.update(selected=list(hosts))
+    p.merge = p.apollo = p.verify = lambda: None
+    monkeypatch.setattr(supply, 'SPONSOR_SEEDS', ())
+    p.daily(retained_leads=paths)
+    assert set(p.report['selected']) == set(fixture['expected_positive_hosts'])
+    assert len(p.report['target_universe']['retained_lead_inputs']) == 4
+    assert not set(p.report['selected']) & set(fixture['expected_negative_hosts'])
+    # Changing a retained lead without changing the actual source receipt must
+    # refuse before capture; no input/source provenance silently rebinding.
+    selected = p.report['selected'].copy()
+    path = next(x for x in paths if x.read_text())
+    lines = path.read_text().splitlines()
+    altered = json.loads(lines[0]); altered['description'] += ' unbound mutation'
+    lines[0] = json.dumps(altered); path.write_text('\n'.join(lines))
+    with pytest.raises(RuntimeError, match='retained_lead_receipt_unbound'):
+        p.daily(retained_leads=paths)
+    assert p.report['selected'] == selected
+
+
+@pytest.mark.parametrize('cost', [None, 30])
+def test_paid_reservation_null_cost_and_concurrent_custody(monkeypatch, tmp_path, cost):
+    import fcntl
+    from types import SimpleNamespace
+    import glp_sponsor_campaign as campaign
+    import glp_firecrawl_jobs as jobs
+    import firecrawl_client
+    monkeypatch.setattr(jobs, 'spent_today', lambda *a: 0)
+    ledger = tmp_path/'operations.jsonl'
+    monkeypatch.setattr(firecrawl_client, 'LEDGER', ledger)
+    at = supply.now()
+    p = supply.Producer.__new__(supply.Producer)
+    p.state = tmp_path; p.c = campaign; p.report = {}; p.run = 'offline'
+    p.budget = supply.Budget(56428); p.budget_day = at.date().isoformat()
+    p.reservations = tmp_path/'firecrawl-supply-budget.json'
+    queries = []
+    usage = {'remainingCredits':56428, 'planCredits':100000,
+             'billingPeriodStart':(at-dt.timedelta(days=1)).isoformat(),
+             'billingPeriodEnd':(at+dt.timedelta(days=30)).isoformat()}
+    p.client = SimpleNamespace(request=lambda *a, **kw: queries.append(a[0]) or {'data':usage})
+    def transport(payload):
+        ledger.write_text(json.dumps({'operation_id':'offline-op', 'caller':supply.ALEX_CALLER,
+            'at_utc':at.isoformat(), 'endpoint':'/v2/scrape', 'outcome':'success', 'creditsUsed':cost})+'\n')
+        return {'success':True, 'data':{'alexandria':[{'creditsCost':cost}]}}
+    p.apollo_scrape = transport
+    with (tmp_path/'firecrawl-supply-budget.lock').open('a') as fence:
+        fcntl.flock(fence, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BlockingIOError): p.paid(30, transport, {})
+    assert not queries and not p.reservations.exists()
+    p.paid_match({})
+    assert queries == ['team/credit-usage']
+    record = json.loads(p.reservations.read_text())
+    assert record['pending_by_day'][p.budget_day] == (30 if cost is None else 0)
+    assert p.daily_accounted(p.budget_day) == 30
+    if cost is None:
+        assert p.report['unknown_credit_costs'][0]['creditsUsed'] is None
+    # A second stale producer sharing the same store cannot reset pending claims.
+    p.budget = supply.Budget(56428)
+    campaign.save(p.reservations, {'day':p.budget_day, 'reserved':1490})
+    with pytest.raises(RuntimeError, match='sponsor_daily_credit_cap'): p.reserve(30)
+    assert json.loads(p.reservations.read_text())['reserved'] == 1490
+
+
+def test_capture_unknown_operation_has_no_ambiguous_replay(monkeypatch, tmp_path):
+    import hashlib
+    import firecrawl_client
+    p = supply.Producer.__new__(supply.Producer)
+    ledger = tmp_path/'operations.jsonl'
+    monkeypatch.setattr(firecrawl_client, 'LEDGER', ledger)
+    rows = [{'operation_id':'unknown-op', 'caller':supply.CALLER, 'endpoint':'/v2/scrape',
+             'url_hash':[hashlib.sha256(b'https://example.com/').hexdigest()],
+             'outcome':'started', 'creditsUsed':None}]
+    ledger.write_text(json.dumps(rows[0])+'\n')
+    before = ledger.read_bytes()
+    with pytest.raises(RuntimeError, match='ambiguous_capture_effect_no_replay'):
+        p.capture_admissible('scrape', 'https://example.com/')
+    assert ledger.read_bytes() == before
+    p.capture_admissible('scrape', 'https://different.example/')

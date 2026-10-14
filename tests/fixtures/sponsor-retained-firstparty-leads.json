@@ -1,0 +1,226 @@
+{
+  "inputs": [
+    {
+      "path": "DISCOVERY-HITS.jsonl",
+      "sha256": "656222c009b2669c9e15b2e37ee023880bb82ebf98b5f9b80e66c842ff161e08"
+    },
+    {
+      "path": "BATCH-2/DISCOVERY-HITS.jsonl",
+      "sha256": "d54df1c7f6d1f85ee847d58e37d0ab0e126190fa60151bb7ceae4b1a8ab6e08b"
+    },
+    {
+      "path": "BATCH-3/DISCOVERY-HITS.jsonl",
+      "sha256": "344a615638bb19f019cba40c3aecb7c3ea2de456530c8bda5ad52558ddb5aa93"
+    },
+    {
+      "path": "BATCH-8/DISCOVERY-HITS.jsonl",
+      "sha256": "d4ffbcb469d86fd3ff5636b2a0ae87c3773120dba87638d67640f5e4a1969e68"
+    }
+  ],
+  "rows": [
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:19:37.680565+00:00",
+        "batch": 0,
+        "description": "25 Partnerships in the Alternative Protein Industry: Q1 2026. Latest ... protein powder in the United States. Cultivated. 3D Bio-Tissues ...",
+        "query": "\"protein powder\" \"partnerships\" \"United States\"",
+        "receipt": "search-00.json",
+        "title": "25 Partnerships in the Alternative Protein Industry: Q1 2026",
+        "url": "https://nicholasdahlapg.substack.com/p/25-partnerships-in-the-alternative"
+      },
+      "receipt_sha256": "082fe602e98d62ab93c423ec48381237ce4de49d0681e04c8aa8182545e2ada8",
+      "web_row": {
+        "description": "25 Partnerships in the Alternative Protein Industry: Q1 2026. Latest ... protein powder in the United States. Cultivated. 3D Bio-Tissues ...",
+        "position": 1,
+        "title": "25 Partnerships in the Alternative Protein Industry: Q1 2026",
+        "url": "https://nicholasdahlapg.substack.com/p/25-partnerships-in-the-alternative"
+      }
+    },
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:19:37.680582+00:00",
+        "batch": 0,
+        "description": "United States Protein Supplements Market Report Coverage \u00b7 Protein Bars \u00b7 Ready to Drink \u00b7 Protein Powder \u00b7 Others.",
+        "query": "\"protein powder\" \"partnerships\" \"United States\"",
+        "receipt": "search-00.json",
+        "title": "United States Protein Supplements Market Size, Share, Growth",
+        "url": "https://www.sphericalinsights.com/reports/united-states-protein-supplements-market"
+      },
+      "receipt_sha256": "082fe602e98d62ab93c423ec48381237ce4de49d0681e04c8aa8182545e2ada8",
+      "web_row": {
+        "description": "United States Protein Supplements Market Report Coverage \u00b7 Protein Bars \u00b7 Ready to Drink \u00b7 Protein Powder \u00b7 Others.",
+        "position": 2,
+        "title": "United States Protein Supplements Market Size, Share, Growth",
+        "url": "https://www.sphericalinsights.com/reports/united-states-protein-supplements-market"
+      }
+    },
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:19:37.680587+00:00",
+        "batch": 0,
+        "description": "Protein powder use among natural consumers is on the rise, according to SPINS ... United States, United States Minor Outlying Islands, Uruguay, Uzbekistan ...",
+        "query": "\"protein powder\" \"partnerships\" \"United States\"",
+        "receipt": "search-00.json",
+        "title": "Protein powder consumer base - SupplySide Supplement Journal",
+        "url": "https://www.supplysidesj.com/proteins/protein-powders-for-an-expanding-consumer-base"
+      },
+      "receipt_sha256": "082fe602e98d62ab93c423ec48381237ce4de49d0681e04c8aa8182545e2ada8",
+      "web_row": {
+        "description": "Protein powder use among natural consumers is on the rise, according to SPINS ... United States, United States Minor Outlying Islands, Uruguay, Uzbekistan ...",
+        "position": 3,
+        "title": "Protein powder consumer base - SupplySide Supplement Journal",
+        "url": "https://www.supplysidesj.com/proteins/protein-powders-for-an-expanding-consumer-base"
+      }
+    },
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:19:37.680594+00:00",
+        "batch": 0,
+        "description": "... United States. We are not one company, but many that have forged partnerships with each other to position ourselves as the market maker for the whey protein ...",
+        "query": "\"protein powder\" \"partnerships\" \"United States\"",
+        "receipt": "search-00.json",
+        "title": "Protein Wholesaler | LinkedIn",
+        "url": "https://www.linkedin.com/company/protein-wholesaler"
+      },
+      "receipt_sha256": "082fe602e98d62ab93c423ec48381237ce4de49d0681e04c8aa8182545e2ada8",
+      "web_row": {
+        "description": "... United States. We are not one company, but many that have forged partnerships with each other to position ourselves as the market maker for the whey protein ...",
+        "position": 5,
+        "title": "Protein Wholesaler | LinkedIn",
+        "url": "https://www.linkedin.com/company/protein-wholesaler"
+      }
+    },
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:19:42.864263+00:00",
+        "batch": 4,
+        "description": "Rating 4.7(209) \u00b7 Free delivery \u00b7 10-day returnsbulk wholesale premium Organic Pea Protein Powder 85% USDA Organic Seal. bulk ... Our Organic Pea Protein Powder is stocked in U.S. warehouses in California and ...",
+        "query": "\"protein powder\" \"wholesale\" \"California\"",
+        "receipt": "search-04.json",
+        "title": "Organic Pea Protein Powder 85% - Green Jeeva",
+        "url": "https://www.greenjeeva.com/product/organic-pea-protein-powder-85"
+      },
+      "receipt_sha256": "38370521dba20cac64890d5c72494b3b949dd97b937db32bc5e192e646735f3b",
+      "web_row": {
+        "description": "Rating 4.7(209) \u00b7 Free delivery \u00b7 10-day returnsbulk wholesale premium Organic Pea Protein Powder 85% USDA Organic Seal. bulk ... Our Organic Pea Protein Powder is stocked in U.S. warehouses in California and ...",
+        "position": 4,
+        "title": "Organic Pea Protein Powder 85% - Green Jeeva",
+        "url": "https://www.greenjeeva.com/product/organic-pea-protein-powder-85"
+      }
+    },
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:19:42.864276+00:00",
+        "batch": 4,
+        "description": "In stock 4\u20137 day deliveryBULK INGREDIENTS | WHOLESALE PRICES | $225 MINIMUM ORDER. For No Minimum ... This product carries California's Proposition 65 WARNING. Our Hemp Protein ...",
+        "query": "\"protein powder\" \"wholesale\" \"California\"",
+        "receipt": "search-04.json",
+        "title": "Hemp Protein Powder - Organic - WPbulk.com",
+        "url": "https://wpbulk.com/products/hemp-protein-powder"
+      },
+      "receipt_sha256": "38370521dba20cac64890d5c72494b3b949dd97b937db32bc5e192e646735f3b",
+      "web_row": {
+        "description": "In stock 4\u20137 day deliveryBULK INGREDIENTS | WHOLESALE PRICES | $225 MINIMUM ORDER. For No Minimum ... This product carries California's Proposition 65 WARNING. Our Hemp Protein ...",
+        "position": 10,
+        "title": "Hemp Protein Powder - Organic - WPbulk.com",
+        "url": "https://wpbulk.com/products/hemp-protein-powder"
+      }
+    },
+    {
+      "input": "BATCH-2/DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:32:21.575279+00:00",
+        "batch": 2,
+        "description": "# Mighty Fuel, Delivered Fresh\n## Support of Local Sourcing\nOur top priority at MightyMeals is providing our customers with the freshest, locally sourced, high-quality food through partnerships with farms in local regions that align with our commitment to sustainability.\n\nOur top priority at MightyMeals is providing our customers with the freshest, locally sourced, high-quality food through partnerships with farms in local regions that align with our commitment to sustainability.",
+        "query": "healthy meal delivery \"partnerships\" -site:linkedin.com",
+        "receipt": "search-02.json",
+        "title": "MightyMeals - Chef-Prepared Healthy Meals Delivered Fresh",
+        "url": "https://mightymeals.com/"
+      },
+      "receipt_sha256": "cd444c3d78e46d2321d5d00d2e06a8dbc5e0c956f6bd9486749241b6f2cf9228",
+      "web_row": {
+        "description": "# Mighty Fuel, Delivered Fresh\n## Support of Local Sourcing\nOur top priority at MightyMeals is providing our customers with the freshest, locally sourced, high-quality food through partnerships with farms in local regions that align with our commitment to sustainability.\n\nOur top priority at MightyMeals is providing our customers with the freshest, locally sourced, high-quality food through partnerships with farms in local regions that align with our commitment to sustainability.",
+        "position": 3,
+        "title": "MightyMeals - Chef-Prepared Healthy Meals Delivered Fresh",
+        "url": "https://mightymeals.com/"
+      }
+    },
+    {
+      "input": "BATCH-3/DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:45:56.161048+00:00",
+        "batch": 3,
+        "description": "# Private Label Protein Powder Manufacturers\n## Private Label Protein Powder Manufacturer in the USA\nWe are a Private Label Powder Manufacturer in the USA that is strictly focused on quality and innovation.\n\n![United States Flag](https://aligen.com/wp-content/uploads/2022/05/united-states.png)\n\nMade in USA\n\n## 9. Final Step\n### FREQUENTLY ASKED QUESTIONS\nYes, Aligen manufactures its protein powders in the USA. All of our supplements are manufactured and processed in the USA.",
+        "query": "\"protein powder\" \"made in USA\" brand",
+        "receipt": "search-03.json",
+        "title": "#1 Private Label Protein Powder Manufacturer in USA - Aligen",
+        "url": "https://aligen.com/private-label-protein-powder/"
+      },
+      "receipt_sha256": "92f02fd1f86e802e0ec7ee9f92fce0fe4b178959105be8d773ca8e646e4f6546",
+      "web_row": {
+        "description": "# Private Label Protein Powder Manufacturers\n## Private Label Protein Powder Manufacturer in the USA\nWe are a Private Label Powder Manufacturer in the USA that is strictly focused on quality and innovation.\n\n![United States Flag](https://aligen.com/wp-content/uploads/2022/05/united-states.png)\n\nMade in USA\n\n## 9. Final Step\n### FREQUENTLY ASKED QUESTIONS\nYes, Aligen manufactures its protein powders in the USA. All of our supplements are manufactured and processed in the USA.",
+        "position": 5,
+        "title": "#1 Private Label Protein Powder Manufacturer in USA - Aligen",
+        "url": "https://aligen.com/private-label-protein-powder/"
+      }
+    },
+    {
+      "input": "BATCH-8/DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T23:32:23.883244+00:00",
+        "batch": 0,
+        "description": "luxe + lemons is a healthy prepared meal delivery service local to Columbus, Ohio. Ready-to-eat, nourishing, and flavorful prepared meals",
+        "query": "healthy prepared meal delivery Ohio company",
+        "receipt": "search-00.json",
+        "title": "luxe + lemons: meal prep delivery | columbus ohio",
+        "url": "https://luxeandlemons.com/?srsltid=AU7gw4VVwQ3OHjtCM_ZeYTkRn8rgGWsk-hJG4jCoTPCO4SisGxI5fCLv"
+      },
+      "receipt_sha256": "4dfdb696c2a02f9e88d6ee4874ae40297a197daff9b10f0b81d230b0115cb2ac",
+      "web_row": {
+        "description": "luxe + lemons is a healthy prepared meal delivery service local to Columbus, Ohio. Ready-to-eat, nourishing, and flavorful prepared meals",
+        "position": 1,
+        "title": "luxe + lemons: meal prep delivery | columbus ohio",
+        "url": "https://luxeandlemons.com/?srsltid=AU7gw4VVwQ3OHjtCM_ZeYTkRn8rgGWsk-hJG4jCoTPCO4SisGxI5fCLv"
+      }
+    },
+    {
+      "input": "BATCH-8/DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T23:32:23.883257+00:00",
+        "batch": 0,
+        "description": "### More than **_700,000 delicious, nutritious meals_** made right here in Columbus and delivered to homes, gyms, and offices in Central Ohio!\n#### We offer a rotating menu of delicious, healthy, affordable meals prepared from scratch each and every week by our chefs. Our staff delivers directly to your home, office, or one of our many pickup locations on Tuesdays or Wednesdays! Pickup also available on Mondays at our certified Commercial Kitchen at 2680 Billingsley Rd, or our commercial refrigerator at the Dublin Rec Center! Meals come vacuum sealed and stay fresh in your fridge all week long!\n**How it Works:**\n\n1. \u201cClick the \u201cOrder here\u201d button above. Build Your cart with only what **YOU** want. **No Subscriptions, No Minimums.**\n\n2. Checkout and select your delivery day/time window, or pickup location.\n\n3. New menus are posted on Mondays by 11am. Orders can be placed throughout the week, but are due by by midnight Sunday for delivery the following Tuesday or Wednesday, or pickup on Monday from our Commercial kitchen on Billingsley Rd, or our refrigerator at the Dublin Rec Center.\n\n**We offer 4 sizes:**\n\nRegular: 3 oz veggies, 3 oz starch, and 4 oz protein $10.97\n\nLarge: 4 oz veggies, 4 oz starch, 6 oz protein $12.97\n\nExtra Large:\u00a0 5 oz veggies, 5 oz starch, 8 oz protein $14.97\n\nStarch free: 5 oz protein, 5 oz veggies $11.97\n\nBeef dishes may cost $1-$2 extra depending on cut of beef.\n\nWe also offer breakfast, sandwiches, burritos, snacks, and more!",
+        "query": "healthy prepared meal delivery Ohio company",
+        "receipt": "search-00.json",
+        "title": "Fit Fresh Fast Healthy Local Meal Prep",
+        "url": "https://www.fitfreshfast.com/"
+      },
+      "receipt_sha256": "4dfdb696c2a02f9e88d6ee4874ae40297a197daff9b10f0b81d230b0115cb2ac",
+      "web_row": {
+        "description": "### More than **_700,000 delicious, nutritious meals_** made right here in Columbus and delivered to homes, gyms, and offices in Central Ohio!\n#### We offer a rotating menu of delicious, healthy, affordable meals prepared from scratch each and every week by our chefs. Our staff delivers directly to your home, office, or one of our many pickup locations on Tuesdays or Wednesdays! Pickup also available on Mondays at our certified Commercial Kitchen at 2680 Billingsley Rd, or our commercial refrigerator at the Dublin Rec Center! Meals come vacuum sealed and stay fresh in your fridge all week long!\n**How it Works:**\n\n1. \u201cClick the \u201cOrder here\u201d button above. Build Your cart with only what **YOU** want. **No Subscriptions, No Minimums.**\n\n2. Checkout and select your delivery day/time window, or pickup location.\n\n3. New menus are posted on Mondays by 11am. Orders can be placed throughout the week, but are due by by midnight Sunday for delivery the following Tuesday or Wednesday, or pickup on Monday from our Commercial kitchen on Billingsley Rd, or our refrigerator at the Dublin Rec Center.\n\n**We offer 4 sizes:**\n\nRegular: 3 oz veggies, 3 oz starch, and 4 oz protein $10.97\n\nLarge: 4 oz veggies, 4 oz starch, 6 oz protein $12.97\n\nExtra Large:\u00a0 5 oz veggies, 5 oz starch, 8 oz protein $14.97\n\nStarch free: 5 oz protein, 5 oz veggies $11.97\n\nBeef dishes may cost $1-$2 extra depending on cut of beef.\n\nWe also offer breakfast, sandwiches, burritos, snacks, and more!",
+        "position": 2,
+        "title": "Fit Fresh Fast Healthy Local Meal Prep",
+        "url": "https://www.fitfreshfast.com/"
+      }
+    }
+  ],
+  "expected_positive_hosts": [
+    "aligen.com",
+    "fitfreshfast.com",
+    "greenjeeva.com",
+    "luxeandlemons.com",
+    "mightymeals.com",
+    "wpbulk.com"
+  ],
+  "expected_negative_hosts": [
+    "linkedin.com",
+    "nicholasdahlapg.substack.com",
+    "sphericalinsights.com",
+    "supplysidesj.com"
+  ]
+}
