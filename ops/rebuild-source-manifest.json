@@ -7591,7 +7591,7 @@
         "scripts/article_health_acceptance.py"
       ],
       "kind": "script",
-      "sha256": "4a3d32e6e33c4554866b16102f969cb4ab32f3f5937b87603c21b4671b27fbce"
+      "sha256": "723d34b8d1c3cac01ebe3ad7e92064ec794bf5031b9a6b07ea2de01b87cd260b"
     },
     "scripts/glp_release_search_notify.py": {
       "callers": [
@@ -7605,7 +7605,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "cebbe4a570bca4f641535ed9b0467e8f2e5484775b17c829c0f61327661de8c2"
+      "sha256": "98e963cae6c7c10aaa7c2bd3794798774e8d68c5909032d5ebd20a874028b1b5"
     },
     "systems/seo-blog-machine/tests/test_guide_render_contract.py": {
       "callers": [

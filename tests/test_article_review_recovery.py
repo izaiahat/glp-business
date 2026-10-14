@@ -16,6 +16,55 @@ import article_review_recovery as recovery
 SEAL = '2026-10-13T03:00:00Z'
 
 
+def test_actual_cli_admits_under_main_release_lock_and_refuses_contention(tmp_path, monkeypatch):
+    import fcntl
+    import glp_release_main as main_release
+
+    # Real maintained release module and real kernel flock; no invented lock API.
+    assert Path(main_release.__file__).resolve() == Path(__file__).resolve().parents[1] / 'scripts/glp_release_main.py'
+    runs = tmp_path / 'registry-site-sync'
+    monkeypatch.setattr(main_release, 'RUNS', runs)
+    entry = tmp_path / 'entry.json'; entry.write_text('{}')
+    history = tmp_path / 'history'; history.mkdir()
+    packet = tmp_path / 'packet'; packet.mkdir()
+    binding = tmp_path / 'binding.json'; binding.write_text('{}')
+    snapshot = tmp_path / 'snapshot.html'; snapshot.write_text('')
+    argv = ['article_review_recovery.py', '--entry', str(entry), '--history', str(history),
+            '--packet', str(packet), '--live-binding', str(binding), '--live-snapshot', str(snapshot)]
+    monkeypatch.setattr(sys, 'argv', argv)
+    # The compiler is source-only; resolve it from this checkout even on hosted CI.
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts'))
+    real_seal = recovery.seal
+    admitted = []
+
+    def observe_seal(*args, **kwargs):
+        with (runs / 'run.lock').open('a') as competitor:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(competitor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        admitted.append((args, kwargs))
+        return real_seal(*args, **kwargs)
+
+    monkeypatch.setattr(recovery, 'seal', observe_seal)
+    # Exercise actual document admission, stopping before any recovery output.
+    with pytest.raises(ValueError, match='^exact_single_review_required$'):
+        recovery.main()
+    assert admitted == [((entry, history, packet, binding, snapshot),
+                         {'source_author_packet': None, 'source_author_review': None})]
+    before = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    with (runs / 'run.lock').open('a') as competitor:
+        # Admission failure released the real lock; keep it held for the CLI refusal.
+        fcntl.flock(competitor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        monkeypatch.setattr(sys, 'argv', [v if v not in {str(entry), str(history), str(packet), str(binding), str(snapshot)}
+                                        else str(tmp_path / 'absent') for v in argv])
+        with pytest.raises(BlockingIOError):
+            recovery.main()
+        assert len(admitted) == 1  # refused before even resolving nonexistent inputs
+        fcntl.flock(competitor, fcntl.LOCK_UN)
+    with (runs / 'run.lock').open('a') as competitor:
+        fcntl.flock(competitor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    assert {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
+
+
 def fake_compile(packet):
     return {'draft': (packet/'04-draft.md').read_text(),
             'render_contract': {'schema': 'glp-accepted-guide-render-v1'}}
