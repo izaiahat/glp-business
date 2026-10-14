@@ -124,14 +124,14 @@ def firecrawl_search(key: str, query: str) -> tuple[str | None, list[dict[str, A
 def target_map(feed: dict[str, Any], prior: dict[str, Any] | None) -> dict[str, str]:
     targets: dict[str, str] = {}
     for row in feed.get("research_backlog") or []:
-        if not isinstance(row, dict) or row.get("reason") != "insufficient_measured_competitor_evidence":
+        if not isinstance(row, dict) or row.get("reason") not in {"insufficient_measured_competitor_evidence", "HOLD_INSUFFICIENT_MEASURED_EVIDENCE"}:
             continue
-        query = str(row.get("target_query") or "").strip()
+        query = str(row.get("target_query") or row.get("keyword") or "").strip()
         route = str(row.get("target_route") or "").strip()
         if query and route:
             targets[query] = route
     if isinstance(prior, dict) and prior.get("schema") == SCHEMA:
-        for row in prior.get("targets") or []:
+        for row in prior.get("query_plan", prior.get("targets")) or []:
             if not isinstance(row, dict):
                 continue
             query = str(row.get("target_query") or "").strip()
@@ -144,10 +144,22 @@ def target_map(feed: dict[str, Any], prior: dict[str, Any] | None) -> dict[str, 
 def prior_is_fresh(prior: dict[str, Any] | None, targets: dict[str, str]) -> bool:
     if not isinstance(prior, dict) or prior.get("schema") != SCHEMA:
         return False
+    # Attempted scope is not competitor evidence. Only explicit empty responses,
+    # never unknown/failed retrievals, can complete the reusable weekly plan.
+    failures = prior.get("failures") or []
+    if any(not isinstance(row, dict) or row.get("reason") != "no_web_results" for row in failures):
+        return False
     prior_targets = {
         str(row.get("target_query")): str(row.get("target_route"))
-        for row in prior.get("targets") or [] if isinstance(row, dict)
+        for row in prior.get("query_plan", prior.get("targets")) or [] if isinstance(row, dict)
     }
+    if "query_plan" not in prior:
+        # Legacy genuine packs retained empty responses only in failures. Resolve
+        # their routes from current input without rewriting or redating receipts.
+        for row in failures:
+            query = str(row.get("target_query") or "").strip()
+            if query in targets:
+                prior_targets[query] = targets[query]
     if prior_targets != targets:
         return False
     try:
@@ -215,6 +227,7 @@ def main() -> int:
         "provider": "firecrawl-v2-search",
         "provider_calls": calls,
         "weekly_query_cap": MAX_TARGETS,
+        "query_plan": [{"target_query": query, "target_route": route} for query, route in targets.items()],
         "search_options": {"location": "United States", "country": "US", "tbs": "qdr:w", "scrape_top": RESULT_LIMIT},
         "scope": "Exact-query SERP research, not a claim of GSC position or ranking improvement",
         "targets": rows,
