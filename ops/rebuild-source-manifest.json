@@ -6861,6 +6861,13 @@
       "kind": "test",
       "sha256": "eb5cb0640325b7c64c8b111cee346f656fa5c228740353b079ab084ce79a59d7"
     },
+    "tests/test_pro_native_receive.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "956268d462e5597d6ce4832123a7682ec028b73e071e395c21ed66c01a8241ae"
+    },
     "tests/test_pro_terminal_hydration.py": {
       "sha256": "ea3f37511a67b355921f9da22fc4febcf88d70b72fb196d811c5950df792fda4"
     },
@@ -7623,5 +7630,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1117
+  "tracked_count": 1118
 }
