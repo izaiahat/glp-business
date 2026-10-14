@@ -217,6 +217,40 @@ class NativeReceiveTests(unittest.TestCase):
         self.assertEqual(subject.job_state('job')['fetch_verification']['state'], 'VERIFIED')
         subject.drive.assert_not_called()
 
+    def test_manifest_substitution_after_transfer_refused_before_payload(self):
+        body = 'synthetic final reply\n'
+        manifest = {'job': self.st['job'], 'conversation_id': CID,
+                    'input_sha256': self.st['input_sha256'],
+                    'source_reply_sha256': hashlib.sha256(body.encode()).hexdigest(),
+                    'files': {'expected.txt': DIGEST}}
+        raw = json.dumps(manifest).encode()
+        digest = hashlib.sha256(raw).hexdigest()
+        changed = json.dumps({**manifest, 'files': {'UNAUTHORIZED.txt': DIGEST}}).encode()
+        self.assertNotEqual(hashlib.sha256(changed).hexdigest(), digest)
+        original_receive = relay.receive_native_download
+        names = []
+        def substitute(st, tab, name, directory, expected):
+            names.append(name)
+            if name != 'OUTPUT-MANIFEST.json':
+                self.fail('unauthenticated payload receiver invoked: ' + name)
+            receipt = original_receive(st, tab, name, directory, expected)
+            self.assertEqual(receipt['result'], 'COMPLETED')
+            self.assertEqual(receipt['sha256'], digest)
+            self.assertTrue(receipt['restoration']['restored'])
+            self.assertTrue(receipt['preview_restoration']['restored'])
+            (directory / name).write_bytes(changed)
+            return receipt
+        with patch.object(relay, 'bu_json', self.harness(
+                [[begin(), progress(filePath=str(self.target))]], data=raw)), \
+                patch.object(relay, 'receive_native_download', substitute):
+            with self.assertRaisesRegex(ValueError, 'NATIVE_RECEIVE_BUFFER_HASH'):
+                relay._receive_native_outbox(self.st, {'tab': 'target'}, self.dest,
+                                              [None, body, digest])
+        self.assertEqual(names, ['OUTPUT-MANIFEST.json'])
+        self.assertEqual(self.clicks, 1)
+        self.assertEqual(self.target.read_bytes(), changed)
+        self.assert_blocked()
+
     def test_ignored_escape_ack_blocks_next_payload(self):
         receipt = self.receive(self.harness([[begin(), progress(filePath=str(self.target))]],
                                             preview_stays=True))

@@ -2304,7 +2304,11 @@ def _receive_native_outbox(st, reply, directory, marker):
         if (result['result'] != 'COMPLETED' or not result.get('restoration', {}).get('restored')
                 or not result.get('preview_restoration', {}).get('restored')):
             raise ValueError('NATIVE_RECEIVE_' + result['result'] + ' no retry')
-        return (directory / name).read_bytes()
+        raw = (directory / name).read_bytes()
+        # The native receipt authenticated earlier bytes, not this consumed buffer.
+        if hashlib.sha256(raw).hexdigest() != digest:
+            raise ValueError('NATIVE_RECEIVE_BUFFER_HASH no retry')
+        return raw
     raw = receive('OUTPUT-MANIFEST.json', marker[2])
     manifest = json.loads(raw)
     # Check the same identity gates BEFORE authorizing any payload click.
