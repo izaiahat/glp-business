@@ -5105,7 +5105,7 @@
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "c068f749100455a5386cf30e0933d58973e93a8421d6b0d95194c4bbf5a0d369"
+      "sha256": "cfe3d726e3813b20d56fba556ac63ec61051ea045d4925722bd75a59ba1049d2"
     },
     "tests/test_fable_bridge_oversize.py": {
       "callers": [
