@@ -190,14 +190,33 @@ def acceptance(carrier_path, *, natural=False, root=None, session_db=None):
     for path in author_paths:
         require(path.is_file() and sha(path) == hashes[path.name], 'original author packet drifted')
     import hermes_sol_article_review as reviewer_transport
-    custody = reviewer_transport.validate_result_custody(
-        raw, manifest=manifest, packet=packet, session_db=session_db or SESSION_DB)
+    recovery = None
+    original_review = spec(receipt_path)
+    if 'result_custody' not in raw.get('hermes_runtime', {}):
+        # Explicit manual, post-publication supplement. Original entry/claim and
+        # all historical review checks above remain immutable. This is not
+        # evidence of an authenticated review before the original publication.
+        from article_review_recovery import validate_recovery
+        recovered = validate_recovery(entry_path, root=root, natural=natural,
+                                      session_db=session_db or SESSION_DB)
+        recovery = recovered['recovery']
+        receipt, raw, manifest = recovered['receipt'], recovered['raw'], recovered['manifest']
+        receipt_path = Path(recovered['document']['review']['path'])
+        raw_path = Path(recovered['document']['raw_review']['path'])
+        manifest_path = Path(recovered['document']['subject_manifest']['path'])
+        custody = recovered['custody']
+        successor = {'derivation': recovered['document']['successor'],
+                     'authors': recovered['successor_authors']}
+    else:
+        successor = None
+        custody = reviewer_transport.validate_result_custody(
+            raw, manifest=manifest, packet=packet, session_db=session_db or SESSION_DB)
     require(timestamp(manifest['sealed_at_utc']) <= custody['started_at']
             and custody['ended_at'] <= timestamp(receipt['reviewed_at_utc']),
             'reviewer execution outside sealed review interval')
     runtime = raw['hermes_runtime']
     reviewer = {'model': runtime['model'], 'provider': runtime['provider'], 'session_id': runtime['session_id'],
-                'result_custody': custody}
+            'postpublication_review': recovery is not None, 'result_custody': custody}
     authors = packet_authors(session_db or SESSION_DB, author_paths,
                              {'model': reviewer['model'], 'runtime': {'native_session_id': reviewer['session_id']}},
                              timestamp(manifest['sealed_at_utc']))
@@ -207,6 +226,8 @@ def acceptance(carrier_path, *, natural=False, root=None, session_db=None):
             'article_sha256': hashes['06-article.json'], 'review': spec(receipt_path),
             'raw_review': spec(raw_path), 'subject_manifest': spec(manifest_path),
             'authors': authors, 'reviewer': reviewer,
+            'original_review': original_review, 'postpublication_recovery': recovery,
+            'postpublication_successor': successor,
             'url': live['url'], 'deployment_id': publication['deployment_id'], 'natural_due_slot': natural}
 
 

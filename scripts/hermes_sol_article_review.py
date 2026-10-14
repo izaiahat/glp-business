@@ -374,7 +374,18 @@ def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_
             parts.extend(f'{i:04d}|{line}' for i, line in enumerate(lines, 1))
             parts.append('')
         expected_context = '\n'.join(parts) + '\n'
-        if len(captured['context_files']) != 1 or captured['context_files'][0]['content'] != expected_context:
+        # Accepted PR441 native reviews predate the current numbered envelope.
+        # Reconstruct BOTH exact formats from sealed subjects; never normalize
+        legacy = ['# SEALED PACKET CONTENT — ALREADY IN BAND', '',
+                  f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
+                  'Every source line is prefixed with its original 1-based line number.']
+        for row in manifest['subject_files']:
+            legacy.extend(['', f"## FILE: {row['path']}", ''])
+            lines = physical_lines((packet / row['path']).read_bytes())
+            legacy.extend(f'{i}|{line}' for i, line in enumerate(lines, 1))
+        legacy_context = '\n'.join(legacy) + '\n'
+        if (len(captured['context_files']) != 1 or
+                captured['context_files'][0]['content'] not in (expected_context, legacy_context)):
             raise ValueError('runtime input is not this sealed packet')
         custody = authenticate_result(runtime['session_id'], payload, raw['result'], model=runtime['model'],
                                       provider=runtime['provider'], effort=runtime['effort'], session_db=session_db)

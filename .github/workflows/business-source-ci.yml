@@ -115,7 +115,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_linear_ordinary_completion.py tests/test_linear_close.py tests/test_article_health_acceptance.py tests/test_article_reviewer_custody.py tests/test_native_review_prompt_binding.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_linear_ordinary_completion.py tests/test_linear_close.py tests/test_article_health_acceptance.py tests/test_article_reviewer_custody.py tests/test_native_review_prompt_binding.py tests/test_article_review_recovery.py tests/test_recovery_copied_authorship.py
       - name: Sponsor persistent continuation (offline fixtures, exact head; no activation)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -131,6 +131,7 @@ jobs:
           export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp337_shared_bridge_migration.py tests/test_glp337_shared_bridge_generation.py tests/test_glp44_reader_exclusion.py
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_host_transport.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_fable_deferred_handoff.py tests/test_fable_parent_handoff.py tests/test_fable_mention_recovery.py tests/test_fable_bridge_quota_resume.py tests/test_fable_bridge_native_review.py tests/test_fable_bridge_identity.py tests/test_fable_bridge_reviewer_routing.py tests/test_fable_bridge_oversize.py
       - name: GLP338 durable error intake action contract (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -161,7 +162,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -m pytest -q tests/test_pallas_relationship_ending.py tests/test_glp_affiliate_registry_sync.py tests/test_glp_paused_program_monitor.py tests/test_glp_release_main.py
+          .venv/bin/python -m pytest -q tests/test_pallas_relationship_ending.py tests/test_glp_affiliate_registry_sync.py tests/test_glp_paused_program_monitor.py tests/test_glp_release_main.py tests/test_glp_release_search_notify.py tests/test_cf_editorial_share.py
       - name: MaxBounty live artifact exact-head capture regressions (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -187,7 +188,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_glp73_sensor_hook_source.py
       - name: GLP-73 guide capture compiler contract (offline, no refill)
-        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py systems/seo-blog-machine/tests/test_on_page_guide_capture.py tests/test_w11_uncertain_refill_owner.py
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py systems/seo-blog-machine/tests/test_on_page_guide_capture.py systems/seo-blog-machine/tests/test_guide_render_contract.py tests/test_w11_uncertain_refill_owner.py
       - name: GLP-73 exact-head image fallback (offline synthetic pixels, no generation or publication)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

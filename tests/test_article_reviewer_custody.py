@@ -14,15 +14,57 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import hermes_sol_article_review as review
 
 
-def fixture(tmp_path, monkeypatch):
+@pytest.mark.parametrize('text', ['Actual native line.\nSecond line.\n',
+                                '{"quote":"before\u2028after\u0085end\u2029"}\n', ''])
+def test_fixture_matches_native_registered_context_builder(tmp_path, text):
+    import ast, os
+    source = ROOT / 'systems/seo-blog-machine/scripts/opus_review_loop.py'
+    tree = ast.parse(source.read_text())
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef)
+             and n.name in {'physical_source_lines', 'build_context_bundle'}]
+    namespace = {'Path': Path, 'os': os, 'Any': object,
+                 'physical_lines': review.physical_lines,
+                 'subject_paths': lambda job: [Path(job['packet_dir'])/'04-draft.md']}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
+    subject = tmp_path/'04-draft.md'
+    subject.write_bytes(text if isinstance(text, bytes) else text.encode())
+    manifest = {'manifest_sha256': 'a'*64}
+    result = namespace['build_context_bundle']({'packet_dir':str(tmp_path)}, manifest, 1, tmp_path)
+    assert result.read_text() == native_context(subject, manifest)
+
+
+
+def native_context(subject, manifest):
+    # Retain the current registered physical-line envelope, not PR441's older
+    # transport spelling. Independent legacy reviews require their original code.
+    chunks = ['SEALED ARTICLE SUBJECTS — READ ONLY',
+              f"manifest_sha256={manifest['manifest_sha256']}", '',
+              f'===== {subject.name} =====']
+    text = subject.read_bytes().decode('utf-8').replace('\r\n', '\n')
+    lines = text.split('\n') if text else []
+    if lines and lines[-1] == '':
+        lines.pop()
+    chunks.extend(f'{n:04d}|{s}' for n, s in enumerate(lines, 1))
+    chunks.append('')
+    return '\n'.join(chunks) + '\n'
+
+
+def fixture(tmp_path, monkeypatch, text='Source-backed draft.\n', envelope='current'):
     packet = tmp_path / 'packet'
     packet.mkdir()
     subject = packet / '04-draft.md'
-    subject.write_text('Source-backed draft.\n')
+    subject.write_bytes(text if isinstance(text, bytes) else text.encode())
     manifest = {'manifest_sha256': 'a' * 64, 'subject_files': [{'path': subject.name}]}
     context = tmp_path / 'context.txt'
-    context.write_text('SEALED ARTICLE SUBJECTS — READ ONLY\nmanifest_sha256=' + 'a' * 64 +
-                       '\n\n===== 04-draft.md =====\n0001|Source-backed draft.\n\n')
+    content = native_context(subject, manifest)
+    if envelope == 'pr441':
+        parts = ['# SEALED PACKET CONTENT — ALREADY IN BAND', '',
+                 f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
+                 'Every source line is prefixed with its original 1-based line number.',
+                 '', f'## FILE: {subject.name}', '']
+        parts.extend(f'{i}|{line}' for i, line in enumerate(review.physical_lines(subject.read_bytes()), 1))
+        content = '\n'.join(parts) + '\n'
+    context.write_text(content)
     prompt = tmp_path / 'prompt.txt'
     prompt.write_text('Review all five gates against manifest ' + 'a' * 64)
     args = SimpleNamespace(context_file=[str(context)], prompt_file=str(prompt), prompt=None,
@@ -57,6 +99,7 @@ def fixture(tmp_path, monkeypatch):
 
     class Agent:
         def __init__(self, **kwargs):
+            assert kwargs['session_db'] is handle, 'reviewer_must_use_native_sessiondb'
             self.kwargs = kwargs
             self.session_id = 'reviewer'
             self.provider, self.model = args.provider, args.model
@@ -124,8 +167,13 @@ def test_custodian_replays_physical_lines_without_backfilling(tmp_path, monkeypa
     assert db.read_bytes() == before
 
 
-def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch):
-    args, inputs, db, packet, manifest, handle, closed = fixture(tmp_path, monkeypatch)
+@pytest.mark.parametrize('text', ['Source-backed draft.\n', '{"quote":"a\u2028b\u0085c\u2029d"}\n',
+                                b'{\r"a":1}\n', b'first\rsecond\nthird\r\nfourth\r',
+                                b'', b'\n', b'first\nsecond', b'first\nsecond\n',
+                                b'first\r\nsecond\r\n', b'\r'])
+@pytest.mark.parametrize('envelope', ['current', 'pr441'])
+def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch, text, envelope):
+    args, inputs, db, packet, manifest, handle, closed = fixture(tmp_path, monkeypatch, text, envelope)
     captured = {}
     payload = review.build_payload(args, captured)
     response, usage, execution = review.run_hermes(payload, args)

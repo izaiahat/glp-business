@@ -37,6 +37,8 @@
 !/tests/test_cgroup_headroom_guardian.py
 !/tests/test_agent_exec_routing.py
 !/scripts/fable_parent_handoff.py
+!/scripts/fable_deferred_handoff.py
+!/tests/test_fable_deferred_handoff.py
 !/tests/test_fable_parent_handoff.py
 # GLP337 fixed shared-bridge custody (source only)
 !/scripts/shared_bridge_predecessor_migration.py

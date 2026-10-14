@@ -156,6 +156,12 @@ def dispatch(bridge, source_id, issue_id, tuple_sha256, operator_intent_message_
     if ((source_id, issue_id, tuple_sha256) != (REQUEST_ID, ISSUE_ID, TUPLE_SHA256)
             or not re.fullmatch(r"[0-9]{17,20}", operator_intent_message_id)):
         raise RuntimeError("parent_handoff_exact_scope_required")
+    return dispatch_bound(bridge, source_id, issue_id, tuple_sha256, SUBJECT_ID,
+                          DEFERRED_ID, lambda: _operator_intent(bridge._authority_guard(), bridge, operator_intent_message_id))
+
+
+def dispatch_bound(bridge, source_id, issue_id, tuple_sha256, subject_id, deferred_id, authorize):
+    """Shared boundary; registered public callers supply their own exact authority."""
     if bridge.SELF_ID != bridge.expected_author_id() or bridge.SELF_ID == bridge.KAEL_BOT_ID:
         raise RuntimeError("independent_signer_mismatch")
     guard = bridge._authority_guard()
@@ -170,26 +176,26 @@ def dispatch(bridge, source_id, issue_id, tuple_sha256, operator_intent_message_
                 or receipt.get("kind") != "review_request" or receipt.get("mode") != "deferred"
                 or receipt.get("attempts") != [] or receipt.get("posting") != "posted"
                 or receipt.get("reviewer_identity") != "none (top_stakes_deferred)"
-                or receipt.get("posted_message_id") != DEFERRED_ID
+                or receipt.get("posted_message_id") != deferred_id
                 or any(key in receipt for key in ("parent_handoff", "resume", "recovery", "invocation_claimed"))
                 or not isinstance(state.get("last_id"), str) or not state["last_id"].isdigit()
-                or int(state["last_id"]) < int(DEFERRED_ID)
+                or int(state["last_id"]) < int(deferred_id)
                 or any(key != source_id and isinstance(value, dict)
                        and value.get("source_message_id") == source_id for key, value in receipts.items())
                 or source_id in state.get("successor_issues", {})):
             raise RuntimeError("parent_handoff_receipt_not_eligible")
-        _, issue = guard.load_issue_record(path, expected_subject_id=SUBJECT_ID,
+        _, issue = guard.load_issue_record(path, expected_subject_id=subject_id,
                                           expected_tuple_sha256=tuple_sha256)
         if (issue.get("request_message_id") != source_id or issue.get("issue_id") != issue_id
                 or issue.get("review_artifact_sha256") != tuple_sha256
                 or "reviewer_designation" in issue):
             raise RuntimeError("parent_handoff_issue_scope_changed")
-        intent = _operator_intent(guard, bridge, operator_intent_message_id)
+        intent = authorize()
 
         def revalidate():
-            _, current_issue = guard.load_issue_record(path, expected_subject_id=SUBJECT_ID,
+            _, current_issue = guard.load_issue_record(path, expected_subject_id=subject_id,
                                                        expected_tuple_sha256=tuple_sha256)
-            if current_issue != issue or _operator_intent(guard, bridge, operator_intent_message_id) != intent:
+            if current_issue != issue or authorize() != intent:
                 raise RuntimeError("parent_handoff_binding_changed")
             message = bridge._exact_message(source_id)
             guard._reject_edited_message(message, "handoff_request")
@@ -200,17 +206,17 @@ def dispatch(bridge, source_id, issue_id, tuple_sha256, operator_intent_message_
                     or classified is None or classified[0] != "review_request"
                     or bridge.top_stakes_category(*classified) is None):
                 raise RuntimeError("parent_handoff_request_changed")
-            deferred = bridge._exact_message(DEFERRED_ID)
+            deferred = bridge._exact_message(deferred_id)
             guard._reject_edited_message(deferred, "handoff_deferral")
             body = guard._message_identity(deferred, channel_id=bridge.CHANNEL,
-                message_id=DEFERRED_ID, author_id=bridge.SELF_ID, role="handoff_deferral")
+                message_id=deferred_id, author_id=bridge.SELF_ID, role="handoff_deferral")
             if (deferred.get("author", {}).get("bot") is not True
                     or deferred.get("webhook_id") is not None
                     or (deferred.get("message_reference") or {}).get("message_id") != source_id
                     or len(body) != receipt["reply_chars"] or guard.sha256_text(body) != receipt["reply_sha256"]
                     or body != bridge.review_action(*classified, source_message_id=source_id)[1]):
                 raise RuntimeError("parent_handoff_deferral_changed")
-            bridge._only_expected_replies(source_id, {DEFERRED_ID})
+            bridge._only_expected_replies(source_id, {deferred_id})
             # Explicit Fable route: never consult request designation or Astra selection.
             if (bridge._resolve_model() != BACKEND[1:] or bridge.SESSION_ID != LEGACY_SESSION_ID
                     or bridge._native_session_id(bridge.SESSION_ID) != NATIVE_SESSION_ID):
@@ -225,7 +231,7 @@ def dispatch(bridge, source_id, issue_id, tuple_sha256, operator_intent_message_
         with _host_admission():
             revalidate()  # Host measurement/capacity wait is not authority.
             claim: dict[str, Any] = dict(intent, status="reserved", issue_id=issue_id, tuple_sha256=tuple_sha256,
-                         original_deferred_message_id=DEFERRED_ID, attempts=[], posting="not_prepared",
+                         original_deferred_message_id=deferred_id, attempts=[], posting="not_prepared",
                          nonce=source_id + "-p1")
             receipt["parent_handoff"] = claim
             bridge.save_state(state)  # Any claim is terminal, including a crash before work.
