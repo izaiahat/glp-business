@@ -2079,7 +2079,7 @@
         "scripts/affiliate_best_terms_machine.py"
       ],
       "kind": "script",
-      "sha256": "5c8c37f332346dbdc36af6098effeb49efed65ccd77c541947615635d97b9626"
+      "sha256": "f18656bb1cc6d9b2a244f03079e9c2da56c990c3821000c13736f52cc6ece777"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "callers": [
@@ -6497,7 +6497,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "4ed064776d487dd8f1a0d96dc01cca078d9f319340477a719973ee6752777f10"
+      "sha256": "5f07a6970a238e5aa04ebd405d9b3376c6259d23c717ece8b56f7e0796e5240a"
     },
     "tests/test_j4_refersion_catalog.py": {
       "callers": [

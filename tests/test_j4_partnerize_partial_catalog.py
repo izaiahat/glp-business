@@ -101,6 +101,88 @@ def test_partnerize_nested_campaign_identity_status_and_batch_receiving(monkeypa
     assert refused['blockers']
 
 
+def test_partnerize_union_quarantines_conflicting_observations(monkeypatch):
+    """RV493 synthetic counterexamples, not claims about the retained corpus."""
+    from scripts.marketplace_adapters import partnerize, _base
+    monkeypatch.setattr(partnerize, '_auth', lambda: ())
+
+    def campaign(status):
+        return {'id': ' same ', 'title': 'Synthetic', 'status': status}
+
+    def receive(advertisers, retained=()):
+        transport = _base.RecordingTransport([('GET', '/discovery/advertisers',
+            _base.json_response({'count': len(advertisers), 'advertisers': advertisers}))])
+        discovered = partnerize.discovery(transport)
+        def bucket(_, statuses):
+            status, = statuses
+            return _base.readback_payload('Partnerize', 'PASS',
+                [dict(row) for row in retained if row['relationship'] == status],
+                {'blockers': []})
+        adapter = SimpleNamespace(STATUSES=partnerize.STATUSES,
+            PUBLISHER_ID=partnerize.PUBLISHER_ID, readback=bucket,
+            discovery=lambda _: discovered)
+        return batch.partnerize_inventory(SimpleNamespace(partnerize=adapter, b=_base), None)
+
+    approved = {'program_id': ' same ', 'advertiser_id': ' Brand ',
+                'relationship': 'approved', 'name': 'Retained original'}
+    cases = {
+        'contradictory_discovery_status': receive([{'id': ' Brand ', 'campaigns': [
+            campaign('AVAILABLE'), campaign('REJECTED')]}]),
+        'cross_advertiser_approval': receive([{'id': 'other-brand', 'campaigns': [
+            campaign('REJECTED')]}], [approved]),
+        'retained_bucket_collision': receive([], [approved,
+            {**approved, 'relationship': 'rejected'}]),
+    }
+    # Exercise all three counterexamples even on RED, retaining their real rows.
+    failures = []
+    for label, result in cases.items():
+        row, = result['programs']
+        if not (result['blockers'] and row.get('catalog_conflict') is True
+                and row['relationship'] == 'unknown'):
+            failures.append((label, result['blockers'], row))
+    assert not failures, failures
+    for result in cases.values():
+        row, = result['programs']
+        assert result['program_count'] == 1 and row['program_id'] == ' same '
+        assert result['reported_total'] is None
+        assert len(row['catalog_observations']) == 2
+        blocker, = result['blockers']
+        assert blocker['error_class'] == 'partnerize_campaign_union_conflict'
+        assert blocker['program_id'] == ' same '
+        assert all(o['publisher_id'] == partnerize.PUBLISHER_ID
+                   for o in row['catalog_observations'])
+    status_obs = cases['contradictory_discovery_status']['programs'][0]['catalog_observations']
+    assert [o['row']['network_status'] for o in status_obs] == ['AVAILABLE', 'REJECTED']
+    assert all(o['surface'] == 'discovery' and o['row']['advertiser_id'] == ' Brand '
+               and o['row']['discovery_provenance']['campaign_id'] == ' same '
+               for o in status_obs)
+    advertiser_obs = cases['cross_advertiser_approval']['programs'][0]['catalog_observations']
+    assert [o['row']['advertiser_id'] for o in advertiser_obs] == [' Brand ', 'other-brand']
+    assert advertiser_obs[0]['row'] == approved
+    bucket_obs = cases['retained_bucket_collision']['programs'][0]['catalog_observations']
+    assert [o['bucket'] for o in bucket_obs] == ['approved', 'rejected']
+    assert [o['row']['relationship'] for o in bucket_obs] == ['approved', 'rejected']
+
+    # Identical discovery duplicates and same-advertiser retained authority work.
+    for retained, expected in [((), 'notjoined'), ([approved], 'approved')]:
+        result = receive([{'id': ' Brand ', 'campaigns': [
+            campaign('AVAILABLE'), campaign('AVAILABLE')]}], retained)
+        row, = result['programs']
+        assert not result['blockers'] and not row.get('catalog_conflict')
+        assert row['relationship'] == expected and row['network_status'] == 'AVAILABLE'
+        assert row['advertiser_id'] == ' Brand ' and row['program_id'] == ' same '
+        assert result['discovery_campaign_count'] == 2
+        assert result['discovery_campaign_unique_count'] == 1
+        assert result['reported_total'] is None
+    # Missing retained advertiser provenance is not a contradictory nonempty ID.
+    result = receive([{'id': ' Brand ', 'campaigns': [campaign('AVAILABLE')]}],
+                     [{**approved, 'advertiser_id': ''}])
+    assert not result['blockers'] and result['programs'][0]['relationship'] == 'approved'
+    result = receive([], [approved])
+    assert not result['blockers'] and result['programs'] == [approved]
+    assert result['joined_only_enumerated'] == 1
+
+
 def test_digistore_vendor_zero_is_not_full_affiliate_catalog(monkeypatch):
     from scripts.marketplace_adapters import digistore24, _base
     monkeypatch.setattr(digistore24, '_headers', lambda: {})

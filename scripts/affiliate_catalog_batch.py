@@ -268,9 +268,13 @@ def partnerize_inventory(legacy, transport):
         blockers.append({'error_class': 'partnerize_brand_discovery_v2_blocked',
                          'http_status': discovery.get('http_status')})
     blockers.extend(discovery.get('blockers') or [])
-    # The union is keyed only by exact campaign ID, never advertiser ID/name.
-    retained = {row['program_id']: dict(row) for row in programs
-                if isinstance(row.get('program_id'), str) and row['program_id']}
+    # Original relationship authority is separate from discovery accumulation.
+    # Keep observations until conflicts are checked, before collapsing identities.
+    retained, discovered = {}, {}
+    for row in programs:
+        key = row.get('program_id')
+        if isinstance(key, str) and key:
+            retained.setdefault(key, []).append(dict(row))
     discovered_ids = set()
     missing_campaign = 0
     for row in discovery.get('advertisers') or []:
@@ -284,14 +288,37 @@ def partnerize_inventory(legacy, transport):
                         'REJECTED': 'rejected', 'INVITED': 'invited'}.get(status, 'unknown')
         projected = {**row, 'program_id': key, 'relationship': relationship,
                      'discovery_relationship': relationship}
-        if key in retained:
-            # Keep successful relationship buckets as relationship authority;
-            # merge discovery metadata/status/provenance without stamping approval.
-            projected['relationship'] = retained[key].get('relationship') or relationship
-            retained[key].update(projected)
-        else:
-            retained[key] = projected
-    programs = list(retained.values())
+        discovered.setdefault(key, []).append(projected)
+    programs = []
+    for key in dict.fromkeys([*retained, *discovered]):
+        original, incoming = retained.get(key, []), discovered.get(key, [])
+        conflicts = []
+        if len({row.get('relationship') for row in original}) > 1:
+            conflicts.append('retained_relationship')
+        if len({row.get('network_status', '') for row in incoming}) > 1:
+            conflicts.append('discovery_status')
+        for field in ('advertiser_id', 'publisher_id'):
+            if len({row[field] for row in original + incoming if row.get(field)}) > 1:
+                conflicts.append(field)
+        if conflicts:
+            # Quarantine the identity, not its evidence. Never transfer approval
+            # across advertiser provenance or silently choose a retained bucket.
+            observations = [
+                {'surface': 'relationship_bucket', 'bucket': row.get('relationship'),
+                 'publisher_id': row.get('publisher_id') or getattr(adapter, 'PUBLISHER_ID', ''),
+                 'row': row} for row in original] + [
+                {'surface': 'discovery', 'publisher_id': row.get('publisher_id', ''),
+                 'row': row} for row in incoming]
+            programs.append({'program_id': key, 'relationship': 'unknown',
+                             'catalog_conflict': True, 'catalog_observations': observations})
+            blockers.append({'error_class': 'partnerize_campaign_union_conflict',
+                             'program_id': key, 'conflicting_fields': conflicts})
+            continue
+        projected = dict(original[-1] if original else incoming[-1])
+        if original and incoming:
+            projected.update(incoming[-1])
+            projected['relationship'] = original[-1].get('relationship') or incoming[-1]['relationship']
+        programs.append(projected)
     return legacy.b.readback_payload('Partnerize', 'PASS' if programs else 'BLOCKED', programs, {
         'reported_total': None, 'blockers': blockers,
         'publisher_id': discovery.get('publisher_id') or getattr(adapter, 'PUBLISHER_ID', None),
