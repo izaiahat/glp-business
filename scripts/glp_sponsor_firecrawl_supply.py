@@ -143,7 +143,12 @@ def firstparty_research_host(row):
         return None
     if RESEARCH_ONLY.search(text):
         return None
-    if re.search(r'\b(?:news|journal|newsletter|directory|directories|market (?:report|research|size)|research report|cross-sectional|study|studies|reviews?|comparisons?)\b', title, re.I):
+    if re.search(r'\b(?:news|journal|newsletter|directory|directories|market (?:report|research|size)|research report|industry analysis|cross-sectional|study|studies|reviews?|comparisons?)\b', title, re.I):
+        return None
+    # Ranked guides and outbound shopping references describe someone else's
+    # offer even when the publisher's own brand occurs in the title.
+    if (re.search(r'\b(?:best|top)\b.*\b(?:services?|kits?|brands?|powders?|supplements?)\b', title, re.I)
+            or re.search(r'\bshop at\b', description, re.I)):
         return None
     if re.search(r'/(?:company|companies|posts|groups|forum|articles|reports|p|watch)/', parts.path, re.I):
         return None
@@ -151,7 +156,20 @@ def firstparty_research_host(row):
     brand = normalize(host.split('.')[-2]) if '.' in host else ''
     if len(brand) < 5 or brand not in normalize(text):
         return None
-    if not (COMMERCIAL.search(text) or re.search(r'\b(?:services?|manufacturers?|suppliers?|bulk|wholesale|online|available|treatments?|telehealth|delivery|delivered|contract manufacturing)\b', text, re.I)):
+    category = lambda s: any(pattern.search(s) for pattern in CATEGORY.values()) or re.search(r'\bmeal prep\b', s, re.I)
+    offer = re.compile(r'\b(?:services?|manufacturers?|suppliers?|bulk|wholesale|online|available|treatments?|telehealth|delivery|delivered|contract manufacturing)\b', re.I)
+    # Negative product statements are not offer evidence. Refuse the governing
+    # sentence, without treating unrelated "no minimum order" terms as negation.
+    sentences = re.split(r'[.!?\n]+', text)
+    if any(category(s) and re.search(r"\b(?:not|never|neither|nor|cannot|\w+n['’]t)\b|\bno\s+(?:protein|prepared meals?|meal (?:prep|delivery)|training|telehealth)\b", LEGAL_NEGATOR.sub('', s), re.I) for s in sentences):
+        return None
+    branded_offer = (brand in normalize(title) and category(title)
+                     and (COMMERCIAL.search(title) or offer.search(title)))
+    own_offer = any(category(s) and re.search(r'\b(?:our|we)\b', s, re.I)
+                    and (COMMERCIAL.search(s) or offer.search(s)) for s in sentences)
+    own_commercial = any(re.search(r'\b(?:our|we)\b', s, re.I)
+                         and (COMMERCIAL.search(s) or offer.search(s)) for s in sentences)
+    if not (branded_offer or own_offer or (brand in normalize(title) and category(title) and own_commercial)):
         return None
     return host
 
@@ -398,20 +416,16 @@ class Producer:
             if type(cost) in (int, float) and cost >= 0:
                 total += cost
                 continue
-            # Known single-page map/scrape contract ceilings; catalogue/contact
-            # nulls are conservatively held at the existing 30-credit reveal cap.
+            # Map is bounded at one; validated same-run single reveals retain
+            # the existing 30-credit cap. Historical URL scrape ceilings need
+            # complete request proof that sanitized ledger options do not retain.
             if row.get('endpoint') == '/v2/map':
                 ceiling = 1
             elif row.get('endpoint') == '/v2/scrape' and row.get('url_hash'):
-                # Basic single raw-HTML page = 1; prior auto/enhanced capture
-                # can consume 5. Preserve UNKNOWN, account its upper bound.
-                options = row.get('options') or {}
-                formats = options.get('formats')
-                if not isinstance(formats, list) or not formats or not set(formats) <= {'rawHtml','html','markdown','links'}:
-                    raise RuntimeError('sponsor_ledger_credit_cost_unknown')
-                if options.get('proxy') not in (None, 'basic', 'auto', 'enhanced'):
-                    raise RuntimeError('sponsor_ledger_credit_cost_unknown')
-                ceiling = 1 if options.get('proxy') == 'basic' else 5
+                # Sanitized options omit parsers/modifiers: formats/proxy alone
+                # cannot prove the complete historical request ceiling. Preserve
+                # UNKNOWN and durable pending; refuse, never invent 1/5 or replay.
+                raise RuntimeError('sponsor_ledger_credit_cost_unknown')
             elif row.get('caller') in (ALEX_CALLER, 'fc71_sponsor_alexandria'):
                 ceiling = 30
             else:
@@ -545,7 +559,10 @@ class Producer:
         for u in picks[:max_pages]:
             try:
                 self.capture_admissible('scrape', u)
-                s = self.paid(1, self.client.scrape, {'url': u, 'formats': ['rawHtml'], 'onlyMainContent': False, 'maxAge': 0, 'blockAds': True,
+                # Official v2 /scrape parsers=[] disables per-page PDF parsing;
+                # mapped documents/redirects are flat 1 credit, not N PDF pages.
+                # Raw HTML/basic only, without optional paid formats/modifiers.
+                s = self.paid(1, self.client.scrape, {'url': u, 'formats': ['rawHtml'], 'parsers': [], 'onlyMainContent': False, 'maxAge': 0, 'blockAds': True,
                                         'proxy': 'basic', 'location': {'country': 'US', 'languages': ['en-US']}, 'timeout': 45000}, timeout=90)
             except Exception as exc:  # noqa: BLE001
                 res['errors'].append('scrape:' + type(exc).__name__)

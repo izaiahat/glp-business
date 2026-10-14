@@ -952,6 +952,12 @@ def test_daily_selector_binds_real_firstparty_leads_not_search_noise(monkeypatch
     p.capture = lambda hosts: p.report.update(selected=list(hosts))
     p.merge = p.apollo = p.verify = lambda: None
     monkeypatch.setattr(supply, 'SPONSOR_SEEDS', ())
+    # Explicitly synthetic negative own-product control; never label it retained.
+    negative = {'url':'https://examplebrand.com/', 'title':'ExampleBrand products',
+                'description':'We do not sell protein powder. Our products are office chairs.',
+                'receipt':'negative-product.json'}
+    paths[0].write_text(paths[0].read_text() + json.dumps(negative)+'\n')
+    (paths[0].parent / negative['receipt']).write_text(json.dumps({'success':True,'data':{'web':[negative]}}))
     p.daily(retained_leads=paths)
     assert set(p.report['selected']) == set(fixture['expected_positive_hosts'])
     assert len(p.report['target_universe']['retained_lead_inputs']) == 4
@@ -1028,7 +1034,58 @@ def test_capture_unknown_operation_has_no_ambiguous_replay(monkeypatch, tmp_path
     p.capture_admissible('scrape', 'https://different.example/')
 
 
-@pytest.mark.parametrize('proxy,formats,expected', [('basic',['rawHtml'],1), ('auto',['markdown'],5), ('auto',['json'],None)])
+def test_mapped_pdf_disables_page_parsing_and_null_history_refuses(monkeypatch, tmp_path):
+    """Actual map->scrape admission; synthetic transport, no provider debit."""
+    from types import SimpleNamespace
+    import firecrawl_client as fc
+    import glp_sponsor_campaign as campaign
+    import glp_firecrawl_jobs as jobs
+    ledger = tmp_path / 'operations.jsonl'
+    monkeypatch.setattr(fc, 'LEDGER', ledger)
+    monkeypatch.setattr(jobs, 'spent_today', lambda *a: 0)
+    at = supply.now()
+    p = supply.Producer.__new__(supply.Producer)
+    p.state = tmp_path; p.c = campaign; p.report = {}; p.run = 'offline-pdf'
+    p.pages = tmp_path / 'pages'; p.budget = supply.Budget(56428)
+    p.budget_day = at.date().isoformat()
+    p.reservations = tmp_path / 'reservation.json'
+    usage = {'remainingCredits':56428, 'planCredits':100000,
+             'billingPeriodStart':(at-dt.timedelta(days=1)).isoformat(),
+             'billingPeriodEnd':(at+dt.timedelta(days=30)).isoformat()}
+    calls = []
+    def request(endpoint, payload=None, **kw):
+        if endpoint == 'team/credit-usage': return {'data':usage}
+        assert endpoint == 'map'
+        response = {'success':True,'creditsUsed':1,'links':['https://examplebrand.com/terms.pdf']}
+        fc.record_operation(supply.CALLER, '/v2/map', payload, payload=response,
+                            outcome='success', ledger_path=ledger)
+        return response
+    def scrape(payload, **kw):
+        # Admission is already durable before synthetic transport.
+        assert json.loads(p.reservations.read_text())['pending_by_day'][p.budget_day] == 1
+        calls.append(payload.copy())
+        response = {'success':True,'creditsUsed':1,'data':{'rawHtml':''}}
+        fc.record_operation(supply.CALLER, '/v2/scrape', payload, payload=response,
+                            outcome='success', ledger_path=ledger)
+        return response
+    p.client = SimpleNamespace(request=request, scrape=scrape)
+    p.capture_host('examplebrand.com', max_pages=2)
+    assert len(calls) == 2 and calls[-1]['url'].endswith('/terms.pdf')
+    assert all(call.get('parsers') == [] and call['formats'] == ['rawHtml']
+               and call['proxy'] == 'basic' for call in calls)
+    assert p.daily_accounted(p.budget_day) == 3
+    assert json.loads(p.reservations.read_text())['pending_by_day'][p.budget_day] == 0
+    # Sanitized historical options cannot prove absence of parsers/modifiers.
+    fc.record_operation(supply.CALLER, '/v2/scrape', calls[-1],
+                        payload={'success':True}, outcome='success', ledger_path=ledger)
+    before = ledger.read_bytes(), p.reservations.read_bytes()
+    with pytest.raises(RuntimeError, match='sponsor_ledger_credit_cost_unknown'):
+        p.reserve(1)
+    assert (ledger.read_bytes(), p.reservations.read_bytes()) == before
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('proxy,formats,expected', [('basic',['rawHtml'],None), ('auto',['markdown'],None), ('auto',['json'],None)])
 def test_null_capture_cost_is_unknown_bounded_or_refused(monkeypatch, tmp_path, proxy, formats, expected):
     import glp_firecrawl_jobs as jobs
     import firecrawl_client

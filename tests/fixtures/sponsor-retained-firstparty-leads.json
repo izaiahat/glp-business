@@ -21,6 +21,44 @@
     {
       "input": "DISCOVERY-HITS.jsonl",
       "lead": {
+        "at": "2026-10-13T22:19:41.630171+00:00",
+        "batch": 3,
+        "description": "... prepared meals and quick-service alternatives. Providers have increasingly ... United States. Afghanistan (\u0627\u0641\u063a\u0627\u0646\u0633\u062a\u0627\u0646); Albania (Shqip\u00ebria) ...",
+        "query": "\"prepared meals\" \"partnerships\" \"United States\"",
+        "receipt": "search-03.json",
+        "title": "Meal Kit Delivery Services in the US Industry Analysis, 2025 - IBISWorld",
+        "url": "https://www.ibisworld.com/united-states/industry/meal-kit-delivery-services/6152/"
+      },
+      "receipt_sha256": "1b140b98073dd76a0a3c434dd14cddf34f8269a40b80cf7da1742a1e1c4179f8",
+      "web_row": {
+        "description": "... prepared meals and quick-service alternatives. Providers have increasingly ... United States. Afghanistan (\u0627\u0641\u063a\u0627\u0646\u0633\u062a\u0627\u0646); Albania (Shqip\u00ebria) ...",
+        "position": 1,
+        "title": "Meal Kit Delivery Services in the US Industry Analysis, 2025 - IBISWorld",
+        "url": "https://www.ibisworld.com/united-states/industry/meal-kit-delivery-services/6152/"
+      }
+    },
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
+        "at": "2026-10-13T22:19:41.630190+00:00",
+        "batch": 3,
+        "description": "Prepared Meals. Shop at. CookUnity. I'll put it simply: CookUnity is ... United States. Italia \u00b7 Jap\u00f3n \u00b7 Czech Republic & Slovakia.",
+        "query": "\"prepared meals\" \"partnerships\" \"United States\"",
+        "receipt": "search-03.json",
+        "title": "The Best Meal Delivery Services and Meal Kits of 2026 - WIRED",
+        "url": "https://www.wired.com/gallery/best-meal-kit-services-1/"
+      },
+      "receipt_sha256": "1b140b98073dd76a0a3c434dd14cddf34f8269a40b80cf7da1742a1e1c4179f8",
+      "web_row": {
+        "description": "Prepared Meals. Shop at. CookUnity. I'll put it simply: CookUnity is ... United States. Italia \u00b7 Jap\u00f3n \u00b7 Czech Republic & Slovakia.",
+        "position": 2,
+        "title": "The Best Meal Delivery Services and Meal Kits of 2026 - WIRED",
+        "url": "https://www.wired.com/gallery/best-meal-kit-services-1/"
+      }
+    },
+    {
+      "input": "DISCOVERY-HITS.jsonl",
+      "lead": {
         "at": "2026-10-13T22:19:37.680565+00:00",
         "batch": 0,
         "description": "25 Partnerships in the Alternative Protein Industry: Q1 2026. Latest ... protein powder in the United States. Cultivated. 3D Bio-Tissues ...",
@@ -218,6 +256,8 @@
     "wpbulk.com"
   ],
   "expected_negative_hosts": [
+    "wired.com",
+    "ibisworld.com",
     "linkedin.com",
     "nicholasdahlapg.substack.com",
     "sphericalinsights.com",
