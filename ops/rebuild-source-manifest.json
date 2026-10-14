@@ -7820,6 +7820,20 @@
       ],
       "kind": "test",
       "sha256": "86dcbbef6323b8390fd048cf7ad63886767898617911757e4d87a383903b8058"
+    },
+    "tests/test_host_disk_reference_refresh.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "8308b7e75558cf3bcdae5475c41e6137553f238ab285a96a910993de72c99155"
+    },
+    "tests/test_host_disk_archive_order.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "df8832489b14c31a668dc60b9cb8e69cf467870e1c5a62576bf951fc98c0da73"
     }
   },
   "omitted_runtime_inputs": [
@@ -7830,5 +7844,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1146
+  "tracked_count": 1148
 }
