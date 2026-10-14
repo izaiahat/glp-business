@@ -163,8 +163,9 @@ def test_exact_append_only_rail_reconciliation(tmp_path, monkeypatch):
     check([attempt, ordinary, ordinary])
     check([attempt, ambiguous], ('0', True))
     check([attempt, ambiguous, ordinary], ('0', True))  # bare label is not recovery proof
-    check([attempt, ambiguous, result, dict(base, event='ATTEMPT', attempt_id='other')],
+    check([attempt, ambiguous, result, dict(base, event='ATTEMPT', attempt_id='other', request_hash='other')],
           ('0.002', True))
+    check([attempt, ambiguous, result, dict(base, event='ATTEMPT', attempt_id='overlapping')], ('0', True))
     check([result], ('0', True), dt.date(2026, 10, 19))  # orphan result
     for field in ('account', 'run_id', 'attempt_id', 'request_hash'):
         bad = dict(result, **{field: 'different'})
@@ -262,25 +263,6 @@ def test_exact_append_only_rail_reconciliation(tmp_path, monkeypatch):
         b.guarded('dataforseo', VOLUME, [{'keywords': ['a']}], lambda: sent.append(1),
                   run_id='fixture-run', cost_of=lambda _: 0)
     assert sent == []
-
-
-def test_native_ambiguous_preserves_only_provider_task_identity(monkeypatch):
-    import threading
-    from ops.glp import seo_data_rails as rails
-    rail = rails.DataForSEO.__new__(rails.DataForSEO)
-    rail._lock = threading.RLock()
-    rail._halted = False
-    rail._accounts = {'tryboringai': {'auth': 'OFFLINE', 'state': 'READY', 'balance': 1}}
-    records = []
-    monkeypatch.setattr(rail, '_record', lambda event, account, **fields: records.append(dict(event=event, **fields)))
-    task_id = '10121300-0000-0000-0000-000000000001'
-    monkeypatch.setattr(rails, '_http', lambda *a, **k: {'cost': None, 'tasks': [{'id': task_id}]})
-    with pytest.raises(rails.RailError, match='cost_or_envelope_unmeasured_no_retry'):
-        rail._post('/serp/google/organic/live/advanced', [{'keyword': 'fixture'}])
-    assert records[-1]['event'] == 'AMBIGUOUS'
-    assert records[-1]['provider_task_ids'] == [task_id]
-    assert 'payload' not in records[-1] and 'response' not in records[-1]
-    assert rail._halted is True
 
 
 def test_cap_cannot_exceed_operator_authority(tmp_path):

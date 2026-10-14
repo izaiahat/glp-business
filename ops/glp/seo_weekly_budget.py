@@ -158,15 +158,55 @@ class WeeklyBudget:
             return None
 
     @classmethod
+    def _provider_task(cls, account: str, attempt_at: float, ambiguous_at: float,
+                       endpoint: str, expected: dict[str, Any]) -> dict[str, Any] | None:
+        """Read free metadata through the unchanged native account rail."""
+        from ops.glp.seo_data_rails import DataForSEO, _http
+        try:
+            rail = DataForSEO()
+            selected = rail._accounts[account]
+            if not selected['auth']:
+                return None
+            start = dt.datetime.fromtimestamp(math.floor(attempt_at), dt.timezone.utc)
+            end = dt.datetime.fromtimestamp(math.floor(ambiguous_at) + 1, dt.timezone.utc)
+            payload = [{'datetime_from': start.strftime('%Y-%m-%d %H:%M:%S +00:00'),
+                        'datetime_to': end.strftime('%Y-%m-%d %H:%M:%S +00:00'),
+                        'limit': 1000, 'offset': 0, 'include_metadata': True}]
+            doc = _http(rail.BASE + '/serp/id_list', method='POST', body=payload,
+                        headers={'Authorization': 'Basic ' + selected['auth']}, timeout=60, retries=1)
+            return cls._metadata_record(doc, payload, endpoint, expected)
+        except Exception:
+            return None
+
+    @classmethod
+    def _metadata_record(cls, doc, payload, endpoint, expected):
+        if not isinstance(doc, dict) or doc.get('status_code') != 20000 or cls._rail_cost(doc.get('cost')) != 0:
+            return None
+        tasks = doc.get('tasks')
+        if not isinstance(tasks, list) or len(tasks) != 1:
+            return None
+        task = tasks[0]
+        if (task.get('status_code') != 20000 or cls._rail_cost(task.get('cost')) != 0
+                or task.get('path') != ['v3', 'serp', 'id_list']
+                or any(task.get('data', {}).get(k) != v for k, v in payload[0].items())):
+            return None
+        records = task.get('result')
+        if not isinstance(records, list) or len(records) >= 1000 or not all(isinstance(r, dict) for r in records):
+            return None
+        matches = [r for r in records if r.get('url') == 'v3' + endpoint
+                   and isinstance(r.get('metadata'), dict)
+                   and all(r['metadata'].get(k) == v for k, v in expected.items())]
+        return matches[0] if len(matches) == 1 else None
+
+    @classmethod
     def _recovery_cost(cls, result: dict[str, Any], attempt: dict[str, Any],
                        ambiguous: list[dict[str, Any]]) -> tuple[Decimal, str, str] | None:
         """Local response bytes are hints, not authentic evidence.
 
-        Require one original native AMBIGUOUS task ID, then read its metadata
-        through the existing authenticated account rail. Bind exact payload,
-        endpoint, task, charge and original request interval. No original task
-        identity, incomplete metadata or unavailable provider means UNKNOWN.
-        Supported recovery is deliberately limited to one organic Live SERP task.
+        Bind the original native account/run/attempt/hash/endpoint and interval
+        to one unique authenticated provider task matching the complete payload,
+        task ID and measured charge. An unavailable or incomplete provider record
+        remains UNKNOWN. Supported recovery is one organic Live SERP task.
         No journal append or paid request is performed here.
         """
         try:
@@ -176,10 +216,8 @@ class WeeklyBudget:
                     or not ambiguous):
                 return None
             native_ids = ambiguous[0].get('provider_task_ids')
-            if (not isinstance(native_ids, list) or len(native_ids) != 1
-                    or not isinstance(native_ids[0], str)
-                    or any(r.get('provider_task_ids') != native_ids for r in ambiguous)):
-                return None  # no local receipt/approval flag can supply native identity
+            if any(r.get('provider_task_ids') != native_ids for r in ambiguous):
+                return None
             raw = Path(proof['path']).read_bytes()
             if hashlib.sha256(raw).hexdigest() != proof['sha256']:
                 return None
@@ -199,17 +237,20 @@ class WeeklyBudget:
             if response.get('status_code') != 20000 or not isinstance(tasks, list) or len(tasks) != 1:
                 return None
             task = tasks[0]
+            task_id = task.get('id')
+            uuid.UUID(task_id)
+            if native_ids is not None and native_ids != [task_id]:
+                return None
             measured = cls._rail_cost(response.get('cost'))
             expected = dict(payload[0], api='serp', function='live', se='google', se_type='organic')
-            if (task.get('id') != native_ids[0] or task.get('status_code') != 20000
+            if (task.get('status_code') != 20000
                     or measured is None or measured != cls._rail_cost(result.get('cost'))
                     or measured != cls._rail_cost(task.get('cost'))
                     or any(task.get('data', {}).get(k) != v for k, v in expected.items())):
                 return None
-            from ops.glp.seo_data_rails import DataForSEO
             end_at = min(r['at'] for r in ambiguous)
-            record = DataForSEO().recovery_serp_task(attempt['account'], native_ids[0], attempt['at'], end_at)
-            if (not isinstance(record, dict) or record.get('id') != native_ids[0]
+            record = cls._provider_task(attempt['account'], attempt['at'], end_at, attempt['endpoint'], expected)
+            if (not isinstance(record, dict) or record.get('id') != task_id
                     or record.get('url') != 'v3' + attempt['endpoint']
                     or record.get('status') != '20000'
                     or cls._rail_cost(record.get('cost')) != measured
@@ -221,7 +262,7 @@ class WeeklyBudget:
             if not math.floor(attempt['at']) <= posted <= done <= math.floor(end_at) + 1:
                 return None
             fingerprint = hashlib.sha256(json.dumps(response, sort_keys=True, allow_nan=False).encode()).hexdigest()
-            return measured, native_ids[0], fingerprint
+            return measured, task_id, fingerprint
         except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError):
             pass
         return None
@@ -281,15 +322,27 @@ class WeeklyBudget:
                 valid = valid and rows[-1]['event'] == 'RESULT'
                 valid = valid and all(r['at'] >= a['at'] for r in results for a in ambiguous)
                 if valid:
-                    # Exact duplicate artifacts authenticate once per reduction.
+                    # Two native requests with overlapping exact-query intervals
+                    # cannot both claim one authenticated task; keep them UNKNOWN.
+                    end = min((a['at'] for a in ambiguous), default=at)
+                    for other_id, other_rows in groups.items():
+                        if other_id == identity or other_id[0] != identity[0] or other_id[3] != identity[3]:
+                            continue
+                        other_start = other_rows[0].get('at')
+                        other_end = min((r.get('at', float('inf')) for r in other_rows
+                                         if r['event'] in ('RESULT', 'AMBIGUOUS')), default=float('inf'))
+                        if isinstance(other_start, (int, float)) and other_start <= end and other_end >= at:
+                            valid = False
                     recovered = {}
                     for r in results:
+                        if not valid:
+                            break
                         key = json.dumps(r, sort_keys=True)
                         if key not in recovered:
                             recovered[key] = self._recovery_cost(r, anchor, ambiguous)
                     identities = list(recovered.values())
-                    valid = (all(i is not None and i[0] == costs[0] for i in identities)
-                             and len(set(identities)) == 1)
+                    valid = valid and (all(i is not None and i[0] == costs[0] for i in identities)
+                                       and len(set(identities)) == 1)
             if valid and costs[0] is not None:
                 total += costs[0]
             else:

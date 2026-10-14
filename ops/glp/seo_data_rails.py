@@ -229,47 +229,6 @@ class DataForSEO:
             self._record("BALANCE", label, state=selected["state"], balance=value, cost=None)
             return value
 
-    def recovery_serp_task(self, account: str, task_id: str, attempt_at: float,
-                           ambiguous_at: float) -> dict[str, Any] | None:
-        """Fresh authenticated free metadata read, never a local receipt or replay.
-
-        Caller must supply a task ID retained by the native AMBIGUOUS producer.
-        No ledger append, balance read, failover, paid endpoint or retry. ID-list
-        task IDs/echoes belong to this lookup; only a matching result is evidence.
-        Official contract: https://docs.dataforseo.com/v3/serp/id_list/
-        """
-        try:
-            uuid.UUID(task_id)
-            selected = self._accounts[account]
-            if not selected['auth'] or not (math.isfinite(attempt_at) and math.isfinite(ambiguous_at)
-                                            and attempt_at <= ambiguous_at):
-                return None
-            start = dt.datetime.fromtimestamp(math.floor(attempt_at), dt.timezone.utc)
-            end = dt.datetime.fromtimestamp(math.floor(ambiguous_at) + 1, dt.timezone.utc)
-            payload = [{'datetime_from': start.strftime('%Y-%m-%d %H:%M:%S +00:00'),
-                        'datetime_to': end.strftime('%Y-%m-%d %H:%M:%S +00:00'),
-                        'limit': 1000, 'offset': 0, 'include_metadata': True}]
-            doc = _http(self.BASE + '/serp/id_list', method='POST', body=payload,
-                        headers={'Authorization': 'Basic ' + selected['auth']}, timeout=60, retries=1)
-            if not isinstance(doc, dict) or doc.get('status_code') != 20000 or self._number(doc.get('cost')) != 0:
-                return None
-            tasks = doc.get('tasks')
-            if not isinstance(tasks, list) or len(tasks) != 1:
-                return None
-            task = tasks[0]
-            if (task.get('status_code') != 20000 or self._number(task.get('cost')) != 0
-                    or task.get('path') != ['v3', 'serp', 'id_list']
-                    or any(task.get('data', {}).get(k) != v for k, v in payload[0].items())):
-                return None
-            records = task.get('result')
-            # A full page is not a complete census; never guess past truncation.
-            if not isinstance(records, list) or len(records) >= 1000 or not all(isinstance(r, dict) for r in records):
-                return None
-            matches = [r for r in records if r.get('id') == task_id]
-            return matches[0] if len(matches) == 1 else None
-        except Exception:  # metadata unavailable is UNKNOWN, not zero or replay
-            return None
-
     def _post(self, path: str, payload: list[dict[str, Any]], timeout: int = 180) -> dict[str, Any]:
         with self._lock:
             if self._halted:
@@ -307,12 +266,7 @@ class DataForSEO:
                              and all(self._number(t.get("cost", 0)) == 0 and not t.get("result") for t in (tasks or [])))
                 if cost is None or not isinstance(tasks, list):
                     self._halted = True
-                    # Preserve only provider identity from this native response;
-                    # never fabricate an ID or retain query/credential bytes.
-                    task_ids = [t.get('id') for t in tasks if isinstance(t, dict)
-                                and isinstance(t.get('id'), str)] if isinstance(tasks, list) else []
-                    self._record("AMBIGUOUS", label, attempt_id=attempt_id, request_hash=request_hash,
-                                 cost=cost, provider_task_ids=task_ids)
+                    self._record("AMBIGUOUS", label, attempt_id=attempt_id, request_hash=request_hash, cost=cost)
                     raise RailError("dataforseo_cost_or_envelope_unmeasured_no_retry")
                 if exhausted:
                     selected["state"] = "EXHAUSTED"
