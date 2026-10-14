@@ -1,0 +1,91 @@
+"""Offline regressions for host ownership, not provider task simulations."""
+import datetime as dt
+import json
+from pathlib import Path
+from unittest import mock
+
+import pytest
+from ops.glp import weekly_analytics_owner as owner
+from ops.glp.weekly_strategy_sync import atomic
+
+NOW = dt.datetime(2026, 10, 14, 18, tzinfo=dt.timezone.utc)
+
+
+def producer(output):
+    output.mkdir()
+    atomic(output/'REPORT.json', {'gsc_rows': {'gsc-28': 12},
+        'recommendations': 2, 'module_statuses': {'page2': 'PASS_ANALYSIS_ONLY'},
+        'weekly_spend': {'within_cap': True, 'cap_usd': '25'},
+        'input_observations': {'ga4': {'ok': True, 'complete': True}}})
+    atomic(output/'TOPIC-RECOMMENDATIONS.json', {'week_start': '2026-10-12',
+        'recommendations': [{'route': '/reviews/example/', 'query': 'example reviews'}]})
+    atomic(output/'STRATEGY-UPDATES.json', {'week_start': '2026-10-12', 'topic_priorities': [{'query': 'example reviews'}]})
+    return {'report': str(output/'REPORT.json'), 'topic_recommendations': str(output/'TOPIC-RECOMMENDATIONS.json'),
+        'strategy_update': {'status': 'HOST_DURABLE_STRATEGY_INPUT', 'updates': owner.binding(output/'STRATEGY-UPDATES.json')},
+        'status': 'COMPLETE_WITH_EXPLICIT_UNKNOWNS'}
+
+
+def test_weekly_completion_and_consumer_ack_are_once_only(tmp_path):
+    calls = []
+    def run(path):
+        calls.append(path)
+        return producer(path)
+    first = owner.run_owned(tmp_path, run, now=NOW)
+    before = Path(first['host_completion']['path']).read_bytes()
+    second = owner.run_owned(tmp_path, lambda p: pytest.fail('must not recollect'), now=NOW)
+    assert len(calls) == 1 and first == second
+    assert Path(second['host_completion']['path']).read_bytes() == before
+    ack = owner.consume(second, '020bcdd7f0e1')
+    assert owner.consume(second, '020bcdd7f0e1') == ack
+    assert ack['task_id'] == 'glp336-weekly-2026-10-12'
+    assert ack['analysis_rows'] == 1
+    assert Path(ack['path']).exists()
+
+
+def test_empty_analysis_never_completes(tmp_path):
+    def empty(path):
+        result = producer(path)
+        atomic(path/'TOPIC-RECOMMENDATIONS.json', {'week_start': '2026-10-12', 'recommendations': []})
+        atomic(path/'REPORT.json', {'gsc_rows': {}, 'module_statuses': {}})
+        return result
+    with pytest.raises(ValueError, match='nonempty_weekly_analysis_required'):
+        owner.run_owned(tmp_path, empty, now=NOW)
+    assert not (tmp_path/'2026-10-12'/'COMPLETED.json').exists()
+
+
+def test_crash_after_analysis_resumes_without_collection(tmp_path):
+    real_atomic = owner.atomic
+    def crash(path, doc):
+        if Path(path).name == 'COMPLETED.json':
+            raise RuntimeError('crash before completion')
+        return real_atomic(path, doc)
+    with mock.patch.object(owner, 'atomic', side_effect=crash), pytest.raises(RuntimeError):
+        owner.run_owned(tmp_path, producer, now=NOW)
+    result = owner.run_owned(tmp_path, lambda p: pytest.fail('must reuse analysis'), now=NOW)
+    assert result['host_completion']['task_id'] == 'glp336-weekly-2026-10-12'
+
+
+def test_tampered_analysis_refuses_instead_of_recollecting(tmp_path):
+    result = owner.run_owned(tmp_path, producer, now=NOW)
+    Path(result['topic_recommendations']).write_text('{}')
+    with pytest.raises(ValueError, match='host_binding_changed'):
+        owner.run_owned(tmp_path, lambda p: pytest.fail('must not recollect'), now=NOW)
+    with pytest.raises(ValueError, match='host_binding_changed'):
+        owner.consume(result, '020bcdd7f0e1')
+
+
+def test_wrong_week_and_failed_budget_cannot_complete(tmp_path):
+    def wrong(path):
+        result = producer(path)
+        atomic(path/'TOPIC-RECOMMENDATIONS.json', {'week_start': '2026-10-05', 'recommendations': [{}]})
+        return result
+    with pytest.raises(ValueError, match='host_analysis_week_mismatch'):
+        owner.run_owned(tmp_path/'wrong', wrong, now=NOW)
+    def over(path):
+        result = producer(path)
+        report = json.loads(Path(result['report']).read_text())
+        report['weekly_spend']['within_cap'] = False
+        atomic(Path(result['report']), report)
+        return result
+    with pytest.raises(ValueError, match='host_weekly_budget_unproved'):
+        owner.run_owned(tmp_path/'over', over, now=NOW)

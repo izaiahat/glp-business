@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Weekly Strategy report producer and operator-authorized Cogny planning sync.
+"""Weekly Strategy producer, host ownership and optional legacy Cogny sync.
 
-No metered collection, article queue admission, site writes or sends.
+Collection uses the existing $25/week budget; no article queue, site or sends.
 --update-strategy writes exact-readback Cogny evidence and a governed input pointer.
 The registered wake gate calls this before its scheduler-owned summary delivery.
 """
@@ -26,7 +26,7 @@ def load(path,name):
 def save(path,doc):
     path.write_text(json.dumps(doc,indent=2,ensure_ascii=False)+'\n')
 
-def run(output, *, update_strategy=False):
+def run(output, *, update_strategy=False, host_owned=False):
     from ops.glp.weekly_strategy_inputs import topic_recommendations
     from ops.glp.seo_weekly_modules import read_bound
     from zoneinfo import ZoneInfo
@@ -94,12 +94,18 @@ def run(output, *, update_strategy=False):
         live_routes=sorted(read_bound(inputs['pages']).keys()) if 'pages' in inputs else []
         updates=build_updates(topics,module_report,inputs,source_observations=source_observations,
             gap_volume=gap_volume['result'],held_routes=held,live_routes=live_routes)
-        client=CognyClient(retries=1,timeout=90);client.initialize()
-        strategy_update=sync_updates(client,updates,output/'cogny-strategy-update')
-        current_pointer=B/'reports/glp-clinic-scout/weekly-strategy/current-strategy.json'
-        publish_current(current_pointer,updates,strategy_update)
-        strategy_update['current_input']=str(current_pointer)
-        strategy_update['consumer_adoption']='PENDING_GLP73_RECEIPT'
+        if host_owned:
+            from ops.glp.weekly_strategy_sync import atomic
+            strategy_update={'status':'HOST_DURABLE_STRATEGY_INPUT',
+                'updates':atomic(output/'STRATEGY-UPDATES.json',updates),
+                'consumer':'020bcdd7f0e1', 'publication_authorized':False}
+        else:
+            client=CognyClient(retries=1,timeout=90);client.initialize()
+            strategy_update=sync_updates(client,updates,output/'cogny-strategy-update')
+            current_pointer=B/'reports/glp-clinic-scout/weekly-strategy/current-strategy.json'
+            publish_current(current_pointer,updates,strategy_update)
+            strategy_update['current_input']=str(current_pointer)
+            strategy_update['consumer_adoption']='PENDING_GLP73_RECEIPT'
     current={c['component']:c['live_effect'] for c in estate['result']['components']}
     sources=current.get('analytics',{}).get('sources',[])
     unknowns=[{'subject':s['source'],'reason':s.get('reason') or s['state'],'owner':'GLP-44 source/import owner'} for s in sources if s['state'] not in ('healthy','measured_zero')]
@@ -142,7 +148,7 @@ def run(output, *, update_strategy=False):
       'Observed: Cogny + GSC + GA4 + PostHog + Bing source readbacks consumed.',
       f"Keyword gaps: **{report['keyword_gap_count']}** · week spend **${report['weekly_spend']['committed_usd']}** / ${report['weekly_spend']['cap_usd']} cap; network revenue **UNKNOWN**.",
       f"Next GLP: review **{report['recommendations']}** existing-page opportunities; **{receipt['source_operations']}** source patches.",
-      '→ No action: refill/updater bind this strategy SHA; over-cap or unknown-cost calls are refused and alerted.',
+      ('→ No action: host strategy rows feed GLP-44 planning; GLP-73 adoption is separate.' if host_owned else '→ No action: refill/updater bind this strategy SHA; over-cap or unknown-cost calls are refused and alerted.'),
       '-# artifact: '+str(output/'WEEKLY-REVIEW.md')])
     (output/'DISCORD.txt').write_text(summary+'\n')
     return {'report':str(output/'REPORT.json'),'review':str(output/'WEEKLY-REVIEW.md'),
@@ -151,11 +157,19 @@ def run(output, *, update_strategy=False):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path)
     parser.add_argument('--update-strategy',action='store_true')
+    parser.add_argument('--host-owned',action='store_true')
     args=parser.parse_args()
     output=args.output or B/'reports/glp-clinic-scout/weekly-strategy'/('run-'+dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8])
     lock=B/'ops/glp/.weekly-strategy-report.lock'
     with lock.open('a') as stream:
         fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        print(json.dumps(run(output,update_strategy=args.update_strategy),ensure_ascii=False))
+        if args.host_owned:
+            from ops.glp.weekly_analytics_owner import ROOT, run_owned
+            # A manual output argument never creates a second weekly owner.
+            result=run_owned(ROOT,
+                lambda target: run(target,update_strategy=True,host_owned=True))
+        else:
+            result=run(output,update_strategy=args.update_strategy)
+        print(json.dumps(result,ensure_ascii=False))
 
 if __name__=='__main__': main()
