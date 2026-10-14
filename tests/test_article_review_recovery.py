@@ -306,6 +306,146 @@ def test_ten_subject_publication_context_is_bound_to_original_and_candidate(tmp_
         check_context(context)
 
 
+def _retained_successor_adoption_fixture(tmp_path, monkeypatch, fault):
+    """Source IO regression with explicit authentication doubles, never model evidence."""
+    import hashlib, subprocess
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'systems/analytics-brain'))
+    import glp_seo_updater_source as updater
+    assert Path(updater.__file__).resolve() == Path(__file__).resolve().parents[1] / 'scripts/glp_seo_updater_source.py'
+    import fcntl
+    from carrier_lock import carrier_lock
+    lock_path = tmp_path / 'private-carrier.lock'
+    # Real production flock, isolated destination only; never a live lease.
+    monkeypatch.setattr(updater, 'carrier_lock', lambda: carrier_lock(lock_path))
+    def assert_owner_held():
+        with lock_path.open('r') as contender:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(contender.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    save = updater.save
+    def locked_save(*args, **kwargs):
+        assert_owner_held()
+        return save(*args, **kwargs)
+    monkeypatch.setattr(updater, 'save', locked_save)
+    workspace = tmp_path / 'site'; workspace.mkdir()
+    subprocess.run(['git', 'init', '-q', workspace], check=True)
+    packet = tmp_path / 'packet'; packet.mkdir()
+    history = tmp_path / 'history'; history.mkdir()
+    entry_path = tmp_path / 'entry.json'
+    entry_path.write_text(json.dumps({'target_route': '/guides/test/', 'article_id': 'test'}))
+    context = {'source_head': 'a'*40, 'first_publication': {'date': '2026-10-11', 'timezone': 'America/Los_Angeles'}}
+    (packet / '09-publication-context.json').write_text(json.dumps(context))
+    for name, value in {'06-article.json': {'article_id': 'test', 'canonical_path': '/guides/test/'},
+                        '07-qa-receipt.json': {'fixture': 'reviewed QA'}}.items():
+        (packet / name).write_text(json.dumps(value))
+    review = history / 'round-01-receipt.json'; review.write_text('{"fixture":"reviewed receipt"}')
+    base = workspace / 'data/blog/accepted-guides/test'; base.mkdir(parents=True)
+    row = {'route': '/guides/test/', 'entry_id': 'retained', 'before_sha256': 'unchanged',
+           'weekly_strategy_sha256': None, 'semantic_materiality': {'material': True},
+           'first_publication': context['first_publication']}
+    for key in ('article', 'qa', 'review'):
+        file = base / (key + '.json')
+        file.write_text(json.dumps({'article_id': 'test', 'canonical_path': '/guides/test/', 'predecessor': key}))
+        row[key] = {'path': file.relative_to(workspace).as_posix(), 'sha256': recovery.sha(file)}
+    other = {'route': '/guides/untouched/', 'fixture': 'untouched'}
+    manifest_path = base.parent / 'updates.json'
+    manifest_path.write_text(json.dumps({'schema': 'glp-accepted-guide-updates-v1', 'entries': [other, row]}))
+    def git(*args):
+        return subprocess.check_output(['git', '-C', str(workspace), *args], text=True).strip()
+    git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture')
+    head = git('rev-parse', 'HEAD')
+    document = {'entry': recovery.spec(entry_path), 'review': recovery.spec(review),
+                'candidate': {'path': str(packet / recovery.CANDIDATE)}}
+    subject_files = [dict(path=n, sha256=recovery.sha(packet / n))
+                     for n in ('06-article.json', '07-qa-receipt.json', recovery.PUBLICATION_CONTEXT)]
+    # Independent fixture acceptance is frozen before any coherent mutation.
+    # The real retained probe uses unchanged production PR77/RV77 pins instead.
+    monkeypatch.setattr(updater, 'ACCEPTED_SUCCESSOR_SOURCE_HEAD', context['source_head'])
+    monkeypatch.setattr(updater, 'ACCEPTED_SUCCESSOR_SOURCE_ROW_SHA256',
+        hashlib.sha256(json.dumps(row, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest())
+    monkeypatch.setattr(recovery, 'successor_documents', lambda *a, **kw: document)
+    authenticated = []
+    def authenticate(*args, **kwargs):
+        assert_owner_held()
+        authenticated.append((args, kwargs))
+        if fault == 'native_refusal':
+            raise ValueError('fixture_native_refusal')
+        if fault == 'successor_drift':
+            (packet / '07-qa-receipt.json').write_text('{}')
+        if fault == 'postauth_context_and_source_drift':
+            drift = copy.deepcopy(context)
+            drift['first_publication']['date'] = '2026-10-12'
+            (packet / recovery.PUBLICATION_CONTEXT).write_text(json.dumps(drift))
+            row['first_publication'] = drift['first_publication']
+            manifest_path.write_text(json.dumps({'schema': 'glp-accepted-guide-updates-v1', 'entries': [other, row]}))
+            assert git('status', '--porcelain')
+        return {'document': document, 'manifest': {'subject_files': subject_files}}
+    monkeypatch.setattr(recovery, 'validate_successor_documents', authenticate)
+    if fault in ('wrong_article', 'wrong_qa', 'wrong_review'):
+        key = fault.removeprefix('wrong_')
+        (workspace / row[key]['path']).write_text('{}')
+        git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'wrong preimage')
+        head = git('rev-parse', 'HEAD')
+    if fault and fault.startswith('rehashed_'):
+        key = fault.removeprefix('rehashed_')
+        file = workspace / row[key]['path']
+        value = json.loads(file.read_text()); value['unaccepted'] = key
+        file.write_text(json.dumps(value))
+        row[key]['sha256'] = recovery.sha(file)
+        manifest_path.write_text(json.dumps({'schema': 'glp-accepted-guide-updates-v1', 'entries': [other, row]}))
+        git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'coherent unaccepted preimage')
+        head = git('rev-parse', 'HEAD')
+        assert not git('status', '--porcelain')
+    if fault == 'publication_context':
+        context['first_publication']['date'] = '2026-10-12'
+        (packet / '09-publication-context.json').write_text(json.dumps(context))
+    if fault == 'dirty_source':
+        manifest_path.write_text(manifest_path.read_text() + '\n')
+    if fault == 'wrong_head':
+        head = '0' * 40
+    before = {p.relative_to(workspace): p.read_bytes() for p in workspace.rglob('*') if p.is_file() and '.git' not in p.parts}
+    call = lambda: updater.adopt_successor(workspace, entry_path, packet, history, expected_head=head)
+    if fault:
+        error = ('successor_source_accepted_preimage_drift' if fault.startswith('rehashed_')
+                 else 'successor_source_authenticated_input_drift' if fault == 'postauth_context_and_source_drift'
+                 else None)
+        with pytest.raises((ValueError, RuntimeError), match=error):
+            call()
+        if fault == 'postauth_context_and_source_drift':
+            # Only the injected row mutation is allowed, never any adopter output.
+            before[manifest_path.relative_to(workspace)] = json.dumps(
+                {'schema': 'glp-accepted-guide-updates-v1', 'entries': [other, row]}).encode()
+        assert before == {p.relative_to(workspace): p.read_bytes() for p in workspace.rglob('*') if p.is_file() and '.git' not in p.parts}
+        with lock_path.open('r') as contender:
+            fcntl.flock(contender.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return
+    result = call()
+    assert authenticated and result['status'] == 'SUCCESSOR_SOURCE_STAGED_NOT_ACCEPTED'
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest['entries'][0] == other
+    adopted = manifest['entries'][1]
+    assert {k: v for k, v in adopted.items() if k not in ('article', 'qa', 'review')} == {k: v for k, v in row.items() if k not in ('article', 'qa', 'review')}
+    for key, origin in {'article': packet / '06-article.json', 'qa': packet / '07-qa-receipt.json', 'review': review}.items():
+        assert adopted[key]['sha256'] == recovery.sha(origin)
+        assert (workspace / adopted[key]['path']).read_bytes() == origin.read_bytes()
+        assert (workspace / row[key]['path']).read_bytes() == before[Path(row[key]['path'])]
+
+
+@pytest.mark.parametrize('fault', [None, 'wrong_article', 'wrong_qa', 'wrong_review', 'native_refusal', 'publication_context', 'dirty_source', 'successor_drift', 'wrong_head'])
+def test_retained_successor_adoption_exact_source_binding_and_refusal(tmp_path, monkeypatch, fault):
+    _retained_successor_adoption_fixture(tmp_path, monkeypatch, fault)
+
+
+@pytest.mark.parametrize('key', ['article', 'qa', 'review'])
+def test_retained_successor_refuses_coherent_committed_preimage(tmp_path, monkeypatch, key):
+    """RV506 P1: clean caller head + coherent editable hashes aren't acceptance."""
+    _retained_successor_adoption_fixture(tmp_path, monkeypatch, 'rehashed_' + key)
+
+
+def test_retained_successor_refuses_postauth_context_source_handoff(tmp_path, monkeypatch):
+    """RV506 P1: sealed context and original clean preimage survive handoff."""
+    _retained_successor_adoption_fixture(tmp_path, monkeypatch, 'postauth_context_and_source_drift')
+
+
 def test_natural_cannot_be_recovered(tmp_path):
     with pytest.raises(ValueError, match='postpublication_review_not_natural'):
         recovery.validate_recovery(tmp_path/'entry.json', root=tmp_path, natural=True)

@@ -304,7 +304,8 @@ def successor_source_authors(fresh, names, origins, proof, root, database, revie
     return authors
 
 
-def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
+def validate_successor_documents(entry_path, doc, *, root=ROOT, session_db=None):
+    """Authenticate retained subjects only, never deployment/recovery acceptance."""
     import hermes_sol_article_review as transport
     sys.path.insert(0, str(root / 'systems/seo-blog-machine/scripts'))
     import opus_review_loop as loop
@@ -354,6 +355,15 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
         doc.get('source_authorship_review'), root, database,
         {'model': runtime['model'], 'runtime': {'native_session_id': runtime['session_id']}},
         timestamp(manifest['sealed_at_utc']))
+    return {'receipt': receipt, 'raw': raw, 'manifest': manifest, 'custody': custody, 'document': doc,
+            'successor_authors': successor_authors}
+
+
+def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
+    result = validate_successor_documents(entry_path, doc, root=root, session_db=session_db)
+    entry = read(entry_path)
+    fresh = checked(doc['candidate']).parent
+    round_path = checked(doc['review'])
     pointer = read(root / 'reports/glp-clinic-scout/seo-machine/current-content-base.json')
     release = Path(pointer['release_root'])
     rows = [r for r in read(release / 'data/blog/accepted-guides/updates.json')['entries']
@@ -372,8 +382,7 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
             'reviewed_live_deployment_drift')
     require_live_matches_sealed(snapshot.read_bytes(), live_file.read_bytes())
     require_live_matches_candidate(live_file.read_text(), (fresh / CANDIDATE).read_text())
-    return {'receipt': receipt, 'raw': raw, 'manifest': manifest, 'custody': custody, 'document': doc,
-            'successor_authors': successor_authors}
+    return result
 
 
 def validate_recovery(entry_path, *, root=ROOT, natural=False, session_db=None):
@@ -385,8 +394,9 @@ def validate_recovery(entry_path, *, root=ROOT, natural=False, session_db=None):
     return result
 
 
-def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
-         source_author_packet=None, source_author_review=None):
+def successor_documents(entry_path, history, packet, *, root=ROOT,
+                        source_author_packet=None, source_author_review=None):
+    """Build in-memory validator inputs; do not write a receipt or invoke a model."""
     sys.path.insert(0, str(root / 'systems/seo-blog-machine/scripts'))
     import compile_review_packet_article as compiler
     entry = read(entry_path)
@@ -401,7 +411,6 @@ def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
            'candidate': spec(packet / CANDIDATE),
            'successor': successor_contract(entry_path.parent / 'packet', packet, entry['packet_files'], manifest,
                                            compile_packet=compiler.compile_packet, root=root),
-           'live_snapshot': spec(snapshot), 'live_binding': read(binding_path),
            'historical_custody_repaired': False, 'natural_acceptance': False}
     if source_author_packet is not None:
         origin = Path(source_author_packet)
@@ -418,6 +427,15 @@ def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
             'raw': spec(origin_review['raw_review_path'])}
     else:
         require(source_author_review is None, 'copied_source_review_without_packet')
+    return doc
+
+
+def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
+         source_author_packet=None, source_author_review=None):
+    doc = successor_documents(entry_path, history, packet, root=root,
+                              source_author_packet=source_author_packet,
+                              source_author_review=source_author_review)
+    doc.update(live_snapshot=spec(snapshot), live_binding=read(binding_path))
     validate_documents(entry_path, doc, root=root)
     path = recovery_path(entry_path, root)
     path.parent.mkdir(parents=True, exist_ok=True)

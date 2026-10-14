@@ -3277,10 +3277,11 @@
     },
     "scripts/glp_seo_updater_source.py": {
       "callers": [
-        "L6 weekly-governed SEO machine"
+        "L6 weekly-governed SEO machine",
+        "manual:GLP-320 retained reviewed successor source adoption (no build/review/publication)"
       ],
       "kind": "registered_producer",
-      "sha256": "4e0c3f428afd2c1a02d90a0863b28026e5109334606575dc417654e786b25b42"
+      "sha256": "d84bd9789f0cd3a8d9b61e7e18152d21d7bb51efe4aa462d1ddc3afa016c301e"
     },
     "scripts/glp_served_test_contract.py": {
       "callers": [
@@ -7603,10 +7604,11 @@
     },
     "scripts/article_review_recovery.py": {
       "callers": [
-        "scripts/article_health_acceptance.py"
+        "scripts/article_health_acceptance.py",
+        "scripts/glp_seo_updater_source.py:adopt_successor retained-subject authentication only"
       ],
       "kind": "script",
-      "sha256": "723d34b8d1c3cac01ebe3ad7e92064ec794bf5031b9a6b07ea2de01b87cd260b"
+      "sha256": "ca05d84ca6001a6b11a1ebbb910bd0743b44b15adbadf241f09c7069f13b5f52"
     },
     "scripts/glp_release_search_notify.py": {
       "callers": [
@@ -7620,7 +7622,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "98e963cae6c7c10aaa7c2bd3794798774e8d68c5909032d5ebd20a874028b1b5"
+      "sha256": "c59dc2217332b01808f4e58bfbda1664225263d00c3fa58eca89618ffc2165df"
     },
     "systems/seo-blog-machine/tests/test_guide_render_contract.py": {
       "callers": [
