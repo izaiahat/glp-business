@@ -108,3 +108,69 @@ def test_free_analysis_completes_with_explicit_metered_hold(tmp_path):
     assert done['weekly_spend']['within_cap'] is False
     assert done['metered_collection_status'] == 'HELD_UNKNOWN_PRIOR_SPEND'
     assert owner.consume(result, '020bcdd7f0e1')['ack_count'] == 1
+
+
+def test_report_changed_between_validation_and_binding_must_refuse(tmp_path, monkeypatch):
+    # Exact RV512-514 reproduction: mutate real bytes at the binding boundary.
+    real_binding = owner.binding
+    mutated = []
+    def at_binding(path):
+        path = Path(path)
+        if path.name == 'REPORT.json' and not mutated:
+            doc = json.loads(path.read_bytes())
+            doc['gsc_rows'] = {}
+            doc['module_statuses']['page2'] = 'UNKNOWN_INPUT'
+            doc['weekly_spend'] = {'within_cap': False, 'cap_usd': '25', 'committed_usd': '30'}
+            atomic(path, doc)
+            mutated.append(True)
+        return real_binding(path)
+    monkeypatch.setattr(owner, 'binding', at_binding)
+    with pytest.raises(ValueError):
+        owner.run_owned(tmp_path, producer, now=NOW)
+    assert not (tmp_path/'2026-10-12'/'COMPLETED.json').exists()
+    assert not (tmp_path/'2026-10-12'/'CONSUMED-GLP44.json').exists()
+
+
+def test_completion_and_ack_require_validated_report_hash(tmp_path):
+    result = owner.run_owned(tmp_path, producer, now=NOW)
+    spec = result['host_completion']
+    done = owner.read_bound(spec)
+    done.pop('validated_report_sha256', None)
+    atomic(Path(spec['path']), done)
+    result['host_completion'] = owner.binding(spec['path'])
+    with pytest.raises(ValueError, match='host_completion_validated_report'):
+        owner.verify_completion(result['host_completion'])
+    with pytest.raises(ValueError, match='host_completion_validated_report'):
+        owner.consume(result, owner.CONSUMER)
+    assert not (tmp_path/'2026-10-12'/'CONSUMED-GLP44.json').exists()
+
+
+def test_rebound_invalid_report_cannot_verify_or_ack(tmp_path):
+    result = owner.run_owned(tmp_path, producer, now=NOW)
+    spec = result['host_completion']
+    done = owner.read_bound(spec)
+    path = Path(result['report'])
+    doc = json.loads(path.read_bytes())
+    doc['gsc_rows'] = {}
+    atomic(path, doc)
+    done['analysis_bindings']['report'] = owner.binding(path)
+    done['validated_report_sha256'] = done['analysis_bindings']['report']['sha256']
+    atomic(Path(spec['path']), done)
+    result['host_completion'] = owner.binding(spec['path'])
+    with pytest.raises(ValueError, match='nonempty_weekly_analysis_required'):
+        owner.verify_completion(result['host_completion'])
+    with pytest.raises(ValueError, match='nonempty_weekly_analysis_required'):
+        owner.consume(result, owner.CONSUMER)
+    assert not (tmp_path/'2026-10-12'/'CONSUMED-GLP44.json').exists()
+
+
+def test_report_drift_at_consumer_lock_refuses_ack(tmp_path, monkeypatch):
+    result = owner.run_owned(tmp_path, producer, now=NOW)
+    real_flock = owner.fcntl.flock
+    def at_lock(fd, flags):
+        real_flock(fd, flags)
+        Path(result['report']).write_text('{}')
+    monkeypatch.setattr(owner.fcntl, 'flock', at_lock)
+    with pytest.raises(ValueError, match='host_binding_changed'):
+        owner.consume(result, owner.CONSUMER)
+    assert not (tmp_path/'2026-10-12'/'CONSUMED-GLP44.json').exists()
