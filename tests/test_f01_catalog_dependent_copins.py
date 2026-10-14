@@ -4,11 +4,14 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 PREIMAGE = '1cdd2bfbe5735c8817d38aaea66f47f9e88bfb38'
 REVIEWED = 'a5b25a1da933a489abbef04f5a301ef8038efab5'
+PACKAGED = '26ba0f161e5ca3136c2c37d8219c4a267ed304f0'  # Accepted PR498 head.
 PZ = 'scripts/marketplace_adapters/partnerize.py'
 BATCH = 'scripts/affiliate_catalog_batch.py'
 PREFIX = '/home/ubuntu/business/'
@@ -92,15 +95,16 @@ class CatalogDependentClosureTests(unittest.TestCase):
 
         self.assertEqual(failures, [], '\n'.join(failures))
 
-        # Packaging also includes exactly three authenticated PR496 main advances.
+        # Immutable PR498 packaging evidence, not a freeze of future main.
         package = 'ops/rebuild-source-manifest.json'
         old_doc = json.loads(git_bytes(PREIMAGE, package))
-        new_doc = json.loads((ROOT / package).read_bytes())
+        new_doc = json.loads(git_bytes(PACKAGED, package))
         integrated_main = 'ea0b247976eb136e33bc1fd8219654a8482362c9'
         main_advances = ('scripts/article_review_recovery.py',
                          'tests/test_article_review_recovery.py',
                          'tests/test_recovery_copied_authorship.py')
-        for ancestor, descendant in ((PREIMAGE, integrated_main), (integrated_main, 'HEAD')):
+        for ancestor, descendant in ((PREIMAGE, integrated_main),
+                                     (integrated_main, PACKAGED), (PACKAGED, 'HEAD')):
             subprocess.run(['git', '-C', str(ROOT), 'merge-base', '--is-ancestor',
                             ancestor, descendant], check=True)
         main_doc = json.loads(git_bytes(integrated_main, package))
@@ -109,7 +113,7 @@ class CatalogDependentClosureTests(unittest.TestCase):
                           if main_doc['files'][p] != old_doc['files'][p]}, set(main_advances))
         for relative in main_advances:
             committed = git_bytes(integrated_main, relative)
-            self.assertEqual((ROOT / relative).read_bytes(), committed)
+            self.assertEqual(git_bytes(PACKAGED, relative), committed)
             self.assertEqual(main_doc['files'][relative]['sha256'], sha(committed))
             metadata = dict(main_doc['files'][relative])
             metadata['sha256'] = old_doc['files'][relative]['sha256']
@@ -126,27 +130,85 @@ class CatalogDependentClosureTests(unittest.TestCase):
             else:
                 self.assertEqual(new_doc['files'][relative], main_doc['files'][relative])
         for relative in CLOSURE + (added, runner):
-            if new_doc['files'][relative]['sha256'] != sha((ROOT / relative).read_bytes()):
+            if new_doc['files'][relative]['sha256'] != sha(git_bytes(PACKAGED, relative)):
                 failures.append('package stale: ' + relative)
         old_header = {k: v for k, v in old_doc.items() if k != 'files'}
         new_header = {k: v for k, v in new_doc.items() if k != 'files'}
-        # Current main declares 1121 while its genuine tracked tree has 1122.
-        # The maintained resolver repairs this pre-existing count, not any source pin.
+        # The accepted historical resolver repaired the inherited tracked count.
         self.assertEqual(new_header.pop('tracked_count'), len(new_doc['files']) + 1)
         old_header.pop('tracked_count')
         self.assertEqual(old_header, new_header)
-        restored = json.loads((ROOT / package).read_bytes())
+        restored = json.loads(git_bytes(PACKAGED, package))
         del restored['files'][added]
         for relative in CLOSURE + (runner,) + main_advances:
             restored['files'][relative]['sha256'] = old_doc['files'][relative]['sha256']
         restored['tracked_count'] = old_doc['tracked_count']
         self.assertEqual((json.dumps(restored, indent=2) + '\n').encode(), git_bytes(PREIMAGE, package))
         runner_before = git_bytes(PREIMAGE, runner)
-        runner_after = (ROOT / runner).read_bytes()
+        runner_after = git_bytes(PACKAGED, runner)
         line = b'suites+=(tests/test_f01_catalog_dependent_copins.py)\n'
         self.assertEqual(runner_after.count(line), 1)
         self.assertEqual(runner_after.replace(line, b''), runner_before)
         self.assertEqual(failures, [], '\n'.join(failures))
+        self.assert_current_committed_package()
+
+    def assert_current_committed_package(self):
+        # Current authority is committed Git, never a matching workspace self-repin.
+        package = 'ops/rebuild-source-manifest.json'
+        committed_package = git_bytes('HEAD', package)
+        document = json.loads(committed_package)
+        tracked = set(subprocess.check_output(
+            ['git', '-C', str(ROOT), 'ls-tree', '-r', '--name-only', 'HEAD'],
+            text=True).splitlines())
+        self.assertEqual(set(document['files']) | {package}, tracked)
+        self.assertEqual(document['tracked_count'], len(tracked))
+        for relative, record in document['files'].items():
+            committed = git_bytes('HEAD', relative)
+            self.assertEqual((ROOT / relative).read_bytes(), committed,
+                             'workspace leaf differs from committed HEAD: ' + relative)
+            self.assertEqual(record['sha256'], sha(committed),
+                             'committed package stale: ' + relative)
+        self.assertEqual((ROOT / package).read_bytes(), committed_package,
+                         'workspace package differs from committed HEAD')
+
+    def test_committed_unrelated_advance_preserves_historical_closure(self):
+        # Real disposable Git successor, not a working-tree self-repin authority.
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / 'candidate'
+            subprocess.run(['git', 'clone', '--quiet', '--shared', str(ROOT),
+                            str(candidate)], check=True)
+            relative = 'scripts/article_review_recovery.py'
+            leaf = candidate / relative
+            leaf.write_bytes(leaf.read_bytes() + b'\n# Offline unrelated successor fixture.\n')
+            package = candidate / 'ops/rebuild-source-manifest.json'
+            document = json.loads(package.read_bytes())
+            document['files'][relative]['sha256'] = sha(leaf.read_bytes())
+            package.write_text(json.dumps(document, indent=2) + '\n')
+            subprocess.run(['git', '-C', str(candidate), 'add', relative,
+                            'ops/rebuild-source-manifest.json'], check=True)
+            subprocess.run(['git', '-C', str(candidate), '-c', 'user.name=Fixture',
+                            '-c', 'user.email=fixture@example.invalid', 'commit',
+                            '--quiet', '-m', 'Offline committed unrelated advance'], check=True)
+            with patch(__name__ + '.ROOT', candidate):
+                self.test_exact_genuine_preimage_to_successor_closure()
+
+    def test_unauthorized_workspace_leaf_and_matching_self_repin_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / 'candidate'
+            subprocess.run(['git', 'clone', '--quiet', '--shared', str(ROOT),
+                            str(candidate)], check=True)
+            relative = 'scripts/article_review_recovery.py'
+            leaf = candidate / relative
+            leaf.write_bytes(leaf.read_bytes() + b'\n# Unauthorized workspace fixture.\n')
+            package = candidate / 'ops/rebuild-source-manifest.json'
+            document = json.loads(package.read_bytes())
+            document['files'][relative]['sha256'] = sha(leaf.read_bytes())
+            package.write_text(json.dumps(document, indent=2) + '\n')
+            self.assertEqual(document['files'][relative]['sha256'], sha(leaf.read_bytes()))
+            with patch(__name__ + '.ROOT', candidate):
+                with self.assertRaisesRegex(AssertionError,
+                                           'workspace leaf differs from committed HEAD: ' + relative):
+                    self.test_exact_genuine_preimage_to_successor_closure()
 
 
 if __name__ == '__main__':
