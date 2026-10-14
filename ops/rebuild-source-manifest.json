@@ -2644,7 +2644,7 @@
         "manual:authorized-dot-ticket"
       ],
       "kind": "script",
-      "sha256": "d7051f98273c6bec4645c32b62fae12b228951b11e2b249a1bc3b822f4cf1414"
+      "sha256": "9ed0f847f2e975f405927ed31bc8e83219402c3ef30a36230286dc05610ba0ad"
     },
     "scripts/evidence_preserving_pruner.py": {
       "callers": [
@@ -5035,7 +5035,7 @@
         "CI:native-reply-consumer"
       ],
       "kind": "test",
-      "sha256": "c7b66c1fcd88e1ca3369df02a59b359f0ce7437824455a17ffda99d8711d0f57"
+      "sha256": "f3e584b9edda5d8a2eed3975293198abe9c322344cc1c364771dce1e87789a0b"
     },
     "tests/test_f07_registered_weekly_entry.py": {
       "callers": [
