@@ -411,16 +411,32 @@ def reconcile_conversions(snapshot, observations, identities):
     return result
 
 
-def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=None, budget_seconds=240, max_requests=32,
-        reconciliation_input=None, statement_intake=None, statement_sha256=None, request_transport=None):
-    as_of = as_of or datetime.now(timezone.utc)
-    window = windows(as_of, lookback_days)
+def marketplace_order(roster, start_marketplace=None):
+    """Validate an explicit rotation, never filter or mutate the supplied roster."""
     marketplaces = roster.get('marketplaces')
     if not isinstance(marketplaces, list) or roster.get('marketplace_count') != len(marketplaces):
         raise ValueError('roster_count_mismatch')
     names = [token(m['marketplace']) for m in marketplaces]
     if len(set(names)) != len(names):
         raise ValueError('duplicate_marketplace')
+    if start_marketplace is None:
+        return names
+    selectors = start_marketplace if isinstance(start_marketplace, list) else [start_marketplace]
+    if len(selectors) != 1:
+        raise ValueError('duplicate_start_marketplace')
+    start = selectors[0]
+    if not isinstance(start, str) or start not in names:
+        raise ValueError('start_marketplace_invalid')
+    offset = names.index(start)
+    return names[offset:] + names[:offset]
+
+
+def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=None, budget_seconds=240, max_requests=32,
+        reconciliation_input=None, statement_intake=None, statement_sha256=None, request_transport=None,
+        start_marketplace=None):
+    as_of = as_of or datetime.now(timezone.utc)
+    window = windows(as_of, lookback_days)
+    names = marketplace_order(roster, start_marketplace)
     if not 1 <= budget_seconds <= 1800 or not 1 <= max_requests <= 128:
         raise ValueError('run_bounds_invalid')
     output = Path(output)
@@ -434,6 +450,8 @@ def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=
         'payment_candidates': [], 'observations': [], 'gaps': [],
         'unresolved_pending_beyond_lookback': 'UNKNOWN_NO_OPERATIONAL_LEDGER_READ',
         'skills_loaded': ['affiliate-network-reporting'], 'skills_should_have_loaded': ['affiliate-network-reporting']}
+    if start_marketplace is not None:
+        result['selection_start_marketplace'] = names[0]
     save(output/'STARTED.json', {'status': 'RUNNING', 'window': window})
     deadline = time.monotonic()+budget_seconds
     if request_transport is not None:
@@ -508,6 +526,7 @@ def main(argv=None):
     p.add_argument('--lookback-days',type=int,default=90)
     p.add_argument('--budget-seconds',type=int,default=240)
     p.add_argument('--max-requests',type=int,default=32)
+    p.add_argument('--start-marketplace',action='append',help='Rotate the full roster to this exact marketplace; specify once')
     p.add_argument('--reconciliation-input',type=Path,help='Optional local F12 evidence JSON; never fetches conversions')
     p.add_argument('--statement-intake',type=Path)
     p.add_argument('--statement-sha256')
@@ -541,6 +560,7 @@ def main(argv=None):
     registry=json.loads(args.identity_registry.read_text())
     if registry.get('schema')!='reporting-identity-registry-v1':
         raise ValueError('identity_registry_schema_invalid')
+    names=marketplace_order(roster,args.start_marketplace)
     collectors={}
     transport=None
     if args.live_cj_readonly:
@@ -572,7 +592,7 @@ def main(argv=None):
         sys.path.insert(0,str(here.parent))
         from affiliate_network_access_j7 import weekly_collectors
         transport=RunReadTransport(max_requests=args.max_requests,deadline=time.monotonic()+args.budget_seconds)
-        collectors=weekly_collectors([token(m['marketplace']) for m in roster['marketplaces']],
+        collectors=weekly_collectors(names,
                                      transport, eden_intake=args.eden_intake, eden_sha256=args.eden_intake_sha256)
     if args.live_network_readonly and args.xentraffic_intake:
         from affiliate_reporting_xentraffic_j7 import collector
@@ -595,7 +615,7 @@ def main(argv=None):
                 collectors=collectors,budget_seconds=args.budget_seconds,max_requests=args.max_requests,
                 reconciliation_input=reconciliation_input,
                 statement_intake=args.statement_intake, statement_sha256=args.statement_sha256,
-                request_transport=transport)
+                request_transport=transport, start_marketplace=args.start_marketplace)
             result['source_pins_sha256']=pin_hash
             result['invocation']='MANUAL_READ_ONLY' if live_readonly else 'OFFLINE_DRY_RUN_NO_PROVIDER_IO'
             save(args.output/'RESULT.json',result)

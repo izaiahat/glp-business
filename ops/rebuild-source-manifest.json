@@ -766,7 +766,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "e16fbc267069eeedb155a4faca90d853e09224bca5b2c0f58d56b7981ace4a66"
+      "sha256": "b0181e598ae0153beae698f9a996e8fcb53e5de788ba10975f3027a20193ab9f"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -1247,7 +1247,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "122754f97b624f6ebc3a1535b6ac32695bebe36f214e555b1e3023e86f66fd4b"
+      "sha256": "b56681704de41039cf39bb35603a3642d170fa19b93c2a016985a227e4591525"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2887,7 +2887,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "afa97d1f6970c9f2cb67f6c26b2ab4c9d9a8ad628334a83c9278f32ae4eedfef"
+      "sha256": "3400a912789ba25f85931622bcdec4d1fc744c8386b637900ef7de1839983777"
     },
     "scripts/glp_affiliate_weekly_reporting_j7_job.py": {
       "callers": [
@@ -2895,7 +2895,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "f4f0f959bb0e7fd01530faac48aee7af8e5c0fabcaeed73fcf5831efec41eecb"
+      "sha256": "482a447e94b43a73f538e33e17e57c4f42b079607bb23e6b6625394d44af2538"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
@@ -6591,6 +6591,14 @@
       "scope": "Effects-denied actual J7 main run-wide outbound32 including authentication, corroboration, failed attempts and retries; no financial or provider effects.",
       "sha256": "c4f2042bbfe3a0ffe744eec98290db46bd89545f4166473bd28afe5ab774a176"
     },
+    "tests/test_j7_start_marketplace.py": {
+      "callers": [
+        "j7-reporting exact-head CI"
+      ],
+      "kind": "test",
+      "scope": "Effects-denied J7 actual-entry full-roster selection rotation; invalid and duplicate selectors refuse before collectors; unchanged shared32/240 and null money.",
+      "sha256": "ffd2c025635c52f14198eb74523d6e3323806ea42c58cfd5089bd6cdc4ba4e7c"
+    },
     "tests/test_j7_xentraffic_financial.py": {
       "callers": [
         "hermes:aadf6677c7f0"
@@ -7682,5 +7690,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1125
+  "tracked_count": 1126
 }
