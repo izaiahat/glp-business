@@ -7,6 +7,7 @@ from tests.test_glp336_host_weekly import (
     test_crash_after_analysis_resumes_without_collection,
     test_tampered_analysis_refuses_instead_of_recollecting,
     test_wrong_week_and_failed_budget_cannot_complete,
+    test_free_analysis_completes_with_explicit_metered_hold,
 )
 
 ROOT=Path(__file__).resolve().parents[1]

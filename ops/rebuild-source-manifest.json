@@ -7,14 +7,14 @@
         "scripts/glp_weekly_strategy_report.py",
         "hermes:020bcdd7f0e1"
       ],
-      "sha256": "3476280f25c4a86e689df81d55f7092f6072bb9f5169de374bb0219485de190c"
+      "sha256": "5f0fe81f000a3f0392b3997cad29319332e69c319bc77b3d744ed338d5220272"
     },
     "tests/test_glp336_host_weekly.py": {
       "kind": "test",
       "callers": [
         "business-source-ci:GLP44-strategy-sync"
       ],
-      "sha256": "6b185c5ce59b12a78e499a6d8e04dfe7dfe6d298c4ed523c9bc8340a3c602f1a"
+      "sha256": "9a0a00c551a48c075ca5a48e14d9a89ad87e22e0bf7a1739303af2deb82626c0"
     },
     "tests/test_f01_catalog_dependent_copins.py": {
       "kind": "test",
@@ -5683,7 +5683,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "d1e2a2258d07fb425693271b42996dad7bdfd828c51afc6e25e79b3b50d6f5b3"
+      "sha256": "18a125419ab189d8a3b2ce5984615b7eff170ac2a57df98f35cca53b2d82bc4e"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [
