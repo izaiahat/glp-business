@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import time
 import types
@@ -240,10 +241,15 @@ class ScreenshotReceiptTests(unittest.TestCase):
 
 class CurrentPolicyPointerTests(unittest.TestCase):
     def test_exact_live_preimage_preserved_except_genuine_receipt_pointer(self):
-        # Complete authenticated policy preimage, not an assumed checkout policy.
-        # This static source regression does not install policy or qualify images.
-        source = SOURCE.parents[1] / 'ops/disk-retention-policy.json'
-        raw = source.read_text()
+        # Complete authenticated historical preimage from its immutable commit.
+        # All original transition/reversal assertions below remain intact; they
+        # prove that historical move, not a permanent freeze of current source.
+        historical = subprocess.check_output([
+            'git', '-C', str(SOURCE.parents[1]), 'show',
+            'b861546cdc509752352aff8703bcc0f8b3c08eef:ops/disk-retention-policy.json'])
+        self.assertEqual(hashlib.sha256(historical).hexdigest(),
+                         '525703a91cda939c52f8844e60a77016792fd99abee21fdfd337f1dd987dee3f')
+        raw = historical.decode()
         policy = json.loads(raw)
         pointer = policy['rule_D']['dry_run_receipt']
         old_path = '/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/pr233-qualification-20261004T075713Z-231834/dry-run-images.json'
@@ -259,6 +265,42 @@ class CurrentPolicyPointerTests(unittest.TestCase):
         self.assertIn('/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13',
                       policy['protected_roots'])
         self.assertNotIn('completed_ci_dependencies', policy)
+
+    def test_exact_successor_reverses_only_pointer_and_refuses_drift(self):
+        # Current source authority is separate from the immutable historical
+        # transition above; a newer receipt must not erase that older proof.
+        source = SOURCE.parents[1] / 'ops/disk-retention-policy.json'
+        historical = subprocess.check_output([
+            'git', '-C', str(SOURCE.parents[1]), 'show',
+            'b861546cdc509752352aff8703bcc0f8b3c08eef:ops/disk-retention-policy.json'])
+        self.assertEqual(hashlib.sha256(historical).hexdigest(),
+                         '525703a91cda939c52f8844e60a77016792fd99abee21fdfd337f1dd987dee3f')
+        old = json.loads(historical)['rule_D']['dry_run_receipt']
+        expected = {
+            'path': '/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/host-repair-merged-5c8ee70-20261014/dry-run-images.json',
+            'sha256': '8529c0fb238fede4cb5025147c53e38a6f2c739b58ec505b78fd8c48ad64bc10'}
+
+        def verify(raw):
+            self.assertEqual(json.loads(raw)['rule_D']['dry_run_receipt'], expected)
+            restored = raw
+            for key in ('path', 'sha256'):
+                self.assertEqual(raw.count(expected[key].encode()), 1)
+                restored = restored.replace(expected[key].encode(), old[key].encode())
+            self.assertEqual(restored, historical)
+            self.assertEqual(hashlib.sha256(raw).hexdigest(),
+                             '53fa1c1a7b482859b4b4df98003f059c5167fc0ec41cd390a20b209bdeb2a911')
+
+        raw = source.read_bytes()
+        verify(raw)
+        # These are private byte mutations, not policy edits or receipt reseals.
+        for before, after in (
+                (expected['path'], expected['path'] + '.other'),
+                (expected['sha256'], '0' * 64),
+                ('wrangler-4.114.0-r13', 'wrangler-4.114.0-r99')):
+            with self.subTest(drift=before):
+                self.assertEqual(raw.count(before.encode()), 1)
+                with self.assertRaises(AssertionError):
+                    verify(raw.replace(before.encode(), after.encode()))
 
 
 if __name__ == '__main__':
