@@ -49,6 +49,28 @@ def execute(argv: list[str], log: Path) -> int:
                               check=False, cwd=HERE).returncode
 
 
+def plan_is_empty(receipts: Path, db: Path) -> bool:
+    """Check the pinned archive.py v1 plan binding before arming effects.
+
+    Only an explicit empty ID list is a no-op; missing/invalid/foreign plans
+    must refuse. Nonempty plans still pass through copy's unchanged loader
+    and live safety checks, never through an alternative effect path.
+    """
+    plan = json.loads((receipts / 'PLAN.json').read_text())
+    if (not isinstance(plan, dict) or
+            type(plan.get('plan_schema_version')) is not int or
+            plan['plan_schema_version'] != 1):
+        raise ValueError('archive_plan_schema_invalid')
+    planned_db = plan.get('db')
+    if (not isinstance(planned_db, str) or not planned_db or
+            os.path.abspath(planned_db) != os.path.abspath(db)):
+        raise ValueError('archive_plan_db_binding_invalid')
+    ids = plan.get('doomed_session_ids')
+    if not isinstance(ids, list) or any(not isinstance(i, str) or not i for i in ids):
+        raise ValueError('archive_plan_ids_invalid')
+    return ids == []
+
+
 def run_chain(root: Path, db: Path, config: Path, *, executor=execute,
               check_only: bool = False) -> dict:
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -89,6 +111,8 @@ def run_chain(root: Path, db: Path, config: Path, *, executor=execute,
                 result['status'] = 'CHECK_ONLY_PASS_NO_EFFECTS'
             elif step('plan', '--days', '7') != 0 or step('preflight') != 0:
                 result['status'] = 'REFUSED_PLAN_OR_PREFLIGHT'
+            elif plan_is_empty(run / 'receipts', db):
+                result['status'] = 'NOOP_EMPTY_PLAN_NO_EFFECTS'
             else:
                 # A PASS is an observation, not a lock against future process starts.
                 # The operator must keep the quiet window throughout this run.
@@ -235,7 +259,8 @@ def main() -> int:
     if not args.no_notify:
         notify(result)
     print(format_receipt(result))
-    return 0 if result['status'] in {'ARCHIVE_VERIFIED', 'CHECK_ONLY_PASS_NO_EFFECTS'} else 1
+    return 0 if result['status'] in {'ARCHIVE_VERIFIED', 'CHECK_ONLY_PASS_NO_EFFECTS',
+                                     'NOOP_EMPTY_PLAN_NO_EFFECTS'} else 1
 
 
 if __name__ == '__main__':

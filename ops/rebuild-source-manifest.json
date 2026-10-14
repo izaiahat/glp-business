@@ -1402,7 +1402,7 @@
         "hermes:a0d5cb0609b9"
       ],
       "kind": "script",
-      "sha256": "9d27fd1720e824f9e597cd1060d1855381e5a1800987682c5ca4e5777809f735"
+      "sha256": "f460253c7f86153c9b0c319dd823e287b58f4a2add4071906ad5af8776d30d09"
     },
     "ops/hermes-cron-scripts/higgsfield_auth_keepalive.py": {
       "callers": [
@@ -7682,14 +7682,14 @@
       "callers": [
         "GLP349 authenticated archive source cohort"
       ],
-      "sha256": "a091a3a4d7dbf2b963eebc61a48e8406cbaf6bac30e3c07e4be95fcef25bec24"
+      "sha256": "b765cfac44b12522ff7a74a306bbad258d66f2d8604e70da93f08a9e84b15a37"
     },
     "scripts/hermes_state_archive/weekly-pins.json": {
       "kind": "repository_control",
       "callers": [
         "GLP349 authenticated archive source cohort"
       ],
-      "sha256": "814d12101560574dcb4027157f616532e23d7a5790e3ead50ad8b557c0e5b607"
+      "sha256": "3685ba1acac0916e7c53cabae6fe710b52fd4d46d8b2a054be9f97ad5d6a4757"
     },
     "ops/systemd/hermes-state-archive-weekly.service": {
       "kind": "repository_control",
@@ -7703,7 +7703,7 @@
       "callers": [
         "GLP349 effects-denied source review"
       ],
-      "sha256": "5d77c7ccd2588c8eca9b09f42dad25607aac0b9c8f06b81f829156177c15d9c7"
+      "sha256": "2114bb9956da1ac62c0245812059e51375224de29f20391eb9cc3d912c3fd101"
     },
     ".github/workflows/glp349-archive-source.yml": {
       "kind": "repository_control",
@@ -7717,7 +7717,7 @@
       "callers": [
         "GLP349 effects-denied source review"
       ],
-      "sha256": "c91d548c49cb1530d47d8a69eea71718f3517b6511ce95dc9faf6e0d091e5611"
+      "sha256": "6b588e697254d4f8a06f83d2a4bee53bc7bff7fce8175c7833e933a7ef6912f6"
     },
     "tests/test_j7_run_http_budget.py": {
       "callers": [

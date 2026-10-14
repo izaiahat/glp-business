@@ -28,12 +28,23 @@ not independent source acceptance or current operational authority.
 ## Archive dependency closure
 
 `launcher -> weekly-pins.json -> weekly.py -> archive.py` is the registered
-history-preserving chain. The service is also pinned. None of the controller,
-archive implementation or service bytes changed in this PR:
+history-preserving chain. The service is also pinned. Archive implementation
+and service bytes remain unchanged. The initial helper successor retained the
+controller too; the independently requested empty-plan repair now changes only
+its pre-effect plan gate and successful no-effect terminal handling:
 
 - archive.py: d00b8e73b0647bc7635d818a6371df871e5eb48ff38cee8b9a2a6637d10853b2
-- weekly.py: a091a3a4d7dbf2b963eebc61a48e8406cbaf6bac30e3c07e4be95fcef25bec24
+- historical weekly.py: a091a3a4d7dbf2b963eebc61a48e8406cbaf6bac30e3c07e4be95fcef25bec24
 - service: b523fe7a326b413d5c6b33cc38174ba8cc5775fc262c48a4123987dfc08ea3df
+
+After successful plan and repeated preflight, the controller requires the pinned
+v1 schema, the same absolute DB binding and an explicit ID list. Only a validated
+empty list returns `NOOP_EMPTY_PLAN_NO_EFFECTS`, accepted by `main`, before ACTIVE
+or `effects_started`. Missing/malformed/foreign plans refuse; prior ACTIVE still
+refuses before planning. Nonempty work still uses the existing journal and actual
+copy loader, SQL safety guards and verify-before-delete chain. No replay or
+notification changes are included. The enforced pin map and outer launcher literal
+are updated from the changed controller bytes, not from historical hashes.
 
 At verified terminal retention, weekly invokes
 `disk_retention.archive_retention(host_disk_pruner, ...)`. Its local call
@@ -42,9 +53,12 @@ closure is `pinned_json -> protected/protected_name + digest`,
 `process_inventory/path_is_active -> _reference_is_under/is_under`.
 `archive_retention`, `pinned_json`, `digest`, `decompressed_digest`,
 `_reference_is_under`, and `is_under` are AST-identical to K4c.
-`protected` now delegates name exclusions to `protected_name`, including
-reports/secrets/state/financial/browser/worktree paths, while retaining
-symlink/resolved-path/Git-directory refusal.
+`protected` now delegates name exclusions to `protected_name`: database
+suffixes (with archive-name exceptions), sealed/tmux/Chromium/state.db/profile/
+CDP/financial prefixes, and exact secrets/state/sessions/evidence/finance/
+payments/browser-profile/Chromium/claude-1000/hermes-results/.git/.worktrees
+components. `reports` is not a blanket name exclusion. Symlink/resolved-path/
+Git-directory refusal remains; this wording correction broadens no behavior.
 
 Both process helpers changed: the inventory now snapshots cwd/exe/root,
 FD and maps references, strips deleted suffixes and resolves each unique
@@ -80,6 +94,19 @@ Candidate pin equality and launcher dispatch arguments are checked with a
 mocked process boundary, and a coherent stale dependency graph refuses with
 process/SQL/socket/signalling/unlink/replace effects denied. No host process
 inventory or live database is exercised.
+
+One additional owning regression exercises the actual empty-plan controller and
+copy loader with synthetic successful preflight/plan boundaries and scratch-only
+journals. The predecessor reproduces BLOCKED_COPY then
+BLOCKED_AMBIGUOUS_PRIOR_RUN; the successor completes two independent no-effect
+invocations without ACTIVE. Missing/malformed/foreign-plan and prior-ACTIVE
+controls remain refusing, and nonempty copy refusal still preserves ACTIVE.
+This is not genuine planner SQL or quiet-window evidence.
+
+Independent finding 4273351595 is retained: `QUEUED_NO_POST` has no retry consumer,
+so a no-post notification can remain undelivered. This confirmed delivery-liveness
+gap remains with the same owner for separately authorized follow-through. No send,
+retry redesign, or automatic ambiguous replay is authorized or implemented here.
 
 ## Mandatory receiving scope, separately admitted by parent
 

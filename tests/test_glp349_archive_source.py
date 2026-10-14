@@ -131,6 +131,108 @@ class ArchiveSourceTests(unittest.TestCase):
                     self.archive.main(['--db', '/not-opened/state.db', command])
                 self.assertEqual(exc.exception.code, 2)
 
+    def test_empty_plan_does_not_arm_journal_or_block_next_invocation(self):
+        weekly = load('glp349_weekly', 'scripts/hermes_state_archive/weekly.py')
+        with tempfile.TemporaryDirectory() as temp, contextlib.ExitStack() as stack:
+            fixture = Path(temp)
+            db = fixture / 'state.fixture'
+            db.write_bytes(b'not SQLite')
+            # Synthetic preflight/plan only; real controller, journals and copy
+            # loader. No SQL, real process, network, signalling or unlink.
+            for owner, name in ((sqlite3, 'connect'), (subprocess, 'run'),
+                                (subprocess, 'Popen'), (socket, 'socket'),
+                                (os, 'kill'), (Path, 'unlink')):
+                stack.enter_context(mock.patch.object(owner, name,
+                    side_effect=AssertionError('prohibited effect: ' + name)))
+            replace = os.replace
+            def scratch_replace(src, dst):
+                self.assertTrue(Path(src).is_relative_to(fixture))
+                self.assertTrue(Path(dst).is_relative_to(fixture))
+                return replace(src, dst)
+            stack.enter_context(mock.patch.object(os, 'replace', side_effect=scratch_replace))
+            valid = {'plan_schema_version': self.archive.PLAN_SCHEMA_VERSION,
+                     'db': str(db), 'doomed_session_ids': []}
+            payload = json.dumps(valid)
+            calls = []
+            def executor(argv, log):
+                command = log.name.split('-', 1)[1].removesuffix('.log')
+                calls.append(command)
+                receipts = Path(argv[argv.index('--receipts') + 1])
+                if command == 'preflight':
+                    return 0  # not genuine quiet-window admission
+                if command == 'plan':
+                    receipts.mkdir()
+                    if payload is not None:
+                        (receipts / 'PLAN.json').write_text(payload)
+                    return 0
+                self.assertEqual(command, 'copy')
+                with contextlib.redirect_stderr(io.StringIO()):
+                    try:
+                        self.archive.cmd_copy(mock.Mock(plan=None,
+                            receipts=str(receipts), db=str(db),
+                            archive=str(receipts.parent / 'archive.db'),
+                            quiet_window=False))  # real no-quiet refusal for nonempty control
+                    except SystemExit as exc:
+                        return exc.code  # actual predecessor empty-plan refusal
+                self.fail('copy must not reach SQL')
+            root = fixture / 'empty'
+            first = weekly.run_chain(root, db, fixture / 'config', executor=executor)
+            second = weekly.run_chain(root, db, fixture / 'config', executor=executor)
+            for result in (first, second):
+                self.assertEqual(result['status'], 'NOOP_EMPTY_PLAN_NO_EFFECTS')
+                self.assertFalse(result['effects_started'])
+                self.assertFalse(result['quiet_window_acquired'])
+                self.assertEqual([s['command'] for s in result['steps']],
+                                 ['preflight', 'plan', 'preflight'])
+            self.assertNotEqual(first['run_id'], second['run_id'])
+            self.assertFalse((root / 'ACTIVE.json').exists())
+            self.assertEqual(json.loads((root / 'LATEST.json').read_text()), second)
+            # main must accept the new no-effect terminal and skip retention.
+            with mock.patch.object(weekly, 'check_pins'), \
+                 mock.patch.object(weekly, 'run_chain', return_value=second), \
+                 mock.patch.object(weekly, 'retain_completed_archive',
+                                   side_effect=AssertionError('no archive to retain')), \
+                 mock.patch.object(sys, 'argv', ['weekly.py', '--no-notify']), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(weekly.main(), 0)
+            invalid = {'missing': None, 'malformed': '{',
+                       'wrong-schema': json.dumps(dict(valid, plan_schema_version=2)),
+                       'foreign-db': json.dumps(dict(valid, db=str(fixture / 'foreign'))),
+                       'missing-ids': json.dumps({k: v for k, v in valid.items()
+                                                 if k != 'doomed_session_ids'}),
+                       'null-ids': json.dumps(dict(valid, doomed_session_ids=None))}
+            for name, payload in invalid.items():
+                with self.subTest(plan=name):
+                    invalid_root = fixture / name
+                    result = weekly.run_chain(invalid_root, db, fixture / 'config', executor=executor)
+                    self.assertEqual(result['status'], 'BLOCKED_CONTROLLER_EXCEPTION')
+                    self.assertFalse(result['effects_started'])
+                    self.assertFalse((invalid_root / 'ACTIVE.json').exists())
+                    self.assertNotIn('copy', [s['command'] for s in result['steps']])
+            payload = json.dumps(dict(valid, doomed_session_ids=['fixture-session']))
+            nonempty = fixture / 'nonempty'
+            result = weekly.run_chain(nonempty, db, fixture / 'config', executor=executor)
+            self.assertEqual(result['status'], 'BLOCKED_COPY')
+            self.assertTrue(result['effects_started'])
+            self.assertIn('copy', [s['command'] for s in result['steps']])
+            armed = (nonempty / 'ACTIVE.json').read_bytes()
+            count = len(calls)
+            result = weekly.run_chain(nonempty, db, fixture / 'config', executor=executor)
+            self.assertEqual(result['status'], 'BLOCKED_AMBIGUOUS_PRIOR_RUN')
+            self.assertEqual(len(calls), count)
+            self.assertEqual((nonempty / 'ACTIVE.json').read_bytes(), armed)
+            prior = fixture / 'prior'
+            prior.mkdir()
+            journal = prior / 'ACTIVE.json'
+            journal.write_bytes(b'{"run_id":"uncertain-prior"}\n')
+            before = journal.read_bytes()
+            with mock.patch.object(weekly, 'execute', side_effect=AssertionError('no replay')):
+                result = weekly.run_chain(prior, db, fixture / 'config',
+                    executor=lambda *args: self.fail('prior ACTIVE must refuse before executor'))
+            self.assertEqual(result['status'], 'BLOCKED_AMBIGUOUS_PRIOR_RUN')
+            self.assertEqual(journal.read_bytes(), before)
+            self.assertEqual(db.read_bytes(), b'not SQLite')
+
     def test_candidate_pin_closure_and_real_launcher_drift_refusal(self):
         pin = ROOT / 'scripts/hermes_state_archive/weekly-pins.json'
         data = json.loads(pin.read_text())
