@@ -16,7 +16,8 @@ cost is settled per call; an unsettled or unmeasured call blocks the week.
 Week = the supply week governed by the Sunday review: Sunday's calls count
 toward the following Monday's week (Sunday..Saturday, America/Los_Angeles),
 matching weekly_strategy_consumer.review_week_start.
-No credentials are read or written here.
+Ordinary spend reduction reads no credentials. Exact recovery delegates only to
+existing account-authenticated, zero-cost SERP metadata readback; no paid replay.
 """
 from __future__ import annotations
 
@@ -146,33 +147,221 @@ class WeeklyBudget:
         handle.seek(0)
         return [json.loads(line) for line in handle if line.strip()]
 
+    @staticmethod
+    def _rail_cost(value: Any) -> Decimal | None:
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            cost = Decimal(str(value))
+            return cost if cost.is_finite() and cost >= 0 else None
+        except ArithmeticError:
+            return None
+
+    @classmethod
+    def _provider_task(cls, account: str, attempt_at: float, ambiguous_at: float,
+                       endpoint: str, expected: dict[str, Any]) -> dict[str, Any] | None:
+        """Read free metadata through the unchanged native account rail."""
+        from ops.glp.seo_data_rails import DataForSEO, _http
+        try:
+            rail = DataForSEO()
+            selected = rail._accounts[account]
+            if not selected['auth']:
+                return None
+            start = dt.datetime.fromtimestamp(math.floor(attempt_at), dt.timezone.utc)
+            end = dt.datetime.fromtimestamp(math.floor(ambiguous_at) + 1, dt.timezone.utc)
+            payload = [{'datetime_from': start.strftime('%Y-%m-%d %H:%M:%S +00:00'),
+                        'datetime_to': end.strftime('%Y-%m-%d %H:%M:%S +00:00'),
+                        'limit': 1000, 'offset': 0, 'include_metadata': True}]
+            doc = _http(rail.BASE + '/serp/id_list', method='POST', body=payload,
+                        headers={'Authorization': 'Basic ' + selected['auth']}, timeout=60, retries=1)
+            return cls._metadata_record(doc, payload, endpoint, expected)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _echo_matches(echo: Any, expected: dict[str, Any]) -> bool:
+        if not isinstance(echo, dict) or not set(expected).issubset(echo):
+            return False
+        defaults = {'device': 'desktop', 'os': 'windows', 'postback_data': 'advanced'}
+        if any(k not in defaults or v != defaults[k] for k, v in echo.items() if k not in expected):
+            return False
+        return json.dumps({k: echo[k] for k in expected}, sort_keys=True, allow_nan=False) == json.dumps(expected, sort_keys=True, allow_nan=False)
+
+    @classmethod
+    def _metadata_record(cls, doc, payload, endpoint, expected):
+        if not isinstance(doc, dict) or doc.get('status_code') != 20000 or cls._rail_cost(doc.get('cost')) != 0:
+            return None
+        tasks = doc.get('tasks')
+        if not isinstance(tasks, list) or len(tasks) != 1:
+            return None
+        task = tasks[0]
+        if (task.get('status_code') != 20000 or cls._rail_cost(task.get('cost')) != 0
+                or task.get('path') != ['v3', 'serp', 'id_list']
+                or any(task.get('data', {}).get(k) != v for k, v in payload[0].items())):
+            return None
+        records = task.get('result')
+        if not isinstance(records, list) or len(records) >= 1000 or not all(isinstance(r, dict) for r in records):
+            return None
+        matches = [r for r in records if r.get('url') == 'v3' + endpoint
+                   and cls._echo_matches(r.get('metadata'), expected)]
+        return matches[0] if len(matches) == 1 else None
+
+    @classmethod
+    def _recovery_cost(cls, result: dict[str, Any], attempt: dict[str, Any],
+                       ambiguous: list[dict[str, Any]]) -> tuple[Decimal, str, str] | None:
+        """Local response bytes are hints, not authentic evidence.
+
+        Bind the original native account/run/attempt/hash/endpoint and interval
+        to one unique authenticated provider task matching the complete payload,
+        task ID and measured charge. An unavailable or incomplete provider record
+        remains UNKNOWN. Supported recovery is one organic Live SERP task.
+        No journal append or paid request is performed here.
+        """
+        try:
+            proof = result['provider_evidence']
+            if (proof['kind'] != 'dataforseo_response' or result.get('state') != 'MEASURED'
+                    or attempt.get('endpoint') != '/serp/google/organic/live/advanced'
+                    or not ambiguous):
+                return None
+            native_ids = ambiguous[0].get('provider_task_ids')
+            if any(r.get('provider_task_ids') != native_ids for r in ambiguous):
+                return None
+            raw = Path(proof['path']).read_bytes()
+            if hashlib.sha256(raw).hexdigest() != proof['sha256']:
+                return None
+            doc = json.loads(raw)
+            for key in ('account', 'run_id', 'attempt_id', 'request_hash', 'endpoint'):
+                if not isinstance(attempt.get(key), str) or not attempt[key] or doc.get(key) != attempt[key]:
+                    return None
+            payload = doc['payload']
+            if not isinstance(payload, list) or len(payload) != 1 or not isinstance(payload[0], dict) or not payload[0]:
+                return None
+            digest = hashlib.sha256(json.dumps([doc['endpoint'], payload], sort_keys=True,
+                                               allow_nan=False).encode()).hexdigest()
+            if digest != attempt['request_hash']:
+                return None
+            response = doc['response']
+            tasks = response['tasks']
+            if response.get('status_code') != 20000 or not isinstance(tasks, list) or len(tasks) != 1:
+                return None
+            task = tasks[0]
+            task_id = task.get('id')
+            uuid.UUID(task_id)
+            if native_ids is not None and native_ids != [task_id]:
+                return None
+            measured = cls._rail_cost(response.get('cost'))
+            expected = dict(payload[0], api='serp', function='live', se='google', se_type='organic')
+            if (task.get('status_code') != 20000
+                    or measured is None or measured != cls._rail_cost(result.get('cost'))
+                    or measured != cls._rail_cost(task.get('cost'))
+                    or not cls._echo_matches(task.get('data'), expected)):
+                return None
+            end_at = min(r['at'] for r in ambiguous)
+            record = cls._provider_task(attempt['account'], attempt['at'], end_at, attempt['endpoint'], expected)
+            if (not isinstance(record, dict) or record.get('id') != task_id
+                    or record.get('url') != 'v3' + attempt['endpoint']
+                    or record.get('status') != '20000'
+                    or cls._rail_cost(record.get('cost')) != measured
+                    or not cls._echo_matches(record.get('metadata'), expected)):
+                return None
+            posted, done = (dt.datetime.strptime(record[k], '%Y-%m-%d %H:%M:%S %z').timestamp()
+                            for k in ('datetime_posted', 'datetime_done'))
+            # Provider timestamps have second precision, unlike the local journal.
+            if not math.floor(attempt['at']) <= posted <= done <= math.floor(end_at) + 1:
+                return None
+            fingerprint = hashlib.sha256(json.dumps(response, sort_keys=True, allow_nan=False).encode()).hexdigest()
+            return measured, task_id, fingerprint
+        except (OSError, ValueError, TypeError, KeyError, AttributeError, RuntimeError):
+            pass
+        return None
+
     def _rail_spend(self, week: dt.date) -> tuple[Decimal, bool]:
-        """Shared DataForSEO journal spend for this PT week; (total, unknown)."""
+        """Reduce append-only exact identities; charge once in the ATTEMPT's PT week."""
         if self.rail_journal is None or not self.rail_journal.is_file():
             return Decimal('0'), False
-        total, unknown, attempts, settled = Decimal('0'), False, set(), set()
+        groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+        total, unknown = Decimal('0'), False
         for line in self.rail_journal.read_text(encoding='utf-8').splitlines():
             if not line.strip():
                 continue
-            row = json.loads(line)
-            at = row.get('at')
-            if not isinstance(at, (int, float)):
+            try:
+                row = json.loads(line)
+            except ValueError:
+                unknown = True
                 continue
-            if week_start(dt.datetime.fromtimestamp(at, dt.timezone.utc)) != week:
+            if not isinstance(row, dict):
+                unknown = True
                 continue
-            event = row.get('event')
-            if event == 'ATTEMPT':
-                attempts.add(row.get('attempt_id'))
-            elif event in ('RESULT', 'AMBIGUOUS'):
-                settled.add(row.get('attempt_id'))
-                cost = row.get('cost')
-                if event == 'AMBIGUOUS' or cost is None:
+            if row.get('event') in ('ATTEMPT', 'AMBIGUOUS', 'RESULT'):
+                identity = tuple(row.get(k) for k in ('account', 'run_id', 'attempt_id', 'request_hash'))
+                if any(k is not None and not isinstance(k, str) for k in identity):
                     unknown = True
-                else:
-                    total += Decimal(str(cost))
-        # An attempt older than the current process with no result is unknown spend.
-        if attempts - settled:
-            unknown = True
+                    continue
+                groups.setdefault(identity, []).append(row)
+        for identity, rows in groups.items():
+            attempts = [r for r in rows if r['event'] == 'ATTEMPT']
+            anchor = attempts[0] if attempts else rows[0]
+            try:
+                at = anchor['at']
+                if isinstance(at, bool) or not isinstance(at, (int, float)):
+                    raise ValueError('invalid attempt time')
+                if week_start(dt.datetime.fromtimestamp(at, dt.timezone.utc)) != week:
+                    continue
+            except (ValueError, KeyError, OverflowError, OSError):
+                unknown = True  # undatable spend must not open any week
+                continue
+            if (not attempts or not anchor.get('attempt_id')
+                    or any((r.get('at'), r.get('endpoint')) != (at, anchor.get('endpoint')) for r in attempts)):
+                unknown = True
+                continue
+            results = [r for r in rows if r['event'] == 'RESULT']
+            ambiguous = [r for r in rows if r['event'] == 'AMBIGUOUS']
+            costs = [self._rail_cost(r.get('cost')) for r in results]
+            valid = bool(results) and all(c is not None for c in costs) and len(set(costs)) == 1
+            valid = valid and all(r.get('state') in (None, 'MEASURED', 'EXHAUSTED', 'PROVIDER_ERROR') for r in results)
+            valid = valid and rows[0]['event'] == 'ATTEMPT'
+            valid = valid and all(not isinstance(r.get('at'), bool)
+                                  and isinstance(r.get('at'), (int, float))
+                                  and math.isfinite(r['at']) and r['at'] >= at for r in rows)
+            # Omitted legacy endpoint is compatible; an explicit conflict is not.
+            valid = valid and all('endpoint' not in r or r['endpoint'] == anchor.get('endpoint') for r in rows)
+            if ambiguous or any('provider_evidence' in r for r in results):
+                valid = valid and all(isinstance(k, str) and bool(k) for k in identity)
+                valid = valid and rows[-1]['event'] == 'RESULT'
+                valid = valid and all(r['at'] >= a['at'] for r in results for a in ambiguous)
+                if valid:
+                    # The journal lacks competing payloads: different raw hashes
+                    # cannot exclude provider-default-equivalent queries.
+                    end = min((a['at'] for a in ambiguous), default=at)
+                    for other_id, other_rows in groups.items():
+                        if (other_id == identity or other_id[0] != identity[0]
+                                or other_rows[0].get('endpoint') not in (None, anchor.get('endpoint'))):
+                            continue
+                        other_start = other_rows[0].get('at', float('nan'))
+                        times = [r.get('at', float('nan')) for r in other_rows if r['event'] in ('RESULT', 'AMBIGUOUS')]
+                        if (type(other_start) not in (int, float) or not math.isfinite(other_start)
+                                or any(type(t) not in (int, float) or not math.isfinite(t) for t in times)):
+                            valid = False
+                            continue
+                        other_end = math.floor(min(times)) + 1 if times else float('inf')
+                        # Use the same whole-second uncertainty as provider
+                        # metadata admission, not disjoint subsecond local times.
+                        if math.floor(other_start) <= math.floor(end) + 1 and other_end >= math.floor(at):
+                            valid = False
+                    recovered = {}
+                    for r in results:
+                        if not valid:
+                            break
+                        key = json.dumps(r, sort_keys=True)
+                        if key not in recovered:
+                            recovered[key] = self._recovery_cost(r, anchor, ambiguous)
+                    identities = list(recovered.values())
+                    valid = valid and (all(i is not None and i[0] == costs[0] for i in identities)
+                                       and len(set(identities)) == 1)
+            if valid and costs[0] is not None:
+                total += costs[0]
+            else:
+                unknown = True
         return total, unknown
 
     def _state(self, rows: list[dict[str, Any]], week: dt.date) -> dict[str, Any]:
