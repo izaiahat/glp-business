@@ -285,6 +285,127 @@ def reconcile(ticket, api=discord_api):
         return register(ticket, state, message)
 
 
+def migrate_receiving(ticket, plan, *, reader=None):
+    """Explicit reviewed Finch receiving migration, never called by consume.
+
+    Parent supplies exact preimage hashes and reviewed replacement pins. Locks
+    dispatch AND receipts; audit exact original bytes before config/state writes.
+    Interrupted replay admits only audited pre/post bytes, not a new transition.
+    Native custody, other tickets, grants and expiry ages are never written.
+    """
+    import native_reply_consumer as native
+    from dataclasses import replace
+    ticket = Path(ticket)
+    required = {'schema', 'ticket', 'ticket_preimage_sha256', 'native_config_preimage_sha256',
+        'native_row_sha256', 'old_source_pins', 'new_source_pins', 'reply_id', 'content_sha256',
+        'terminal_attachment', 'recorded_by', 'reason'}
+    if (not ticket.is_absolute() or ticket != ticket.resolve()
+            or not isinstance(plan, dict) or set(plan) != required
+            or plan['schema'] != 'DOT_RECEIVING_MIGRATION_V1' or plan['ticket'] != ticket.name
+            or not isinstance(plan['recorded_by'], str) or not re.fullmatch(native.NAME, plan['recorded_by'])
+            or not isinstance(plan['reason'], str) or not 1 <= len(plan['reason']) <= 1000
+            or plan['new_source_pins'] != source_pins()):
+        raise ValueError('receiving_migration_plan_refused')
+    with locked(ticket.parent):
+        native.private(ticket, True)
+        paths = {name: ticket / name for name in ('TICKET.json', 'NATIVE-CONFIG.json')}
+        for path in paths.values(): native.private(path)
+        current = {name: path.read_bytes().decode('utf-8') for name, path in paths.items()}
+        audit_path = ticket / 'RECEIVING-MIGRATION.json'
+        audit = None
+        if audit_path.exists():
+            native.private(audit_path)
+            audit = json.loads(audit_path.read_text())
+            if audit.get('plan') != plan:
+                raise ValueError('receiving_migration_audit_conflict')
+            preimages = audit['preimages']
+        else:
+            preimages = current
+        if (digest(preimages['TICKET.json']) != plan['ticket_preimage_sha256']
+                or digest(preimages['NATIVE-CONFIG.json']) != plan['native_config_preimage_sha256']):
+            raise ValueError('receiving_migration_preimage_refused')
+        state = json.loads(preimages['TICKET.json'])
+        config = json.loads(preimages['NATIVE-CONFIG.json'])
+        dot = DOTS['finch']
+        if (state.get('ticket') != ticket.name or state.get('dot') != 'finch'
+                or state.get('state') != 'sent' or state.get('exact_readback') is not True
+                or state.get('source_pins') != plan['old_source_pins']
+                or state.get('channel_id') != dot['channel']
+                or state.get('correlation') != 'discord-' + state.get('request_id', '')
+                or config.get('parent') != state.get('parent')
+                or config.get('receipt_state_dir') != str(ticket / 'receipts')
+                or len(config.get('registrations', [])) != 1
+                or any((ticket / name).exists() for name in ('REPLY.md', 'COMPLETION.json', 'EXPIRY.json'))):
+            raise ValueError('receiving_migration_ticket_refused')
+        native.private(ticket / 'CONFIG.json')
+        if json.loads((ticket / 'CONFIG.json').read_text()) != fleet_config(ticket, state):
+            raise ValueError('receiving_migration_fleet_binding_refused')
+        r = config['registrations'][0]
+        expected = dict(correlation=state['correlation'], channel=dot['channel'],
+            state_dir=dot['state_dir'], issuer=ISSUER, audience=dot['audience'], subject=SUBJECT,
+            task_owner=state['task_owner'], result_key=state['ticket'])
+        if (set(r) != set(expected) | {'action'} or any(r.get(k) != v for k, v in expected.items())):
+            raise ValueError('receiving_migration_registration_refused')
+        # Load the preimage through the same strict loader without creating a
+        # temporary config or relaxing its privacy check (current may be postimage).
+        directory, entries = native.load_registrations(paths['NATIVE-CONFIG.json'])
+        if len(entries) != 1:
+            raise ValueError('receiving_migration_registration_refused')
+        old = replace(entries[0], reply_id=None, content_sha256=None, terminal_attachment=None)
+        new = replace(old, reply_id=plan['reply_id'], content_sha256=plan['content_sha256'],
+            terminal_attachment=plan['terminal_attachment'])
+        changed = dict(config, registrations=[dict(r, reply_id=new.reply_id,
+            content_sha256=new.content_sha256, terminal_attachment=new.terminal_attachment)])
+        post_config = json.dumps(changed, indent=2, sort_keys=True) + '\n'
+        post_state = dict(state, source_pins=plan['new_source_pins'])
+        # Audit is stable and independent of current partial-write progress.
+        expected_audit = dict(schema='DOT_RECEIVING_MIGRATION_AUDIT_V1', plan=plan, preimages=preimages,
+            native_registration_sha256=old.registration_sha256,
+            replacement_registration_sha256=new.registration_sha256,
+            post_config=post_config, operator_approval=False)
+        if audit is not None and audit != expected_audit:
+            raise ValueError('receiving_migration_audit_conflict')
+        post_state['receiving_migration_sha256'] = digest(canonical(expected_audit))
+        post_ticket = json.dumps(post_state, indent=2, sort_keys=True) + '\n'
+        if (current['NATIVE-CONFIG.json'] not in (preimages['NATIVE-CONFIG.json'], post_config)
+                or current['TICKET.json'] not in (preimages['TICKET.json'], post_ticket)
+                or audit is None and current != preimages):
+            raise ValueError('receiving_migration_preimage_refused')
+        with native.Receipts(directory) as receipts:
+            if receipts.db.execute('SELECT COUNT(*) FROM receipts').fetchone()[0]:
+                raise ValueError('receiving_migration_receipt_conflict')
+            row = native.native_row(old)
+            if (not row or row.get('state') != 'confirmed'
+                    or digest(canonical(row)) != plan['native_row_sha256']
+                    or row.get('reply_id') != new.reply_id or row.get('reply_sha256') != new.content_sha256
+                    or not isinstance(row.get('attachment'), dict)
+                    or any(row['attachment'].get(k) != v for k, v in new.terminal_attachment.items())):
+                raise ValueError('receiving_migration_native_refused')
+            if reader is None:
+                from rook_mcp_events import discord_request
+                reader = lambda channel, identity: discord_request('GET', f'/channels/{channel}/messages/{identity}', finch=new.scope.finch)
+            data = reader(new.scope.channel, new.reply_id)
+            body = native.parse_reply_content(data.get('content'), new.scope.reply_kind)
+            if (data.get('id') != new.reply_id or data.get('channel_id') != new.scope.channel
+                    or data.get('guild_id', GUILD) != GUILD or data.get('type') != 0
+                    or data.get('webhook_id') is not None or data.get('author', {}).get('id') != dot['user']
+                    or not body or body.get('correlation') != state['correlation']
+                    or not native.verified_registered_reply_binding(data, new.scope, dot['user'])):
+                raise ValueError('receiving_migration_authenticated_reply_refused')
+            if native.native_row(old) != row:
+                raise ValueError('receiving_migration_native_changed')
+            if audit is None:
+                atomic_json(audit_path, expected_audit)
+            if native.native_row(old) != row:
+                raise ValueError('receiving_migration_native_changed')
+            atomic_text(paths['NATIVE-CONFIG.json'], post_config)
+            if native.native_row(old) != row:
+                raise ValueError('receiving_migration_native_changed')
+            atomic_text(paths['TICKET.json'], post_ticket)
+        return dict(status='receiving_migrated', ticket=ticket.name, audit=str(audit_path),
+            receipt_id=new.receipt_id, registration_sha256=new.registration_sha256, sent=False)
+
+
 def native_expiry_probe(ticket):
     """Use the supported consumer, preserving staged evidence and native custody."""
     import native_reply_consumer as native
@@ -302,7 +423,7 @@ def native_expiry_probe(ticket):
 
 
 def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
-           probe=native_expiry_probe, handoff_reply_id=None):
+           probe=native_expiry_probe, handoff_reply_id=None, handoff_content_sha256=None):
     """Explicit orchestrator-only administrative expiry; never a dot-authored reply.
 
     Refuse uncertain sends, confirmed/staged replies, live native grants/effects,
@@ -316,11 +437,19 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
         raise ValueError('recorded_expiry_reason_required')
     if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
         raise ValueError('positive_expiry_timeout_required')
+    if handoff_content_sha256 is not None and (handoff_reply_id is None
+            or timeout_seconds != 21600
+            or not isinstance(handoff_content_sha256, str)
+            or not re.fullmatch(r'[0-9a-f]{64}', handoff_content_sha256)):
+        raise ValueError('expiry_external_handoff_hash_required')
     with locked(ticket.parent):
         private_dir(ticket)
         state = json.loads((ticket / 'TICKET.json').read_text())
         if state['state'] == 'expired':
             audit = json.loads((ticket / 'EXPIRY.json').read_text())
+            if (digest(canonical(audit)) != state.get('expiry_audit_sha256')
+                    or audit.get('external_handoff_content_sha256') != handoff_content_sha256):
+                raise ValueError('expiry_audit_handoff_conflict')
             if audit.get('external_handoff',{}).get('id') != handoff_reply_id:
                 raise ValueError('expiry_audit_handoff_conflict')
             if (audit['reason'], audit['recorded_by'], audit['timeout_seconds']) != (reason, owner, timeout_seconds):
@@ -335,7 +464,9 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
             raise ValueError('expiry_reply_already_present')
         migrate_contract(ticket, state)
         native = probe(ticket)
-        if native['status'] not in {'absent', 'request_expired'}:
+        if native.get('status') not in {'absent', 'request_expired'}:
+            raise ValueError('expiry_native_confirmation_or_live_effect')
+        if handoff_content_sha256 is not None and native.get('status') != 'request_expired':
             raise ValueError('expiry_native_confirmation_or_live_effect')
         message = api('GET', f"/channels/{state['channel_id']}/messages/{state['request_id']}")
         check_readback(state, message)
@@ -352,7 +483,24 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
                 raise ValueError('expiry_external_handoff_binding_refused')
             handoff = api('GET',f"/channels/{state['channel_id']}/messages/{handoff_reply_id}")
             text = handoff.get('content','')
-            if handoff != replies[0] or handoff.get('webhook_id') or handoff.get('attachments') or not text.startswith('<@'+SENDER+'> DIRECT FALLBACK RESULT '+state['ticket']) or 'not a native-correlated receipt' not in text:
+            if not isinstance(text, str) or len(text) > 8000:
+                raise ValueError('expiry_external_handoff_binding_refused')
+            legacy = (text.startswith('<@'+SENDER+'> DIRECT FALLBACK RESULT '+state['ticket'])
+                and 'not a native-correlated receipt' in text)
+            exact_terminal = (handoff_content_sha256 is not None
+                and state['dot'] == 'rook' and handoff.get('type') == 19
+                and re.match(r'^<@'+SENDER+r'> RESULT '+re.escape(state['ticket'])+r'(?:\s+|:\s*)\S', text)
+                and 'Delivery is authorized direct fallback, NOT native-correlated:' in text
+                and handoff.get('message_reference', {}).get('message_id') == state['request_id']
+                and handoff.get('message_reference', {}).get('channel_id') == state['channel_id']
+                and handoff.get('message_reference', {}).get('guild_id') == GUILD)
+            if (handoff != replies[0] or handoff.get('id') != handoff_reply_id
+                    or handoff.get('author', {}).get('id') != DOTS[state['dot']]['user']
+                    or handoff.get('channel_id') != state['channel_id']
+                    or handoff.get('guild_id', GUILD) != GUILD
+                    or handoff.get('webhook_id') is not None or handoff.get('attachments') != []
+                    or not (legacy or exact_terminal)
+                    or handoff_content_sha256 is not None and digest(text) != handoff_content_sha256):
                 raise ValueError('expiry_external_handoff_binding_refused')
         elif replies:
             raise ValueError('expiry_reply_present_requires_reconciliation')
@@ -362,7 +510,7 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
         audit = dict(schema='DOT_NO_REPLY_EXPIRY_V1', ticket=state['ticket'],
             correlation=state['correlation'], reason=reason, recorded_by=owner,
             expired_at=now, timeout_seconds=timeout_seconds, age_seconds=now - state['sent_at'],
-            native=native, history_messages_checked=len(history), matching_reply_count=len(replies),
+            native=native, native_after=final_native, history_messages_checked=len(history), matching_reply_count=len(replies),
             history_covers_request=True, history_sha256=digest(canonical(history)),
             ticket_preimage_sha256=digest(canonical(state)), source_pins=source_pins(),
             operator_approval=False)
@@ -370,10 +518,14 @@ def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
             audit['schema']='DOT_EXTERNAL_HANDOFF_EXPIRY_V1'
             audit.update(external_handoff=handoff,external_handoff_sha256=digest(canonical(handoff)),
                          provenance='Authenticated external Discord fallback; NOT native completion')
+            if handoff_content_sha256 is not None:
+                audit['external_handoff_content_sha256'] = handoff_content_sha256
         audit_path = ticket / 'EXPIRY.json'
         if audit_path.exists():  # recover an interrupted audit-before-state commit
             old = json.loads(audit_path.read_text())
-            if any(old.get(k) != audit.get(k) for k in ('schema','external_handoff_sha256')) or old.get('external_handoff',{}).get('id') != handoff_reply_id:
+            if old.get('external_handoff') != handoff:
+                raise ValueError('expiry_audit_handoff_conflict')
+            if any(old.get(k) != audit.get(k) for k in ('schema','external_handoff_sha256','external_handoff_content_sha256')) or old.get('external_handoff',{}).get('id') != handoff_reply_id:
                 raise ValueError('expiry_audit_handoff_conflict')
             if any(old[k] != audit[k] for k in ('ticket_preimage_sha256', 'reason', 'recorded_by', 'timeout_seconds', 'source_pins')):
                 raise ValueError('expiry_audit_conflict')
@@ -401,7 +553,12 @@ def publish_reply(ticket, state, completion):
         raise ValueError('terminal_native_reply_required_no_ack_or_uncertainty')
     late = state.get('state') == 'expired'
     marker = 'LATE_REPLY_TO_EXPIRED_TICKET\n\n' if late else ''
-    reply = f"# {state['ticket']}\n\n{TRUST}\n\n{marker}{value['text']}\n"
+    attachment_text = ''
+    if value.get('attachment') is not None:
+        attachment_text = ('\n\n## Authenticated assistant-copy attachment (NOT direct tool export)\n'
+            + canonical({k: v for k, v in value['attachment'].items() if k != 'text'})
+            + '\n\n' + value['attachment']['text'])
+    reply = f"# {state['ticket']}\n\n{TRUST}\n\n{marker}{value['text']}{attachment_text}\n"
     if (ticket / 'REPLY.md').exists() and (ticket / 'REPLY.md').read_text() != reply:
         raise ValueError('reply_conflict')
     if late:
@@ -524,20 +681,30 @@ def main():
     p.add_argument('--recover-selection', help='Audited abort of unbound refill selection; never redispatch')
     p.add_argument('--reason', help='Required recorded administrative expiry/recovery reason')
     p.add_argument('--external-handoff-id', help='Exact authenticated direct-fallback reply; expiry only, not native completion')
+    p.add_argument('--external-handoff-sha256', help='Parent-reviewed exact full-wire hash required for external RESULT alternative')
+    p.add_argument('--migrate-receiving', type=Path, help='Explicit parent-reviewed exact pending Finch ticket')
+    p.add_argument('--receiving-migration-plan', type=Path, help='Private reviewed DOT_RECEIVING_MIGRATION_V1 plan')
     p.add_argument('--expiry-timeout-seconds', type=float, default=21600,
                    help='Minimum no-reply age before explicit expiry (default: 6 hours)')
     a = p.parse_args()
     os.umask(0o077)
     try:
-        if sum(bool(v) for v in (a.consume, a.reconcile, a.expire, a.recover_selection)) > 1:
+        if sum(bool(v) for v in (a.consume, a.reconcile, a.expire, a.recover_selection, a.migrate_receiving)) > 1:
             raise ValueError('choose_one_dispatcher_action')
-        if a.recover_selection:
+        if a.migrate_receiving:
+            import native_reply_consumer as native
+            if not a.receiving_migration_plan:
+                raise ValueError('receiving_migration_plan_required')
+            native.private(a.receiving_migration_plan)
+            result = migrate_receiving(a.migrate_receiving, json.loads(a.receiving_migration_plan.read_text()))
+        elif a.recover_selection:
             if not a.reason:
                 raise ValueError('recovery_reason_required')
             result = recover_selection(a.recover_selection,root=a.root,reason=a.reason)
         elif a.expire:
             result = expire(a.expire, reason=a.reason, owner=a.owner,
-                            timeout_seconds=a.expiry_timeout_seconds,handoff_reply_id=a.external_handoff_id)
+                            timeout_seconds=a.expiry_timeout_seconds,handoff_reply_id=a.external_handoff_id,
+                            handoff_content_sha256=a.external_handoff_sha256)
         elif a.consume:
             result = consume(a.root, a.max_wait_seconds)
         elif a.reconcile:

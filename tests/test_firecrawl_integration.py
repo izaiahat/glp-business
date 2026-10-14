@@ -10,6 +10,74 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import firecrawl_client as fc
 
 
+def test_topic_supply_retains_current_minter_40_query_plan_with_six_empty_results(monkeypatch, tmp_path, capsys):
+    import copy
+    import socket
+    import datetime as dt
+    script_dir = ROOT / 'systems/seo-blog-machine/scripts'
+    monkeypatch.syspath_prepend(str(script_dir))
+    spec = importlib.util.spec_from_file_location('topic_supply_query_plan_fixture', script_dir / 'refresh_topic_supply_firecrawl.py')
+    assert spec is not None and spec.loader is not None
+    supply = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(supply)
+    monkeypatch.setattr(socket.socket, 'connect', lambda *a, **kw: pytest.fail('offline regression attempted transport'))
+    feed = {'research_backlog': [
+        {'keyword': f'fixture-{i:03}', 'target_route': f'/guides/fixture-{i:03}/',
+         'reason': 'HOLD_INSUFFICIENT_MEASURED_EVIDENCE'} for i in range(41)
+    ] + [
+        {'keyword': 'Fella Health', 'target_route': '/guides/fella/', 'reason': 'excluded_provider'},
+        {'keyword': 'blocked-template', 'target_route': '/guides/blocked/', 'reason': 'HOLD_TEMPLATE_UNAVAILABLE'},
+        {'target_query': 'zz-legacy', 'target_route': '/guides/legacy/', 'reason': 'insufficient_measured_competitor_evidence'},
+    ]}
+    before = copy.deepcopy(feed)
+    intended = {f'fixture-{i:03}': f'/guides/fixture-{i:03}/' for i in range(40)}
+    assert supply.target_map(feed, None) == intended
+    assert supply.target_map({'research_backlog': feed['research_backlog'][-1:]}, None) == {'zz-legacy': '/guides/legacy/'}
+    feed_path, output, page_two = (tmp_path / name for name in ('feed.json', 'output.json', 'page-two.json'))
+    feed_path.write_text(json.dumps(feed))
+    monkeypatch.setattr(supply, 'api_key', lambda: 'fixture-only')
+    calls = []
+    def offline_urlopen(request, **kwargs):
+        import io
+        calls.append(json.loads(request.data))
+        rows = [] if len(calls) <= 6 else [{'url': 'https://example.invalid/source', 'title': 'Fixture', 'markdown': 'Reported comparison information.'}]
+        return io.BytesIO(json.dumps({'success': True, 'id': f'fixture-only-{len(calls)}', 'data': {'web': rows}}).encode())
+    monkeypatch.setattr(fc, 'firecrawl_urlopen', offline_urlopen)
+    monkeypatch.setattr(sys, 'argv', ['refresh_topic_supply_firecrawl.py', '--feed', str(feed_path), '--output', str(output), '--page-two-report', str(page_two)])
+    assert supply.main() == 0
+    first = json.loads(capsys.readouterr().out)
+    pack = json.loads(output.read_text())
+    assert first['provider_calls'] == 40
+    assert pack['query_plan'] == [{'target_query': q, 'target_route': r} for q, r in intended.items()]
+    assert len(pack['targets']) == 34
+    assert len(pack['failures']) == 6
+    assert all(row['reason'] == 'no_web_results' for row in pack['failures'])
+    assert len(json.loads(page_two.read_text())['targets']) == 34
+    assert len(calls) == 40
+    assert all(body['country'] == 'US' and body['location'] == 'United States' and body['tbs'] == 'qdr:w'
+               and body['limit'] == 3 and body['scrapeOptions'] == {'formats': ['markdown'], 'onlyMainContent': True, 'proxy': 'basic'} for body in calls)
+    assert feed == before  # Research selection never promotes a HOLD.
+    assert supply.target_map({}, pack) == intended
+    assert supply.prior_is_fresh(pack, intended)
+    # Real older packs retained empty responses separately, without query_plan.
+    legacy = copy.deepcopy(pack)
+    legacy.pop('query_plan')
+    assert supply.prior_is_fresh(legacy, intended)
+    unknown = copy.deepcopy(legacy)
+    unknown['failures'][0]['reason'] = 'RuntimeError'
+    assert not supply.prior_is_fresh(unknown, intended)
+    stale = copy.deepcopy(pack)
+    stale['captured_at_utc'] = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=8)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    assert not supply.prior_is_fresh(stale, intended)
+    assert not supply.prior_is_fresh(pack, {**intended, 'changed-query': '/guides/changed/'})
+    saved = output.read_bytes(), page_two.read_bytes()
+    assert supply.main() == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second['status'] == 'PASS_FRESH_REUSE' and second['targets'] == 40 and second['provider_calls'] == 0
+    assert len(calls) == 40
+    assert (output.read_bytes(), page_two.read_bytes()) == saved
+
+
 def test_grouped_v2_search_fixture():
     payload = {'success': True, 'id': 'search-id', 'data': {'web': [{'url': 'https://a', 'title': 'A'}, {'title': 'no URL'}], 'news': [{'url': 'https://b'}], 'images': [{'url': 'https://image'}]}}
     assert [r['url'] for r in fc.search_rows(payload)] == ['https://a', 'https://b']
