@@ -15,6 +15,54 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from glp_network_revenue_v2 import canonical, digest, token
+from marketplace_adapters._base import RequestsTransport
+
+
+class RunReadTransport(RequestsTransport):
+    """One J7 attempt counter shared by reporting, auth and caller retries.
+
+    Reuse the maintained transport and its calls counter. Disable hidden HTTP
+    retries/redirects so each boundary crossing is one outbound attempt;
+    failed attempts consume capacity. Never retain headers/auth bodies.
+    """
+    def __init__(self, *, max_requests, deadline, timeout=30):
+        if type(max_requests) is not int or not 1 <= max_requests <= 128:
+            raise ValueError('run_bounds_invalid')
+        super().__init__(timeout=timeout)
+        self.max_requests=max_requests
+        self.deadline=deadline
+        self._configured=False
+
+    def _sess(self):
+        session=super()._sess()
+        if not self._configured:
+            from requests.adapters import HTTPAdapter
+            session.max_redirects=0
+            session.mount('https://',HTTPAdapter(max_retries=0))
+            session.mount('http://',HTTPAdapter(max_retries=0))
+            self._configured=True
+        return session
+
+    def request(self, method, url, **kwargs):
+        if self.calls >= self.max_requests:
+            raise ValueError('run_request_budget_exhausted')
+        # Session setup has no I/O; prepare it before the inherited attempt count.
+        self._sess()
+        remaining=self.deadline-time.monotonic()
+        if remaining <= 0:
+            raise ValueError('run_request_deadline_exhausted')
+        kwargs['timeout']=min(kwargs.get('timeout') or self.timeout,remaining)
+        return super().request(method,url,**kwargs)
+
+    def auth_request(self, method, url, **kwargs):
+        return self.request(method,url,**kwargs)
+
+    def budget_snapshot(self):
+        return {'scope':'RUN_WIDE_OUTBOUND_ATTEMPTS','limit':self.max_requests,
+            'attempted':self.calls,'remaining':self.max_requests-self.calls,
+            'exhausted':self.calls >= self.max_requests,
+            'includes':'REPORTING_AUTHENTICATION_FAILED_ATTEMPTS_AND_CALLER_RETRIES',
+            'automatic_http_retries':0,'automatic_redirects':0}
 
 
 def windows(as_of, lookback_days=90):
@@ -363,16 +411,32 @@ def reconcile_conversions(snapshot, observations, identities):
     return result
 
 
-def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=None, budget_seconds=240, max_requests=32,
-        reconciliation_input=None, statement_intake=None, statement_sha256=None):
-    as_of = as_of or datetime.now(timezone.utc)
-    window = windows(as_of, lookback_days)
+def marketplace_order(roster, start_marketplace=None):
+    """Validate an explicit rotation, never filter or mutate the supplied roster."""
     marketplaces = roster.get('marketplaces')
     if not isinstance(marketplaces, list) or roster.get('marketplace_count') != len(marketplaces):
         raise ValueError('roster_count_mismatch')
     names = [token(m['marketplace']) for m in marketplaces]
     if len(set(names)) != len(names):
         raise ValueError('duplicate_marketplace')
+    if start_marketplace is None:
+        return names
+    selectors = start_marketplace if isinstance(start_marketplace, list) else [start_marketplace]
+    if len(selectors) != 1:
+        raise ValueError('duplicate_start_marketplace')
+    start = selectors[0]
+    if not isinstance(start, str) or start not in names:
+        raise ValueError('start_marketplace_invalid')
+    offset = names.index(start)
+    return names[offset:] + names[:offset]
+
+
+def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=None, budget_seconds=240, max_requests=32,
+        reconciliation_input=None, statement_intake=None, statement_sha256=None, request_transport=None,
+        start_marketplace=None):
+    as_of = as_of or datetime.now(timezone.utc)
+    window = windows(as_of, lookback_days)
+    names = marketplace_order(roster, start_marketplace)
     if not 1 <= budget_seconds <= 1800 or not 1 <= max_requests <= 128:
         raise ValueError('run_bounds_invalid')
     output = Path(output)
@@ -386,8 +450,16 @@ def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=
         'payment_candidates': [], 'observations': [], 'gaps': [],
         'unresolved_pending_beyond_lookback': 'UNKNOWN_NO_OPERATIONAL_LEDGER_READ',
         'skills_loaded': ['affiliate-network-reporting'], 'skills_should_have_loaded': ['affiliate-network-reporting']}
+    if start_marketplace is not None:
+        result['selection_start_marketplace'] = names[0]
     save(output/'STARTED.json', {'status': 'RUNNING', 'window': window})
     deadline = time.monotonic()+budget_seconds
+    if request_transport is not None:
+        if request_transport.max_requests != max_requests:
+            raise ValueError('run_transport_budget_mismatch')
+        request_transport.deadline=min(request_transport.deadline,deadline)
+        deadline=request_transport.deadline
+        result['http_budget']=request_transport.budget_snapshot()
     for name in names:
         collector = (collectors or {}).get(name)
         if collector is None:
@@ -395,13 +467,17 @@ def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=
                 'needed': 'typed_account_program_tenant_registry_and_reviewed_reporting_adapter'})
         elif time.monotonic() >= deadline:
             result['gaps'].append({'network': name, 'state': 'DEADLINE_UNREAD'})
+        elif request_transport is not None and request_transport.calls >= max_requests:
+            result['gaps'].append({'network': name, 'state': 'REQUEST_BUDGET_UNREAD',
+                'unread_or_partial_periods':['closed_week','lookback','closed_month']})
         else:
             try:
                 page_index = [0]
                 def sink(page):
                     page_index[0] += 1
                     save(output/(name+'-page-'+str(page_index[0]).zfill(4)+'.json'), page)
-                observations = collector(window, deadline, max_requests, sink=sink)
+                remaining=max_requests-request_transport.calls if request_transport is not None else max_requests
+                observations = collector(window, deadline, remaining, sink=sink)
                 result['observations'].extend(observations)
                 if not observations or any(not x.get('report_complete_period') for x in observations):
                     result['gaps'].append({'network': name, 'state': 'PARTIAL_ACCOUNT_REPORT'})
@@ -409,6 +485,15 @@ def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=
                 result['gaps'].append({'network': name, 'state': 'IDENTITY_AND_CLASSIFICATION_COVERAGE_UNVERIFIED'})
             except Exception as exc:
                 result['gaps'].append({'network': name, 'state': 'SAFE_COLLECTOR_ERROR', 'exception_class': type(exc).__name__})
+            if request_transport is not None and request_transport.calls >= max_requests:
+                complete={x.get('period_purpose') for x in result['observations']
+                    if x.get('network')==name and x.get('report_complete_period')}
+                unread=[p for p in ('closed_week','lookback','closed_month') if p not in complete]
+                if unread:
+                    result['gaps'].append({'network': name, 'state': 'REQUEST_BUDGET_EXHAUSTED_PARTITION',
+                        'unread_or_partial_periods':unread})
+        if request_transport is not None:
+            result['http_budget']=request_transport.budget_snapshot()
         save(output/'checkpoint.json', result)
     if statement_intake:
         from affiliate_closed_statement_j9 import read
@@ -441,6 +526,7 @@ def main(argv=None):
     p.add_argument('--lookback-days',type=int,default=90)
     p.add_argument('--budget-seconds',type=int,default=240)
     p.add_argument('--max-requests',type=int,default=32)
+    p.add_argument('--start-marketplace',action='append',help='Rotate the full roster to this exact marketplace; specify once')
     p.add_argument('--reconciliation-input',type=Path,help='Optional local F12 evidence JSON; never fetches conversions')
     p.add_argument('--statement-intake',type=Path)
     p.add_argument('--statement-sha256')
@@ -474,17 +560,17 @@ def main(argv=None):
     registry=json.loads(args.identity_registry.read_text())
     if registry.get('schema')!='reporting-identity-registry-v1':
         raise ValueError('identity_registry_schema_invalid')
+    names=marketplace_order(roster,args.start_marketplace)
     collectors={}
+    transport=None
     if args.live_cj_readonly:
         sys.path.insert(0,str(business/'scripts'))
         from marketplace_adapters import cj
-        from marketplace_adapters._base import RequestsTransport
         secret, account, _=cj._secret()
         accounts=[a for a in registry.get('accounts',[]) if a.get('network')=='cj' and a.get('account_id')==account and a.get('status')=='verified' and a.get('tenant_id')=='not_applicable']
         if not secret or len(accounts)!=1 or not accounts[0].get('evidence_ref'):
             raise ValueError('configured_cj_account_not_bound')
-        transport=RequestsTransport(timeout=30)
-        transport._sess().max_redirects=0
+        transport=RunReadTransport(max_requests=args.max_requests,deadline=time.monotonic()+args.budget_seconds)
         def cj_collector(w,deadline,max_requests,*,sink):
             receipts=[]
             remaining=max_requests
@@ -505,9 +591,9 @@ def main(argv=None):
     if args.live_network_readonly:
         sys.path.insert(0,str(here.parent))
         from affiliate_network_access_j7 import weekly_collectors
-        from marketplace_adapters._base import RequestsTransport
-        collectors=weekly_collectors([token(m['marketplace']) for m in roster['marketplaces']],
-                                     RequestsTransport(timeout=30), eden_intake=args.eden_intake, eden_sha256=args.eden_intake_sha256)
+        transport=RunReadTransport(max_requests=args.max_requests,deadline=time.monotonic()+args.budget_seconds)
+        collectors=weekly_collectors(names,
+                                     transport, eden_intake=args.eden_intake, eden_sha256=args.eden_intake_sha256)
     if args.live_network_readonly and args.xentraffic_intake:
         from affiliate_reporting_xentraffic_j7 import collector
         collectors['xentraffic']=collector(args.xentraffic_intake,args.xentraffic_sha256)
@@ -528,7 +614,8 @@ def main(argv=None):
             result=run(args.output,roster,registry.get('identities',[]),lookback_days=args.lookback_days,
                 collectors=collectors,budget_seconds=args.budget_seconds,max_requests=args.max_requests,
                 reconciliation_input=reconciliation_input,
-                statement_intake=args.statement_intake, statement_sha256=args.statement_sha256)
+                statement_intake=args.statement_intake, statement_sha256=args.statement_sha256,
+                request_transport=transport, start_marketplace=args.start_marketplace)
             result['source_pins_sha256']=pin_hash
             result['invocation']='MANUAL_READ_ONLY' if live_readonly else 'OFFLINE_DRY_RUN_NO_PROVIDER_IO'
             save(args.output/'RESULT.json',result)
