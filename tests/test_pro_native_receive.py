@@ -44,7 +44,8 @@ class NativeReceiveTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
         patch.object(relay, 'JOBS', self.jobs).start()
 
-    def harness(self, batches=(), *, stale=(), fail=None, restore_fail=False, data=DATA):
+    def harness(self, batches=(), *, stale=(), fail=None, restore_fail=False, data=DATA,
+                preview_stays=False):
         batches = iter([list(stale), [], *batches])
         tick = [0]
         def monotonic():
@@ -68,6 +69,8 @@ class NativeReceiveTests(unittest.TestCase):
             self.assertEqual(url, self.st['conversation_url'])
             if expression == 'location.href':
                 return url
+            if 'previewGone' in expression:
+                return not preview_stays
             if 'Open preview' in expression:
                 return {'opened': True}
             receipt = json.loads(self.journal.read_text())
@@ -213,6 +216,17 @@ class NativeReceiveTests(unittest.TestCase):
         self.assertEqual(subject.job_state('job')['input_sha256'], job_before['input_sha256'])
         self.assertEqual(subject.job_state('job')['fetch_verification']['state'], 'VERIFIED')
         subject.drive.assert_not_called()
+
+    def test_ignored_escape_ack_blocks_next_payload(self):
+        receipt = self.receive(self.harness([[begin(), progress(filePath=str(self.target))]],
+                                            preview_stays=True))
+        self.assertEqual(receipt['result'], 'COMPLETED')
+        self.assertFalse(receipt['preview_restoration']['restored'])
+        with patch.object(relay, 'receive_native_download', return_value=receipt) as receive:
+            with self.assertRaisesRegex(ValueError, 'no retry'):
+                relay._receive_native_outbox(self.st, {'tab': 'target'}, self.dest,
+                                              [None, None, DIGEST])
+        self.assertEqual(receive.call_count, 1)
 
     def test_restore_failure_does_not_mask_transfer(self):
         receipt = self.receive(self.harness([[begin(), progress('canceled')]], restore_fail=True))

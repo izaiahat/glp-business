@@ -2200,7 +2200,15 @@ finally:
             for typ in ['keyDown', 'keyUp']:
                 cdp('Input.dispatchKeyEvent', session_id=_sessions[receipt['tab']],
                     type=typ, key='Escape', code='Escape', windowsVirtualKeyCode=27)
-            receipt['preview_restoration'] = {'restored': True}
+            # CDP accepting Escape is not proof the modal closed. Refuse the
+            # next file unless the exact bound page has no visible Download.
+            preview_gone = False
+            for _ in range(10):
+                preview_gone = probe('(()=>{const previewGone=![...document.querySelectorAll("button[aria-label=Download]")].some(e=>e.getClientRects().length);return previewGone})()') is True
+                if preview_gone:
+                    break
+                time.sleep(0.2)
+            receipt['preview_restoration'] = {'restored': preview_gone}
         except BaseException as exc:
             receipt['preview_restoration'] = {'restored': False, 'error': type(exc).__name__}
     try:
