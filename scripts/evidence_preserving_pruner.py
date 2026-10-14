@@ -655,7 +655,11 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
                 if progress_path:
                     atomic_json(progress_path,{'stage':'D_cold_run_images','rows':d_rows,
                         'runtime_seconds':time.monotonic()-start})
-            rows.extend(run_D(api,config,dry_run=dry_run,deadline=deadline,progress=d_progress))
+            # Reserve finite progress for A/B/C inside the unchanged total cap.
+            # Single-class qualification keeps its entire original deadline.
+            now=time.monotonic()
+            d_deadline=deadline if images_only else min(deadline,now+max(0,deadline-now)/4)
+            rows.extend(run_D(api,config,dry_run=dry_run,deadline=d_deadline,progress=d_progress))
             d_partial=any(r.get('partial',False) or not r.get('ok',True) for r in rows)
             save('D_cold_run_images_complete' if not d_partial else 'D_partial_or_gated')
             if images_only:
@@ -665,21 +669,23 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
     bstate={} if dry_run else state.setdefault('B_scan',{})
     if not archive_only:
         save('A_regenerable')
+        now=time.monotonic(); a_deadline=min(deadline,now+max(0,deadline-now)/3)
         while True:
             with ExitStack() as lease:
                 if not acquire(lease,'A_regenerable'): return rows
                 rows.extend(regenerable(api,Path(config['business']),state,dry_run=dry_run,
-                            deadline=min(deadline,time.monotonic()+config['A_budget_seconds']),protected_roots=protected_snapshot()))
+                            deadline=min(a_deadline,time.monotonic()+config['A_budget_seconds']),protected_roots=protected_snapshot()))
                 save('A_regenerable')
-            if not full_pass or time.monotonic()>=deadline or not (state.get('A_cursor') or state.get('A_pending')): break
+            if not full_pass or time.monotonic()>=a_deadline or not (state.get('A_cursor') or state.get('A_pending')): break
         save('B_readonly_evidence_dedupe')
+        now=time.monotonic(); b_deadline=min(deadline,now+max(0,deadline-now)/2)
         while True:
             with ExitStack() as lease:
                 if not acquire(lease,'B_readonly_evidence_dedupe'): return rows
                 result=dedupe(config['dedupe_roots'],bstate,dry_run=dry_run,
-                              deadline=min(deadline,time.monotonic()+config['B_budget_seconds']),protected_roots=protected_snapshot())
+                              deadline=min(b_deadline,time.monotonic()+config['B_budget_seconds']),protected_roots=protected_snapshot())
                 rows.append(result); save('B_readonly_evidence_dedupe')
-            if not full_pass or time.monotonic()>=deadline or result.get('status')!='TIME_BUDGET_PARTIAL': break
+            if not full_pass or time.monotonic()>=b_deadline or result.get('status')!='TIME_BUDGET_PARTIAL': break
 
     with ExitStack() as lease:
         if not acquire(lease,'C_cold_evidence_archive'): return rows

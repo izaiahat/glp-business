@@ -24,6 +24,24 @@ def disk():
 def free_space_pressure(d):
     return d['free_bytes']/d['total_bytes']<0.15
 
+def phase_result(result, report, rows, *, accepted_returncodes=(0,), partial_returncodes=()):
+    statuses=collections.Counter(r.get('status','UNSPECIFIED') for r in rows)
+    partial=sum(bool(r.get('partial')) or r.get('status') in ('INCOMPLETE','UNKNOWN') or any(s in r.get('status','') for s in ('PARTIAL','PENDING')) for r in rows)
+    gated=sum(r.get('status','').startswith(('GATED','REFUSED')) for r in rows)
+    failed=sum(not r.get('ok',True) for r in rows)
+    present=report.exists()
+    if result.returncode not in (*accepted_returncodes,*partial_returncodes) or failed:
+        status='failed'
+    elif not present:
+        status='missing_report'
+    elif result.returncode in partial_returncodes or partial or gated:
+        status='partial_or_gated'
+    else:
+        status='completed'
+    return {'returncode':result.returncode,'status':status,'report':str(report),
+            'report_present':present,'status_counts':dict(statuses),
+            'partial_rows':partial,'gated_rows':gated,'failed_rows':failed}
+
 def main():
     lock=open(HOME/'runstate/host-disk-cleanup.lock','a+')
     try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -31,7 +49,7 @@ def main():
         print('Existing cleanup owner retained; duplicate skipped.');return 0
     started=time.monotonic();stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     report=BUS/'reports/host-disk-prune'/('large-full-'+stamp);report.mkdir(parents=True)
-    before=disk();rows=[];pressure=free_space_pressure(before)
+    before=disk();rows=[];phases={};pressure=free_space_pressure(before)
     state={'unit':UNIT,'pid':os.getpid(),'report_dir':str(report),'root_before':before,
            'status':'running','stage':'large_classes','pressure_trigger':pressure}
     atomic_json(STATE,state)
@@ -49,6 +67,7 @@ def main():
     large_result=subprocess.run(command)
     if (report/'large/large-classes.json').exists():
         rows.extend(json.loads((report/'large/large-classes.json').read_text())['rows'])
+    phases['large_classes']=phase_result(large_result,report/'large/large-classes.json',rows)
     atomic_json(report/'large-phase-completion.json',{'root_before':before,'root_after':disk(),
                 'rows':rows,'returncode':large_result.returncode})
     proof_dir=BUS/'reports/ops/disk-reclaim-20261009'
@@ -68,23 +87,29 @@ def main():
     state.update(stage='legacy_safe_rules');atomic_json(STATE,state)
     safe_result=subprocess.run([sys.executable,str(BUS/'scripts/host_disk_pruner.py'),
         '--safe-rules-only','--emit-noop','--report-dir',str(report/'safe')],timeout=300)
+    safe_rows=[]
     if (report/'safe/receipt.json').exists():
         safe=json.loads((report/'safe/receipt.json').read_text())
-        rows.append({'rule':'legacy_safe_rules','bytes_freed':safe['reclaimed_bytes'],'ok':safe_result.returncode in (0,2)})
+        safe_rows=[{'rule':'legacy_safe_rules','bytes_freed':safe['reclaimed_bytes'],'ok':safe_result.returncode in (0,2)}]
+        rows.extend(safe_rows)
+    phases['legacy_safe_rules']=phase_result(safe_result,report/'safe/receipt.json',safe_rows,accepted_returncodes=(0,2))
     state.update(stage='D_A_B_C',progress_path=str(report/'progress.json'));atomic_json(STATE,state)
     # Preserve every legacy rule/guard and its persisted cursors, but bound a
     # scheduled pass. Infinite --full-pass previously monopolized the singleton
     # for hours while B skipped mutable copies; later cron fires did no work.
     evidence_result=subprocess.run(['sudo','-n','/usr/bin/python3','-I',str(BUS/'scripts/evidence_preserving_pruner.py'),
         '--max-seconds','1050','--report',str(report/'evidence-preserving.json')])
+    evidence_rows=[]
     if (report/'evidence-preserving.json').exists():
-        rows.extend(json.loads((report/'evidence-preserving.json').read_text())['rows'])
+        evidence_rows=json.loads((report/'evidence-preserving.json').read_text())['rows']
+        rows.extend(evidence_rows)
+    phases['D_A_B_C']=phase_result(evidence_result,report/'evidence-preserving.json',evidence_rows,partial_returncodes=(2,))
     after=disk();totals=collections.Counter()
     for row in rows:totals[row['rule']]+=int(row.get('bytes_freed',0))
-    receipt={**state,'status':'completed' if evidence_result.returncode==0 and large_result.returncode==0 and all(r.get('ok',True) for r in rows) else 'completed_with_errors',
+    receipt={**state,'status':'completed' if all(p['status']=='completed' for p in phases.values()) else 'completed_with_errors',
         'root_after':after,'root_free_delta_bytes':after['free_bytes']-before['free_bytes'],
         'rows':rows,'bytes_freed_by_rule':dict(totals),'reclaimed_bytes':sum(totals.values()),
-        'runtime_seconds':time.monotonic()-started}
+        'runtime_seconds':time.monotonic()-started,'phase_results':phases}
     atomic_json(report/'completion.json',receipt)
     state.update(status=receipt['status'],stage='finished',completion_receipt=str(report/'completion.json'))
     atomic_json(STATE,state)
