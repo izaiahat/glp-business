@@ -150,6 +150,25 @@ def recovery_path(entry_path, root):
     return root / 'reports/glp-clinic-scout/seo-machine/article-review-recovery' / ident / 'RECOVERY.json'
 
 
+def copied_source_authors(fresh, names, origins, root, database, reviewer, sealed_at, *, authenticate=None):
+    """Bind copied subjects to their original paths, retaining native writer checks."""
+    if authenticate is None:
+        from article_health_acceptance import packet_authors
+        authenticate = packet_authors
+    require(not origins or set(origins) == set(names), 'copied_source_name_set')
+    sources = []
+    for name in names:
+        source = fresh / name
+        if origins:
+            supplied = Path(origins[name]['path'])
+            require(supplied.is_absolute() and not supplied.is_symlink(), 'copied_source_path')
+            source = checked(origins[name])
+            require(source.name == name and source.is_relative_to((root / 'reports').resolve())
+                    and source.read_bytes() == (fresh / name).read_bytes(), 'copied_source_bytes')
+        sources.append(source)
+    return authenticate(database, sources, reviewer, sealed_at)
+
+
 def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     import hermes_sol_article_review as transport
     sys.path.insert(0, str(root / 'systems/seo-blog-machine/scripts'))
@@ -195,7 +214,8 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     require(timestamp(manifest['sealed_at_utc']) <= custody['started_at']
             and custody['ended_at'] <= timestamp(receipt['reviewed_at_utc']), 'fresh_review_chronology')
     runtime = raw['hermes_runtime']
-    successor_authors = packet_authors(database, [fresh / name for name in derivation['source_repairs']],
+    successor_authors = copied_source_authors(fresh, derivation['source_repairs'],
+                                       doc.get('source_authorship', {}), root, database,
                                        {'model': runtime['model'], 'runtime': {'native_session_id': runtime['session_id']}},
                                        timestamp(manifest['sealed_at_utc']))
     pointer = read(root / 'reports/glp-clinic-scout/seo-machine/current-content-base.json')
@@ -229,7 +249,7 @@ def validate_recovery(entry_path, *, root=ROOT, natural=False, session_db=None):
     return result
 
 
-def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT):
+def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT, source_author_packet=None):
     sys.path.insert(0, str(root / 'systems/seo-blog-machine/scripts'))
     import compile_review_packet_article as compiler
     entry = read(entry_path)
@@ -246,6 +266,12 @@ def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT):
                                            compile_packet=compiler.compile_packet),
            'live_snapshot': spec(snapshot), 'live_binding': read(binding_path),
            'historical_custody_repaired': False, 'natural_acceptance': False}
+    if source_author_packet is not None:
+        origin = Path(source_author_packet)
+        require(origin.is_absolute() and origin.is_dir() and not origin.is_symlink(), 'copied_source_directory')
+        names = doc['successor']['source_repairs']
+        require(all(not (origin / n).is_symlink() for n in names), 'copied_source_symlink')
+        doc['source_authorship'] = {n: spec(origin / n) for n in names}
     validate_documents(entry_path, doc, root=root)
     path = recovery_path(entry_path, root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -262,12 +288,14 @@ def main():
     parser.add_argument('--packet', type=Path, required=True)
     parser.add_argument('--live-binding', type=Path, required=True)
     parser.add_argument('--live-snapshot', type=Path, required=True)
+    parser.add_argument('--source-author-packet', type=Path,
+                        help='exact byte-identical source packet with native write/patch custody')
     args = parser.parse_args()
     from glp_release_main import lock_module
     with lock_module().acquire('main-site-release', owner='article-review-recovery', root=ROOT):
         path = seal(args.entry.resolve(strict=True), args.history.resolve(strict=True),
                     args.packet.resolve(strict=True), args.live_binding.resolve(strict=True),
-                    args.live_snapshot.resolve(strict=True))
+                    args.live_snapshot.resolve(strict=True), source_author_packet=args.source_author_packet)
     print(json.dumps({'status': 'PASS_POSTPUBLICATION_REVIEW', 'recovery': spec(path)}))
 
 
