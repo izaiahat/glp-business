@@ -6,7 +6,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "89e717b6bec7b33ae7eb90703b72394fcbc69ad3805e1cb90d01421bb74cd1d4"
+      "sha256": "f4569bddfbf5f05958262e7f279b15ca5bab8b4f6adc2ad35bd7146a656fafe9"
     },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",

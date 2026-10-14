@@ -92,10 +92,28 @@ class CatalogDependentClosureTests(unittest.TestCase):
 
         self.assertEqual(failures, [], '\n'.join(failures))
 
-        # Packaging may update these seven entries and the offline test runner only.
+        # Packaging also includes exactly three authenticated PR496 main advances.
         package = 'ops/rebuild-source-manifest.json'
         old_doc = json.loads(git_bytes(PREIMAGE, package))
         new_doc = json.loads((ROOT / package).read_bytes())
+        integrated_main = 'ea0b247976eb136e33bc1fd8219654a8482362c9'
+        main_advances = ('scripts/article_review_recovery.py',
+                         'tests/test_article_review_recovery.py',
+                         'tests/test_recovery_copied_authorship.py')
+        for ancestor, descendant in ((PREIMAGE, integrated_main), (integrated_main, 'HEAD')):
+            subprocess.run(['git', '-C', str(ROOT), 'merge-base', '--is-ancestor',
+                            ancestor, descendant], check=True)
+        main_doc = json.loads(git_bytes(integrated_main, package))
+        self.assertEqual(set(main_doc['files']), set(old_doc['files']))
+        self.assertEqual({p for p in old_doc['files']
+                          if main_doc['files'][p] != old_doc['files'][p]}, set(main_advances))
+        for relative in main_advances:
+            committed = git_bytes(integrated_main, relative)
+            self.assertEqual((ROOT / relative).read_bytes(), committed)
+            self.assertEqual(main_doc['files'][relative]['sha256'], sha(committed))
+            metadata = dict(main_doc['files'][relative])
+            metadata['sha256'] = old_doc['files'][relative]['sha256']
+            self.assertEqual(metadata, old_doc['files'][relative])
         added = 'tests/test_f01_catalog_dependent_copins.py'
         runner = 'scripts/run_tests.sh'
         self.assertEqual(set(new_doc['files']) - set(old_doc['files']), {added})
@@ -106,7 +124,7 @@ class CatalogDependentClosureTests(unittest.TestCase):
                 successor['sha256'] = record['sha256']
                 self.assertEqual(successor, record)
             else:
-                self.assertEqual(new_doc['files'][relative], record)
+                self.assertEqual(new_doc['files'][relative], main_doc['files'][relative])
         for relative in CLOSURE + (added, runner):
             if new_doc['files'][relative]['sha256'] != sha((ROOT / relative).read_bytes()):
                 failures.append('package stale: ' + relative)
@@ -119,7 +137,7 @@ class CatalogDependentClosureTests(unittest.TestCase):
         self.assertEqual(old_header, new_header)
         restored = json.loads((ROOT / package).read_bytes())
         del restored['files'][added]
-        for relative in CLOSURE + (runner,):
+        for relative in CLOSURE + (runner,) + main_advances:
             restored['files'][relative]['sha256'] = old_doc['files'][relative]['sha256']
         restored['tracked_count'] = old_doc['tracked_count']
         self.assertEqual((json.dumps(restored, indent=2) + '\n').encode(), git_bytes(PREIMAGE, package))
