@@ -131,6 +131,7 @@ class Receipts:
     def __init__(self, directory):
         directory = Path(directory)
         private(directory, True)
+        self.directory = directory
         self.lock = os.open(directory / 'reply-consumers.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         try:
             private(directory / 'reply-consumers.lock')
@@ -162,21 +163,97 @@ class Receipts:
         self.db.execute('INSERT OR REPLACE INTO receipts VALUES (?,?)', (value['receipt_id'], canonical(value)))
         self.db.commit()
 
-    def record(self, identity, owner, status, evidence):
+    def record(self, identity, owner, status, evidence, *, handoff_plan=None):
+        from contextlib import nullcontext
         row = self.get(identity)
-        if (not row or status not in {'received', 'applied', 'rejected'}
-                or not isinstance(evidence, str) or not 1 <= len(evidence) <= 1000
-                or owner != (row['parent'] if status == 'received' else row['task_owner'])):
-            raise ValueError('owner_or_disposition_refused')
-        if row['status'] == status and row.get('evidence') == evidence and row.get('recorded_by') == owner:
-            return row  # exact repeat, not another effect
-        if row['status'] != ('staged' if status == 'received' else 'received'):
-            raise ValueError('invalid_disposition_transition')
-        row.update(status=status, evidence=evidence, recorded_by=owner, recorded_at=time.time())
-        if status == 'received':
-            row['coordinator_receipt'] = {'owner': owner, 'evidence': evidence, 'at': row['recorded_at']}
-        self.put(row)
-        return row
+        audit = row.get('owner_handoff') if row else None
+        plan = handoff_plan if handoff_plan is not None else audit.get('plan') if audit else None
+        if plan is not None:
+            if not isinstance(plan, dict) or not isinstance(plan.get('ticket'), str):
+                raise ValueError('owner_handoff_plan_refused')
+            ticket = Path(plan['ticket'])
+            if not ticket.is_absolute() or ticket != ticket.resolve():
+                raise ValueError('owner_handoff_ticket_refused')
+            private(ticket, True)
+            private(ticket.parent, True)
+            import dot_dispatch as dots
+            guard = dots.locked(ticket.parent)
+        else:
+            guard = nullcontext()
+        with guard:
+            if plan is not None:
+                audit = checked_owner_handoff(row, plan, self.directory)
+                expected_owner = plan['receiving_owner']
+            else:
+                expected_owner = row.get('parent' if status == 'received' else 'task_owner') if row else None
+            if (not row or status not in {'received', 'applied', 'rejected'}
+                    or not isinstance(evidence, str) or not 1 <= len(evidence) <= 1000
+                    or owner != expected_owner):
+                raise ValueError('owner_or_disposition_refused')
+            if row['status'] == status and row.get('evidence') == evidence and row.get('recorded_by') == owner:
+                return row  # exact repeat, not another effect
+            if row['status'] != ('staged' if status == 'received' else 'received'):
+                raise ValueError('invalid_disposition_transition')
+            if audit is not None:
+                row['owner_handoff'] = audit
+            row.update(status=status, evidence=evidence, recorded_by=owner, recorded_at=time.time())
+            if status == 'received':
+                row['coordinator_receipt'] = {'owner': owner, 'evidence': evidence, 'at': row['recorded_at']}
+            self.put(row)
+            return row
+
+
+def checked_owner_handoff(row, plan, directory):
+    """Exact existing-ticket successor custody; original owners never change.
+
+    Caller holds both receipt and dispatch locks. Local owner authorization is
+    the existing same-Unix-owner boundary, not independent review or approval.
+    """
+    required = {'schema', 'ticket', 'ticket_sha256', 'native_config_sha256',
+        'completion_sha256', 'reply_sha256', 'receipt_preimage_sha256',
+        'from_parent', 'from_task_owner', 'receiving_owner', 'reason'}
+    if (not isinstance(plan, dict) or set(plan) != required
+            or plan['schema'] != 'DOT_RECEIPT_OWNER_HANDOFF_V1'
+            or any(not isinstance(plan[k], str) or not re.fullmatch(SHA, plan[k]) for k in required if k.endswith('_sha256'))
+            or any(not isinstance(plan[k], str) or not re.fullmatch(NAME, plan[k]) for k in ('from_parent', 'from_task_owner', 'receiving_owner'))
+            or not isinstance(plan['reason'], str) or not 1 <= len(plan['reason']) <= 1000
+            or not row):
+        raise ValueError('owner_handoff_plan_refused')
+    ticket = Path(plan['ticket'])
+    if not ticket.is_absolute() or ticket != ticket.resolve():
+        raise ValueError('owner_handoff_ticket_refused')
+    private(ticket, True)
+    files = {name: ticket/name for name in ('TICKET.json', 'NATIVE-CONFIG.json', 'COMPLETION.json', 'REPLY.md')}
+    pins = dict(zip(files, ('ticket_sha256', 'native_config_sha256', 'completion_sha256', 'reply_sha256')))
+    for name, path in files.items():
+        private(path)
+        if hashlib.sha256(path.read_bytes()).hexdigest() != plan[pins[name]]:
+            raise ValueError('owner_handoff_preimage_refused')
+    import dot_lane
+    state = json.loads(files['TICKET.json'].read_text())
+    completion = dot_lane.terminal(ticket, state)
+    receipt_directory, entries = load_registrations(files['NATIVE-CONFIG.json'])
+    if (state.get('state') not in {'complete', 'blocked'} or state.get('ticket') != ticket.name
+            or state.get('parent') != plan['from_parent'] or state.get('task_owner') != plan['from_task_owner']
+            or row.get('parent') != plan['from_parent'] or row.get('task_owner') != plan['from_task_owner']
+            or Path(receipt_directory) != ticket/'receipts' or Path(receipt_directory).resolve() != directory.resolve()
+            or len(entries) != 1 or entries[0].parent != plan['from_parent']
+            or entries[0].task_owner != plan['from_task_owner'] or entries[0].result_key != ticket.name
+            or entries[0].receipt_id != row.get('receipt_id')
+            or entries[0].registration_sha256 != row.get('registration_sha256')):
+        raise ValueError('owner_handoff_custody_refused')
+    old = row.get('owner_handoff')
+    preimage = old.get('receipt_preimage') if old else json.loads(canonical(row))
+    if (old and (set(old) != {'plan', 'receipt_preimage'} or old['plan'] != plan)
+            or not isinstance(preimage, dict) or preimage.get('status') != 'staged'
+            or hashlib.sha256(canonical(preimage).encode()).hexdigest() != plan['receipt_preimage_sha256']
+            or completion != preimage):
+        raise ValueError('owner_handoff_receipt_preimage_refused')
+    mutable = {'status', 'evidence', 'recorded_by', 'recorded_at', 'coordinator_receipt', 'owner_handoff'}
+    if ({k:v for k,v in row.items() if k not in mutable} != {k:v for k,v in preimage.items() if k not in mutable}):
+        raise ValueError('owner_handoff_receipt_changed')
+    check_saved_attachment(row, entries[0])
+    return {'plan': plan, 'receipt_preimage': preimage}
 
 
 def check_saved_attachment(value, registration):
@@ -361,17 +438,26 @@ def main(argv=None):
     p.add_argument('--record', choices=['received', 'applied', 'rejected'])
     p.add_argument('--owner')
     p.add_argument('--evidence')
+    p.add_argument('--owner-handoff-plan', type=Path,
+        help='Private parent-reviewed exact-ticket/preimage successor receiving plan; record only')
     a = p.parse_args(argv)
     os.umask(0o077)
     try:
-        if any((a.receipt_id, a.record, a.owner, a.evidence)):
+        if any((a.receipt_id, a.record, a.owner, a.evidence, a.owner_handoff_plan)):
             if not all((a.receipt_id, a.record, a.owner, a.evidence)) or a.replay:
                 raise ValueError('complete_owner_disposition_required')
+            plan = None
+            if a.owner_handoff_plan:
+                private(a.owner_handoff_plan)
+                plan = json.loads(a.owner_handoff_plan.read_text())
+                if (not isinstance(plan, dict) or not isinstance(plan.get('ticket'), str)
+                        or a.config != Path(plan['ticket'])/'NATIVE-CONFIG.json'):
+                    raise ValueError('owner_handoff_config_refused')
             directory, registrations = load_registrations(a.config)
             if a.receipt_id not in {r.receipt_id for r in registrations}:
                 raise ValueError('unregistered_receipt')
             with Receipts(directory) as receipts:
-                result = receipts.record(a.receipt_id, a.owner, a.record, a.evidence)
+                result = receipts.record(a.receipt_id, a.owner, a.record, a.evidence, handoff_plan=plan)
         else:
             result = run(a.config, a.max_wait_seconds, a.replay)
         print(canonical(result), flush=True)
