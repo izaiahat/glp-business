@@ -24,6 +24,7 @@ Every Firecrawl call is ledgered by firecrawl_client with caller names
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import fcntl
 import hashlib
@@ -42,6 +43,8 @@ CALLER = 'sponsor_firecrawl_supply'
 ALEX_CALLER = 'sponsor_firecrawl_alexandria'
 FLOOR_CREDITS = 3000
 RUN_CREDIT_CAP = 1500
+PERIOD_CREDIT_CAP = 45000
+SPONSOR_CALLERS = (CALLER, ALEX_CALLER, 'fc71_sponsor_supply', 'fc71_sponsor_alexandria')
 MATCH_CAP = 25
 GAPS = {'us_program_scope_unknown', 'not_glp_medication_provider', 'no_verified_business_purpose_contact',
         'contact_purpose_unverified', 'contact_evidence_incomplete', 'public_source_or_role_evidence_unknown'}
@@ -123,6 +126,88 @@ def sponsor_fit(text):
             if COMMERCIAL.search(excerpt):
                 return category, excerpt
     return None
+
+
+def firstparty_research_host(row):
+    """Affirmative own-category offer, not query-keyword or search-host authority.
+
+    Reject publishing/directory/profile content forms rather than a hostname
+    blacklist. This is a research filter; all US/product/send gates still apply.
+    """
+    from urllib.parse import urlsplit
+    parts = urlsplit(str(row.get('url') or ''))
+    host = (parts.hostname or '').lower().removeprefix('www.')
+    title, description = str(row.get('title') or ''), str(row.get('description') or '')
+    text = title + ' ' + description
+    if not (any(pattern.search(text) for pattern in CATEGORY.values()) or re.search(r'\bmeal prep\b', text, re.I)):
+        return None
+    if RESEARCH_ONLY.search(text):
+        return None
+    if re.search(r'\b(?:news|journal|newsletter|directory|directories|market (?:report|research|size)|research report|industry analysis|cross-sectional|study|studies|reviews?|comparisons?)\b', title, re.I):
+        return None
+    # Ranked guides and outbound shopping references describe someone else's
+    # offer even when the publisher's own brand occurs in the title.
+    if (re.search(r'\b(?:best|top)\b.*\b(?:services?|kits?|brands?|powders?|supplements?|plans?)\b', title, re.I)
+            or re.search(r'\bshop at\b', description, re.I)):
+        return None
+    if re.search(r'/(?:company|companies|posts|groups|forum|articles|reports|p|watch)/', parts.path, re.I):
+        return None
+    normalize = lambda s: re.sub(r'[^a-z0-9]', '', s.lower()).replace('and', '')
+    brand = normalize(host.split('.')[-2]) if '.' in host else ''
+    if len(brand) < 5 or brand not in normalize(text):
+        return None
+    category = lambda s: any(pattern.search(s) for pattern in CATEGORY.values()) or re.search(r'\bmeal prep\b', s, re.I)
+    offer = re.compile(r'\b(?:services?|manufacturers?|suppliers?|bulk|wholesale|online|available|treatments?|telehealth|delivery|delivered|contract manufacturing)\b', re.I)
+    # Negative product statements are not offer evidence. Refuse the governing
+    # sentence, without treating unrelated "no minimum order" terms as negation.
+    sentences = re.split(r'[.!?\n]+', text)
+    if any(category(s) and re.search(r"\b(?:not|never|neither|nor|cannot|\w+n['’]t)\b|\bno\s+(?:protein|prepared meals?|meal (?:prep|delivery)|training|telehealth)\b", LEGAL_NEGATOR.sub('', s), re.I) for s in sentences):
+        return None
+    # Category wording is not independent evidence of a merchant: e.g. a
+    # publisher's "Classifying Meal Delivery Companies" only names the industry.
+    # Require an additional offer/transaction signal beyond the category span.
+    title_offer = title
+    for pattern in CATEGORY.values():
+        title_offer = pattern.sub('', title_offer)
+    title_offer = re.sub(r'\bmeal prep\b', '', title_offer, flags=re.I)
+    branded_offer = (brand in normalize(title) and category(title)
+                     and (offer.search(title_offer) or re.search(
+                         r'\b(?:shop|buy|order|subscribe|membership|products|get started)\b', title_offer, re.I)))
+    own_offer = any(category(s) and re.search(r'\b(?:our|we)\b', s, re.I)
+                    and (COMMERCIAL.search(s) or offer.search(s)) for s in sentences)
+    own_commercial = any(re.search(r'\b(?:our|we)\b', s, re.I)
+                         and (COMMERCIAL.search(s) or offer.search(s)) for s in sentences)
+    if not (branded_offer or own_offer or (brand in normalize(title) and category(title) and own_commercial)):
+        return None
+    return host
+
+
+def bound_lead_rows(path):
+    """Bind admitted JSONL rows to their retained genuine search receipts."""
+    path = Path(path)
+    records, receipts = [], {}
+    for number, line in enumerate(path.read_text().splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+            name = row.get('receipt')
+            if not isinstance(name, str) or Path(name).name != name:
+                raise ValueError('receipt missing or unsafe')
+            receipt = path.parent / name
+            if name not in receipts:
+                data = json.loads(receipt.read_bytes())
+                hits = (data.get('data') or {}).get('web')
+                if data.get('success') is False or not isinstance(hits, list):
+                    raise ValueError('receipt has no successful web results')
+                receipts[name] = (hits, hashlib.sha256(receipt.read_bytes()).hexdigest())
+            hits, receipt_sha = receipts[name]
+            if not any(all(hit.get(k) == row.get(k) for k in ('url','title','description')) for hit in hits):
+                raise ValueError('lead not in receipt')
+        except (OSError, ValueError, AttributeError, TypeError):
+            raise RuntimeError(f'retained_lead_receipt_unbound:{path}:{number}') from None
+        records.append((row, receipt_sha))
+    return records
 
 
 def research_only_organization(host, org, campaign):
@@ -268,7 +353,7 @@ class Budget:
 
 
 class Producer:
-    def __init__(self, state_dir=None, run_cap=RUN_CREDIT_CAP, match_cap=MATCH_CAP, *, import_only=False):
+    def __init__(self, state_dir=None, run_cap=RUN_CREDIT_CAP, match_cap=MATCH_CAP, *, import_only=False, budget_lock=None):
         import glp_sponsor_campaign as campaign
         from firecrawl_client import FirecrawlClient
         self.c = campaign
@@ -278,6 +363,7 @@ class Producer:
         self.discovery = campaign.ROOT / 'reports/ops/sponsor-machine-20261003/contact-discovery.private.json'
         self.run = 'sponsor-supply-' + now().strftime('%Y%m%dT%H%M')
         self.import_only = import_only
+        self._budget_lock = budget_lock
         if import_only:
             self.report = {'run': self.run, 'started_utc': now().isoformat(), 'sends': 0,
                            'import_only': True, 'paid_calls': 0}
@@ -300,17 +386,133 @@ class Producer:
         self.report = {'run': self.run, 'started_utc': now().isoformat(), 'remaining_at_start': self.budget.remaining,
                        'daily_spent_at_start': self.start_spent, 'daily_cap': RUN_CREDIT_CAP, 'sends': 0}
 
+    @contextlib.contextmanager
+    def budget_locked(self):
+        # Reuse real entrypoint custody; library callers contend on the SAME flock.
+        if getattr(self, '_budget_lock', None) is not None:
+            if Path(self._budget_lock.name).resolve() != (self.state / 'firecrawl-supply-budget.lock').resolve():
+                raise RuntimeError('sponsor_budget_credit_fence_wrong_path')
+            fcntl.flock(self._budget_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            yield
+            return
+        self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with (self.state / 'firecrawl-supply-budget.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            yield
+
+    def operations(self):
+        from firecrawl_client import LEDGER
+        if not LEDGER.exists():
+            return []
+        with LEDGER.open() as ledger:
+            fcntl.flock(ledger, fcntl.LOCK_SH)
+            return [json.loads(line) for line in ledger if line.strip()]
+
+    def daily_accounted(self, day):
+        from glp_firecrawl_jobs import spent_today
+        # The existing shared caller reader stays authoritative; additionally
+        # bound pending/null-cost operations conservatively, never call them zero.
+        latest = {}
+        for row in self.operations():
+            if row.get('caller') in SPONSOR_CALLERS and str(row.get('at_utc', '')).startswith(day):
+                latest[row['operation_id']] = row
+        total, unknown = 0, []
+        for ident, row in latest.items():
+            if row.get('endpoint') == '/v2/team/credit-usage':
+                continue  # read-only account query, not a paid operation
+            cost = row.get('creditsUsed')
+            if type(cost) in (int, float) and cost >= 0:
+                total += cost
+                continue
+            # Map is bounded at one; validated same-run single reveals retain
+            # the existing 30-credit cap. Historical URL scrape ceilings need
+            # complete request proof that sanitized ledger options do not retain.
+            if row.get('endpoint') == '/v2/map':
+                ceiling = 1
+            elif row.get('endpoint') == '/v2/scrape' and row.get('url_hash'):
+                # Sanitized options omit parsers/modifiers: formats/proxy alone
+                # cannot prove the complete historical request ceiling. Preserve
+                # UNKNOWN and durable pending; refuse, never invent 1/5 or replay.
+                raise RuntimeError('sponsor_ledger_credit_cost_unknown')
+            elif row.get('caller') in (ALEX_CALLER, 'fc71_sponsor_alexandria'):
+                ceiling = 30
+            else:
+                raise RuntimeError('sponsor_ledger_credit_cost_unknown')
+            total += ceiling
+            unknown.append({'operation_id':ident, 'creditsUsed':None, 'accounted_ceiling':ceiling})
+        self.report['unknown_credit_costs'] = unknown
+        return max(total, spent_today(SPONSOR_CALLERS))
+
+    def pending_reservations(self):
+        prior = self.c.load(self.reservations) if self.reservations.exists() else {}
+        pending = prior.get('pending_by_day')
+        if pending is None:
+            # Legacy cumulative reservations cannot be proved settled. Preserve
+            # them conservatively, including across a UTC-day boundary.
+            pending = {prior['day']:prior['reserved']} if prior else {}
+        if not isinstance(pending, dict) or any(type(v) not in (int, float) or v < 0 for v in pending.values()):
+            raise RuntimeError('sponsor_reservation_credit_unknown')
+        return dict(pending)
+
     def reserve(self, credits):
-        # The entrypoint holds a purpose-specific budget flock across the run.
-        # Persist before each paid call; failure/timeout never refunds a claim.
-        if now().date().isoformat() != self.budget_day or not self.budget.allow(credits):
-            raise RuntimeError('sponsor_daily_credit_cap')
-        self.budget.charge(credits)
-        self.c.save(self.reservations, {'day':self.budget_day, 'reserved':self.start_spent+self.budget.spent})
+        # Fresh boundary, not constructor Budget/start_spent. Persist before the
+        # transport; an uncertain effect never refunds a durable reservation.
+        with self.budget_locked():
+            usage = self.client.request('team/credit-usage', method='GET').get('data') or {}
+            try:
+                remaining, plan = usage['remainingCredits'], usage['planCredits']
+                start = dt.datetime.fromisoformat(usage['billingPeriodStart'])
+                end = dt.datetime.fromisoformat(usage['billingPeriodEnd'])
+                at = now()
+                if (type(remaining) is not int or type(plan) is not int or not 0 <= remaining <= plan
+                        or start.tzinfo is None or end.tzinfo is None or not start <= at < end):
+                    raise ValueError('invalid credit period/balance')
+            except (KeyError, TypeError, ValueError):
+                raise RuntimeError('sponsor_account_credit_usage_unknown') from None
+            day = at.date().isoformat()
+            pending = self.pending_reservations()
+            accounted = self.daily_accounted(day)
+            if (day != self.budget_day or type(credits) is not int or credits <= 0
+                    or self.budget.spent + credits > self.budget.cap
+                    or accounted + pending.get(day, 0) + credits > RUN_CREDIT_CAP):
+                raise RuntimeError('sponsor_daily_credit_cap')
+            if plan - remaining + sum(pending.values()) + credits > PERIOD_CREDIT_CAP:
+                raise RuntimeError('sponsor_period_credit_cap')
+            if remaining - sum(pending.values()) - credits <= FLOOR_CREDITS:
+                raise RuntimeError('sponsor_account_credit_floor')
+            pending[day] = pending.get(day, 0) + credits
+            self.c.save(self.reservations, {'day':day, 'reserved':accounted + pending[day], 'pending_by_day':pending})
+            self.budget.charge(credits)
+            self.report['last_paid_admission'] = {'at':at.isoformat(), 'remaining':remaining,
+                'period_used':plan-remaining, 'daily_accounted':accounted, 'reserved':pending[day], 'credits':credits}
+
+    def paid(self, credits, transport, payload, **kwargs):
+        self.reserve(credits)
+        response = transport(payload, **kwargs)  # no automatic retry
+        from firecrawl_client import _receipt
+        _, cost = _receipt(response)
+        # Only explicit, successful observed cost settles our pending estimate.
+        # Null cost remains UNKNOWN and its durable reservation is retained.
+        if response.get('success') is True and type(cost) in (int, float) and 0 <= cost <= credits:
+            with self.budget_locked():
+                pending = self.pending_reservations()
+                pending[self.budget_day] -= credits
+                accounted = self.daily_accounted(self.budget_day)
+                self.c.save(self.reservations, {'day':self.budget_day,
+                    'reserved':accounted + pending[self.budget_day], 'pending_by_day':pending})
+        return response
 
     def paid_match(self, payload):
-        self.reserve(30)
-        return self.apollo_scrape(payload)
+        return self.paid(30, self.apollo_scrape, payload)
+
+    def capture_admissible(self, endpoint, url):
+        digest = hashlib.sha256(url.encode()).hexdigest()
+        latest = {}
+        for row in self.operations():
+            if row.get('caller') in SPONSOR_CALLERS and row.get('endpoint') == '/v2/' + endpoint and digest in row.get('url_hash', []):
+                latest[row['operation_id']] = row
+        if any(row.get('outcome') != 'success' for row in latest.values()):
+            raise RuntimeError('ambiguous_capture_effect_no_replay')
 
     # -- locking -----------------------------------------------------------
     def locked(self, seconds=420):
@@ -348,8 +550,9 @@ class Producer:
             return {'host': host, 'pages': [], 'skipped': 'budget'}
         res = {'host': host, 'pages': [], 'errors': [], 'credits': 0, 'captured_utc': now().isoformat()}
         try:
-            self.reserve(1)
-            m = self.client.request('map', {'url': 'https://' + host, 'limit': 200, 'includeSubdomains': False, 'sitemap': 'include'}, timeout=90)
+            self.capture_admissible('map', 'https://' + host)
+            m = self.paid(1, lambda payload, **kw: self.client.request('map', payload, **kw),
+                          {'url': 'https://' + host, 'limit': 200, 'includeSubdomains': False, 'sitemap': 'include'}, timeout=90)
             res['credits'] += 1
             links = [x.get('url') if isinstance(x, dict) else x for x in m.get('links', [])]
         except Exception as exc:  # noqa: BLE001 - recorded, never auto-retried
@@ -363,9 +566,12 @@ class Producer:
                                                      not bool(re.search(r'about|terms', u, re.I)), u))
         for u in picks[:max_pages]:
             try:
-                self.reserve(1)
-                s = self.client.scrape({'url': u, 'formats': ['rawHtml'], 'onlyMainContent': False, 'maxAge': 0, 'blockAds': True,
-                                        'location': {'country': 'US', 'languages': ['en-US']}, 'timeout': 45000}, timeout=90)
+                self.capture_admissible('scrape', u)
+                # Official v2 /scrape parsers=[] disables per-page PDF parsing;
+                # mapped documents/redirects are flat 1 credit, not N PDF pages.
+                # Raw HTML/basic only, without optional paid formats/modifiers.
+                s = self.paid(1, self.client.scrape, {'url': u, 'formats': ['rawHtml'], 'parsers': [], 'onlyMainContent': False, 'maxAge': 0, 'blockAds': True,
+                                        'proxy': 'basic', 'location': {'country': 'US', 'languages': ['en-US']}, 'timeout': 45000}, timeout=90)
             except Exception as exc:  # noqa: BLE001
                 res['errors'].append('scrape:' + type(exc).__name__)
                 continue
@@ -724,29 +930,43 @@ class Producer:
         targets = set(eligible_hosts(plan['exclusions'], blocked, _same_adverse_org)) | set(SPONSOR_SEEDS)
         discovery_dir = self.c.ROOT / 'data/firecrawl/jobs/provider-discovery'
         for path in discovery_dir.glob('*.json'):
-            targets.update(x.get('host', '') for x in self.c.load(path).get('candidates', []))
+            for candidate in self.c.load(path).get('candidates', []):
+                ev = candidate.get('evidence') or {}
+                host = candidate.get('host', '')
+                if (ev.get('page_sha256') and ev.get('glp_sentence') and ev.get('us_sentence')
+                        and self.c.source_on_provider(ev.get('page_url'), host)):
+                    targets.add(host)
         # Explicit retained search receipts feed this same producer, never a new
         # store/job. Search URLs are research leads, not qualification evidence.
-        from urllib.parse import urlsplit
+        from urllib.parse import parse_qsl, urlsplit
         known = {r['host'] for r in registry if r.get('host')}
         organizations = self.c.load(self.discovery).get('organizations', {})
         known.update(organizations)
         known.update(f.stem for f in self.pages.glob('*.json'))
         known_names = {self.c.normalize(r.get('program', '')) for r in registry}
         known_names.update(self.c.normalize(o.get('provider', '')) for o in organizations.values())
-        retained_hosts = set()
+        retained_hosts, bindings, refused = set(), [], []
         for path in retained_leads:
-            for line in Path(path).read_text().splitlines():
-                row = json.loads(line)
+            path = Path(path)
+            input_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+            records = bound_lead_rows(path)
+            bindings.append({'path':str(path), 'sha256':input_sha, 'rows':len(records),
+                             'receipts':dict((row['receipt'], sha) for row, sha in records)})
+            for row, receipt_sha in records:
                 url = row.get('url', '')
                 parts = urlsplit(url)
                 host = policy.canonical_host(url)
-                if (parts.scheme != 'https' or parts.query or parts.fragment or parts.username or parts.password
-                        or not host or not self.c.source_on_provider(url, host)
+                relevant = firstparty_research_host(row)
+                # Firecrawl's search token is not an affiliate link; all other
+                # query-bearing/tracking URLs retain the original refusal.
+                query_ok = not parts.query or all(k == 'srsltid' for k, v in parse_qsl(parts.query, keep_blank_values=True))
+                if (not relevant or parts.scheme != 'https' or not query_ok or parts.fragment or parts.username or parts.password
+                        or not host or not self.c.source_on_provider(parts._replace(query='').geturl(), host)
                         or any(_same_adverse_org(host, h) for h in known | blocked)
                         # A named root alias carries the same known/adverse
                         # identity into descendants, even before its root row.
                         or any(self.c.normalize(label) in known_names for label in host.split('.')[:-1])):
+                    refused.append({'url':url, 'reason':'irrelevant_or_known_held_unsafe', 'receipt_sha256':receipt_sha})
                     continue
                 retained_hosts.add(host)
                 known.add(host)  # Parent/subdomain aliases in this same batch.
@@ -756,9 +976,11 @@ class Producer:
         hosts = sorted((h for h in targets if re.fullmatch(r'[a-z0-9.-]+\.[a-z]{2,}', h)
                        and 'fella' not in h and not h.endswith(self.c.PLATFORMS)
                        and not any(_same_adverse_org(h, b) for b in blocked)),
-                       key=lambda h: ((self.pages / (h + '.json')).exists(), h))
+                       key=lambda h: ((self.pages / (h + '.json')).exists(), h not in retained_hosts, h))
         self.report['target_universe'] = {'research_hosts': len(hosts), 'registry_dependency': False,
-            'untouched_retained_hosts': len(set(hosts) & retained_hosts)}
+            'untouched_retained_hosts': len(set(hosts) & retained_hosts),
+            'retained_lead_inputs':bindings, 'retained_selected_hosts':sorted(retained_hosts),
+            'retained_refused':refused}
         self.capture(hosts)
         self.merge()
         self.apollo()
@@ -785,7 +1007,7 @@ def main(argv=None):
     campaign.STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (campaign.STATE / 'firecrawl-supply-budget.lock').open('a') as budget_lock:
         fcntl.flock(budget_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        producer = Producer(run_cap=args.run_cap, import_only=bool(args.retained_cohort))
+        producer = Producer(run_cap=args.run_cap, import_only=bool(args.retained_cohort), budget_lock=budget_lock)
         if args.retained_cohort:
             producer.merge(retained_cohort=args.retained_cohort, cohort_sha256=args.cohort_sha256)
             report = producer.report

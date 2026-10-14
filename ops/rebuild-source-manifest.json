@@ -63,7 +63,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "a173227e5003a673a91126664372c4ad5b5eeac141fb5573b273d95cd34811f8"
+      "sha256": "4f1c84f1334d967d2ee187552644b7859e4ed1387b232396c9bceb6b7f986049"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -72,7 +72,7 @@
         "firecrawl-integration"
       ],
       "kind": "test",
-      "sha256": "748eab8dc581833b960bb307b38d03aff0812c6360a043f3a7250a166395a000"
+      "sha256": "4867d6cee82875d973cc2a440f5cf84b62184e417913f38ebacaacec1258dd70"
     },
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
       "callers": [
@@ -7649,6 +7649,13 @@
       ],
       "sha256": "6bb54ec6f775a65869aee23412c53e4c26f81081d9dd9dda8cc7d8ca10450a76"
     },
+    "tests/fixtures/sponsor-retained-firstparty-leads.json": {
+      "kind": "data",
+      "callers": [
+        "tests/test_glp_sponsor_firecrawl_supply.py"
+      ],
+      "sha256": "10b3db22342c917c47c49b4ef9567c9d10f639a3727a72935e4a40ab6d74beaf"
+    },
     "tests/fixtures/sponsor-ultimateperformance-terms.txt": {
       "kind": "data",
       "callers": [
@@ -7665,5 +7672,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1123
+  "tracked_count": 1124
 }
