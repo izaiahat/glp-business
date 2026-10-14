@@ -13,7 +13,6 @@ import json
 import os
 import re
 import shutil
-import stat
 import subprocess
 import sys
 import time
@@ -71,35 +70,6 @@ SAFE_TMP_PREFIXES: tuple[str, ...] = ("glp-playwright-",)
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def enzyme_vault_usage(root: Path = Path('/home/ubuntu/business/.enzyme')) -> dict[str, Any]:
-    """Metadata only. Missing/racing storage is UNKNOWN, never a zero-sized vault."""
-    try:
-        if root.is_symlink() or root.resolve() != root.absolute() or not root.is_dir():
-            raise ValueError('vault_path')
-        logical = allocated = files = targets = 0
-        seen = set()
-        for path in root.rglob('*'):
-            info = path.lstat()
-            if stat.S_ISLNK(info.st_mode):
-                raise ValueError('vault_symlink')
-            if not stat.S_ISREG(info.st_mode):
-                continue
-            logical += info.st_size
-            files += 1
-            identity = (info.st_dev, info.st_ino)
-            if identity not in seen:
-                allocated += info.st_blocks * 512
-                seen.add(identity)
-            targets += int(path.parent == root / 'targets' and path.suffix == '.db')
-        return {'ok': True, 'path': str(root), 'logical_bytes': logical,
-                'allocated_bytes': allocated, 'regular_files': files,
-                'target_databases': targets, 'primary_db_bytes': (root / 'enzyme.db').stat().st_size,
-                'method': 'lstat_no_symlinks_unique_inode_allocated_bytes'}
-    except (OSError, ValueError) as exc:
-        return {'ok': False, 'path': str(root), 'status': 'ENZYME_VAULT_UNKNOWN',
-                'error_type': type(exc).__name__}
 
 
 def stamp() -> str:
@@ -745,7 +715,6 @@ def main() -> int:
             "thresholds": {"amber_free_bytes": AMBER_FREE, "red_free_bytes": RED_FREE},
             "extension_results": extension_results,
             "growth_sensor": growth,
-            "enzyme_vault": enzyme_vault_usage(),
             "exit_semantics": {"0": "completed", "1": "maintenance_failed", "2": "acted_and_still_RED"},
             "dry_run": args.dry_run,
             "triggered": pressure_trigger,

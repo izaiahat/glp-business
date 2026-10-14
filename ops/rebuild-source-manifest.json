@@ -437,7 +437,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bf21e1c4e8505fa222493133b4ab062997d33473f1fc5bac216fd631b48d8b45"
+      "sha256": "bb16e9d593278fef2efd2471a8154be9b6df42049a160b4a9295e640608ac680"
     },
     ".hermes.md": {
       "callers": [],
@@ -3564,7 +3564,7 @@
         "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py"
       ],
       "kind": "script",
-      "sha256": "75b0bee361d7f5bed35f3f307d8de94f21e062c3ea6f4ccf6cfbb66f99346117"
+      "sha256": "d05c344bc53c6f5b2f198ce1a8e47b38ff0406681942461c0eebbbd08bc42cec"
     },
     "scripts/host_disk_reference_guard.py": {
       "callers": [
@@ -7662,6 +7662,41 @@
         "tests/test_glp_sponsor_firecrawl_supply.py"
       ],
       "sha256": "5d997ca346c92179c34d5d711a6b5497c490fe2c5a2f7417d08ffb0b07735ec5"
+    },
+    "scripts/disk_retention.py": {
+      "kind": "script",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "c18c9e9a9b4d7cf9aac580a23285637b5916f1e06fdd91796a5405ecfb732321"
+    },
+    "scripts/hermes_state_archive/archive.py": {
+      "kind": "script",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "d00b8e73b0647bc7635d818a6371df871e5eb48ff38cee8b9a2a6637d10853b2"
+    },
+    "scripts/hermes_state_archive/weekly.py": {
+      "kind": "script",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "a091a3a4d7dbf2b963eebc61a48e8406cbaf6bac30e3c07e4be95fcef25bec24"
+    },
+    "scripts/hermes_state_archive/weekly-pins.json": {
+      "kind": "repository_control",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "dde8f2ecafc6ce48a9a77893b4e88195d5855e97c50007f2be460ca027fc2583"
+    },
+    "ops/systemd/hermes-state-archive-weekly.service": {
+      "kind": "repository_control",
+      "callers": [
+        "GLP349 authenticated archive source cohort"
+      ],
+      "sha256": "b523fe7a326b413d5c6b33cc38174ba8cc5775fc262c48a4123987dfc08ea3df"
     }
   },
   "omitted_runtime_inputs": [
@@ -7672,5 +7707,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1124
+  "tracked_count": 1129
 }

@@ -1,0 +1,10 @@
+{
+  "files": {
+    "/home/ubuntu/business/scripts/hermes_state_archive/archive.py": "d00b8e73b0647bc7635d818a6371df871e5eb48ff38cee8b9a2a6637d10853b2",
+    "/home/ubuntu/business/scripts/hermes_state_archive/weekly.py": "a091a3a4d7dbf2b963eebc61a48e8406cbaf6bac30e3c07e4be95fcef25bec24",
+    "/home/ubuntu/business/scripts/disk_retention.py": "c18c9e9a9b4d7cf9aac580a23285637b5916f1e06fdd91796a5405ecfb732321",
+    "/home/ubuntu/business/scripts/host_disk_pruner.py": "d05c344bc53c6f5b2f198ce1a8e47b38ff0406681942461c0eebbbd08bc42cec",
+    "/home/ubuntu/.config/systemd/user/hermes-state-archive-weekly.service": "b523fe7a326b413d5c6b33cc38174ba8cc5775fc262c48a4123987dfc08ea3df"
+  },
+  "scope": "Q36 controller plus K4c scoped terminal archive compression; no relaxation of quiet-window guards or independent acceptance claim"
+}
