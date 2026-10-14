@@ -178,6 +178,15 @@ class WeeklyBudget:
         except Exception:
             return None
 
+    @staticmethod
+    def _echo_matches(echo: Any, expected: dict[str, Any]) -> bool:
+        if not isinstance(echo, dict) or not set(expected).issubset(echo):
+            return False
+        defaults = {'device': 'desktop', 'os': 'windows', 'postback_data': 'advanced'}
+        if any(k not in defaults or v != defaults[k] for k, v in echo.items() if k not in expected):
+            return False
+        return json.dumps({k: echo[k] for k in expected}, sort_keys=True, allow_nan=False) == json.dumps(expected, sort_keys=True, allow_nan=False)
+
     @classmethod
     def _metadata_record(cls, doc, payload, endpoint, expected):
         if not isinstance(doc, dict) or doc.get('status_code') != 20000 or cls._rail_cost(doc.get('cost')) != 0:
@@ -194,8 +203,7 @@ class WeeklyBudget:
         if not isinstance(records, list) or len(records) >= 1000 or not all(isinstance(r, dict) for r in records):
             return None
         matches = [r for r in records if r.get('url') == 'v3' + endpoint
-                   and isinstance(r.get('metadata'), dict)
-                   and all(r['metadata'].get(k) == v for k, v in expected.items())]
+                   and cls._echo_matches(r.get('metadata'), expected)]
         return matches[0] if len(matches) == 1 else None
 
     @classmethod
@@ -246,7 +254,7 @@ class WeeklyBudget:
             if (task.get('status_code') != 20000
                     or measured is None or measured != cls._rail_cost(result.get('cost'))
                     or measured != cls._rail_cost(task.get('cost'))
-                    or any(task.get('data', {}).get(k) != v for k, v in expected.items())):
+                    or not cls._echo_matches(task.get('data'), expected)):
                 return None
             end_at = min(r['at'] for r in ambiguous)
             record = cls._provider_task(attempt['account'], attempt['at'], end_at, attempt['endpoint'], expected)
@@ -254,7 +262,7 @@ class WeeklyBudget:
                     or record.get('url') != 'v3' + attempt['endpoint']
                     or record.get('status') != '20000'
                     or cls._rail_cost(record.get('cost')) != measured
-                    or any(record.get('metadata', {}).get(k) != v for k, v in expected.items())):
+                    or not cls._echo_matches(record.get('metadata'), expected)):
                 return None
             posted, done = (dt.datetime.strptime(record[k], '%Y-%m-%d %H:%M:%S %z').timestamp()
                             for k in ('datetime_posted', 'datetime_done'))
@@ -329,9 +337,12 @@ class WeeklyBudget:
                         if other_id == identity or other_id[0] != identity[0] or other_id[3] != identity[3]:
                             continue
                         other_start = other_rows[0].get('at')
-                        other_end = min((r.get('at', float('inf')) for r in other_rows
-                                         if r['event'] in ('RESULT', 'AMBIGUOUS')), default=float('inf'))
-                        if isinstance(other_start, (int, float)) and other_start <= end and other_end >= at:
+                        times = [r.get('at') for r in other_rows if r['event'] in ('RESULT', 'AMBIGUOUS')]
+                        if any(type(t) not in (int, float) or not math.isfinite(t) for t in [other_start, *times]):
+                            valid = False
+                            continue
+                        other_end = min(times, default=float('inf'))
+                        if other_start <= end and other_end >= at:
                             valid = False
                     recovered = {}
                     for r in results:

@@ -232,6 +232,7 @@ def test_exact_append_only_rail_reconciliation(tmp_path, monkeypatch):
     # exact cost, ID, request/endpoint and provider chronology. Missing != zero.
     for field, value in [('id', 'other'), ('url', 'v3/other'), ('cost', '0.003'),
                          ('status', '40400'), ('metadata', {'keyword': 'unrelated'}),
+                         ('metadata', dict(provider_record['metadata'], target='UNRELATED')),
                          ('datetime_posted', '2026-10-01 03:00:00 +00:00'),
                          ('datetime_done', '2026-10-20 03:00:00 +00:00')]:
         provider_rows[0] = dict(provider_record, **{field: value})
