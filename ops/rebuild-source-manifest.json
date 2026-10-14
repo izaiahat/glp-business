@@ -6,7 +6,7 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "56ba57d20f52de309030ff40a67c99b303ad7c87804411fa65de167227a88545"
+      "sha256": "f3f75ee34c8badbe83763fd8b629289c77e33ac84d2788a4563f696d4034086a"
     },
     "tests/fixtures/cf-editorial-share/expected.html.gz": {
       "kind": "data",
@@ -701,7 +701,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "caf57e689bda9ab352dde029173c537f6aea729f7097b2ff2f412e07a6976e19"
+      "sha256": "7047657f9d5fd239531efac63ace62f491e05a9405316ff59ff9a02729b4e7ca"
     },
     "ops/glp/evidence-refresh-k3/compose_current_base.py": {
       "callers": [
@@ -1317,7 +1317,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "43da21747ececf71bfad0848033b352a548635529ceb96a7c7479a2f58865a7b"
+      "sha256": "62622cf9a0b10da3c7e6bed829c6737b320056a16593e150d6ec1b3a94cb2cce"
     },
     "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
       "callers": [
@@ -7534,7 +7534,7 @@
         "scripts/article_health_acceptance.py"
       ],
       "kind": "script",
-      "sha256": "7744504a2c883b6e64c2d1a259456155b3727aeb28d90bdf01a0b5db21613191"
+      "sha256": "d1cd5e37891b60e17739d4e4e6214ef58eedf6de0ee8bb6ba84707778a409593"
     },
     "scripts/glp_release_search_notify.py": {
       "callers": [

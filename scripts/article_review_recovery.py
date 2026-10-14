@@ -57,6 +57,14 @@ def checked(value):
     return path
 
 
+def require_live_matches_sealed(raw: bytes, expected: bytes):
+    # Delegate CF authentication to its maintained owner. Recovery never strips
+    # scripts or invents a second raw-response oracle.
+    from glp_deploy_glp34_authority_v1 import current_restore_cf_email
+    compared = current_restore_cf_email(raw, expected=expected) if raw != expected else raw
+    require(compared == expected, 'reviewed_live_deployment_drift')
+
+
 def normalize_live(text):
     def decode(value):
         raw = bytes.fromhex(value)
@@ -204,9 +212,9 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     snapshot = checked(doc['live_snapshot'])
     require(binding['url'] == 'https://glpclinicscout.com' + entry['target_route']
             and binding['http_status'] == 200 and binding['deployment_id'] == pointer['deployment_id']
-            and sha(live_file) == binding['deployed_sha256'] and sha(snapshot) == binding['live_sha256']
-            and normalize_live(snapshot.read_text()) == live_file.read_text(),
+            and sha(live_file) == binding['deployed_sha256'] and sha(snapshot) == binding['live_sha256'],
             'reviewed_live_deployment_drift')
+    require_live_matches_sealed(snapshot.read_bytes(), live_file.read_bytes())
     require_live_matches_candidate(live_file.read_text(), (fresh / CANDIDATE).read_text())
     return {'receipt': receipt, 'raw': raw, 'manifest': manifest, 'custody': custody, 'document': doc,
             'successor_authors': successor_authors}

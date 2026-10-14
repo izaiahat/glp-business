@@ -85,6 +85,16 @@ def test_adverse_real_caller_refuses(tmp_path, name, raw):
         probe(tmp_path, raw)
 
 
-def test_wrong_expected_page_refuses(tmp_path):
+def test_recovery_uses_same_complete_byte_oracle():
+    import sys
+    sys.path.insert(0, str(ROOT/'scripts'))
+    import article_review_recovery as recovery
+    recovery.require_live_matches_sealed(RAW, EXPECTED)
+    # Broad decoder stripping would have accepted this extra script.
+    with pytest.raises(RuntimeError, match='cloudflare_email_decoder_script_count_invalid'):
+        recovery.require_live_matches_sealed(RAW.replace(DECODER, DECODER+DECODER, 1), EXPECTED)
+
+
+def test_wrong_expected_page_refused(tmp_path):
     with pytest.raises(c.GateError):
         probe(tmp_path, expected=EXPECTED.replace(b'<h1', b'<h2', 1))
