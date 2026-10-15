@@ -3537,7 +3537,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "7dc67040472115497adcee88b08d02056b3392b7d87e698e578112ef565087ca"
+      "sha256": "a5606f1a931f6c12a7fd83368b42c3f827cdc9842c81d0df9a9acd7c0249cd4d"
     },
     "scripts/hermes_active_work_gate.py": {
       "callers": [
@@ -5284,7 +5284,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "11698be220cd3991cef5d728e8471339454fb6cd117e8a2f1cf7f97e3122b37b"
+      "sha256": "843d5cd83e27fa9f86ccf2a8bd3115c0145019e28e1103f7b4136c633ce0507e"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
@@ -7885,14 +7885,14 @@
       "callers": [
         "manual:GLP-328 approved conservative accounting"
       ],
-      "sha256": "c5f083856f59e079e2d1a304c3a923dc6da4dc2359fd37efc5bebe39ad0d32ae"
+      "sha256": "d26c698dfa65c8d16d9220dbd5d63aeb3a0bf196559a12fe1c57dfafeb40a3e3"
     },
     "tests/test_glp_sponsor_firecrawl_booking.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "5ddef3ded9d93063995de1924a8972ac09eaac4b1b9ff1356874eb0ab217cc8e"
+      "sha256": "c7d06542587586b34a475d14908a31f44bfeca5ee4aad6b628e94ba50d4380d4"
     },
     "ops/sponsor-firecrawl-booking.md": {
       "kind": "documentation",
