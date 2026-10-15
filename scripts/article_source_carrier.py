@@ -209,7 +209,7 @@ def verified_live_html_hash(body, expected):
         def __init__(self):
             super().__init__(convert_charrefs=False)
             self.lines = [0] + [m.end() for m in re.finditer('\n', body)]
-            self.scripts, self.emails, self.replacements = [], [], []
+            self.scripts, self.emails, self.replacements, self.body_ends = [], [], [], []
             self.inert = []
 
         def handle_starttag(self, tag, attrs):
@@ -269,6 +269,11 @@ def verified_live_html_hash(body, expected):
                 raise RuntimeError('live_article_content_drift')
 
         def handle_endtag(self, tag):
+            if tag == 'body' and not self.inert:
+                line, column = self.getpos()
+                offset = self.lines[line-1] + column
+                if body.startswith('</body>', offset):
+                    self.body_ends.append(offset)
             if self.inert and 'plaintext' not in self.inert and tag == self.inert[-1]:
                 self.inert.pop()
 
@@ -278,7 +283,7 @@ def verified_live_html_hash(body, expected):
         boundary.close()
         injections = [i for i, pos in enumerate(boundary.scripts) if body.startswith(decoder, pos)]
         if body != expected and injections:
-            if len(injections) != 1:
+            if len(injections) not in (1, 2):
                 raise RuntimeError('live_article_content_drift')
             i = injections[0]
             pos = boundary.scripts[i]
@@ -289,6 +294,21 @@ def verified_live_html_hash(body, expected):
                     or boundary.scripts[i+1] != pos+len(decoder)):
                 raise RuntimeError('live_article_content_drift')
             boundary.replacements.append((pos, pos+len(decoder), ''))
+            if len(injections) == 2:
+                # The fresh real article also has a terminal decoder: a new
+                # protected footer email follows the share script, with no
+                # later original script to trigger decoding before </body>.
+                # Admit only that exact second boundary, not arbitrary copies.
+                tail = boundary.scripts[injections[1]]
+                later_email = next((e for e in sorted(boundary.emails)
+                                    if e > boundary.scripts[i+1]), None)
+                next_script = next((s for s in boundary.scripts
+                                    if later_email is not None and s > later_email), None)
+                if (injections[1] != len(boundary.scripts)-1
+                        or next_script != tail
+                        or boundary.body_ends != [tail+len(decoder)]):
+                    raise RuntimeError('live_article_content_drift')
+                boundary.replacements.append((tail, tail+len(decoder), ''))
         # Preserve every byte outside admitted elements/attributes. Authenticate
         # each replacement at its position, never by substring membership.
         parts, cursor, expected_cursor = [], 0, 0
