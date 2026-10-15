@@ -1,7 +1,8 @@
-"""Rule-D receipt admission only: exact AST, scratch inputs, inventory sentinel.
+"""Rule-D receipt admission and qualification with scratch-only fixtures.
 
-No cleanup/producer module is imported. Placeholder implementation bytes bind a
-fixture-only contract; they are not qualification or installation authority.
+Receipt tests use exact AST and an inventory sentinel. Qualification regressions
+use the maintained classifier with synthetic collectors and effects denied.
+Placeholder contract bytes are not qualification or installation authority.
 """
 import ast
 import copy
@@ -326,3 +327,233 @@ class CurrentPolicyPointerTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# The 18-run / 1,934-consumer shape and controlled 60-second collector are
+# copied from GLP-349's diagnosis repro. No lanes/ imports or live collectors.
+def rule_d_fixture(tmp_path, monkeypatch):
+    import sys
+    from collections import Counter
+    sys.path.insert(0, str(SOURCE.parent))
+    import evidence_preserving_pruner as ep
+    import screenshot_pruner as sp
+    import host_disk_relay_custody as relay
+
+    class Clock:
+        value = 0.0
+        def monotonic(self): return self.value
+        def time(self): return 1800000000.0
+    clock = Clock()
+    counts = Counter()
+    flag = tmp_path / 'site-system/flagship-v2'
+    (flag / 'qa').mkdir(parents=True)
+    units = [flag / 'candidates' / f'held-{n:02d}' for n in range(18)]
+    for unit in units: unit.mkdir(parents=True)
+    source_dir = tmp_path / 'consumers'
+    source_dir.mkdir()
+    sources = [source_dir / f'{n:04d}.json' for n in range(1934)]
+    for n, source in enumerate(sources):
+        source.write_text(json.dumps({'consumer_paths': list(map(str, units))}) if n == 0 else '{}')
+    control = tmp_path / 'generation.json'
+    control.write_text('{}')
+    state = types.SimpleNamespace(fail=False, mutate=False, fresh_pins=[])
+    def collect(**kwargs):
+        counts['collect_calls'] += 1
+        clock.value += 60.0
+        if state.fail: raise ValueError('fixture incomplete collector')
+        if state.mutate:
+            control.write_text('{"changed_generation":true}')
+        return relay.BindingPins(state.fresh_pins, {str(control): relay.signature(control)})
+    def denied(*args, **kwargs):
+        raise AssertionError('image scan / process / effect boundary reached')
+    monkeypatch.setattr(relay, 'collect', collect)
+    monkeypatch.setattr(ep, 'BUS', tmp_path)
+    monkeypatch.setattr(ep, 'STATE', tmp_path / 'runstate/state.json')
+    monkeypatch.setattr(ep, 'time', clock)
+    monkeypatch.setattr(sp, 'time', clock)
+    monkeypatch.setattr(sp, 'reference_files', lambda *a: sources.copy())
+    monkeypatch.setattr(sp, 'rule_contract', lambda policy: 'fixture-contract')
+    monkeypatch.setattr(sp, 'scan', denied)
+    monkeypatch.setattr(ep, 'atomic_json', denied)
+    monkeypatch.setattr(subprocess, 'run', denied)
+    import shutil
+    monkeypatch.setattr(shutil, 'disk_usage', lambda p: types.SimpleNamespace(free=10**9))
+    real_is_file = Path.is_file
+    service = Path('/home/ubuntu/.config/systemd/user/host-disk-cleanup.service')
+    monkeypatch.setattr(Path, 'is_file', lambda p: False if p == service else real_is_file(p))
+    approval = tmp_path / 'ops/linear/approvals/OPERATOR-DECISION-20261001-qa-screenshot-deletion.md'
+    approval.parent.mkdir(parents=True)
+    approval.write_text('fixture only')
+    digest = '3ac87b3d008a214b11df4fa540817435d6962e82a5887076c2ab9486cf390c3b'
+    monkeypatch.setattr(ep, 'sha', lambda *a: digest)
+    policy = {'schema': 'disk-retention-v1', 'protected_roots': [str(flag / 'qa')],
+              'rule_D': {'image_roots': [str(flag / 'qa'), str(flag / 'candidates')],
+                         'cold_days': 30, 'image_extensions': sorted(sp.IMAGE_SUFFIXES),
+                         'qa_protection_exception': str(flag / 'qa'),
+                         'approval': {'path': str(approval), 'sha256': digest}}}
+    (tmp_path / 'ops/disk-retention-policy.json').write_text(json.dumps(policy))
+    return types.SimpleNamespace(ep=ep, sp=sp, relay=relay, clock=clock, counts=counts,
+        units=units, sources=sources, control=control, state=state, flag=flag,
+        api=types.SimpleNamespace(path_is_active_privileged=denied), denied=denied)
+
+
+def test_rule_d_referenced_qualification_completes_with_one_collection(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    started = time.perf_counter()
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True, deadline=1050)
+    wall = time.perf_counter() - started
+    print(json.dumps({'fixture_wall_seconds': wall, 'virtual_seconds': f.clock.value,
+                      'collections': f.counts['collect_calls'], 'summary': rows[-1]['status'],
+                      'runs': rows[-1].get('runs_evaluated')}))
+    assert rows[-1]['status'] == 'COMPLETE'
+    assert rows[-1]['partial'] is False
+    assert rows[-1]['runs_evaluated'] == 18
+    assert [r['status'] for r in rows[:-1]] == ['GATED_REFERENCED'] * 18
+    assert f.clock.value < 1050
+    assert f.counts['collect_calls'] == 1
+
+
+def test_rule_d_generation_changed_during_refresh_refuses_complete(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    # First row populates the cache. Second is unheld and must refresh. That
+    # refresh returns the NEW identity: it must not replace the admitted one.
+    f.sources[0].write_text(json.dumps({'consumer_paths': [str(f.units[0])]}))
+    def progress(rows):
+        if len(rows) == 1: f.state.mutate = True
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True,
+                          deadline=1050, progress=progress)
+    assert rows[0]['status'] == 'GATED_REFERENCED'
+    assert rows[1]['status'] == 'GATED_REFERENCE_CHANGED'
+    assert rows[-1]['status'] != 'COMPLETE'
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['eligible_bytes'] == 0
+    assert rows[-1]['reference_source'] == str(f.control)
+    assert f.counts['collect_calls'] == 2
+
+
+def test_rule_d_incomplete_refresh_cannot_use_static_denial(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    f.state.fail = True
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True, deadline=1050)
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['status'] != 'COMPLETE'
+    assert rows[-1]['reference_source'] == 'relay_lane_linear_refresh_incomplete'
+    assert rows[-1]['reference_timings']['collection']['failures'] == 1
+    assert f.counts['collect_calls'] == 1  # invalidation is sticky, no retry storm
+
+
+def test_rule_d_fresh_hold_and_uncached_positive_admission(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    index = f.ep.QualificationReferenceIndex([f.sources[1]], tmp_path,
+                                            rule_D_qa_root=f.flag / 'qa')
+    assert not index.references(f.units[0])
+    assert not index.references(f.units[0])
+    assert f.counts['collect_calls'] == 2
+    f.state.fresh_pins[:] = [f.units[0] / 'new-held-proof.json']
+    assert index.references(f.units[0])
+    assert f.counts['collect_calls'] == 3
+    assert not hasattr(index, 'last_changed_source')
+    assert index.references(f.units[0])
+    assert f.counts['collect_calls'] == 3  # only a complete denial is reusable
+
+
+def test_rule_d_consumer_content_drift_refuses_cached_denial(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    def progress(rows):
+        if len(rows) == 1: f.sources[1].write_text('{"new_consumer":true}')
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True,
+                          deadline=1050, progress=progress)
+    assert rows[1]['status'] == 'GATED_REFERENCE_CHANGED'
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['reference_source'] == str(f.sources[1])
+
+
+def test_rule_d_missing_or_unreadable_source_refuses_cached_denial(tmp_path, monkeypatch):
+    for failure in ('missing', 'unreadable'):
+        with monkeypatch.context() as patcher:
+            root = tmp_path / failure
+            root.mkdir()
+            f = rule_d_fixture(root, patcher)
+            def progress(rows):
+                if len(rows) != 1: return
+                if failure == 'missing':
+                    exists = Path.exists
+                    patcher.setattr(Path, 'exists', lambda p: False if p == f.sources[1] else exists(p))
+                else:
+                    f.sources[1].write_text('{"changed":true}')
+                    original = f.ep.ReferenceIndex.consumer_text
+                    def unreadable(index, source):
+                        if source == f.sources[1]: raise PermissionError('fixture unreadable')
+                        return original(index, source)
+                    patcher.setattr(f.ep.ReferenceIndex, 'consumer_text', unreadable)
+            rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True,
+                                  deadline=1050, progress=progress)
+            assert rows[1]['status'] == 'GATED_REFERENCE_CHANGED', failure
+            assert rows[-1]['partial'] is True
+            assert rows[-1]['reference_source'] == str(f.sources[1])
+
+
+def test_rule_d_final_generation_validation_refuses_complete(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    def progress(rows):
+        if len(rows) == 18: f.control.write_text('{"changed_after_last_run":true}')
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True,
+                          deadline=1050, progress=progress)
+    assert all(r['status'] == 'GATED_REFERENCED' for r in rows[:-1])
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['status'] != 'COMPLETE'
+    assert rows[-1]['reference_source'] == str(f.control)
+
+
+def test_rule_d_receipt_contains_collector_and_per_run_timings(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True, deadline=1050)
+    # Same serialization used by dry-run-images.json; no extra receipt/pointer.
+    receipt = json.loads(json.dumps({'dry_run': True, 'rows': rows}))
+    timings = receipt['rows'][-1]['reference_timings']
+    assert timings['collection'] == {'calls': 1, 'seconds': 60.0, 'failures': 0}
+    assert timings['references']['calls'] == 18
+    assert receipt['rows'][-1]['reference_cache_hits'] == 17
+    assert receipt['rows'][0]['runtime_seconds'] == 60.0
+    assert receipt['rows'][0]['reference_timings']['collection']['calls'] == 1
+    assert all('collection' not in r['reference_timings'] for r in receipt['rows'][1:-1])
+
+
+def test_rule_d_collector_phase_timings_include_failed_linear(tmp_path, monkeypatch):
+    import sys
+    import pytest
+    sys.path.insert(0, str(SOURCE.parent))
+    import host_disk_relay_custody as relay
+    class Clock:
+        value = 0.0
+        def monotonic(self): return self.value
+    clock = Clock()
+    monkeypatch.setattr(relay, 'time', clock)
+    class Reader:
+        fail = False
+        def pages(self, *args):
+            clock.value += 7.0
+            if self.fail: raise RuntimeError('fixture incomplete pages')
+            return []
+    reader = Reader()
+    timings = {}
+    relay.collect(bus=tmp_path, reader=reader, timings=timings)
+    expected = {'newest_site', 'relay', 'lanes', 'transitive', 'linear', 'generation_validation'}
+    assert set(timings) == {'collector.' + name for name in expected}
+    assert timings['collector.linear'] == {'calls': 1, 'seconds': 7.0, 'failures': 0}
+    reader.fail = True
+    with pytest.raises(RuntimeError, match='Linear inventory unavailable'):
+        relay.collect(bus=tmp_path, reader=reader, timings=timings)
+    assert timings['collector.linear'] == {'calls': 2, 'seconds': 14.0, 'failures': 1}
+
+
+def test_rule_d_expired_budget_does_not_start_final_collection(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    index = f.ep.QualificationReferenceIndex([f.sources[0]], tmp_path,
+                                            rule_D_qa_root=f.flag / 'qa')
+    f.clock.value = 1050.0
+    rows = f.sp.run_units(f.api, f.units, index, dry_run=True, deadline=1050,
+                          journal_dir=tmp_path / 'journals')
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['runs_evaluated'] == 0
+    assert f.counts['collect_calls'] == 0

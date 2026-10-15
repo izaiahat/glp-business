@@ -440,6 +440,17 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
     assert ast.unparse(branch.test) == "p == self.business / 'ops/email_flows/scheduler-heartbeat.json'"
     lines = source.splitlines(keepends=True)
     source = ''.join(lines[:branch.lineno-1] + lines[branch.end_lineno:])
+    # D's subclass defers initial collection. The default constructor still
+    # calls the exact same collector; project only this additive seam out.
+    initial_seam = """    def initial_bindings(self,collector):
+        return collector(bus=self.business)
+
+"""
+    assert source.count(initial_seam) == 1
+    assert source.count('        bindings=self.initial_bindings(relay_custody)') == 1
+    source = source.replace(initial_seam, '').replace(
+        '        bindings=self.initial_bindings(relay_custody)',
+        '        bindings=relay_custody(bus=self.business)')
     # Project ONLY the newly tested additive relay binding branch out of the
     # authenticated predecessor comparison; do not rebaseline any old oracle.
     added_init = """        from host_disk_relay_custody import collect as relay_custody
@@ -512,6 +523,64 @@ def test_state_backup_successful_steps_are_paced(tmp_path):
     elapsed = time.monotonic() - begin
     assert run.returncode == 0, run.stdout + run.stderr
     assert elapsed >= 3.8, ('successful page copies bypassed 10MiB/s pacing', elapsed)
+
+
+def test_daily_backup_large_synthetic_page_stream_fits_pacing_budget():
+    """19.35 GB synthetic SQLite page stream, virtual clock, exact producer block.
+
+    No 19 GB allocation or 31-minute sleep: drive the actual progress callback
+    with SQLite's 1 MiB successful-step shape. The old 1800s cap fails here.
+    Real SQLite backup/quick_check/archive/retention are covered below.
+    """
+    import ast
+    producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
+    body = producer.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    tree = ast.parse(body)
+    statements = next(n.body for n in ast.walk(tree) if isinstance(n, ast.Try)
+                      and any(isinstance(s, ast.Assign) and any(
+                          isinstance(t, ast.Name) and t.id == 'copy_started'
+                          for t in s.targets) for s in n.body))
+    first = next(i for i, n in enumerate(statements) if isinstance(n, ast.Assign)
+                 and any(isinstance(t, ast.Name) and t.id == 'copy_started' for t in n.targets))
+    last = next(i for i, n in enumerate(statements) if isinstance(n, ast.Expr)
+                and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Attribute)
+                and n.value.func.attr == 'backup')
+    code = compile(ast.Module(body=statements[first:last+1], type_ignores=[]), str(producer), 'exec')
+    clock = [0.0]
+    def sleep(delay):
+        clock[0] += delay
+    logical_bytes = 19_385_290_752
+    page_size = 4096
+    pages_total = logical_bytes // page_size
+    def backup(dst, *, pages, progress, sleep):
+        for copied in range(pages, pages_total + pages, pages):
+            remaining = max(0, pages_total - copied)
+            progress(0 if remaining else 101, remaining, pages_total)
+    logs = []
+    scope = dict(time=SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep),
+                 src=SimpleNamespace(backup=backup), dst=None, is_state=True,
+                 logical_bytes=logical_bytes, page_size=page_size,
+                 limit=logical_bytes + 1024**3, rel='state.db',
+                 free_bytes=lambda: 100 * 1024**3, MIN_FREE_BYTES=2 * 1024**3,
+                 wal=SimpleNamespace(exists=lambda: False), wal_before=0,
+                 sqlite3=SimpleNamespace(SQLITE_OK=0, SQLITE_DONE=101), log=logs.append)
+    exec(code, scope)
+    assert clock[0] == pytest.approx(logical_bytes / (10 * 1024**2))
+    assert scope['deadline'] >= clock[0] + 900
+    assert len(logs) >= 30, 'long snapshot must publish progress heartbeats'
+    # Size-scaled time must not relax growth/headroom/WAL refusal guards.
+    for reason, change in (
+            ('SIZE', {'limit': logical_bytes - 1}),
+            ('HEADROOM', {'free_bytes': lambda: 0}),
+            ('WAL_GROWTH', {'wal': SimpleNamespace(exists=lambda: True, stat=lambda:
+                SimpleNamespace(st_size=2 * 1024**3))})):
+        guarded = dict(scope, **change)
+        clock[0] = 0.0
+        with pytest.raises(TimeoutError, match='reason='+reason):
+            exec(code, guarded)
+    clock[0] = scope['deadline'] + 1
+    with pytest.raises(TimeoutError, match='reason=DEADLINE'):
+        scope['progress'](0, pages_total - 256, pages_total)
 
 
 def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(tmp_path):
