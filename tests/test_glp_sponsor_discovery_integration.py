@@ -44,4 +44,17 @@ def test_paid_search_is_fenced_by_existing_reservation_before_transport(tmp_path
     p.client = Client()
     p.discover(directory_batches=0)
     assert p.report['discovery']['search_status'] == 'sponsor_ledger_credit_cost_unknown'
+
+
+def test_transport_entered_budget_error_cannot_be_reclassified_as_safe_refusal(tmp_path):
+    import glp_sponsor_firecrawl_supply as supply
+    p = supply.Producer(state_dir=tmp_path, import_only=True)
+    p.import_only = False
+    p.reserve = lambda n: None
+    class Client:
+        def search(self, *a, **kw):
+            raise RuntimeError('sponsor_ledger_credit_cost_unknown')
+    p.client = Client()
+    p.discover(directory_batches=0)
+    assert p.report['discovery']['search_status'] == 'pending_reconciliation'
     assert p.report['discovery']['query_index'] == 0

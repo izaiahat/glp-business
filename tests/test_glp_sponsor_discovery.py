@@ -60,12 +60,13 @@ def test_search_persists_receipt_before_cursor_and_does_not_refilter_stored_back
     queries = []
     def search(payload):
         queries.append(payload)
-        return {'success': True, 'data': {'web': [{'url': 'https://fresh.example/partners', 'title': 'Fresh', 'description': 'Fixture'}]}}
+        return {'success': True, 'data': {'web': [{'source': 'wikidata_P856', 'url': 'https://fresh.example/partners', 'title': 'Fresh', 'description': 'Fixture'}]}}
     d = discovery.Discovery(tmp_path, search=search)
     r = d.run(directory_batches=0, search_batches=2)
     assert len(queries) == 2 and queries[0] != queries[1]
     assert all(q['limit'] == 100 and q['sources'] == ['web'] and 'scrapeOptions' not in q for q in queries)
     assert r['new_hosts'] == ['fresh.example'] and d.load()['query_index'] == 2
+    assert d.load()['candidates']['fresh.example']['source'] == 'firecrawl_search'
     # No transient 'seen' filter may consume a host before it reaches capture.
     r = d.run(free_only=True, directory_batches=0)
     assert r['candidate_hosts'] == ['fresh.example'] and r['new_hosts'] == []
@@ -75,7 +76,7 @@ def test_budget_refusal_does_not_advance_or_pay_and_unknown_does_not_replay(tmp_
     called = []
     def refused(payload):
         called.append(payload)
-        raise RuntimeError('sponsor_ledger_credit_cost_unknown')
+        raise discovery.AdmissionRefused('sponsor_ledger_credit_cost_unknown')
     d = discovery.Discovery(tmp_path, search=refused)
     r = d.run(directory_batches=0)
     assert len(called) == 1 and r['search_status'] == 'sponsor_ledger_credit_cost_unknown'
@@ -98,6 +99,12 @@ def test_untrusted_directory_urls_not_promoted(url):
 def test_no_paid_client_or_live_source_is_created_by_free_only(tmp_path):
     d = discovery.Discovery(tmp_path, fetch=lambda *a: {'query': {'pages': {}}}, search=lambda p: pytest.fail('paid'))
     assert d.run(free_only=True, directory_batches=1)['paid_search_attempts'] == 0
+
+
+def test_post_transport_budget_error_is_ambiguous_not_a_safe_admission_refusal(tmp_path):
+    d = discovery.Discovery(tmp_path, search=lambda _: (_ for _ in ()).throw(RuntimeError('sponsor_ledger_credit_cost_unknown')))
+    assert d.run(directory_batches=0)['search_status'] == 'pending_reconciliation'
+    assert d.load()['pending_query'] == 0
 
 
 def test_real_concurrent_discovery_refuses_before_effects(tmp_path):

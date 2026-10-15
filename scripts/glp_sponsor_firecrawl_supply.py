@@ -922,10 +922,25 @@ class Producer:
                                  'next_weekday_batch_capacity': min(25, len(verified)),
                                  'verified_hosts': verified, 'mail_refused': refused, 'verification_calls': calls}
 
+    def discovery_search(self, payload):
+        from glp_sponsor_discovery import AdmissionRefused, REFUSALS
+        entered = False
+
+        def transport(body, **kwargs):
+            nonlocal entered
+            entered = True
+            return self.client.search(body, **kwargs)
+
+        try:
+            return self.paid(20, transport, payload, timeout=90)
+        except RuntimeError as exc:
+            if not entered and str(exc) in REFUSALS:
+                raise AdmissionRefused(str(exc)) from exc
+            raise  # Same error after HTTP/settlement is ambiguous, never replay.
+
     def discover(self, *, free_only=False, directory_batches=2):
         from glp_sponsor_discovery import Discovery
-        discovery = Discovery(self.state / 'sponsor-discovery', search=None if free_only else
-                              lambda payload: self.paid(20, self.client.search, payload, timeout=90))
+        discovery = Discovery(self.state / 'sponsor-discovery', search=None if free_only else self.discovery_search)
         self.report['discovery'] = discovery.run(free_only=free_only, directory_batches=directory_batches)
         return discovery.load()['candidates']
 

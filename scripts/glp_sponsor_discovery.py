@@ -96,6 +96,10 @@ def directory_site(entity):
     return min(sites)[-1] if sites else None
 
 
+class AdmissionRefused(RuntimeError):
+    """Producer adapter proved transport was never entered (not just error text)."""
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -228,7 +232,7 @@ class Discovery:
             try:
                 response = self.search(payload)
             except Exception as exc:
-                if isinstance(exc, RuntimeError) and str(exc) in REFUSALS:
+                if isinstance(exc, AdmissionRefused) and str(exc) in REFUSALS:
                     state.update(pending_query=None, search_refused_at=at, search_refusal=str(exc))
                     report['search_status'] = str(exc)
                 else:
@@ -243,7 +247,7 @@ class Discovery:
                 # Search snippets are NOT first-party qualification. The caller's
                 # existing firstparty_research_host filter also applies at intake.
                 if host:
-                    state['candidates'].setdefault(host, {'source': 'firecrawl_search', **row,
+                    state['candidates'].setdefault(host, {**row, 'source': 'firecrawl_search',
                         'category': pack[index]['category'], 'at': at, **bound})
             state.update(query_index=index + 1, pending_query=None)
             self.save(state)
