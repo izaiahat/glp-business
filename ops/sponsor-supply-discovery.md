@@ -63,7 +63,7 @@ batches / 143 indexed articles / 66 literal official-site hosts / 58 previously
 unseen research hosts** after comparison with retained organization/capture
 identities and named aliases. This is not live suppression or US/category
 qualification. Evidence: `lanes/SPONSOR-SUPPLY/{FREE-FINAL-1,FREE-FINAL-2,
-YIELD-EVIDENCE}.json` and `free-final/receipts/` in the host workspace.
+YIELD-EVIDENCE,FREE-VALIDATED}.json` and `free-validated/receipts/` in the host workspace.
 At the default two batches/day that finite bootstrap averages about **13
 new research hosts/day for roughly five runs**, then zero from these indexes.
 No directory contact yield has been measured: use **0–3 verified contacts/day

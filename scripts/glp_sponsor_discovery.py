@@ -139,7 +139,9 @@ class Discovery:
         private_json(self.path, state)
 
     def receipt(self, kind, data):
-        raw = json.dumps(data, sort_keys=True).encode()
+        # Match private_json's exact on-disk serialization, not an unrelated
+        # compact JSON digest (which would fail retained byte-hash checks).
+        raw = json.dumps(data, sort_keys=True, indent=1).encode()
         digest = hashlib.sha256(raw).hexdigest()
         relative = 'receipts/' + kind + '-' + digest + '.json'
         from glp_firecrawl_jobs import private_json

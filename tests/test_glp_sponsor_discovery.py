@@ -35,6 +35,8 @@ def test_free_directory_uses_only_literal_https_official_sites_and_retains_prove
     assert row['source'] == 'wikidata_P856' and row['entity'] == 'Q123'
     assert row['url'] == 'https://www.fresh.example/fitness'
     assert (tmp_path / row['receipt']).is_file()
+    import hashlib
+    assert hashlib.sha256((tmp_path / row['receipt']).read_bytes()).hexdigest() == row['receipt_sha256']
     assert len(calls) == 2
     assert 'email' not in row and result['verified_contacts'] == 0
 

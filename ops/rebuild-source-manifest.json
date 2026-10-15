@@ -7783,21 +7783,21 @@
       "callers": [
         "scripts/glp_sponsor_firecrawl_supply.py"
       ],
-      "sha256": "d812e387b7923eaace68f118ac494721df66925b903a6ac7963d738d40c73cfb"
+      "sha256": "27dd049c99ca0323281247eb09e294761d3061a91c2eeeeee3e7a0498cc3f75f"
     },
     "scripts/glp_sponsor_discovery.py": {
       "kind": "script",
       "callers": [
         "scripts/glp_sponsor_firecrawl_supply.py"
       ],
-      "sha256": "4c203311e6cb328dde3a23b2aa2a53d23f08cc241137bdad3e41826fc862bbe7"
+      "sha256": "e70ce61b685a94679f1be3751114822059c2c5acbb79db35d6bc518f333c3411"
     },
     "tests/test_glp_sponsor_discovery.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "e9077aca3b764aba787e33d82b1ef8924b714a3428ed92b678bb81b1186543e5"
+      "sha256": "e635e1c7169901aa2b0dc95388b675a50c577d4e1cd5d8354e674ec447d464bf"
     },
     "tests/test_glp_sponsor_discovery_integration.py": {
       "kind": "test",
