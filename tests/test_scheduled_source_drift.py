@@ -435,6 +435,24 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert len(monitor_rows) == 1 and len(monitor_rows[0]['sources']) == 1
     assert monitor_rows[0]['sources'][0]['reviewed_sha256'] == '1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447'
     monitor_rows[0]['sources'][0]['reviewed_sha256'] = monitor_pin
+    # GLP349 source-only successor: exactly the existing host-storage row.
+    # All historical transitions above and full-document equality remain intact.
+    host = [r for r in expected['jobs'] if r['id'] == '075ed81c6b43']
+    assert len(host) == 1 and host[0]['payloads'] == []
+    assert host[0]['reviewed_sha256'] == '7d469fb2305cdb5bfc742b25e8681df73b3a7dbe4b385b18b54e10de8fd379d2'
+    wrapper = 'ops/hermes-cron-scripts/host_disk_pruner.py'
+    host_pin = '35a23b99209c58a1d43d237228f3fce8af3fea405b0dddcf7b7cbf26dd4d5f45'
+    assert sha((ROOT/wrapper).read_bytes()) == host_pin
+    host[0]['reviewed_sha256'] = host_pin
+    payloads = [
+        ('scripts/host_disk_pruner_trigger.py', 'e3e01d65d345943a4fd880930b9c42eeffadaa2fd3fee1b6a63135c6d549a896'),
+        ('scripts/host_disk_cleanup_large_unit.py', '414cb536cd1fe79da7a661b46b21e3d4cf495ef4fde939c17f9afedabcff0d2b'),
+        ('scripts/host_disk_large_sweep.py', 'd172d1feead8156891a95fdc1927bc76ac93bc7bdabfaa07ce180f7b5970ffc6'),
+    ]
+    for rel, pin in payloads:
+        assert sha((ROOT/rel).read_bytes()) == pin
+    host[0]['payloads'] = [{'path': '/home/ubuntu/business/' + rel, 'sha256': pin,
+        'owner': '/home/ubuntu/.hermes/scripts/host_disk_pruner.py'} for rel, pin in payloads]
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 

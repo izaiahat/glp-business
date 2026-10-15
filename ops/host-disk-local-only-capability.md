@@ -53,6 +53,10 @@ controller's existing completion notification remains part of the chain.
   existing exact-head CI step are reviewed together. These are source metadata,
   **not** installed sync baselines or native job-pin writes. No global manifest
   adoption is authorized.
+- `tests/test_scheduled_source_drift.py`: extend the existing immutable-preimage
+  full-document transition oracle with exactly this host-storage row's wrapper
+  hash and three payload pins. Prior historical assertions and full equality
+  remain intact; no arbitrary inventory drift is accepted.
 
 Receiving/adoption is parent-owned and requires independent exact-head review,
 normal existing source/cleanup/native singleton custody and no active old

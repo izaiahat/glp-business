@@ -1819,7 +1819,7 @@
     "ops/host-disk-local-only-capability.md": {
       "callers": ["GLP349"],
       "kind": "documentation",
-      "sha256": "af1aa921349f523033fc423143e5b3b23aa1856f452c1926bb8b4d9e1ec57987"
+      "sha256": "5eabbec03d5fcab9ba0b198f0c48683be32c1235a6e6618f16e01bc636752008"
     },
     "ops/systemd/host-disk-cleanup-local-only.conf.example": {
       "callers": ["systemd:host-disk-cleanup.service.d/large-classes.conf (opt-in alternative only)"],
@@ -7004,7 +7004,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "6de88ee4f1d04b34e403dc9c6ca418d882c9736e9421d4f4425c1daf606cbfd7"
+      "sha256": "8b62520689f9e469b76b19b9d532d3d6f2c4f05527102f2ac6406c84170f1ff5"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
