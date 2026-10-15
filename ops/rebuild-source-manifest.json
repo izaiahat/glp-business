@@ -3565,7 +3565,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "8f16b58fc569e70734581c64e963cd2e3e0729a087f47b8c987e43e5bd441730"
+      "sha256": "970cf4ff7a2ec1e4bd5467e6fcd526f1ad980331e81c6f3627b8428bbcea3dba"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -6486,7 +6486,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "test",
-      "sha256": "570c850a3f3924fdf3ef2e00ee245f54064dc4fef09c3e797e46a363f23163c8"
+      "sha256": "b59865c6500454481a9059c8c4e15542ad4e4e8a3d578d7bfde4388d256f9057"
     },
     "tests/test_host_health_audit.py": {
       "callers": [
