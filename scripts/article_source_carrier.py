@@ -181,20 +181,15 @@ def verified_live_html_hash(body, expected):
     """Reverse only Cloudflare's observed, reversible email protection.
 
     Do not strip prose, tags, whitespace, arbitrary scripts or attributes. Each
-    decoded mailto must be a literal attribute of the authenticated release.
+    replacement must occupy its exact position in the authenticated release.
     The final entire HTML must be byte-identical, not just the article title.
     """
+    if body == expected:
+        return hashlib.sha256(body.encode()).hexdigest()
+
     def decode(value):
         raw = bytes.fromhex(value)
         return bytes(b ^ raw[0] for b in raw[1:]).decode('utf-8')
-
-    def href(match):
-        restored = 'href="mailto:' + decode(match[1]) + '"'
-        return restored if restored in expected else match[0]
-
-    def text(match):
-        restored = decode(match[1])
-        return restored if restored in expected else match[0]
 
     # CF inserts this literal immediately before the next real script after
     # protecting an email. Parse boundaries before any reversal: regex deletion
@@ -202,43 +197,85 @@ def verified_live_html_hash(body, expected):
     decoder = '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
     href_pattern = r'href="/cdn-cgi/l/email-protection#([a-fA-F0-9]{4,8192})"'
     span_pattern = r'<span class="__cf_email__" data-cfemail="([a-fA-F0-9]{4,8192})">\[email&#160;protected\]</span>'
+    email_pattern = r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}'
+    # The observed share links also encode a recipient-free subject/body query.
+    share_pattern = r'\?subject=[^\s"<>]*(?:&|&amp;)body=[^\s"<>]+'
+    attribute_pattern = re.compile(r'''\s+([^\s"'<>/=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?''')
 
     class Boundaries(HTMLParser):
+        CDATA_CONTENT_ELEMENTS = ('script','style','textarea','title','xmp','iframe',
+                                  'noembed','noframes','noscript')
+
         def __init__(self):
             super().__init__(convert_charrefs=False)
             self.lines = [0] + [m.end() for m in re.finditer('\n', body)]
-            self.scripts, self.emails = [], []
+            self.scripts, self.emails, self.replacements = [], [], []
             self.inert = []
 
         def handle_starttag(self, tag, attrs):
-            # HTMLParser handles script/style data itself; do not interpret
-            # script-looking literals in other raw-text/inert containers.
-            if self.inert:
-                if tag == self.inert[-1]:
+            # Include raw-text containers on Python versions that only handle
+            # script/style, and self-closing spellings (not void HTML elements).
+            if tag in self.CDATA_CONTENT_ELEMENTS:
+                self.set_cdata_mode(tag)
+            inert = (tag in ('textarea','title','xmp','iframe','noembed','noframes','plaintext',
+                            'template','noscript','svg','math','select','option','optgroup')
+                     or 'inert' in dict(attrs))
+            if self.inert or inert:
+                void = tag in ('area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr')
+                if not void and (inert or tag == self.inert[-1]):
                     self.inert.append(tag)
-                return
-            if tag in ('textarea','title','xmp','iframe','noembed','noframes','plaintext','template','noscript'):
-                self.inert.append(tag)
                 return
             line, column = self.getpos()
             offset = self.lines[line-1] + column
             raw = self.get_starttag_text() or ''
             if tag == 'script':
                 self.scripts.append(offset)
-            email_href = re.search(href_pattern, raw) if tag == 'a' else None
             email_span = re.match(span_pattern, body[offset:]) if tag == 'span' else None
-            if ((email_href and dict(attrs).get('href') == email_href[0][6:-1]
-                    and href(email_href) != email_href[0])
-                    or (email_span and text(email_span) != email_span[0])):
-                self.emails.append(offset)
+            if email_span:
+                restored = decode(email_span[1])
+                if re.fullmatch(email_pattern, restored):
+                    self.emails.append(offset)
+                    self.replacements.append((offset, offset+len(email_span[0]), restored))
+            if tag == 'a':
+                # Tokenize the entire start tag without gaps. A regex search
+                # could match data-href, a quoted attribute's data, duplicate
+                # hrefs, or malformed attributes tolerated by HTMLParser.
+                opening = re.match(r'<[aA](?=\s|/?>)', raw)
+                if not opening:
+                    return
+                pos, names, email_href = opening.end(), set(), None
+                while raw[pos:].strip() not in ('>', '/>'):
+                    attr = attribute_pattern.match(raw, pos)
+                    if not attr or attr[1].lower() in names:
+                        return
+                    names.add(attr[1].lower())
+                    match = re.fullmatch(href_pattern, raw[attr.start(1):attr.end()])
+                    if match:
+                        email_href = (attr.start(1), attr.end(), decode(match[1]))
+                    pos = attr.end()
+                if email_href:
+                    start, end, restored = email_href
+                    if re.fullmatch(email_pattern, restored) or re.fullmatch(share_pattern, restored):
+                        self.emails.append(offset)
+                        self.replacements.append((offset+start, offset+end, 'href="mailto:'+restored+'"'))
+
+        def handle_startendtag(self, tag, attrs):
+            self.handle_starttag(tag, attrs)
+
+        def handle_data(self, data):
+            # HTMLParser does not model HTML's double-escaped script state.
+            # Do not trust later apparent element boundaries in that shape.
+            if self.cdata_elem == 'script' and re.search(r'<!--[\s\S]*?<script(?=[\s/>])', data, re.I):
+                raise RuntimeError('live_article_content_drift')
 
         def handle_endtag(self, tag):
-            if self.inert and tag == self.inert[-1]:
+            if self.inert and 'plaintext' not in self.inert and tag == self.inert[-1]:
                 self.inert.pop()
 
     try:
         boundary = Boundaries()
         boundary.feed(body)
+        boundary.close()
         injections = [i for i, pos in enumerate(boundary.scripts) if body.startswith(decoder, pos)]
         if body != expected and injections:
             if len(injections) != 1:
@@ -251,11 +288,20 @@ def verified_live_html_hash(body, expected):
                     or i+1 == len(boundary.scripts)
                     or boundary.scripts[i+1] != pos+len(decoder)):
                 raise RuntimeError('live_article_content_drift')
-            body_without_decoder = body[:pos] + body[pos+len(decoder):]
-        else:
-            body_without_decoder = body
-        normalized = re.sub(href_pattern, href, body_without_decoder)
-        normalized = re.sub(span_pattern, text, normalized)
+            boundary.replacements.append((pos, pos+len(decoder), ''))
+        # Preserve every byte outside admitted elements/attributes. Authenticate
+        # each replacement at its position, never by substring membership.
+        parts, cursor, expected_cursor = [], 0, 0
+        for start, end, restored in sorted(boundary.replacements):
+            if start < cursor:
+                raise RuntimeError('live_article_content_drift')
+            piece = body[cursor:start] + restored
+            if not expected.startswith(piece, expected_cursor):
+                raise RuntimeError('live_article_content_drift')
+            parts.append(piece)
+            expected_cursor += len(piece)
+            cursor = end
+        normalized = ''.join(parts) + body[cursor:]
     except (ValueError, UnicodeError, IndexError) as exc:
         raise RuntimeError('live_article_content_drift') from exc
     if normalized != expected:

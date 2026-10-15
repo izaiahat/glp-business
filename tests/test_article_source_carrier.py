@@ -293,6 +293,82 @@ class SourceCarrierTests(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
                         carrier.live_readback('/guides/new/','Reviewed title',expected_html=expected)
 
+    def test_live_span_reversal_requires_email_text_in_active_html(self):
+        def span(text):
+            encoded = '7f' + bytes(b ^ 127 for b in text.encode()).hex()
+            return '<span class="__cf_email__" data-cfemail="'+encoded+'">[email&#160;protected]</span>'
+        email = 'support@example.test'
+        cases = [('json-brace', '<script type="application/ld+json">{"name":"Guide"}</script>', '{'),
+                 ('prose', '<p>Accepted prose</p>', 'Accepted prose'),
+                 ('attribute', '<p data-note=\''+email+'\'>Text</p>', email),
+                 ('comment', '<!-- '+email+' -->', email)]
+        for tag in ('script','style','textarea','title','xmp','iframe','noembed','noframes','noscript',
+                    'template','svg','math','select','option','optgroup','plaintext'):
+            cases.append((tag, '<'+tag+'>'+email+'</'+tag+'>', email))
+        cases.extend([
+            ('inert-attribute', '<div inert><p>'+email+'</p></div>', email),
+            ('template-script-end', '<template><script>"</template>"</script>'+email+'</template>', email),
+            ('inert-template-end', '<div inert><template></div>'+email+'</template>', email),
+            ('self-closing-template', '<template/>'+email+'</template>', email),
+            ('self-closing-script', '<script/>'+email+'</script>', email),
+            ('plaintext-close', '<plaintext></plaintext>'+email, email),
+            ('escaped-script', '<script><!--<script></script>'+email+'--></script>', email),
+        ])
+        for name, original, text in cases:
+            with self.subTest(case=name):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(original.replace(text, span(text), 1), original)
+        source = '<p>'+email+'</p>'
+        self.assertEqual(carrier.verified_live_html_hash(source.replace(email,span(email)),source),
+                         __import__('hashlib').sha256(source.encode()).hexdigest())
+
+    def test_live_href_reversal_requires_an_actual_unambiguous_anchor_attribute(self):
+        email = 'support@example.test'
+        original = 'href="mailto:'+email+'"'
+        encoded = '7f' + bytes(b ^ 127 for b in email.encode()).hex()
+        protected = 'href="/cdn-cgi/l/email-protection#'+encoded+'"'
+        cases = [('script', '<script>const s=\''+original+'\';</script>'),
+                 ('attribute', '<a data-note=\''+original+'\'>Email</a>'),
+                 ('suffix', '<a data-'+original+'>Email</a>'),
+                 ('non-anchor', '<div '+original+'>Email</div>'),
+                 ('comment', '<!-- '+original+' -->'),
+                 ('duplicate', '<a href="/other" '+original+'>Email</a>'),
+                 ('duplicate-case', '<a HREF="/other" '+original+'>Email</a>'),
+                 ('malformed', '<a class="cta"'+original+'>Email</a>')]
+        for tag in ('style','textarea','title','xmp','iframe','noembed','noframes','noscript',
+                    'template','svg','math','select','option','optgroup','plaintext'):
+            cases.append((tag, '<'+tag+'><a '+original+'>Email</a></'+tag+'>'))
+        cases.append(('inert-attribute', '<div inert><a '+original+'>Email</a></div>'))
+        cases.append(('escaped-script', '<script><!--<script></script><a '+original+'>Email</a>--></script>'))
+        for name, source in cases:
+            with self.subTest(case=name):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(source.replace(original,protected),source)
+        source = '<a class="cta" data-note=\'href="/unchanged"\' hidden '+original+'>Email</a>'
+        self.assertEqual(carrier.verified_live_html_hash(source.replace(original,protected),source),
+                         __import__('hashlib').sha256(source.encode()).hexdigest())
+
+    def test_live_email_reversal_rejects_unobserved_payloads_and_attribute_shapes(self):
+        for text in ('{', 'Accepted prose', 'support@example.test<em>markup</em>'):
+            encoded = '7f' + bytes(b ^ 127 for b in text.encode()).hex()
+            source = '<a href="mailto:'+text+'">Email</a>'
+            body = source.replace('mailto:'+text, '/cdn-cgi/l/email-protection#'+encoded)
+            with self.subTest(payload=text):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(body,source)
+        email = 'support@example.test'
+        encoded = '7f' + bytes(b ^ 127 for b in email.encode()).hex()
+        source = '<a href="mailto:'+email+'">'+email+'</a>'
+        span = '<span class="__cf_email__" data-cfemail="'+encoded+'">[email&#160;protected]</span>'
+        body = source.replace('>'+email+'<','>'+span+'<')
+        for bad in (body.replace('class="__cf_email__"','class="__cf_email__" class="other"'),
+                    body.replace(' data-cfemail=', 'data-cfemail='),
+                    body.replace(encoded,encoded+'f'), body.replace(encoded,'7fff'),
+                    body.replace('[email&#160;protected]','[email protected]')):
+            with self.subTest(body=bad):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(bad,source)
+
     def test_reconciliation_uses_real_packet_and_never_republishes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
