@@ -50,7 +50,7 @@ def namespace(config,source,report):
     return argv
 
 
-def ci(pr,report):
+def ci(pr,report,receipt_name='CI.json'):
     # PR creation and Actions registration are asynchronous. Poll read-only
     # metadata until checks exist; never mistake that short gap for CI failure.
     for attempt in range(60):
@@ -63,7 +63,7 @@ def ci(pr,report):
     evidence=json.loads(run(['gh','pr','view',pr,'--repo',REPO,'--json','url,state,headRefOid,mergeCommit,statusCheckRollup']))
     checks=evidence.get('statusCheckRollup') or []
     if not checks or any(c.get('status')!='COMPLETED' or c.get('conclusion')!='SUCCESS' for c in checks):raise RuntimeError('exact_ci_nonpass')
-    save(report/'CI.json',evidence)
+    save(report/receipt_name,evidence)
     return evidence
 
 
@@ -217,6 +217,14 @@ def prepare_sync_source(source, report, changed):
 def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_only=True):
     """Default to source production; hourly main must explicitly own publication."""
     from glp_affiliate_registry_sync import sync
+    # Resume receipts already bind a PR to an exact head. Reuse the existing
+    # read-only CI admission before allocating another clone for that head.
+    if source_ref and source_pr:
+        # Admission is preliminary: a later fetch/sync failure must not add a
+        # retention custody marker. CI.json remains authoritative post-sync.
+        resumed=ci(source_pr,report,'CI-admission.non-custody.json')
+        if resumed['headRefOid']!=source_ref:raise RuntimeError('source_pr_head_mismatch')
+    # Keep the post-sync CI/head check below: sync may produce a different PR.
     source=report/'candidate'
     run(['git','clone','--quiet','--single-branch','git@github.com:'+REPO+'.git',str(source)])
     if source_ref:

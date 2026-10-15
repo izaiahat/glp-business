@@ -2888,7 +2888,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "b5511bd83033a92309c212f5dbf86a2910ff05d5ea3fbe71002472222cc2ae80"
+      "sha256": "66e2b56373e99b0e90727ed3132033933788bef334bc92438d37bb9c1431e628"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -6066,7 +6066,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "1885c34842ecaf08467c45f30919d32fa098e18c8381e8185faeafd11067655c"
+      "sha256": "346887fe2406a430ed04f3c4c6f6fde17a14fb29e8e3349d7296be2e8cb564d5"
     },
     "tests/test_glp_affiliate_staging_packet.py": {
       "callers": [

@@ -31,6 +31,178 @@ def test_ci_registration_gap_is_read_only_not_failure(tmp_path,monkeypatch):
     assert all('create' not in c and 'merge' not in c for c in calls)
 
 
+@pytest.fixture
+def hourly_resume(tmp_path, monkeypatch):
+    """Run real main/selection/execute/ci; deny all external effects and retention."""
+    import subprocess
+    import sys
+    import types
+
+    spec = importlib.util.spec_from_file_location(
+        'f03_job', Path(__file__).resolve().parents[1] / 'scripts/glp_affiliate_sync_job.py')
+    job = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(job)
+    root = tmp_path / 'business'
+    runs = root / 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
+    prior = runs / '20261012T001701Z'
+    prior.mkdir(parents=True)
+    head = '9f1459e94e5bc7a71b831824b21d2412ce1aa1a8'
+    pr = 'https://github.com/izaiahat/glp-site-candidate/pull/63'
+    (prior / 'source-intent.json').write_text(json.dumps({'head': head}))
+    (prior / 'PR.json').write_text(json.dumps({'url': pr}))
+    config = tmp_path / 'config.json'
+    config.write_text('{}')
+    report = runs / '20261015T181706Z'
+    events = []
+    checks = [{'status': 'COMPLETED', 'conclusion': 'SUCCESS'}]
+    record = {'state': 'MERGED', 'headRefOid': head,
+              'mergeCommit': {'oid': 'b' * 40}, 'statusCheckRollup': checks}
+
+    def denied(*args, **kwargs):
+        raise AssertionError('external effect denied')
+
+    def run(argv, **kwargs):
+        if argv[:3] == ['gh', 'pr', 'view']:
+            assert argv[3] == pr and argv[4:6] == ['--repo', job.REPO]
+            events.append('ci-read')
+            return json.dumps(record)
+        if argv[:3] == ['gh', 'pr', 'checks']:
+            assert argv[3] == pr and '--watch' in argv
+            events.append('ci-watch')
+            return ''
+        if argv[:2] == ['git', 'clone']:
+            events.append('clone')
+            source = Path(argv[-1])
+            source.mkdir()
+            # Allocate a small real stand-in, never a production/network clone.
+            (source / 'fixture-source').write_bytes(b'x' * 4096)
+            return ''
+        if argv[:2] == ['git', 'fetch']:
+            events.append('fetch')
+            return ''
+        if argv == ['git', 'checkout', '--detach', head]:
+            return ''
+        if argv[:2] == ['git', 'rev-parse']:
+            return head if argv[-1] == 'HEAD' else 'same-tree'
+        denied(argv)
+
+    registry = types.ModuleType('glp_affiliate_registry_sync')
+    registry.sync = lambda *args: {'changed': 0}
+    publisher = types.ModuleType('glp_release_main')
+    publisher.main_pre_effect_refusal = denied
+    monkeypatch.setitem(sys.modules, 'glp_affiliate_registry_sync', registry)
+    monkeypatch.setitem(sys.modules, 'glp_release_main', publisher)
+    monkeypatch.setattr(subprocess, 'run', denied)
+    monkeypatch.setattr(subprocess, 'check_output', denied)
+    monkeypatch.setattr(job, 'ROOT', root)
+    monkeypatch.setattr(job, 'run', run)
+    monkeypatch.setattr(job.time, 'sleep', lambda _: None)
+    monkeypatch.setattr(job, 'save', lambda p, value: Path(p).write_text(json.dumps(value)))
+    monkeypatch.setattr(job, 'retire_disposable_clones', denied)
+    monkeypatch.setattr(sys, 'argv', ['f03', '--config', str(config), '--output', str(report)])
+    return job, report, record, events, prior
+
+
+@pytest.mark.parametrize('nonpass', ['failed', 'pending', 'missing', 'wrong-head'])
+def test_hourly_resume_ci_refuses_before_source_allocation(hourly_resume, nonpass):
+    job, report, record, events, _ = hourly_resume
+    error = 'exact_ci_nonpass'
+    if nonpass == 'failed':
+        record['statusCheckRollup'][0]['conclusion'] = 'FAILURE'
+    elif nonpass == 'pending':
+        record['statusCheckRollup'][0]['status'] = 'IN_PROGRESS'
+    elif nonpass == 'missing':
+        record['statusCheckRollup'] = []
+        error = 'ci_registration_timeout'
+    else:
+        record['headRefOid'] = 'c' * 40
+        error = 'source_pr_head_mismatch'
+    with pytest.raises(RuntimeError, match=error):
+        job.main()
+    allocated = sum(p.stat().st_blocks * 512 for p in report.rglob('*') if p.is_file())
+    print(f'F03 {nonpass}: candidate={(report / "candidate").exists()} allocated_bytes={allocated} events={events}')
+    assert 'clone' not in events and 'fetch' not in events
+    assert not (report / 'candidate').exists()
+    receipt = json.loads((report / 'FAILURE.json').read_text())
+    assert receipt['error'] == error and (report / 'FAILURE.json').stat().st_size < 4096
+
+
+def test_hourly_unchanged_green_resume_still_completes(hourly_resume):
+    job, report, record, events, _ = hourly_resume
+    assert job.main() == 0
+    result = json.loads((report / 'RESULT.json').read_text())
+    assert result['status'] == 'PASS_SOURCE_MERGED'
+    assert result['source_head'] == record['headRefOid'] and result['deployed'] is False
+    assert events.count('clone') == 1 and events.count('ci-watch') == 2
+    assert events.index('ci-watch') < events.index('clone') < events.index('fetch')
+
+
+def test_hourly_resume_receipt_becomes_authoritative_only_after_sync(hourly_resume, monkeypatch):
+    import sys
+
+    job, report, record, events, _ = hourly_resume
+    original_run, original_save = job.run, job.save
+    fail_fetch = True
+    authoritative_writes = []
+
+    def run(argv, **kwargs):
+        if fail_fetch and argv[:2] == ['git', 'fetch']:
+            events.append('fetch-refusal')
+            raise RuntimeError('command_failed:' + str(report / 'resume-fetch.log'))
+        return original_run(argv, **kwargs)
+
+    def save(path, value):
+        if path.name == 'CI.json':
+            authoritative_writes.append(list(events))
+        return original_save(path, value)
+
+    def sync(*args):
+        events.append('sync')
+        assert not (report / 'CI.json').exists()
+        return {'changed': 0}
+
+    monkeypatch.setattr(job, 'run', run)
+    monkeypatch.setattr(job, 'save', save)
+    monkeypatch.setattr(sys.modules['glp_affiliate_registry_sync'], 'sync', sync)
+    with pytest.raises(RuntimeError, match='command_failed:'):
+        job.main()
+    assert (report / 'candidate/fixture-source').stat().st_blocks * 512 >= 4096
+    assert events.count('clone') == 1 and events[-1] == 'fetch-refusal'
+    assert events.index('ci-watch') < events.index('clone')
+    assert not any((report / name).exists() for name in job.CUSTODY_MARKERS)
+    assert not authoritative_writes
+    assert json.loads((report / 'FAILURE.json').read_text())['error'].startswith('command_failed:')
+    assert not (report / 'RESULT.json').exists()
+    admission = 'CI-admission.non-custody.json'
+    assert admission not in job.CUSTODY_MARKERS
+    assert json.loads((report / admission).read_text()) == record
+
+    # A separate healthy actual-entry run must still produce post-sync authority.
+    report = report.with_name('20261015T181707Z')
+    monkeypatch.setattr(sys, 'argv', [*sys.argv[:-1], str(report)])
+    events.clear()
+    fail_fetch = False
+    assert job.main() == 0
+    assert events.count('ci-watch') == 2 and events.count('clone') == 1
+    assert events.index('ci-watch') < events.index('clone') < events.index('fetch') < events.index('sync')
+    assert len(authoritative_writes) == 2
+    assert all('sync' in snapshot and snapshot.count('ci-watch') == 2
+               for snapshot in authoritative_writes)
+    assert json.loads((report / admission).read_text()) == record
+    assert json.loads((report / 'CI.json').read_text()) == record
+    result = json.loads((report / 'RESULT.json').read_text())
+    assert result['status'] == 'PASS_SOURCE_MERGED' and result['source_head'] == record['headRefOid']
+    assert result['deployed'] is False
+
+
+def test_hourly_fresh_no_change_keeps_existing_flow(hourly_resume):
+    job, report, _, events, prior = hourly_resume
+    (prior / 'PR.json').unlink()
+    assert job.main() == 0
+    assert json.loads((report / 'RESULT.json').read_text())['status'] == 'PASS_SOURCE_NO_CHANGE'
+    assert events == ['clone']
+
+
 def test_build_ci_design_and_hold_proofs_are_required(tmp_path):
     head='a'*40;rows=[{'file':'index.html','sha256':'b'*64}]
     absence=tmp_path/'absence.json'
