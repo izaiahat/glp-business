@@ -30,6 +30,12 @@ Nested symbolic links are interpreted in the namespace, not followed into
 unmounted host secrets; inaccessible entries retain their permission identity.
 No historical release is assigned invented input provenance.
 
+The full native candidate is hash-sealed as the validation source because the
+sanitized package omits Functions source. Its actual deployed `public/` is
+mounted read-only over that source. A missing/changed candidate forces a build.
+Validation uses the registered `build:validated` post-build tail, not the obsolete
+`npm run validate` alias; a real retained read-only probe exercised this path.
+
 A possible hit is checked before cloning. It still reruns exact-head CI,
 read-only native validators with current-time freshness/expiry evaluation,
 independent raw-held and adverse-absence checks, secrets scan and the live

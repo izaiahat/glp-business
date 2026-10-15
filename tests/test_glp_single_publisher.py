@@ -92,6 +92,9 @@ def _already_current(tmp_path, monkeypatch):
     monkeypatch.setattr(release, 'RUNS', tmp_path / 'hourly')
     monkeypatch.setattr(release, 'build_storage_status', lambda: {'blocked': False})
     monkeypatch.setattr(release, 'merged_pr_for', lambda sha: {'url': 'u', 'headRefOid': head})
+    config = tmp_path/'config.json'
+    config.write_text('{}')
+    monkeypatch.setattr(job, 'CONFIG', config)
     monkeypatch.setattr(release, 'pointer_head', lambda: (head, 'dep-1'))
     pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
     pointer.parent.mkdir(parents=True)

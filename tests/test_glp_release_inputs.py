@@ -10,6 +10,22 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
 
+def write_recipe(source):
+    prefix = ('npm run generate:provider-logo-atlas && npm run generate:home-imagery && '
+              'npm run generate:phase3-product-renders && npm run assemble:css && '
+              'node scripts/build-staging.mjs && node scripts/build-lastmod-provenance.mjs')
+    recipe = prefix + ' && npm run validate:coverage && node scripts/validate-affiliate-review-publication.mjs'
+    (source/'package.json').write_text(json.dumps({'scripts':{'build:validated':recipe}}))
+
+
+def test_native_validation_tail_is_the_registered_build_tail(tmp_path):
+    import glp_release_main as release
+    write_recipe(tmp_path)
+    commands = release.native_validation_commands(tmp_path)
+    assert commands[0] == ['npm','run','validate:coverage']
+    assert commands[-1] == ['node','scripts/validate-affiliate-review-publication.mjs']
+
+
 def test_exact_input_snapshot_tracks_source_data_deps_env_and_mount_bytes(tmp_path):
     inputs = importlib.import_module('glp_release_inputs')
     data = tmp_path / 'data'
@@ -90,8 +106,12 @@ def test_identical_inputs_skip_requires_success_binding_and_passing_sensor(tmp_p
     report.mkdir()
     pointer = {'site_head':'HEAD','release_root':str(root),'deployment_id':'DEP'}
     key = {'sha256':'INPUTS','source_tree':'TREE'}
+    source = base_report/'candidate'
+    source.mkdir()
+    (source/'function.js').write_text('generated runtime')
     baseline = {'status':'PASS_PRODUCTION_TERMINAL','pointer':pointer,'inputs':key,
-                'release_tree_sha256':inputs.path_digest(root)}
+                'release_tree_sha256':inputs.path_digest(root),
+                'validation_source':str(source), 'validation_source_sha256':inputs.path_digest(source)}
     job.save(base_report / 'SUCCESSFUL-INPUTS.json', baseline)
     calls = []
     monkeypatch.setattr(release, 'fresh_release_inputs', lambda *a: key)
@@ -124,19 +144,25 @@ def test_cached_validation_keeps_raw_held_oracle_without_build(tmp_path, monkeyp
     for name in ('registry-sync.json', 'sheet-snapshot.json'):
         (report / 'registry' / name).write_text('{}')
     monkeypatch.setattr(job, 'ci', lambda *a: {'state':'MERGED','headRefOid':'H'})
-    monkeypatch.setattr(job, 'namespace', lambda *a: ['bwrap','--bind',str(root),'/site'])
-    monkeypatch.setattr(absence, 'audit', lambda *a: {'status':'PASS'})
+    source = tmp_path/'candidate'
+    (source/'artifacts').mkdir(parents=True)
+    write_recipe(source)
+    def namespace(config, selected, report):
+        assert selected == source
+        return ['bwrap','--bind',str(source),'/site']
+    monkeypatch.setattr(job, 'namespace', namespace)
+    monkeypatch.setattr(absence, 'audit', lambda *a, **kw: {'status':'PASS'})
     calls = []
     monkeypatch.setattr(job, 'run', lambda argv, **kw: calls.append(argv) or '{}')
     pr = {'url':'PR','headRefOid':'H'}
-    release.validate_cached_release({'namespace':'/site'}, report, root, pr)
+    release.validate_cached_release({'namespace':'/site'}, report, root, pr, source)
     assert any('assertRawHeldOutput' in ' '.join(a) for a in calls)
-    assert any(a[-3:] == ['npm','run','validate'] for a in calls)
+    assert any(a[-3:] == ['npm','run','validate:coverage'] for a in calls)
     assert not any('build' in ' '.join(a[-3:]) for a in calls)
     assert all('--ro-bind' in a for a in calls)
     monkeypatch.setattr(job, 'ci', lambda *a: {'state':'MERGED','headRefOid':'OTHER'})
     with pytest.raises(ValueError, match='exact_head_ci'):
-        release.validate_cached_release({'namespace':'/site'}, tmp_path/'bad-ci', root, pr)
+        release.validate_cached_release({'namespace':'/site'}, tmp_path/'bad-ci', root, pr, source)
 
 
 def test_only_a_successful_publication_records_a_reusable_baseline(tmp_path):
@@ -146,6 +172,8 @@ def test_only_a_successful_publication_records_a_reusable_baseline(tmp_path):
     root = report / 'prepared/release'
     root.mkdir(parents=True)
     (root / 'file').write_text('real output')
+    (report/'candidate').mkdir()
+    write_recipe(report/'candidate')
     job.save(report / 'BUILD-INPUTS.json', {'sha256':'inputs'})
     pointer = {'release_root':str(root),'deployment_id':'D','site_head':'H'}
     assert release.record_successful_inputs(report, {'status':'PREPARED'}, pointer) is None

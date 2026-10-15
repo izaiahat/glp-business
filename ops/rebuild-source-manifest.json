@@ -6,7 +6,7 @@
       "callers": [
         "GLP-349 release input/recovery contract"
       ],
-      "sha256": "05fd46ba42ce9df3600d63d01f5cdf65b26a40b9292a36c8351be762e1a7574e"
+      "sha256": "2e1fdafe5c86024685a5c42e2b63f46c31120d6e288da980d15b9d92632cef54"
     },
     "scripts/glp_release_inputs.py": {
       "kind": "script",
@@ -21,7 +21,7 @@
       "callers": [
         "business-source-ci:GLP349-release-health"
       ],
-      "sha256": "185020cf27e0f20f31ed5cd714fec0499b3c1e838bd6de407d21ae7e68085a4b"
+      "sha256": "3e449b6554b15eb31a42e6f81b6e300c49f9009adaf7898700830a92b0384721"
     },
     "tests/test_postpublication_review_only.py": {
       "kind": "test",
@@ -307,7 +307,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "08a11431e5a0813a55b0159c09934425c61876969fc360527ec2e00e2960b917"
+      "sha256": "a2802fa0e2ebe01d08d1765632596c8733f0232176442c501405c819c935cf70"
     },
     ".codex-task/RESULT.md": {
       "callers": [
@@ -319,7 +319,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "775f971032f096c25c8dad9a14149b2bb1c45d2e4e02b48ee908ec4f9afdd5cc"
+      "sha256": "3cf7fff66c949eae38b33a13ce07a0b48af48b94429e24c7359e58d6e12e83b9"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3297,7 +3297,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "3bde4d066237e3a27c84d3f6035065dda363890c15e00fa0b052e3d0cceddbbc"
+      "sha256": "105a516935def2e47d7acb1f242b78278ca9c1dbe4aa44b3e9ad463c014d5abc"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [

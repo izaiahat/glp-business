@@ -184,7 +184,26 @@ def fresh_release_inputs(config, report, pr):
     return snapshot
 
 
-def validate_cached_release(config, report, root, pr):
+def native_validation_commands(source):
+    """Extract exactly the admitted native post-build validator tail."""
+    import shlex
+    scripts = json.loads((source/'package.json').read_text())['scripts']
+    parts = scripts['build:validated'].split(' && ')
+    prefix = ['npm run generate:provider-logo-atlas', 'npm run generate:home-imagery',
+              'npm run generate:phase3-product-renders', 'npm run assemble:css',
+              'node scripts/build-staging.mjs', 'node scripts/build-lastmod-provenance.mjs']
+    if parts[:6] != prefix or len(parts) < 7:
+        raise ValueError('cached_validation_recipe_not_admitted')
+    commands = [shlex.split(p) for p in parts[6:]]
+    for cmd in commands:
+        npm = len(cmd)==3 and cmd[:2]==['npm','run'] and (cmd[2].startswith('validate:') or cmd[2]=='audit:quiz')
+        node = cmd == ['node','scripts/validate-affiliate-review-publication.mjs']
+        if not (npm or node):
+            raise ValueError('cached_validation_unknown_command')
+    return commands
+
+
+def validate_cached_release(config, report, root, pr, source):
     """Rerun current-time validation and adverse-absence gates, never npm build."""
     import shutil
     import glp_affiliate_sync_job as job
@@ -192,16 +211,18 @@ def validate_cached_release(config, report, root, pr):
     evidence = job.ci(pr['url'], report)
     if evidence.get('headRefOid') != pr['headRefOid'] or evidence.get('state') != 'MERGED':
         raise ValueError('identical_inputs_exact_head_ci_drift')
-    argv = job.namespace(config, root, report)
+    argv = job.namespace(config, source, report)
     for i, token in enumerate(argv):
         if token == '--bind' and argv[i + 2] == config['namespace']:
             argv[i] = '--ro-bind'
     # Some validators emit reports. Overlay only their artifact directory, not
     # source/data/public, so validation cannot mutate the deployed release.
     artifacts = report / 'cached-validation-artifacts'
-    shutil.copytree(root / 'artifacts', artifacts, symlinks=True)
-    argv += ['--bind', str(artifacts), config['namespace'] + '/artifacts']
-    job.run(argv + ['npm', 'run', 'validate'], log=report / 'cached-native-validation.log')
+    shutil.copytree(source / 'artifacts', artifacts, symlinks=True)
+    argv += ['--bind', str(artifacts), config['namespace'] + '/artifacts',
+             '--ro-bind', str(root / 'public'), config['namespace'] + '/public']
+    for index, command in enumerate(native_validation_commands(source)):
+        job.run(argv + command, log=report / ('cached-native-validation-%02d.log' % index))
     code = """import{readFileSync,readdirSync}from'node:fs';import{join,relative}from'node:path';
 import{rawHeldInputs,rawHeldOutputCensus,assertRawHeldOutput}from'./src/served-affiliate-identity.mjs';
 import{loadGoPromotionAuthority}from'./src/go-runtime-selection.mjs';import{GO_RUNTIME_MANIFEST}from'./functions/go/program-manifest.js';
@@ -211,8 +232,8 @@ const docs=[];function walk(p){for(const d of readdirSync(p,{withFileTypes:true}
 console.log(JSON.stringify(assertRawHeldOutput(rawHeldOutputCensus(docs,inputs,GO_RUNTIME_MANIFEST.programs))));"""
     census = json.loads(job.run(argv + ['node', '--input-type=module', '-e', code]))
     job.save(report / 'RAW-HELD-CENSUS.json', census)
-    absence = audit(root, job.read(report / 'registry/registry-sync.json'),
-                    job.read(report / 'registry/sheet-snapshot.json'))
+    absence = audit(source, job.read(report / 'registry/registry-sync.json'),
+                    job.read(report / 'registry/sheet-snapshot.json'), public=root / 'public')
     job.save(report / 'ADVERSE-ABSENCE.json', absence)
     secrets_scan(root / 'public')
 
@@ -232,13 +253,19 @@ def try_identical_inputs(config, report, pointer, pr):
     baseline = job.read(baseline_path)
     if baseline.get('status') != 'PASS_PRODUCTION_TERMINAL' or baseline.get('pointer') != pointer:
         return miss('last_success_pointer_or_terminal_binding_differs')
+    source_name = baseline.get('validation_source')
+    if not source_name or not Path(source_name).is_dir():
+        return miss('last_success_validation_source_not_retained')
+    source = Path(source_name)
+    if path_digest(source) != baseline.get('validation_source_sha256'):
+        return miss('last_success_validation_source_drift')
     current = fresh_release_inputs(config, report, pr)
     if not current or current != baseline.get('inputs'):
         return miss('source_sheet_environment_dependency_mount_or_clock_inputs_differ')
     if path_digest(root) != baseline['release_tree_sha256']:
         raise ValueError('identical_inputs_release_tree_drift')
     try:
-        validate_cached_release(config, report, root, pr)
+        validate_cached_release(config, report, root, pr, source)
         out = {'status': 'CHECKING_IDENTICAL_INPUTS', 'scope': SCOPE,
                'source_pr': pr['url'], 'source_head': pr['headRefOid'],
                'deployment_id': pointer['deployment_id'], 'release_root': str(root),
@@ -252,6 +279,8 @@ def try_identical_inputs(config, report, pointer, pr):
             raise ValueError('identical_inputs_deploy_completeness_sensor_nonpass')
         if path_digest(root) != baseline['release_tree_sha256']:
             raise ValueError('identical_inputs_release_tree_drift_during_validation')
+        if path_digest(source) != baseline['validation_source_sha256']:
+            raise ValueError('identical_inputs_validation_source_changed')
         recheck = report / 'post-validation-inputs'
         recheck.mkdir(exist_ok=True)
         if fresh_release_inputs(config, recheck, pr) != current:
@@ -275,14 +304,22 @@ def record_successful_inputs(report, result, pointer):
     root = Path(pointer['release_root'])
     if root != report / 'prepared/release':
         raise ValueError('successful_input_release_root_mismatch')
+    source = report / 'candidate'
+    try:
+        validators = native_validation_commands(source)
+    except (ValueError, KeyError, OSError) as exc:
+        job.save(report / 'INPUT-CACHE-DECISION.json', {'status':'NOT_CACHEABLE', 'reason':str(exc)})
+        return None
     body = {'status': 'PASS_PRODUCTION_TERMINAL', 'inputs': job.read(snapshot),
-            'pointer': pointer, 'release_tree_sha256': path_digest(root)}
+            'validation_recipe': validators,
+            'pointer': pointer, 'release_tree_sha256': path_digest(root),
+            'validation_source': str(source), 'validation_source_sha256': path_digest(source)}
     # Retain concrete derived date/taxonomy provenance as well as its full
     # pre-build source/data/environment closure, never backfill old receipts.
     body['derived_build_provenance'] = [
-        {'file': str(p.relative_to(root)), 'sha256': job.sha(p)}
-        for p in (root / 'artifacts/ops/public-date-provenance.json',
-                  root / 'artifacts/ops/build-report.json', root / 'data/page-content-provenance.json')
+        {'path': str(p), 'sha256': job.sha(p)}
+        for p in (source / 'artifacts/ops/public-date-provenance.json',
+                  source / 'artifacts/ops/build-report.json', source / 'data/page-content-provenance.json')
         if p.is_file()]
     job.save(report / 'SUCCESSFUL-INPUTS.json', body)
     return body

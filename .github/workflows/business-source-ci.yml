@@ -169,7 +169,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -m pytest -q tests/test_pallas_relationship_ending.py tests/test_glp_affiliate_registry_sync.py tests/test_glp_paused_program_monitor.py tests/test_glp_release_main.py tests/test_glp_release_inputs.py tests/test_glp_release_search_notify.py tests/test_cf_editorial_share.py
+          .venv/bin/python -m pytest -q tests/test_pallas_relationship_ending.py tests/test_glp_affiliate_registry_sync.py tests/test_glp_paused_program_monitor.py tests/test_glp_release_main.py tests/test_glp_release_inputs.py tests/test_glp_single_publisher.py tests/test_glp_release_search_notify.py tests/test_cf_editorial_share.py
       - name: MaxBounty live artifact exact-head capture regressions (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
