@@ -5,6 +5,12 @@ on:
     paths:
       - scripts/auto_coordinator_receipt.py
       - scripts/auto_coordinator_runner.py
+      - scripts/auto_coordinator_loop.py
+      - scripts/auto_coordinator_guard.py
+      - scripts/capacity_reset_policy.py
+      - ops/hermes-cron-scripts/glp_auto_coordinator.sh
+      - tests/test_auto_coordinator_*.py
+      - tests/test_capacity_reset_policy.py
       - ops/linear/AUTO-COORDINATOR.md
       - tests/test_auto_coordinator_receipt.py
       - tests/test_rv451b_probes.py
@@ -26,4 +32,5 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_auto_coordinator_receipt.py tests/test_rv451b_probes.py
+          nice -n 19 .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_auto_coordinator_*.py tests/test_rv451b_probes.py tests/test_capacity_reset_policy.py
+          bash -n ops/hermes-cron-scripts/glp_auto_coordinator.sh

@@ -21,7 +21,7 @@ def start_tick(pid):
         return None
 
 
-def inspect(budget=BUDGET, tick=start_tick, owned_token=None):
+def inspect(budget=BUDGET, tick=start_tick, owned_token=None, owned_tokens=()):
     try:
         with Path(budget).open() as f:
             fcntl.flock(f, fcntl.LOCK_SH)
@@ -32,7 +32,8 @@ def inspect(budget=BUDGET, tick=start_tick, owned_token=None):
                 or not str(r['start']).isdigit() or not isinstance(r['token'], str) or not r['token']
                 for r in rows):
             raise ValueError('malformed host lease state')
-        active = [r for r in rows if tick(r['pid']) == str(r['start']) and r['token'] != owned_token]
+        excluded = set(owned_tokens) | {owned_token}
+        active = [r for r in rows if tick(r['pid']) == str(r['start']) and r['token'] not in excluded]
         return {'status': 'DEFERRED_TUI_CHILDREN' if active else 'IDLE',
                 'live_child_slots': len(active), 'owner_pids': sorted({int(r['pid']) for r in active})}
     except (ValueError, TypeError, OSError) as exc:
@@ -61,8 +62,29 @@ def owned_token():
     return None
 
 
+def inspect_idle_tui(*, census=None, owned_token=None, owned_tokens=()):
+    """Read derived TUI activity only; never type, inject, resume or kill a TUI."""
+    state = inspect(owned_token=owned_token, owned_tokens=owned_tokens)
+    if state['status'] != 'IDLE':
+        return state
+    try:
+        if census is None:
+            from hermes_active_work_gate import collect_active_work
+            census = collect_active_work
+        data = census()
+        tuis = data['tui_census']['tuis']
+        if data['unreadable_source_count'] or any(
+                r['signals']['pane_activity_state'] not in {'idle', 'active'} for r in tuis):
+            return {'status': 'DEFERRED_UNKNOWN'}
+        if any(r['state'] != 'IDLE' for r in tuis):
+            return {'status': 'DEFERRED_TUI_ACTIVE'}
+        return state
+    except (OSError, ValueError, KeyError, TypeError, ImportError):
+        return {'status': 'DEFERRED_UNKNOWN'}
+
+
 def main():
-    result = inspect(owned_token=owned_token())
+    result = inspect_idle_tui(owned_token=owned_token())
     print(json.dumps(result, sort_keys=True))
     return 0 if result['status'] == 'IDLE' else 10
 

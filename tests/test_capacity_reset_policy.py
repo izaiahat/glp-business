@@ -11,7 +11,7 @@ def test_account2_must_hit_zero_before_selecting_later_reset_account():
     spec.loader.exec_module(m)
     now = datetime(2026, 10, 9, 22, tzinfo=timezone.utc)
     rows = [dict(label=label, remaining_pct=left, reset_at_utc=reset, banked_resets=bank,
-                 identity_safe=True) for label, left, reset, bank in [
+                 identity_safe=True, identity_sha256='a' * 64) for label, left, reset, bank in [
         ('codex-account-2', 50, '2026-10-15T00:00:00Z', 2),
         ('codex-account-3', 0, '2026-10-14T00:00:00Z', 2),
         ('openai-codex-oauth-4', 0, '2026-10-20T00:00:00Z', 1)]]
@@ -31,7 +31,7 @@ def test_transaction_dry_run_no_post_uncertain_post_never_retried(tmp_path):
     assert hasattr(m, 'reset_tick'), 'durable reset transaction missing'
     now = datetime(2026, 10, 9, 22, tzinfo=timezone.utc)
     rows = [dict(label=label, remaining_pct=0, reset_at_utc=reset, banked_resets=2,
-                 identity_safe=True) for label, reset in [
+                 identity_safe=True, identity_sha256='a' * 64) for label, reset in [
         ('codex-account-2', '2026-10-15T00:00:00Z'),
         ('codex-account-3', '2026-10-14T00:00:00Z')]]
     reads, posts = [], []
@@ -76,7 +76,7 @@ def test_reset_verified_clears_only_selected_account(tmp_path):
     import capacity_reset_policy as m
     now = datetime(2026, 10, 9, 22, tzinfo=timezone.utc)
     rows = [dict(label='codex-account-2', remaining_pct=0, reset_at_utc='2026-10-15T00:00:00Z',
-                 banked_resets=2, identity_safe=True)]
+                 banked_resets=2, identity_safe=True, identity_sha256='a' * 64)]
     posts, cleared = [], []
     def read():
         return rows, {'codex-account-2': {'access_token': 'selected-fixture'}}
@@ -96,7 +96,7 @@ def test_account3_redemption_does_not_spend_again_for_same_trigger(tmp_path):
     import capacity_reset_policy as m
     now = datetime(2026, 10, 9, 22, tzinfo=timezone.utc)
     rows = [dict(label=label, remaining_pct=0, reset_at_utc=reset, banked_resets=2,
-                 identity_safe=True) for label, reset in [
+                 identity_safe=True, identity_sha256='a' * 64) for label, reset in [
         ('codex-account-2', '2026-10-15T00:00:00Z'),
         ('codex-account-3', '2026-10-16T00:00:00Z')]]
     posts = []
@@ -120,7 +120,7 @@ def test_duplicate_identity_and_stale_reset_fail_closed():
     row = dict(label='codex-account-2', remaining_pct=0, reset_at_utc='2026-10-15T00:00:00Z',
                banked_resets=2, identity_safe=False)
     assert m.plan_reset([row], now)['status'] == 'unsafe_identity'
-    row.update(identity_safe=True, reset_at_utc='2026-10-09T00:00:00Z')
+    row.update(identity_safe=True, identity_sha256='a' * 64, reset_at_utc='2026-10-09T00:00:00Z')
     assert m.plan_reset([row], now)['status'] == 'no_eligible_reset'
 
 
@@ -129,7 +129,7 @@ def test_s7_render_preserves_live_coverage_and_banked_facts():
     now = datetime(2026, 10, 9, 22, tzinfo=timezone.utc)
     report = {'auto_reset': {'status': 'not_exhausted', 'accounts': [
         dict(label=l, remaining_pct=p, reset_at_utc='2026-10-15T00:00:00Z',
-             banked_resets=b, identity_safe=True)
+             banked_resets=b, identity_safe=True, identity_sha256='a' * 64)
         for l,p,b in [('codex-account-2',50,2),('codex-account-3',0,2),('openai-codex-oauth-4',0,1)]]},
         'account_count_ok': False, 'collection_errors': ['openai_account_set_changed'],
         'claude_api': {'remaining_usd': 8.74, 'expires': '2026-10-11T00:00:00Z'},
