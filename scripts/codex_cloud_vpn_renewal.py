@@ -338,9 +338,10 @@ def reconcile_no_task(account):
 def safety_preflight():
     """No credentials, writes, network, dispatch or browser. Never self-accept."""
     return {'status':'NOT_SAFE_TO_ENABLE','effects':False,
-            'secure_transfer':'registered_browser_vault_list_and_fill',
+            'secure_transfer':'registered_vault_exact_context_fill_unavailable',
             'lease':'atomic_free_only_no_reclaim',
-            'blockers':['provider_supported_task_attributed_denial_witness_unavailable',
+            'blockers':['registered_vault_exact_context_fill_unavailable',
+                        'provider_supported_task_attributed_denial_witness_unavailable',
                         'genuine_exact_record_independent_acceptance_unavailable'],
             'cron_enable_authorized':False}
 

@@ -189,7 +189,7 @@ def test_browser_save_binds_target_and_journals_before_click(tmp_path, monkeypat
 
 
 @pytest.mark.parametrize('command', ['--run','--mint','--check-safety'])
-def test_no_effect_preflight_refuses_before_mint_browser_or_dispatch(tmp_path, monkeypatch, command):
+def test_no_effect_preflight_refuses_before_mint_browser_or_dispatch(tmp_path, monkeypatch, command, capsys):
     monkeypatch.setattr(r, 'API', lambda:pytest.fail('must not construct credential client'))
     monkeypatch.setattr(r, 'mint_due', lambda *a, **kw:pytest.fail('must not mint'))
     monkeypatch.setattr(r, 'browser', lambda *a, **kw:pytest.fail('must not browse'))
@@ -198,4 +198,7 @@ def test_no_effect_preflight_refuses_before_mint_browser_or_dispatch(tmp_path, m
     monkeypatch.setattr(r, 'STATE', tmp_path / 'state.json')
     monkeypatch.setattr(r, 'CONFIG', tmp_path / 'absent-config.json')
     assert r.run_cli() == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report['secure_transfer'] == 'registered_vault_exact_context_fill_unavailable'
+    assert report['secure_transfer'] in report['blockers']
     assert not r.STATE.exists()

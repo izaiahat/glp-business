@@ -7215,14 +7215,14 @@
       "callers": [
         "business source CI"
       ],
-      "sha256": "88fd3c5d57a60f160c8ec4eb96f48481da93dfb5c112ce5548e3f0dd9878bcfc"
+      "sha256": "35609b99775a6e8ba62e16de5d0f818e2dae144be0a916e96b7eb9f1619cd95a"
     },
     "scripts/codex_cloud_vpn_renewal.py": {
       "callers": [
         "ops/cron.d/codex-cloud-key-renewal"
       ],
       "kind": "script",
-      "sha256": "4144abc8692bf00bce6ad16c8ab150214f474954fd7e7fc4c7f7923939f87b5f"
+      "sha256": "bfe43ac9ba52e47bbca00a8f7386a2682f4dfc1a4005e2ef41727e7e55d36ab9"
     },
     "scripts/codex_cloud_vpn_browser.py": {
       "callers": [
