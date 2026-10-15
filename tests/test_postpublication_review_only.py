@@ -11,6 +11,16 @@ import article_review_recovery as recovery
 import opus_review_loop as loop
 
 
+@pytest.fixture(autouse=True)
+def isolated_controller_controls(tmp_path, monkeypatch):
+    # These tests exercise producer admission, never a clinical review. Do not
+    # accidentally depend on the operator host's absolute rubric/schema files.
+    rubric = tmp_path/'fixture-rubric.md'; rubric.write_text('# fixture only; no review\n')
+    schema = tmp_path/'fixture-schema.json'; schema.write_text('{}\n')
+    monkeypatch.setattr(loop, 'RUBRIC', rubric)
+    monkeypatch.setattr(loop, 'REVIEW_SCHEMA', schema)
+
+
 def test_postpublication_job_requires_single_effect_free_mode(tmp_path):
     job = {'schema': 'glp-opus-seo-review-job-v1',
            'artifact_role': 'postpublication_review_only_job',

@@ -6,7 +6,7 @@
       "callers": [
         "business-source-ci:GLP109-protected-native-custody"
       ],
-      "sha256": "59f7af87ca2a4455275d5c4b42a21a057ad9e64484f0a752b86e86812bd58f73"
+      "sha256": "b4674432419fb19555f1b00d3298b70f41666e305ff6ed81f1916a4ca619899c"
     },
     "ops/glp/weekly_analytics_owner.py": {
       "kind": "script",
