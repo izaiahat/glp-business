@@ -13,9 +13,10 @@ class ReferenceGuardAPI:
         return getattr(self.base,name)
 
     def path_is_active_privileged(self,path):
+        from host_disk_relay_custody import matches
         try:
             for source,expected in self.identities.items():
-                if m.signature(Path(source))!=expected:
+                if not matches(Path(source),expected):
                     self.last_reference_veto=source
                     return True
         except OSError:

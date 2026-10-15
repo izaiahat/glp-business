@@ -229,12 +229,22 @@ class ReferenceIndex:
         # positives preserve evidence; unknown/mutated reference input gates all.
         p=Path(p)
         if hasattr(self,'last_changed_source'): del self.last_changed_source
-        from host_disk_relay_custody import signature as binding_signature
+        from host_disk_relay_custody import collect as relay_custody, matches as binding_matches
         for source,expected in self.relay_source_identities.items():
-            try: unchanged=binding_signature(source)==expected
-            except OSError: unchanged=False
-            if not unchanged:
+            if not binding_matches(source,expected):
                 self.last_changed_source=source;return True
+        # Never cache live issue descriptions or lane/JOB discovery across gates.
+        # Preserve the admitted pins; a fresh complete generation can only add
+        # protection here, not erase an earlier hold or replay a refused effect.
+        try:
+            fresh=relay_custody(bus=self.business)
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+            self.last_changed_source='relay_lane_linear_refresh_incomplete';return True
+        for source,expected in self.relay_source_identities.items():
+            if not binding_matches(source,expected):
+                self.last_changed_source=source;return True
+        live_pins=tuple(fresh)
+        if any(pin==p or pin in p.parents or p in pin.parents for pin in live_pins): return True
         for source,digest,signature in self.sources:
             if p in source.parents: return True
             if not source.exists() or source.is_symlink():
@@ -558,6 +568,10 @@ def archive_tree(api,root,pins,*,dry_run,deadline,state_dir=None,min_bytes=0):
         pointerdir=root.with_name('.'+root.name+'.archive-pointer')
         retired=root.with_name('.'+root.name+'.archive-retiring')
         if pointerdir.exists() or retired.exists(): return dict(row,status='GATED_TRANSACTION_COLLISION')
+        # Hashing a large verified archive can outlive the preceding reference
+        # check. Re-read live custody at the actual namespace-commit boundary.
+        if pins.references(root):
+            return dict(row,status='GATED_REFERENCE_BEFORE_COMMIT')
         pointerdir.mkdir(mode=0o755)
         atomic_json(pointerdir/'MANIFEST.json',pointer)
         (pointerdir/'README.md').write_text(f'# Archived evidence\n\nOriginal paths and bytes are preserved in `{archive.name}`.\n\nSHA256: `{archive_sha}`\n\nRestore in an empty directory with:\n```sh\nzstd -d -c {archive.name!r} | tar -xpf -\n```\n\nFull content, listing and metadata round-trip verification is recorded in MANIFEST.json.\n')

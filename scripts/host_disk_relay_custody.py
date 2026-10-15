@@ -13,7 +13,7 @@ def strings(value):
     elif isinstance(value,list):
         for item in value: yield from strings(item)
 
-def text_pins(text,bus):
+def text_pins(text,bus,*,explicit=False):
     pins=set()
     literal=(not any(char.isspace() for char in text) or text.endswith(('.json','.md','.txt','.png','.jpg','.yml','.yaml','.toml')))
     if literal and not any(char in text for char in '\n\r\x00;:') and text.startswith(('/home/ubuntu/','/tmp/','reports/','site-system/','ops/','lanes/','.worktrees/')):
@@ -23,7 +23,33 @@ def text_pins(text,bus):
     for name in PATHS.findall(text):
         name=name.rstrip("'/:.")
         pins.add(Path(name) if name.startswith('/') else bus/name)
+    # Narrative layout/receiving metadata names no artifact. Drop only the
+    # existing finite scaffold roots, never an arbitrary ancestor or a policy,
+    # reservation/proof or explicit non-layout subtree hold.
+    layout={Path('/'),Path('/home/ubuntu'),Path('/home/ubuntu/.hermes'),
+            Path('/home/ubuntu/.hermes/cache'),Path('/home/ubuntu/.hermes/cache/scratch'),
+            Path('/tmp'),bus,bus/'.worktrees',bus/'worktrees',bus/'reports',
+            bus/'reports/ops',bus/'reports/glp-clinic-scout',bus/'reports/host-disk-prune',
+            bus/'reports/glp-clinic-scout/affiliate-machine',
+            bus/'reports/glp-clinic-scout/affiliate-machine/registry-site-sync',
+            bus/'site-system',bus/'site-system/flagship-v2',
+            *(bus/'site-system/flagship-v2'/name for name in ('candidates','qa','work','releases'))}
+    return pins if explicit else pins-layout
+
+
+def explicit_pins(value,bus):
+    """Typed policy/proof fields are holds even when they name a layout root."""
+    pins=set()
+    if isinstance(value,dict):
+        for key,item in value.items():
+            if key in {'protected_roots','release_root','current_root','live_root',
+                       'deploy_root','active_roots','proof','proof_path','target_evidence','terminal_unsent'}:
+                for text in strings(item): pins.update(text_pins(text,bus,explicit=True))
+            pins.update(explicit_pins(item,bus))
+    elif isinstance(value,list):
+        for item in value: pins.update(explicit_pins(item,bus))
     return pins
+
 
 def evidence(value):
     if isinstance(value,dict):
@@ -58,14 +84,82 @@ def fields(s):
 
 def signature(path): return fields(Path(path).lstat())
 
+
+def matches(path,expected):
+    """Absence is a bound observation, not permission to skip new namespaces."""
+    try: return signature(path)==expected
+    except FileNotFoundError: return expected is None
+    except OSError: return False
+
+
+def lane_sources(root,identities,pins,namespaces):
+    """Complete no-follow discovery, including empty dirs and absent root.
+
+    Internal directory aliases (e.g. pytest-current) are bound, not followed:
+    their canonical target is covered by the complete real namespace walks.
+    Unknown external aliases remain a refusal rather than an omitted subtree.
+    """
+    try: identities[str(root)]=signature(root)
+    except FileNotFoundError:
+        identities[str(root)]=None
+        return []
+    if root.is_symlink() or not root.is_dir(): raise ValueError('aliased/invalid lane namespace')
+    sources=[]
+    def failed(error): raise error
+    for directory,dirs,files in os.walk(root,followlinks=False,onerror=failed):
+        identities[str(directory)]=signature(directory)
+        for name in dirs:
+            link=Path(directory)/name
+            if not link.is_symlink(): continue
+            identities[str(link)]=signature(link)
+            target=link.resolve(strict=True)
+            if not target.is_dir() or not any(target==n or n in target.parents for n in namespaces):
+                raise ValueError('external lane namespace alias')
+            pins.update((link,target))
+        if 'RESULT.json' in files: sources.append(Path(directory)/'RESULT.json')
+    return sources
+
+
+def newest_site_pins(bus,identities):
+    """Q2: retain three newest creation-ordered roots per site class, fail closed.
+
+    GNU stat exposes Linux birth time; mtime is not creation order. This is
+    deny-only shared custody for both ordinary C and the registered large sweep.
+    """
+    import subprocess
+    pins=set()
+    for kind in ('candidates','qa','releases','work'):
+        parent=bus/'site-system/flagship-v2'/kind
+        try: identities[str(parent)]=signature(parent)
+        except FileNotFoundError:
+            identities[str(parent)]=None;continue
+        if parent.is_symlink() or not parent.is_dir(): raise ValueError('aliased site class')
+        roots=sorted(p for p in parent.iterdir() if p.is_dir() and not p.is_symlink())
+        if not roots: continue
+        if len(roots)>10000: raise ValueError('site creation inventory exceeds bound')
+        result=subprocess.run(['stat','--printf','%w\\0%n\\0','--',*map(str,roots)],
+                              capture_output=True,text=True,timeout=30,check=True)
+        parts=result.stdout.split('\0')
+        if len(parts)!=2*len(roots)+1 or parts[-1]!='': raise ValueError('incomplete site birth inventory')
+        ordered=[]
+        for i,root in enumerate(roots):
+            birth,name=parts[2*i:2*i+2]
+            if not birth or birth=='-' or name!=str(root): raise ValueError('site birth order unavailable')
+            ordered.append((birth,root))
+        pins.update(root for _,root in sorted(ordered)[-3:])
+    return pins
+
+
 def collect(*,bus=BUS,reader=None):
     bus=Path(bus)
     relay=bus/'ops/gpt6pro-relay'
     pins={relay,bus/'reports/ops/system-resume-20261006'}
     identities={}
+    pins.update(newest_site_pins(bus,identities))
     if relay.exists():
         if relay.is_symlink(): raise ValueError('relay custody root alias')
-        for directory,dirs,files in os.walk(relay,followlinks=False):
+        def failed(error): raise error
+        for directory,dirs,files in os.walk(relay,followlinks=False,onerror=failed):
             identities[str(directory)]=signature(directory)
             for name in dirs:
                 p=Path(directory)/name
@@ -87,10 +181,14 @@ def collect(*,bus=BUS,reader=None):
                 if identity(before)!=identity(after): raise ValueError('relay source changed during read')
                 pins.add(path);identities[str(path)]=fields(after)
                 for text in strings(values): pins.update(text_pins(text,bus))
-    lane_sources=[]
-    for lanes in (bus/'lanes',bus/'reports/ops/fable-plan-2-20261009/lanes'):
-        if lanes.exists(): lane_sources.extend(lanes.rglob('RESULT.json'))
-    pending=lane_sources+[Path(p) for p in pins if Path(p).suffix=='.json' and Path(p).is_file()]
+                pins.update(explicit_pins(values,bus))
+    else:
+        identities[str(relay)]=None
+    sources=[]
+    namespaces=(bus/'lanes',bus/'reports/ops/fable-plan-2-20261009/lanes')
+    for lanes in namespaces:
+        sources.extend(lane_sources(lanes,identities,pins,namespaces))
+    pending=sources+[Path(p) for p in pins if Path(p).suffix=='.json' and Path(p).is_file()]
     visited=set()
     while pending:
         path=pending.pop()
@@ -106,6 +204,7 @@ def collect(*,bus=BUS,reader=None):
         pins.add(path);identities[str(path)]=fields(after)
         discovered=set().union(*(text_pins(text,bus) for text in strings(value)))
         pins.update(discovered)
+        pins.update(explicit_pins(value,bus))
         for item in evidence(value): bound_targets(item,bus)
         transitive=set().union(*(text_pins(text,bus) for item in evidence(value) for text in strings(item)))
         pending.extend(p for p in transitive if p.suffix=='.json' and p.is_file() and bus in p.parents and not any(part in {'secrets','credentials','backups'} for part in p.parts))
@@ -118,7 +217,14 @@ def collect(*,bus=BUS,reader=None):
             result=subprocess.run(['sudo','-n','-H','-u','ubuntu',sys.executable,'-c',code,str(client)],capture_output=True,text=True,timeout=150,check=True,env={**os.environ,'LINEAR_ROLE':'fleet'})
             pins.update(Path(p) for p in json.loads(result.stdout))
         else: pins.update(auto.linear_pins(client,reader=reader))
+    # Include discovery drift during slow live issue pagination, not just edits
+    # of files known at entry. A partially scanned generation is never authority.
+    for path,expected in identities.items():
+        if not matches(path,expected):
+            error=ValueError('relay/lane discovery changed during collection')
+            setattr(error,'changed_source',path)
+            raise error
     return BindingPins(pins,identities)
 
-# Reference sources are immutable within an admitted effect; callers must
-# refuse when a returned identity changes and recollect only at a new boundary.
+# Keep admitted generations immutable and validate them at every effect gate;
+# live issue descriptions and complete namespace discovery are recollected too.

@@ -2651,7 +2651,7 @@
         "scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"
       ],
       "kind": "script",
-      "sha256": "3d7543eba9a83ab8e1a3e5c4f26facd280296e0741d07ad3fa79bec52db8c8b4"
+      "sha256": "41ed1a4b6850e8d9d0f5488f05e6ea1223275c034a12668b61da8da33ec51307"
     },
     "scripts/f13_atop_retention_launcher.c": {
       "callers": [
@@ -3586,7 +3586,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "ec0651bfae596a158051cc17b5b2b72b117cfcdd261f8e207215d32445584dbe"
+      "sha256": "f4a3c707820fba0d903a7f216bcae4fe43298174de2362398c4c840c5dc8269e"
     },
     "scripts/host_health_audit.py": {
       "callers": [
@@ -5255,7 +5255,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "230e8b6c26daaaf2f1c354b5c1ca6f8ed908e30429d017c9ce7adf73a56822aa"
+      "sha256": "a4eafce2696f74df42dd5e22f8ebe791d00648e43fedb27f5512ee105bc56984"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
@@ -7842,14 +7842,14 @@
         "scripts/host_disk_large_sweep.py",
         "scripts/evidence_preserving_pruner.py"
       ],
-      "sha256": "e7d569c164f8ec87ff7125396b7bed3075f222bf31b115144aa6a30f0f6a5659"
+      "sha256": "55d076afbc5e4eec65e7300a3f91bde23015f2592d7758cb0ce229c6d1f746f5"
     },
     "tests/test_host_disk_relay_custody.py": {
       "kind": "test",
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "3a75faf81e2fb3b9a8e4e3f174fce1f81311633a3cf99bcf28216e030262c589"
+      "sha256": "52ac5566761d25a870877c11acaeacdb859a65775c89d44163d54c4a195fdc35"
     }
   },
   "omitted_runtime_inputs": [

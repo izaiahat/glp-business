@@ -447,15 +447,30 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
         self.relay_source_identities=bindings.identities
         self.ancestor_pins=list(bindings)
 """
-    added_check = """        from host_disk_relay_custody import signature as binding_signature
+    added_check = """        from host_disk_relay_custody import collect as relay_custody, matches as binding_matches
         for source,expected in self.relay_source_identities.items():
-            try: unchanged=binding_signature(source)==expected
-            except OSError: unchanged=False
-            if not unchanged:
+            if not binding_matches(source,expected):
                 self.last_changed_source=source;return True
+        # Never cache live issue descriptions or lane/JOB discovery across gates.
+        # Preserve the admitted pins; a fresh complete generation can only add
+        # protection here, not erase an earlier hold or replay a refused effect.
+        try:
+            fresh=relay_custody(bus=self.business)
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+            self.last_changed_source='relay_lane_linear_refresh_incomplete';return True
+        for source,expected in self.relay_source_identities.items():
+            if not binding_matches(source,expected):
+                self.last_changed_source=source;return True
+        live_pins=tuple(fresh)
+        if any(pin==p or pin in p.parents or p in pin.parents for pin in live_pins): return True
 """
-    assert source.count(added_init) == source.count(added_check) == 1
-    source = source.replace(added_init, '        self.ancestor_pins=[]\n').replace(added_check, '')
+    added_commit_check = """        # Hashing a large verified archive can outlive the preceding reference
+        # check. Re-read live custody at the actual namespace-commit boundary.
+        if pins.references(root):
+            return dict(row,status='GATED_REFERENCE_BEFORE_COMMIT')
+"""
+    assert source.count(added_init) == source.count(added_check) == source.count(added_commit_check) == 1
+    source = source.replace(added_init, '        self.ancestor_pins=[]\n').replace(added_check, '').replace(added_commit_check, '')
     names = {'ReferenceIndex', 'archive_candidates', 'archive_tree', 'dedupe',
              'git_veto', 'inventory', 'protected', 'recover_retirements',
              'reference_files', 'regenerable', 'sig', 'verify_archive'}
