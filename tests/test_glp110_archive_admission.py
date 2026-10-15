@@ -440,6 +440,17 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
     assert ast.unparse(branch.test) == "p == self.business / 'ops/email_flows/scheduler-heartbeat.json'"
     lines = source.splitlines(keepends=True)
     source = ''.join(lines[:branch.lineno-1] + lines[branch.end_lineno:])
+    # D's subclass defers initial collection. The default constructor still
+    # calls the exact same collector; project only this additive seam out.
+    initial_seam = """    def initial_bindings(self,collector):
+        return collector(bus=self.business)
+
+"""
+    assert source.count(initial_seam) == 1
+    assert source.count('        bindings=self.initial_bindings(relay_custody)') == 1
+    source = source.replace(initial_seam, '').replace(
+        '        bindings=self.initial_bindings(relay_custody)',
+        '        bindings=relay_custody(bus=self.business)')
     # Project ONLY the newly tested additive relay binding branch out of the
     # authenticated predecessor comparison; do not rebaseline any old oracle.
     added_init = """        from host_disk_relay_custody import collect as relay_custody

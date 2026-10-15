@@ -2658,7 +2658,7 @@
         "scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"
       ],
       "kind": "script",
-      "sha256": "41ed1a4b6850e8d9d0f5488f05e6ea1223275c034a12668b61da8da33ec51307"
+      "sha256": "e9f620c2437c363595f82186cd8a5a7829d81ee513e31569d093fd2e79a56a60"
     },
     "scripts/f13_atop_retention_launcher.c": {
       "callers": [
@@ -5262,7 +5262,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "a4eafce2696f74df42dd5e22f8ebe791d00648e43fedb27f5512ee105bc56984"
+      "sha256": "11698be220cd3991cef5d728e8471339454fb6cd117e8a2f1cf7f97e3122b37b"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
@@ -7571,14 +7571,14 @@
         "scripts/evidence_preserving_pruner.py:run_D",
         "GLP-349 native image qualification/receipt admission"
       ],
-      "sha256": "be7cd1ea13187c9973a725241d5c227becb5708b136287e7f74c7727b8795d7d"
+      "sha256": "708e176661bd5fc3bb686e9bdd5731fa6c4428e3f78858af0ac516abaf4d7683"
     },
     "tests/test_host_disk_screenshot_receipt.py": {
       "kind": "test",
       "callers": [
         "business-source-ci: GLP349 owning pruner group"
       ],
-      "sha256": "4470b0851a50689bf7508565f4f46a757f083a784ed483bbe4f859c440a3ced4"
+      "sha256": "153f986b422fd3fdf7f8848e0e2cc89953986cb38119a0c7878268a7155cae42"
     },
     "ops/rook-mcp/DOT-RECEIVING-GLP359.md": {
       "callers": [
@@ -7849,7 +7849,7 @@
         "scripts/host_disk_large_sweep.py",
         "scripts/evidence_preserving_pruner.py"
       ],
-      "sha256": "55d076afbc5e4eec65e7300a3f91bde23015f2592d7758cb0ce229c6d1f746f5"
+      "sha256": "70f9806918f6ab3e14e9f9cd383f51e60a59566a2eea00d63434f630fee388e7"
     },
     "tests/test_host_disk_relay_custody.py": {
       "kind": "test",
