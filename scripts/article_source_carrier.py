@@ -176,7 +176,37 @@ def fetch(url):
     return int(code), body
 
 
-def live_readback(route,title):
+def verified_live_html_hash(body, expected):
+    """Reverse only Cloudflare's observed, reversible email protection.
+
+    Do not strip prose, tags, whitespace, arbitrary scripts or attributes. Each
+    decoded mailto must be a literal attribute of the authenticated release.
+    The final entire HTML must be byte-identical, not just the article title.
+    """
+    def decode(value):
+        raw = bytes.fromhex(value)
+        return bytes(b ^ raw[0] for b in raw[1:]).decode('utf-8')
+
+    def href(match):
+        restored = 'href="mailto:' + decode(match[1]) + '"'
+        return restored if restored in expected else match[0]
+
+    def text(match):
+        restored = decode(match[1])
+        return restored if restored in expected else match[0]
+
+    try:
+        normalized = re.sub(r'href="/cdn-cgi/l/email-protection#([a-fA-F0-9]{4,8192})"', href, body)
+        normalized = re.sub(r'<span class="__cf_email__" data-cfemail="([a-fA-F0-9]{4,8192})">\[email&#160;protected\]</span>', text, normalized)
+        normalized = re.sub(r'<script data-cfasync="false" src="/cdn-cgi/scripts/[a-f0-9]{8}/cloudflare-static/email-decode\.min\.js"></script>', '', normalized)
+    except (ValueError, UnicodeError, IndexError) as exc:
+        raise RuntimeError('live_article_content_drift') from exc
+    if normalized != expected:
+        raise RuntimeError('live_article_content_drift')
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def live_readback(route,title, *, expected_html=None):
     url = SITE + route
     code, body = fetch(url)
     match = re.search(r'<title>(.*?)</title>',body,re.S|re.I)
@@ -188,7 +218,10 @@ def live_readback(route,title):
         raise RuntimeError('live_indexability_invalid')
     if f'href="{url}"' not in body:
         raise RuntimeError('live_canonical_missing')
-    return {'url':url,'http':code,'title':actual,'html_sha256':hashlib.sha256(body.encode()).hexdigest()}
+    result = {'url':url,'http':code,'title':actual,'html_sha256':hashlib.sha256(body.encode()).hexdigest()}
+    if expected_html is not None:
+        result['deployed_html_sha256'] = verified_live_html_hash(body,Path(expected_html).read_bytes().decode('utf-8'))
+    return result
 
 
 def consumed_path(root,operation_id):
@@ -365,7 +398,12 @@ def published_operation_readback(operation_id):
                 or entry['target_route'] not in routes
                 or (not reconciled and publication.get('source_entry') != row)):
             return None
-        live = live_readback(entry['target_route'],article['title'])
+        live_kwargs = {}
+        if lineage:
+            live_kwargs['expected_html'] = release / 'public' / entry['target_route'].strip('/') / 'index.html'
+        live = live_readback(entry['target_route'],article['title'],**live_kwargs)
+        if lineage and live.get('deployed_html_sha256') != lineage['article_html_sha256']:
+            return None
         if article_production_head_id() != current['deployment_id'] or article_current_base() != current:
             return None
         return {'status':'PASS_PUBLISHED','published':True,'entry_id':entry['entry_id'],

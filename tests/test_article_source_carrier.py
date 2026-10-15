@@ -221,6 +221,35 @@ class SourceCarrierTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'live_indexability'):
                 carrier.live_readback('/guides/new/','Reviewed & title')
 
+    def test_successor_live_hash_reverses_only_exact_cloudflare_email_transforms(self):
+        source = ('<title>Reviewed title</title><meta name="robots" content="index,follow">'
+                  '<link rel="canonical" href="https://glpclinicscout.com/guides/new/">'
+                  '<main><p>Accepted prose</p><a href="mailto:?subject=Reviewed&amp;body=Guide">Email</a>'
+                  '<a href="mailto:support@example.test">support@example.test</a></main>')
+        def protected(text):
+            return '7f' + bytes(b ^ 127 for b in text.encode()).hex()
+        edge = source.replace('href="mailto:?subject=Reviewed&amp;body=Guide"',
+            'href="/cdn-cgi/l/email-protection#'+protected('?subject=Reviewed&amp;body=Guide')+'"')
+        edge = edge.replace('href="mailto:support@example.test"',
+            'href="/cdn-cgi/l/email-protection#'+protected('support@example.test')+'"')
+        edge = edge.replace('>support@example.test</a>',
+            '><span class="__cf_email__" data-cfemail="'+protected('support@example.test')+'">[email&#160;protected]</span></a>')
+        edge += '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+        with tempfile.TemporaryDirectory() as tmp:
+            expected = Path(tmp)/'index.html'; expected.write_text(source)
+            for body in (source, edge):
+                with patch.object(carrier,'fetch',return_value=(200,body)):
+                    live = carrier.live_readback('/guides/new/','Reviewed title', expected_html=expected)
+                    self.assertEqual(live['deployed_html_sha256'],carrier.digest(expected))
+                    self.assertEqual(live['html_sha256'],__import__('hashlib').sha256(body.encode()).hexdigest())
+            for body in (edge.replace('Accepted prose','Altered prose'),
+                         edge.replace(protected('support@example.test'),protected('attacker@example.test')),
+                         edge.replace('email-decode.min.js','other.js'),
+                         edge+'<script>unreviewed()</script>', edge.replace('<main>','<main data-new="effect">')):
+                with self.subTest(body=body), patch.object(carrier,'fetch',return_value=(200,body)):
+                    with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                        carrier.live_readback('/guides/new/','Reviewed title',expected_html=expected)
+
     def test_reconciliation_uses_real_packet_and_never_republishes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -423,7 +452,8 @@ class SourceCarrierTests(unittest.TestCase):
             result = {'status':'PASS_PRODUCTION_TERMINAL','scope':'operator-approved-main-release',
                 'site_main':pr['mergeCommit']['oid'],'source_pr':pr['url'],'deployment_id':'original',
                 'search_submission':{'binding':binding}}
-            live = {'http':200,'title':'Reviewed title','url':carrier.SITE+entry['target_route']}
+            live = {'http':200,'title':'Reviewed title','url':carrier.SITE+entry['target_route'],
+                    'deployed_html_sha256':carrier.digest(old/public_rel)}
             publication = {**carrier.publication_receipt(pr,result,live,row),'receipt':str(terminal)}
             carrier.record_consumption(root,entry,op,publication,claim)
             sealed = carrier.consumed_path(root,op)
@@ -443,6 +473,11 @@ class SourceCarrierTests(unittest.TestCase):
                 self.assertEqual(recovered['publication_lineage']['original_deployment_id'],'original')
                 self.assertEqual(recovered['publication_lineage']['current_deployment_id'],'successor')
                 self.assertEqual(recovered['receipt_path'],str(sealed))
+                get.assert_called_once_with(entry['target_route'],'Reviewed title',expected_html=new/public_rel)
+                for bad_hash in (None, 'f'*64):
+                    get.return_value = {**live,'deployed_html_sha256':bad_hash}
+                    self.assertIsNone(carrier.published_operation_readback(op))
+                get.return_value = live
                 # Hash-bound current snapshots cannot bless changed article HTML,
                 # even when accepted source/title/route remain unchanged.
                 original_current = current_manifest.read_bytes()
