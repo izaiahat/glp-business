@@ -212,6 +212,65 @@ def test_exact_round1_real_client_plan_apply_preserves_null_receipt(tmp_path, mo
         producer.capture_admissible('scrape', 'target')
 
 
+def test_exact_round1_mixed_ledger_books_only_approved_operation(tmp_path, monkeypatch):
+    # RV537's full-ledger failing probe, with synthetic equivalents of its
+    # 640 existing bookings and 16 unrelated post-cutoff null map operations.
+    # Unlike the review projection, retain every unrelated row in plan/apply.
+    ledger, state, original, _ = fixture(tmp_path)
+    exact = dict(original, **booking.EXACT_OPERATION)
+    prior_bookings = [dict(original, operation_id=f'booked-{i}', creditsUsed=13,
+                           cost_booking={'reason': 'retained historical booking'})
+                      for i in range(640)]
+    unrelated = [dict(original, operation_id=f'127c41f3-unapproved-map-{i}',
+                      endpoint='/v2/map', at_utc='2026-10-15T03:46:39.365573+00:00',
+                      outcome='success', http_status=200)
+                 for i in range(16)]
+    # A still-unbooked historical null is also outside this supplemental run.
+    rows = prior_bookings + unrelated + [original, exact]
+    before = b''.join(booking.encoded(row) for row in rows)
+    ledger.write_bytes(before)
+    reservation = (state / 'firecrawl-supply-budget.json').read_bytes()
+    calls = []
+    client = real_client(ledger, monkeypatch, calls)
+    kw = {'exact_operation_decision_sha': booking.EXACT_OPERATION_DECISION_SHA256}
+    plan = booking.book(state, ledger, client, tmp_path / 'plan.json', **kw)
+    assert plan['booked_operations'] == 1
+    assert [c['operation_id'] for c in plan['charges']] == [exact['operation_id']]
+    assert ledger.read_bytes() == before
+    result = booking.book(state, ledger, client, tmp_path / 'apply.json', apply=True,
+                          expected_sha=plan['pre_ledger_sha256'], **kw)
+    after = ledger.read_bytes()
+    assert after.startswith(before)
+    additions = list(map(json.loads, after[len(before):].splitlines()))
+    assert len(additions) == 1
+    added = additions[0]
+    assert added['operation_id'] == exact['operation_id'] and added['creditsUsed'] == 13
+    assert added['http_status'] == 408 and added['outcome'] == 'http_error'
+    assert result['status'] == 'applied' and result['unknown_remaining'] == 0  # scoped
+    latest = {r['operation_id']: r for r in map(json.loads, after.splitlines())}
+    assert [r for r in map(json.loads, after.splitlines()) if r.get('cost_booking')][:-1] == prior_bookings
+    assert all(latest[r['operation_id']] == r for r in unrelated + [original])
+    assert len([r for r in latest.values() if r['creditsUsed'] is None]) == 17
+    assert (state / 'firecrawl-supply-budget.json').read_bytes() == reservation
+    assert len(calls) == 4 and all('/team/credit-usage' in url for url in calls)
+    repeated = booking.book(state, ledger, client, tmp_path / 'repeat.json', **kw)
+    assert repeated['booked_operations'] == 0 and ledger.read_bytes() == after
+    # A later unapproved ambiguous scrape is held, not booked by this decision.
+    future = dict(exact, operation_id='new-unapproved-null')
+    ledger.write_bytes(after + booking.encoded(future))
+    retained = ledger.read_bytes()
+    no_op = booking.book(state, ledger, client, tmp_path / 'future.json', apply=True,
+                         expected_sha=hashlib.sha256(retained).hexdigest(), **kw)
+    assert no_op['booked_operations'] == 0 and ledger.read_bytes() == retained
+    producer = supply.Producer(state_dir=state, import_only=True)
+    producer.operations = lambda: list(map(json.loads, ledger.read_text().splitlines()))
+    with pytest.raises(RuntimeError, match='sponsor_ledger_credit_cost_unknown'):
+        producer.daily_accounted('2026-10-15')
+    with pytest.raises(RuntimeError, match='ambiguous_capture_effect_no_replay'):
+        producer.capture_admissible('scrape', 'target')
+    assert (state / 'firecrawl-supply-budget.json').read_bytes() == reservation
+
+
 def test_exact_round1_cli_rejects_unapproved_decision_before_client(tmp_path, monkeypatch):
     old, exact = tmp_path / 'old.md', tmp_path / 'round1.md'
     old.write_bytes(b'old approved decision fixture')

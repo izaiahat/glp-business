@@ -7863,14 +7863,14 @@
       "callers": [
         "manual:GLP-328 approved conservative accounting"
       ],
-      "sha256": "d1d9b62c568580dbfc79b1dacd99a6796e44ded7e51801babd54cc969cc99762"
+      "sha256": "d26c698dfa65c8d16d9220dbd5d63aeb3a0bf196559a12fe1c57dfafeb40a3e3"
     },
     "tests/test_glp_sponsor_firecrawl_booking.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "be84828b77b659fac32ec1bf016d67e6b2f7546fa12710a2a3231b03af6ae471"
+      "sha256": "c7d06542587586b34a475d14908a31f44bfeca5ee4aad6b628e94ba50d4380d4"
     },
     "ops/sponsor-firecrawl-booking.md": {
       "kind": "documentation",

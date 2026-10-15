@@ -54,7 +54,15 @@ def charges_for(rows, historical, observed, *, exact_operation_decision_sha=None
         raise RuntimeError('exact_operation_decision_invalid')
     if historical.get('success') is not True:
         raise RuntimeError('authenticated_usage_missing')
-    latest = {row['operation_id']: row for row in rows if row.get('caller') in SPONSOR_CALLERS}
+    if exact_operation_decision_sha:
+        # Supplemental selection AND post-append readback cover this ID only.
+        # Other nulls (even historical ones) stay unbooked with their holds.
+        ident = EXACT_OPERATION['operation_id']
+        latest = {ident: row for row in rows if row.get('operation_id') == ident}
+        if ident not in latest or not all(latest[ident].get(k) == v for k, v in EXACT_OPERATION.items()):
+            raise RuntimeError('null_receipt_outside_decision_scope')
+    else:
+        latest = {row['operation_id']: row for row in rows if row.get('caller') in SPONSOR_CALLERS}
     charges = []
     for ident, row in sorted(latest.items()):
         if row.get('endpoint', '').startswith('/v2/team/'):
