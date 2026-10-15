@@ -40,6 +40,48 @@ No adapter/store, new positive fixture, live-state edit or pilot replay is added
 Missing acceptance retains the old key; this source refusal is not permission for
 a new task, retry, publication, key change or inferred policy/version join.
 
+## Source repair candidate: fail before effects, not after publication
+
+The scheduler template is disabled, matching the operator-disabled live cron.
+`python3 scripts/codex_cloud_vpn_renewal.py --check-safety` is a no-effect check
+(exit 1 while blocked). `--run` and `--mint` also stop before reading config,
+constructing the credential client, minting, publishing or dispatching. This is
+NOT a successful renewal or an implemented positive denial verifier.
+
+A source repair replaces reclaim-capable admission with the normal protected
+oracle and atomic lease writer under its existing critical section. ANY present
+reservation, including old, malformed and same-seat reservations, defers;
+inherited seats require the existing `require_held` and are not released here.
+The protected fleet lock source itself is unchanged.
+
+Browser code no longer reads pending secrets or inserts them via raw CDP.
+The renewal transfer boundary `codex_cloud_vpn_vault.py` now refuses with
+`registered_vault_exact_context_fill_unavailable` before reading a pending key,
+staging/listing/filling a vault item, starting a browser or writing fill intent.
+The registered vault API supports only an atomic origin check, not the expected
+authenticated account/config and exact owned editor document/URL/target at the
+credential-write boundary. An earlier precheck can expire during staging or
+intent I/O; a later Save refusal cannot undo disclosure. No accepting adapter or
+raw-CDP secret insertion is substituted. Reopening transfer requires a supported
+registered exact-context contract which verifies all bindings in the same
+operation immediately before the write and returns an exact-context receipt.
+Until then even unchanged-context transfer refuses, records no VAULT_FILLED,
+and makes no live future-renewal claim. Uncertain fill/save intents still refuse
+replay; Save still requires its exact target/path receipt. Offline regressions
+retain RV519's same-origin path/account drift counterexamples. The whole renewal
+CLI also remains unreachable past its no-effect safety preflight.
+
+The refusal is a missing provider capability, not a safe parser relaxation.
+Tailscale's documented network-flow export logs only successful connections;
+[denied attempts are not logged](https://tailscale.com/docs/features/logging/network-flow-logs).
+Its ACL counters are not per-task/flow attestations. No approved provider-origin
+record/schema and task/runtime/executed-version join exists in the retained
+inputs. Keep the existing adversarial parser tests and refusal. Do not invent
+a positive dictionary schema, accept raw403/503, or substitute a configured
+policy or same-host response. Obtain the actual supported provider observation
+and independent acceptance, or a separately authorized instrumentation/criteria
+change, before implementing an accepting verifier and enabling the job.
+
 Manual resume: use the same approved interpreter and --run. Do not edit ticket
 terminal state, delete pending secret files, or remint on a stale editor label.
 If credentials/device approval expire, use the secure browser vault/MFA path;

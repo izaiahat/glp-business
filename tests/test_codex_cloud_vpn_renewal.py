@@ -135,6 +135,7 @@ def test_vpn_cli_defers_when_heavy_seat_is_owned_elsewhere(monkeypatch):
     calls=[]
     fake=types.SimpleNamespace(acquire=lambda *a:1,release=lambda *a:calls.append('release'))
     monkeypatch.setitem(sys.modules,'candidate_build_lock',fake)
+    monkeypatch.setattr(r,'acquire_free',lambda *a:1)
     monkeypatch.delenv('CANDIDATE_BUILD_SEAT',raising=False)
     monkeypatch.setattr(r,'run_cli',lambda:calls.append('effect'))
     assert r.main()==0
@@ -146,6 +147,7 @@ def test_vpn_cli_releases_its_own_heavy_seat(monkeypatch):
     calls=[]
     fake=types.SimpleNamespace(acquire=lambda *a:0,release=lambda *a:calls.append('release'))
     monkeypatch.setitem(sys.modules,'candidate_build_lock',fake)
+    monkeypatch.setattr(r,'acquire_free',lambda *a:0)
     monkeypatch.delenv('CANDIDATE_BUILD_SEAT',raising=False)
     monkeypatch.setattr(r,'run_cli',lambda:0)
     assert r.main()==0
