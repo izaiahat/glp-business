@@ -89,11 +89,14 @@ class CatalogDependentClosureTests(unittest.TestCase):
 
         # The original reviewed catalog fix and its retained evidence remain exact.
         for relative in (PZ, BATCH, 'scripts/marketplace_adapters/digistore24.py',
-                         'tests/test_j4_partnerize_partial_catalog.py',
-                         'ops/glp/reporting-v2/source-manifest.json',
-                         'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh'):
+                         'tests/test_j4_partnerize_partial_catalog.py'):
             self.assertEqual(git_bytes(PACKAGED, relative), git_bytes(REVIEWED, relative))
             self.assertEqual((ROOT / relative).read_bytes(), git_bytes(REVIEWED, relative))
+        # Reporting generations may advance; preserve historical equality while
+        # checking current committed leaf and wrapper closure separately below.
+        for relative in ('ops/glp/reporting-v2/source-manifest.json',
+                         'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh'):
+            self.assertEqual(git_bytes(PACKAGED, relative), git_bytes(REVIEWED, relative))
 
         self.assertEqual(failures, [], '\n'.join(failures))
 
@@ -175,6 +178,9 @@ class CatalogDependentClosureTests(unittest.TestCase):
         # Legitimate J7 successors must close their CURRENT reporting leaf pins,
         # independently of immutable PR498 reverse-byte history above. Translate
         # absolute installed destinations to this isolated source root only.
+        self.assert_current_reporting_pins()
+
+    def assert_current_reporting_pins(self):
         for relative in ('ops/glp/reporting-v2/source-manifest.json',) + MANIFESTS:
             pins = json.loads(git_bytes('HEAD', relative))['files']
             for absolute, expected in pins.items():
@@ -182,6 +188,29 @@ class CatalogDependentClosureTests(unittest.TestCase):
                 leaf = absolute.removeprefix(PREFIX)
                 self.assertEqual(expected, sha(git_bytes('HEAD', leaf)),
                                  'current reporting leaf pin stale: ' + relative + ': ' + leaf)
+
+        base_manifest = 'ops/glp/reporting-v2/source-manifest.json'
+        base_wrapper = 'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh'
+        for wrapper, manifest in zip((base_wrapper,) + WRAPPERS, (base_manifest,) + MANIFESTS):
+            raw = git_bytes('HEAD', wrapper)
+            expected = sha(git_bytes('HEAD', manifest)).encode()
+            self.assertIn(b'check_source ' + manifest.encode() + b' ' + expected + b'\n', raw)
+            self.assertIn(b'--manifest-sha256 ' + expected + b' ', raw)
+            self.assertEqual(raw.count(expected), 2)
+
+    def test_stale_current_reporting_wrapper_manifest_pin_is_refused(self):
+        original_reader = git_bytes
+        base_wrapper = 'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh'
+        for target in (base_wrapper,) + WRAPPERS:
+            with self.subTest(wrapper=target):
+                def stale(commit, relative):
+                    raw = original_reader(commit, relative)
+                    if relative == target:
+                        return re.sub(rb'[a-f0-9]{64}', b'0' * 64, raw)
+                    return raw
+                with patch(__name__ + '.git_bytes', side_effect=stale):
+                    with self.assertRaises(AssertionError):
+                        self.assert_current_reporting_pins()
 
     def test_committed_unrelated_advance_preserves_historical_closure(self):
         # Real disposable Git successor, not a working-tree self-repin authority.

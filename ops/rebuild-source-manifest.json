@@ -21,7 +21,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "bd19d107c3541514533651ebd6a4a9604603ee45f67e4c7aca886b7165c26d1f"
+      "sha256": "b5eb7d5ee27cd70a02eb6939292ad0e79a7c3b6d776561b51942223c9fc9d378"
     },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
