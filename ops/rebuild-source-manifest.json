@@ -2413,7 +2413,7 @@
         "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py"
       ],
       "kind": "registered_producer",
-      "sha256": "4909a18e28adddd9bf400639fbf77a8fd40d4e9f29cbe46c799ca8a2e7991d86"
+      "sha256": "73229143d75218836c9477fc236a21b30fdf08d6a639077554a5488c1eca9cc3"
     },
     "scripts/auto_coordinator_guard.py": {
       "callers": [
@@ -4865,7 +4865,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "4f5817a506d851cd8126e005c2435f87a5bdd950a51e569205e57d67bf494602"
+      "sha256": "a9080b7eba64128d74c853c1b2bef99ca41960aff2370c5723b52880d5afe589"
     },
     "tests/test_audit_20260916_gates.py": {
       "callers": [

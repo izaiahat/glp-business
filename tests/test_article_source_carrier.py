@@ -472,6 +472,7 @@ class SourceCarrierTests(unittest.TestCase):
                 self.assertIsNotNone(recovered, 'unchanged accepted article under a successor must acknowledge')
                 self.assertEqual(recovered['publication_lineage']['original_deployment_id'],'original')
                 self.assertEqual(recovered['publication_lineage']['current_deployment_id'],'successor')
+                self.assertEqual(recovered['publication_lineage']['live_readback'],live)
                 self.assertEqual(recovered['receipt_path'],str(sealed))
                 get.assert_called_once_with(entry['target_route'],'Reviewed title',expected_html=new/public_rel)
                 for bad_hash in (None, 'f'*64):

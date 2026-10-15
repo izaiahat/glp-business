@@ -402,8 +402,10 @@ def published_operation_readback(operation_id):
         if lineage:
             live_kwargs['expected_html'] = release / 'public' / entry['target_route'].strip('/') / 'index.html'
         live = live_readback(entry['target_route'],article['title'],**live_kwargs)
-        if lineage and live.get('deployed_html_sha256') != lineage['article_html_sha256']:
-            return None
+        if lineage:
+            if live.get('deployed_html_sha256') != lineage['article_html_sha256']:
+                return None
+            lineage = {**lineage, 'live_readback':live}
         if article_production_head_id() != current['deployment_id'] or article_current_base() != current:
             return None
         return {'status':'PASS_PUBLISHED','published':True,'entry_id':entry['entry_id'],
