@@ -205,6 +205,9 @@ def test_existing_stock_without_public_proof_is_held_and_persisted(tmp_path):
  assert m.reconcile_public_stock(discovery,NOW)==2
  assert org['discovery']['contact_evidence']['stock_status']=='HELD_NOT_PUBLIC'
  assert not m.recipients(sheet,discovery,local)['recipients']
+ org['discovery']={'contact_email':'legacy@example.com'}
+ m.reconcile_public_stock(discovery,NOW)
+ assert org['discovery']['stock_status']=='HELD_NOT_PUBLIC'
 
 
 def test_professional_contact_and_relationship_require_exact_current_evidence():

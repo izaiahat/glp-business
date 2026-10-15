@@ -352,19 +352,19 @@ def reconcile_public_stock(discovery,at):
  Caller persists under the existing campaign run.lock. Each address must bind
  its own first-party public evidence; another published address is not proof.
  """
- held=0
+ held=set()
  for host,org in discovery.get('organizations',{}).items():
   d=org.get('discovery') or {};seen=set()
-  rows=list(org.get('professional_contacts') or [])+[d.get('contact_evidence') or {}]+list(d.get('candidates') or [])
+  rows=list(org.get('professional_contacts') or [])+[d,d.get('contact_evidence') or {}]+list(d.get('candidates') or [])
   for row in rows:
    if not isinstance(row,dict) or id(row) in seen:continue
-   seen.add(id(row));email=str(row.get('email') or row.get('address') or '').lower()
+   seen.add(id(row));email=str(row.get('email') or row.get('address') or row.get('contact_email') or '').lower()
    if not email:continue
    if not public_business_contact(host,org,at,exact_email=email):
-    row['stock_status']='HELD_NOT_PUBLIC';held+=1
+    row['stock_status']='HELD_NOT_PUBLIC';held.add((host,email))
    elif row.get('stock_status')=='HELD_NOT_PUBLIC':
     row['stock_status']='PUBLIC_EVIDENCE_PRESENT' # not send eligibility
- return held
+ return len(held)
 
 
 def recipients(values,discovery,local):
