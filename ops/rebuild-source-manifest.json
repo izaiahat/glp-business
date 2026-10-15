@@ -3905,7 +3905,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "04dcfda917d59d71049c20c331e3c9187d08f04324c22ce9c65abc6ca8dd53e7"
+      "sha256": "025f7e2615eaa331b2339c2475c312b4bcbe20e1f3ed9893322add21c4d8d60a"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -7850,6 +7850,27 @@
         "business-source-ci"
       ],
       "sha256": "8b6bbb376551ab7858cff67985abe151144abe9f215ffe91b69ef176393f25fa"
+    },
+    "scripts/glp_sponsor_firecrawl_booking.py": {
+      "kind": "script",
+      "callers": [
+        "manual:GLP-328 approved conservative accounting"
+      ],
+      "sha256": "c5f083856f59e079e2d1a304c3a923dc6da4dc2359fd37efc5bebe39ad0d32ae"
+    },
+    "tests/test_glp_sponsor_firecrawl_booking.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5ddef3ded9d93063995de1924a8972ac09eaac4b1b9ff1356874eb0ab217cc8e"
+    },
+    "ops/sponsor-firecrawl-booking.md": {
+      "kind": "documentation",
+      "callers": [
+        "manual:GLP-328 approved conservative accounting"
+      ],
+      "sha256": "c4e9d744d7895e8f8d27a05d7fda9ae48093e453647324de71bb7b9acd6540b8"
     }
   },
   "omitted_runtime_inputs": [
@@ -7860,5 +7881,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1150
+  "tracked_count": 1153
 }
