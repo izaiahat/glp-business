@@ -78,7 +78,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "ef5ce3864e37a62defe20284a34703629a172a99f85093149ad1b2ca3208f805"
+      "sha256": "78914a160bcd04242c90d4ad9cb036fcad228d34f93cdc074832023ef9f7e1dd"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -94,7 +94,7 @@
         "hermes cron sponsor supply refresh"
       ],
       "kind": "source_control",
-      "sha256": "60bb89e49769be15bb581ebe942e823d558215ae0a9ad6e8d7482f240d162c2e"
+      "sha256": "0886e7794a5c3f444ea565c0df845189313abe9ccadc17bd792c6a27e4e8f881"
     },
     "scripts/glp_firecrawl_jobs.py": {
       "callers": [
@@ -3905,7 +3905,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a4047b1bba42ebc45b158bf7f27dbb49c42377cfb85e73901dbe1da804964dc5"
+      "sha256": "04dcfda917d59d71049c20c331e3c9187d08f04324c22ce9c65abc6ca8dd53e7"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -7777,6 +7777,34 @@
       "kind": "test",
       "scope": "Effects-denied J7 actual-entry full-roster selection rotation; invalid and duplicate selectors refuse before collectors; unchanged shared32/240 and null money.",
       "sha256": "ffd2c025635c52f14198eb74523d6e3323806ea42c58cfd5089bd6cdc4ba4e7c"
+    },
+    "ops/sponsor-supply-discovery.md": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "scripts/glp_sponsor_firecrawl_supply.py"
+      ],
+      "sha256": "d812e387b7923eaace68f118ac494721df66925b903a6ac7963d738d40c73cfb"
+    },
+    "scripts/glp_sponsor_discovery.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_sponsor_firecrawl_supply.py"
+      ],
+      "sha256": "4c203311e6cb328dde3a23b2aa2a53d23f08cc241137bdad3e41826fc862bbe7"
+    },
+    "tests/test_glp_sponsor_discovery.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "e9077aca3b764aba787e33d82b1ef8924b714a3428ed92b678bb81b1186543e5"
+    },
+    "tests/test_glp_sponsor_discovery_integration.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "3be65a7826c13d9997e47fab54856bc759e4ee1a85340d3fb39c1db31977425b"
     }
   },
   "omitted_runtime_inputs": [
@@ -7787,5 +7815,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1140
+  "tracked_count": 1144
 }

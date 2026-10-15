@@ -922,6 +922,13 @@ class Producer:
                                  'next_weekday_batch_capacity': min(25, len(verified)),
                                  'verified_hosts': verified, 'mail_refused': refused, 'verification_calls': calls}
 
+    def discover(self, *, free_only=False, directory_batches=2):
+        from glp_sponsor_discovery import Discovery
+        discovery = Discovery(self.state / 'sponsor-discovery', search=None if free_only else
+                              lambda payload: self.paid(20, self.client.search, payload, timeout=90))
+        self.report['discovery'] = discovery.run(free_only=free_only, directory_batches=directory_batches)
+        return discovery.load()['candidates']
+
     def daily(self, *, retained_leads=()):
         if self.budget.remaining <= FLOOR_CREDITS:
             self.report['status'] = 'STOPPED_CREDIT_FLOOR'
@@ -950,6 +957,22 @@ class Producer:
         known.update(f.stem for f in self.pages.glob('*.json'))
         known_names = {self.c.normalize(r.get('program', '')) for r in registry}
         known_names.update(self.c.normalize(o.get('provider', '')) for o in organizations.values())
+        # A recurring producer, not a finite seed replay. Persisted candidates
+        # remain a backlog until capture; discovery's own observation is NOT a
+        # seen-host exclusion. Directories give literal official URLs only, not
+        # US/category/contact permission. Search keeps the existing own-offer filter.
+        fresh_hosts = set()
+        from glp_sponsor_discovery import research_host
+        for h, row in ({} if self.import_only else self.discover()).items():
+            host = research_host(row.get('url'))
+            if (host != h or (row.get('source') != 'wikidata_P856' and not firstparty_research_host(row))
+                    or any(_same_adverse_org(h, b) for b in known | blocked)
+                    or any(self.c.normalize(label) in known_names for label in h.split('.')[:-1])):
+                continue
+            fresh_hosts.add(h)
+            known.add(h)
+            known_names.add(self.c.normalize(h.split('.')[0]))
+        targets.update(fresh_hosts)
         retained_hosts, bindings, refused = set(), [], []
         for path in retained_leads:
             path = Path(path)
@@ -981,8 +1004,10 @@ class Producer:
         hosts = sorted((h for h in targets if re.fullmatch(r'[a-z0-9.-]+\.[a-z]{2,}', h)
                        and 'fella' not in h and not h.endswith(self.c.PLATFORMS)
                        and not any(_same_adverse_org(h, b) for b in blocked)),
-                       key=lambda h: ((self.pages / (h + '.json')).exists(), h not in retained_hosts, h))
+                       key=lambda h: ((self.pages / (h + '.json')).exists(), h not in fresh_hosts, h not in retained_hosts, h))
         self.report['target_universe'] = {'research_hosts': len(hosts), 'registry_dependency': False,
+            'untouched_discovery_hosts': len(set(hosts) & fresh_hosts),
+            'discovery_selected_hosts': sorted(set(hosts) & fresh_hosts),
             'untouched_retained_hosts': len(set(hosts) & retained_hosts),
             'retained_lead_inputs':bindings, 'retained_selected_hosts':sorted(retained_hosts),
             'retained_refused':refused}
