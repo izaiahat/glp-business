@@ -287,9 +287,11 @@ def refresh_source_packet(c, predecessor_sha256, output):
     if set(manifest) != allowed-{MANIFEST} or any(
         hashlib.sha256(members[name]).hexdigest()!=pin for name,pin in manifest.items()):
         raise RuntimeError('current_packet_manifest_invalid')
-    readiness_renewal(members, {READINESS_PATH:(c.ROOT/READINESS_PATH).read_bytes()})
     for name in SOURCE_PATHS:
         installed = (c.ROOT/name).read_bytes()
+        if name == READINESS_PATH:
+            # Authenticate exactly the buffer archived below, never a path reread.
+            readiness_renewal(members, {READINESS_PATH:installed})
         if name not in RENEWABLE_SOURCES|{READINESS_PATH} and installed != members[name]:
             raise RuntimeError('source_packet_nontechnical_drift:'+name)
         members[name] = installed

@@ -185,6 +185,46 @@ def test_source_only_packet_refresh_preserves_outward_bytes(tmp_path, monkeypatc
         r.refresh_source_packet(c,c.digest(packet),tmp_path/'bad.zip')
 
 
+def test_source_refresh_archives_the_validated_readiness_buffer(tmp_path, monkeypatch):
+    import zipfile
+    import glp_sponsor_current_receiving as r
+    monkeypatch.setattr(c, 'ROOT', tmp_path)
+    blobs = {name: name.encode() for name in set(r.SOURCE_PATHS)|set(r.ASSETS)|{r.REVIEW,r.SUPPLY,r.ASSET_REVIEW}}
+    blobs[r.MANIFEST] = json.dumps({name:hashlib.sha256(blob).hexdigest()
+                                  for name,blob in blobs.items()}).encode()
+    packet = tmp_path/r.PACKET; packet.parent.mkdir(parents=True)
+    with zipfile.ZipFile(packet, 'w') as archive:
+        for name,blob in blobs.items(): archive.writestr(name,blob)
+    for name in r.SOURCE_PATHS:
+        path = tmp_path/name; path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_bytes(blobs[name])
+    target = tmp_path/r.READINESS_PATH
+    reviewed = b'exact reviewed readiness successor'
+    unreviewed = b'unreviewed successor introduced after first read'
+    monkeypatch.setattr(r, 'READINESS_RENEWAL',
+        (hashlib.sha256(blobs[r.READINESS_PATH]).hexdigest(),hashlib.sha256(reviewed).hexdigest()))
+    target.write_bytes(reviewed)
+    real_read = Path.read_bytes
+    observed = []
+    def change_after_read(path):
+        data = real_read(path)
+        if path == target:
+            observed.append(data)
+            if len(observed) == 1:
+                target.write_bytes(unreviewed)
+        return data
+    monkeypatch.setattr(Path, 'read_bytes', change_after_read)
+    output = tmp_path/'race-candidate.zip'
+    result = r.refresh_source_packet(c, c.digest(packet), output)
+    assert result['status'] == 'UNRECEIVED_SOURCE_ONLY_PACKET'
+    with zipfile.ZipFile(output) as archive:
+        consumed = archive.read(r.READINESS_PATH)
+        assert consumed == reviewed  # Never archive unchecked replacement bytes.
+        assert json.loads(archive.read(r.MANIFEST))[r.READINESS_PATH] == hashlib.sha256(reviewed).hexdigest()
+    assert observed == [reviewed]  # The validated buffer is captured only once.
+    assert real_read(target) == unreviewed  # A real scratch-path replacement occurred.
+
+
 def test_receive_renewal_requires_exact_predecessor_and_archives(tmp_path, monkeypatch):
     import contextlib
     import zipfile

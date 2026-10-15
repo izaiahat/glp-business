@@ -7180,7 +7180,7 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "62da85dacbf504b68adbb84fda50103b7c0ce011fe3d1393d1386dceb997ad36"
+      "sha256": "ffb9593bab63743d5f5dc72c9b4b7562c7e2a7df1a5b08245d922d9316bcdc43"
     },
     "tests/test_glp_sponsor_unattended.py": {
       "kind": "test",
@@ -7194,7 +7194,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "55621a2daf7082d4b3681aa94b87f6a866e3d60e95932db6c94f734b0b3eb232"
+      "sha256": "7253c29ec9df6b9cde506472e21b01d7e309ced58633ade1b3ed5fa9d090731f"
     },
     "scripts/glp_surface_unification.py": {
       "kind": "script",
