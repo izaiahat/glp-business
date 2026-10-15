@@ -375,7 +375,7 @@
     ".github/workflows/glp80-k3-source.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9541190fc9647743b0d1ff84c84a1747a4e44be968be5cccd5f3c98befc8fd35"
+      "sha256": "9fd4e8310100f7a4a7deec3b0deb9d7915892ae182264e55f5b569540c546cc9"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "callers": [
