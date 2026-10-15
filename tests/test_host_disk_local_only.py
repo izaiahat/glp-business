@@ -297,6 +297,24 @@ def test_registered_local_only_busy_dispatcher_defers_before_cleanup(tmp_path, m
         holder.stdin.close(); holder.stdout.close(); holder.stderr.close()
 
 
+def test_local_only_omits_remote_report_phase_without_lowering_local_threshold(tmp_path, monkeypatch):
+    bus, _ = fixture_sweep(tmp_path, monkeypatch)
+    root = bus / 'reports/private-ranked-report'; root.mkdir()
+    monkeypatch.setattr(sweep, 'cold_report_roots', lambda *a, **k: [root])
+    monkeypatch.setattr(sweep, 'rank_reports', lambda *a: ([(256 * 1024**2, root)], []))
+    calls = []
+    def archive(api, path, destination, **kwargs):
+        calls.append((kwargs['cold_days'], kwargs['min_bytes'], kwargs['archive_destination']))
+        return {'rule': 'cold_evidence_archive', 'status': 'REFUSED', 'bytes_freed': 0}
+    monkeypatch.setattr(cold, 'cold_archive', archive)
+    def denied(*a, **k):
+        raise AssertionError('local report fixture attempted R2')
+    monkeypatch.setattr(r2.Destination, 'from_environment', denied)
+    monkeypatch.setattr(r2, 'migrate_archives', denied)
+    sweep.run(tmp_path / 'report', budget=120, local_only=True)
+    assert calls == [(7, 128 * 1024**2, None)]
+
+
 def test_default_sweep_still_constructs_existing_destination(tmp_path, monkeypatch):
     bus, _ = fixture_sweep(tmp_path, monkeypatch)
     reached = []

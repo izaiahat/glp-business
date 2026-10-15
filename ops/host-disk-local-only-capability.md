@@ -25,7 +25,9 @@ summary. Local archive calls get `archive_destination=None`, selecting the
 existing local-verified custody path; ordinary local node/scratch/duplicate,
 completed dependency, site/archive and legacy safe + D/A/B/C classes still run
 under their unchanged reference/age/receipt/financial/privacy/headroom guards.
-R2 migration is omitted, not relabeled as successful local work. Terminal sweep
+R2 migration and the remote-only 30-day/1MiB report phase are omitted, not
+relabeled as successful local work or converted to a new local-retirement class.
+The existing local 7-day/128MiB report threshold remains unchanged. Terminal sweep
 and controller receipts record `local_only`; R2 status is
 `DISABLED_LOCAL_ONLY`. Local-only is **not** a no-send mode: the unchanged
 controller's existing completion notification remains part of the chain.
@@ -163,5 +165,7 @@ effects or success receipts; no owner is disturbed. These are **not** native
 scheduler/runtime proof. The retained uncooperative private queue publication
 still invokes the complete collector's identity refusal and zero-effect receipt.
 Default destination construction and delegated-trigger source-drift checks are
-also retained. All fixtures deny network/R2 boundaries rather than hiding
+also retained. A focused report-phase regression omits the remote-only 30-day
+phase in local-only mode and retains the local 7-day/128MiB threshold. All fixtures
+deny network/R2 boundaries rather than hiding
 credentials; no live cleanup/queue collector/source importer/R2 contact runs.

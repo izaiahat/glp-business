@@ -262,7 +262,8 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
         if not external_ok:break
         if amount<1024**2 or time.monotonic()+60>deadline:continue
         name=p.relative_to(BUS/'reports').as_posix().replace('/','--')
-        for cold_days,destination in [(30,remote),(7,None)]:
+        phases=[(7,None)] if local_only else [(30,remote),(7,None)]
+        for cold_days,destination in phases:
             index=0
             while time.monotonic()+60<deadline:
                 index+=1
