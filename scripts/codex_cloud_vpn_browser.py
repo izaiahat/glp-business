@@ -73,26 +73,27 @@ def open_editor(env, row):
         raise ValueError('approved_host_settings_missing_do_not_infer_repair')
 
 
-def save_vpn(env, row, renewal, state):
+def prepare_vpn(env, row, renewal, state):
+    """Open the supported field; secrets are filled by the registered vault tool."""
     open_editor(env, row)
-    renewal.atomic(renewal.STATE, state)
-    secret = renewal.private_read(pathlib.Path(row['secret_path']))
-    if secret['key_id'] != row['key_id'] or secret['environment_id'] != env['environment_id']:
-        raise ValueError('private_key_binding_mismatch')
     if not js("!!document.querySelector('input[type=password]')"):
         click('button', 'Edit Tailscale auth key')
     wait_for(lambda: js("!!document.querySelector('input[type=password]')"))
-    root = cdp('DOM.getDocument')['root']['nodeId']
-    node = cdp('DOM.querySelector', nodeId=root, selector='input[type=password]')['nodeId']
-    cdp('DOM.scrollIntoViewIfNeeded', nodeId=node)
-    box = cdp('DOM.getBoxModel', nodeId=node)['model']['content']
-    x, y = sum(box[::2])/4, sum(box[1::2])/4
-    for kind in ('mousePressed','mouseReleased'):
-        cdp('Input.dispatchMouseEvent',type=kind,x=x,y=y,button='left',clickCount=1)
-    for kind in ('keyDown','keyUp'):
-        cdp('Input.dispatchKeyEvent',type=kind,key='a',code='KeyA',windowsVirtualKeyCode=65,modifiers=2)
-    cdp('Input.insertText', text=secret['key'])
-    secret = None
+    row['phase'] = 'VAULT_FILL_REQUIRED'
+    renewal.atomic(renewal.STATE, state)
+
+
+def save_vpn(env, row, renewal, state):
+    if row.get('phase') != 'VAULT_FILLED' or row.get('vault_fill_receipt', {}).get('origin') != 'https://chatgpt.com':
+        raise ValueError('secure_vault_fill_required')
+    owned_target(env, row)
+    if (row['vault_fill_receipt'].get('target') != row['editor_target']
+            or row['vault_fill_receipt'].get('draft_task_url') != row['draft_task_url']
+            or js('location.href') != row['draft_task_url']
+            or not js("!!document.querySelector('input[type=password]')")):
+        raise ValueError('filled_editor_changed_no_save')
+    row['phase'] = 'VPN_SAVE_INTENT'
+    renewal.atomic(renewal.STATE, state)
     click('button', 'Save')
     wait_for(lambda: not js("!!document.querySelector('input[type=password]')"))
     wait_for(lambda: 'Key entered' in text() or 'Configured' in text())

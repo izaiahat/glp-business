@@ -2,4 +2,5 @@
 # Daily; <14 days remaining. Failure alerts only. Never blind-retry effects.
 SHELL=/bin/bash
 PATH=/home/ubuntu/.hermes/node/bin:/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
-5 2 * * * ubuntu cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python -B scripts/codex_cloud_vpn_renewal.py --run >> /home/ubuntu/business/logs/codex-cloud-key-renewal.log 2>&1
+# BLOCKED: do not enable until provider denial custody and independent acceptance exist.
+# 5 2 * * * ubuntu cd /home/ubuntu/business && nice -n 19 /home/ubuntu/.hermes/hermes-agent/venv/bin/python -B scripts/codex_cloud_vpn_renewal.py --run >> /home/ubuntu/business/logs/codex-cloud-key-renewal.log 2>&1

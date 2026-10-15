@@ -134,6 +134,8 @@ def browser(env, action):
     prefix+='exec(pathlib.Path('+repr(str(source))+').read_text(),globals())\n'
     if action=='usage':
         prefix+='print(json.dumps({"usage":check_usage(env)}))\n'
+    elif action=='prepare-save':
+        prefix+='prepare_vpn(env,row,renewal,state)\nprint(json.dumps({"phase":row["phase"]}))\n'
     elif action=='save':
         prefix+='save_vpn(env,row,renewal,state)\nprint(json.dumps({"phase":row["phase"]}))\n'
     elif action=='publish':
@@ -266,6 +268,12 @@ def run(config, state_path=STATE, api=None):
             continue
         try:
             if row['phase']=='MINTED':
+                browser(env,'prepare-save')
+                state=load(state_path,{});row=state['environments'][env['name']]
+            if row['phase']=='VAULT_FILL_REQUIRED':
+                from codex_cloud_vpn_vault import fill
+                fill(env,row,__import__(__name__),state)
+            if row['phase']=='VAULT_FILLED':
                 browser(env,'save')
                 state=load(state_path,{});row=state['environments'][env['name']]
             if row['phase'] in ('VPN_SAVED','PUBLISH_INTENT','PUBLISH_FAILED'):
@@ -327,6 +335,16 @@ def reconcile_no_task(account):
     return {'status':'PUBLISHED_NO_NATIVE_TASK_SENT','name':row['name']}
 
 
+def safety_preflight():
+    """No credentials, writes, network, dispatch or browser. Never self-accept."""
+    return {'status':'NOT_SAFE_TO_ENABLE','effects':False,
+            'secure_transfer':'registered_browser_vault_list_and_fill',
+            'lease':'atomic_free_only_no_reclaim',
+            'blockers':['provider_supported_task_attributed_denial_witness_unavailable',
+                        'genuine_exact_record_independent_acceptance_unavailable'],
+            'cron_enable_authorized':False}
+
+
 def run_cli():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config',type=Path,default=CONFIG)
@@ -334,7 +352,12 @@ def run_cli():
     group.add_argument('--mint',action='store_true')
     group.add_argument('--run',action='store_true')
     group.add_argument('--reconcile-setup-no-task',choices=['1','2'])
+    group.add_argument('--check-safety',action='store_true')
     a=p.parse_args()
+    if not a.reconcile_setup_no_task:
+        report=safety_preflight()
+        if a.check_safety or report['status']!='SAFE_TO_ENABLE':
+            print(json.dumps(report));return 1
     lock=STATE.with_suffix('.lock');lock.parent.mkdir(parents=True,exist_ok=True)
     with lock.open('a') as f:
         fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -352,11 +375,29 @@ def run_cli():
             print(json.dumps({**failure,'secret_printed':False}));return 1
 
 
+def acquire_free(heavy, seat, reason):
+    """Use the normal gate/atomic lease writer, never the reclaim-capable verb.
+
+    An occupied (even stale, malformed or same-seat) reservation always defers.
+    The free check and normal _take occur in the SAME guarded critical section.
+    """
+    import time
+    if heavy._oracle_gate():
+        return 1
+    with heavy._critical_section():
+        if heavy._read_raw() is not None:
+            return 1
+        return heavy._take(seat,reason,time.time(),previous=None)
+
+
 def main():
+    import sys
+    if '--check-safety' in sys.argv[1:]:
+        return run_cli()
     import candidate_build_lock as heavy
     inherited=os.environ.get('CANDIDATE_BUILD_SEAT')
     seat=inherited or 'codex-cloud-key-renewal'
-    admitted=heavy.require_held(seat) if inherited else heavy.acquire(seat,'Codex VPN daily rotation')
+    admitted=heavy.require_held(seat) if inherited else acquire_free(heavy,seat,'Codex VPN daily rotation')
     if admitted:
         print(json.dumps({'status':'ADMISSION_DEFERRED','effects':False}))
         return 0

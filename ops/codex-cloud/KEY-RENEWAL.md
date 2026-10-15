@@ -40,6 +40,41 @@ No adapter/store, new positive fixture, live-state edit or pilot replay is added
 Missing acceptance retains the old key; this source refusal is not permission for
 a new task, retry, publication, key change or inferred policy/version join.
 
+## Source repair candidate: fail before effects, not after publication
+
+The scheduler template is disabled, matching the operator-disabled live cron.
+`python3 scripts/codex_cloud_vpn_renewal.py --check-safety` is a no-effect check
+(exit 1 while blocked). `--run` and `--mint` also stop before reading config,
+constructing the credential client, minting, publishing or dispatching. This is
+NOT a successful renewal or an implemented positive denial verifier.
+
+A source repair replaces reclaim-capable admission with the normal protected
+oracle and atomic lease writer under its existing critical section. ANY present
+reservation, including old, malformed and same-seat reservations, defers;
+inherited seats require the existing `require_held` and are not released here.
+The protected fleet lock source itself is unchanged.
+
+Browser code no longer reads pending secrets or inserts them via raw CDP.
+`codex_cloud_vpn_vault.py` stages only the already-issued, descriptor-checked
+pending key into the default-profile encrypted vault. It binds the supervisor
+to the exact account's owned editor target, verifies account/config/path and
+one password field, calls registered `browser_vault_list`, then
+`browser_vault_fill`. Only metadata is persisted. Fill/save intents are durable;
+uncertain fills/saves refuse replay. Saving requires the fill receipt's exact
+target/path, then supported Save and Save draft. This path has offline tests,
+not live future-renewal proof, and is unreachable while safety preflight fails.
+
+The refusal is a missing provider capability, not a safe parser relaxation.
+Tailscale's documented network-flow export logs only successful connections;
+[denied attempts are not logged](https://tailscale.com/docs/features/logging/network-flow-logs).
+Its ACL counters are not per-task/flow attestations. No approved provider-origin
+record/schema and task/runtime/executed-version join exists in the retained
+inputs. Keep the existing adversarial parser tests and refusal. Do not invent
+a positive dictionary schema, accept raw403/503, or substitute a configured
+policy or same-host response. Obtain the actual supported provider observation
+and independent acceptance, or a separately authorized instrumentation/criteria
+change, before implementing an accepting verifier and enabling the job.
+
 Manual resume: use the same approved interpreter and --run. Do not edit ticket
 terminal state, delete pending secret files, or remint on a stale editor label.
 If credentials/device approval expire, use the secure browser vault/MFA path;
