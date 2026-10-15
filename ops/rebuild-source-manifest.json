@@ -3515,7 +3515,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "7dc67040472115497adcee88b08d02056b3392b7d87e698e578112ef565087ca"
+      "sha256": "9208246eb97e2fbd850a763e15a34b510977a4f642af14c97c0fde00862c8cb3"
     },
     "scripts/hermes_active_work_gate.py": {
       "callers": [
@@ -5262,7 +5262,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "11698be220cd3991cef5d728e8471339454fb6cd117e8a2f1cf7f97e3122b37b"
+      "sha256": "fb2d0575a481b408f20001307360647be3f69726bedff81293cf41c459f31030"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
@@ -7973,5 +7973,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1165
+  "tracked_count": 1166
 }
