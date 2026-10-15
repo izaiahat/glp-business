@@ -550,6 +550,27 @@ class Producer:
         from urllib.parse import urljoin, urlsplit
         import glp_sponsor_readiness as readiness
 
+        def literal_url(value, absolute=False):
+            # Reject parser-repaired syntax, never turn it into an authorized
+            # destination. In particular WHATWG treats backslashes as slashes
+            # in HTTP(S) authorities while urllib treats them as host bytes.
+            if not isinstance(value, str) or re.search(r'[\\\x00-\x20\x7f-\x9f]', value):
+                return False
+            try:
+                u = urlsplit(value)
+            except ValueError:
+                return False
+            if absolute or u.scheme:
+                if not re.match(r'https?://[^/]', value, re.I) or not u.netloc:
+                    return False
+            if value.startswith('//') and (value.startswith('///') or not u.netloc):
+                return False
+            # Literal ASCII DNS authority only: no userinfo, escapes, Unicode
+            # host mappings, empty/nonliteral ports or missing authority.
+            return not u.netloc or bool(re.fullmatch(
+                r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?'
+                r'(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::(?:80|443))?', u.netloc, re.I | re.A))
+
         class Links(HTMLParser):
             def __init__(self):
                 super().__init__(convert_charrefs=True)
@@ -580,7 +601,9 @@ class Producer:
         for page in retained:
             html = page.get('html', '')
             final = page.get('final_url', page.get('url'))
-            if (not self.c.source_on_provider(page.get('url'), host)
+            if (not literal_url(page.get('url'), absolute=True)
+                    or not literal_url(final, absolute=True)
+                    or not self.c.source_on_provider(page.get('url'), host)
                     or not self.c.source_on_provider(final, host)
                     or hashlib.sha256(html.encode('utf-8', 'replace')).hexdigest() != page.get('sha256')
                     or not readiness.current_evidence({'captured_at_utc':page.get('fetched_at_utc'),
@@ -603,7 +626,8 @@ class Producer:
         def key(url):
             u = urlsplit(url)
             return ((u.hostname or '').removeprefix('www.'), u.path.rstrip('/'))
-        seen = {key(p[k]) for p in retained for k in ('url', 'final_url') if p.get(k)}
+        seen = {key(p[k]) for p in retained for k in ('url', 'final_url')
+                if literal_url(p.get(k), absolute=True)}
         attempted = {digest for op in self.operations() if op.get('endpoint') == '/v2/scrape'
                      for digest in op.get('url_hash', [])}
         route = re.compile(r'(?:/(?:en-us|us|en|pages|company))?/(?:partners?|partnerships?|'
@@ -612,10 +636,18 @@ class Producer:
         targets = {}
         for page in pages:
             parser = Links(); parser.feed(page['html'])
+            if not literal_url(parser.base_href or ''):
+                continue
+            base = urljoin(page['final_url'], parser.base_href or '')
+            if not literal_url(base, absolute=True) or not self.c.source_on_provider(base, host):
+                continue
             for href in parser.hrefs:
+                if not literal_url(href):
+                    continue
                 try:
-                    base = urljoin(page['final_url'], parser.base_href or '')
                     url = urljoin(base, href)
+                    if not literal_url(url, absolute=True):
+                        continue
                     u = urlsplit(url)
                 except ValueError:
                     continue

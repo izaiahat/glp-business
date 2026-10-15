@@ -1142,6 +1142,53 @@ def test_retained_contact_navigation_refuses_malformed_url(monkeypatch, tmp_path
     assert not calls
 
 
+@pytest.mark.parametrize('slot', ['href', 'base', 'url', 'final_url'])
+@pytest.mark.parametrize('value,admitted', [
+    (r'https://thirdparty.invalid\sub.examplebrand.com/partners', False),
+    (r'https://sub.examplebrand.com\@thirdparty.invalid/partners', False),
+    ('https://examplebrand.com/part\\ners', False),
+    ('https://sub.\texamplebrand.com/partners', False),
+    ('https://examplebrand.com/\npartners', False),
+    ('https://examplebrand.com/\rpartners', False),
+    ('\x00https://examplebrand.com/partners', False),
+    (' https://examplebrand.com/partners', False),
+    ('https://examplebrand.com/partners\x7f', False),
+    ('https://examplebrand.com/partners\x85', False),
+    ('https:examplebrand.com/partners', False),
+    ('https:///examplebrand.com/partners', False),
+    ('///examplebrand.com/partners', False),
+    ('https://thirdparty%2fsub.examplebrand.com/partners', False),
+    ('https://thirdparty。sub.examplebrand.com/partners', False),
+    ('https://user@examplebrand.com/partners', False),
+    ('https://examplebrand.com:/partners', False),
+    ('https://examplebrand.com:0443/partners', False),
+    ('https://examplebrand.com/partners', True),
+    ('https://sub.examplebrand.com/partners', True),
+    ('https://examplebrand.com:443/partners', True),
+])
+def test_retained_contact_navigation_rejects_ambiguous_syntax_before_capture(
+        monkeypatch, tmp_path, slot, value, admitted):
+    import hashlib
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    page = cache['pages'][0]
+    href = value if slot == 'href' else '/become-an-affiliate'
+    page['html'] = page['html'].replace('/become-an-affiliate', href)
+    if slot == 'base':
+        page['html'] = '<base href="' + value + '">' + page['html']
+    elif slot in ('url', 'final_url'):
+        page[slot] = value
+    page['sha256'] = hashlib.sha256(page['html'].encode()).hexdigest()
+    p.c.save(p.pages/'examplebrand.com.json', cache)
+    p.capture_host('examplebrand.com')
+    expected = (value if slot == 'href' else
+                value.rsplit('/', 1)[0] + '/become-an-affiliate'
+                if slot in ('base', 'final_url') else
+                'https://examplebrand.com/become-an-affiliate')
+    assert [call['url'] for call in calls] == ([expected] if admitted else [])
+    assert all(call['parsers'] == [] and call['formats'] == ['rawHtml']
+               and call['proxy'] == 'basic' for call in calls)
+
+
 def test_retained_contact_navigation_honors_external_html_base(monkeypatch, tmp_path):
     import hashlib
     p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
