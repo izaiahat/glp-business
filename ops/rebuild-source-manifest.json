@@ -7856,21 +7856,21 @@
       "callers": [
         "manual:GLP-328 approved conservative accounting"
       ],
-      "sha256": "2154509804052e439710652b1503f997d97e6d45514cc3d5fd67489a41d4fcd3"
+      "sha256": "c5f083856f59e079e2d1a304c3a923dc6da4dc2359fd37efc5bebe39ad0d32ae"
     },
     "tests/test_glp_sponsor_firecrawl_booking.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "2919617d41c497326dbbc986f4b79ab12727b9126562f30a8beff3902f45f4ee"
+      "sha256": "5ddef3ded9d93063995de1924a8972ac09eaac4b1b9ff1356874eb0ab217cc8e"
     },
     "ops/sponsor-firecrawl-booking.md": {
       "kind": "documentation",
       "callers": [
         "manual:GLP-328 approved conservative accounting"
       ],
-      "sha256": "063d060df67effff57b4abeed6dbff6b76827c586daa29c6473a1f60d8e7cbbf"
+      "sha256": "c4e9d744d7895e8f8d27a05d7fda9ae48093e453647324de71bb7b9acd6540b8"
     }
   },
   "omitted_runtime_inputs": [

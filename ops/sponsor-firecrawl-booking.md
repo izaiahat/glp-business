@@ -37,7 +37,14 @@ No pending reservation is settled or removed, and no cursor/cache is reset.
 Before appending, a durable prepared receipt binds reason, approval, authenticated
 usage fields/hash, original-row hashes, pre-ledger hash and expected post hash.
 `--apply` requires the exact current ledger hash; concurrent changes require a
-new plan, never an operation retry. Readback verifies the resulting ledger hash
+new plan, never an operation retry. The real client's usage GET audit rows are
+retained in a new private `<receipt>.usage.jsonl`, with its path/hash bound in the
+receipt, rather than appended to the CAS target. The plan snapshots the shared
+ledger after usage logging; apply's own GETs cannot invalidate that snapshot.
+No shared rows are filtered from the hash: unrelated paid **or metadata** writes,
+including writes during the GETs, still refuse. An existing usage-audit path
+refuses before API access; retain failed-attempt logs and choose a fresh receipt.
+Readback verifies the resulting ledger hash
 and zero remaining logical sponsor null costs. Crash after append is reconciled
 against the prepared hashes; the provider operations must never be repeated.
 

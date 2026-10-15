@@ -1,11 +1,13 @@
 """Conservative accounting only: no operation replay, settlement, or spend authority."""
 import datetime as dt
 import hashlib
+import io
 import json
 import sys
 from pathlib import Path
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+import firecrawl_client as fc
 import glp_sponsor_firecrawl_booking as booking
 import glp_sponsor_firecrawl_supply as supply
 
@@ -90,3 +92,103 @@ def test_same_budget_and_run_locks_refuse_before_api(tmp_path):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             with pytest.raises(BlockingIOError):
                 booking.book(state, ledger, client, tmp_path / (name + '.json'), apply=False)
+
+
+def real_client(ledger, monkeypatch, calls, on_get=lambda: None):
+    """Actual append-only logger; only urllib responses are synthetic/offline."""
+    def urlopen(req, timeout):
+        assert req.get_method() == 'GET'
+        calls.append(req.full_url)
+        on_get()
+        if req.full_url == fc.API + 'team/credit-usage':
+            payload = {'success': True, 'data': {'planCredits': 100000, 'remainingCredits': 54038,
+                'billingPeriodStart': '2026-09-19T23:59:59Z', 'billingPeriodEnd': '2026-10-19T23:59:59Z'}}
+        else:
+            assert req.full_url == fc.API + 'team/credit-usage/historical'
+            payload = {'success': True, 'periods': [{'startDate': '2026-10-01T00:00:00Z',
+                'endDate': None, 'creditsUsed': 13}]}
+        response = io.BytesIO(json.dumps(payload).encode())
+        response.status = 200
+        return response
+    monkeypatch.setattr(fc.urllib.request, 'urlopen', urlopen)
+    return fc.FirecrawlClient('sponsor_full_reconciliation',
+        api_key='synthetic-offline-not-a-secret', ledger_path=ledger)
+
+
+def test_documented_plan_apply_with_actual_shared_ledger_client(tmp_path, monkeypatch):
+    # Retained independent RV521-522 regression: real client supplied the SAME ledger.
+    ledger, state, original, _ = fixture(tmp_path)
+    original['outcome'] = 'ambiguous_transport_error'
+    ledger.write_text(json.dumps(original) + '\n')
+    before = ledger.read_bytes()
+    reservations = (state / 'firecrawl-supply-budget.json').read_bytes()
+    calls = []
+    client = real_client(ledger, monkeypatch, calls)
+    plan = booking.book(state, ledger, client, tmp_path / 'plan.json')
+    assert plan['pre_ledger_sha256'] == hashlib.sha256(ledger.read_bytes()).hexdigest()
+    assert len(calls) == 2
+    result = booking.book(state, ledger, client, tmp_path / 'apply.json', apply=True,
+                          expected_sha=plan['pre_ledger_sha256'])
+    assert result['status'] == 'applied' and result['unknown_remaining'] == 0
+    assert len(calls) == 4 and ledger.read_bytes().startswith(before)
+    latest = {r['operation_id']: r for r in map(json.loads, ledger.read_text().splitlines())}
+    assert latest[original['operation_id']]['creditsUsed'] == 13
+    assert latest[original['operation_id']]['outcome'] == original['outcome']
+    assert (state / 'firecrawl-supply-budget.json').read_bytes() == reservations
+    assert client.ledger_path == ledger  # Never mutate the caller's client.
+    for receipt in (tmp_path / 'plan.json', tmp_path / 'apply.json'):
+        audit = Path(str(receipt) + '.usage.jsonl')
+        bound = json.loads(receipt.read_text())['usage_audit']
+        assert bound == {'path': str(audit.resolve()), 'sha256': hashlib.sha256(audit.read_bytes()).hexdigest()}
+        assert audit.stat().st_mode & 0o777 == 0o600
+        rows = [json.loads(line) for line in audit.read_text().splitlines()]
+        assert len(rows) == 4
+        assert [r['outcome'] for r in rows] == ['started', 'success', 'started', 'success']
+        assert {r['endpoint'] for r in rows} == {'/v2/team/credit-usage', '/v2/team/credit-usage/historical'}
+    producer = supply.Producer(state_dir=state, import_only=True)
+    producer.operations = lambda: list(map(json.loads, ledger.read_text().splitlines()))
+    with pytest.raises(RuntimeError, match='ambiguous_capture_effect_no_replay'):
+        producer.capture_admissible('scrape', 'target')
+
+
+@pytest.mark.parametrize('when', ['between_plan_apply', 'during_apply_get'])
+@pytest.mark.parametrize('endpoint', ['/v2/scrape', '/v2/team/credit-usage'])
+def test_real_client_still_refuses_unrelated_ledger_writes(tmp_path, monkeypatch, when, endpoint):
+    ledger, state, _, _ = fixture(tmp_path)
+    calls = []
+    def foreign_write():
+        fc.record_operation('another_owner', endpoint, outcome='started',
+                            operation_id='unrelated', ledger_path=ledger)
+    def on_get():
+        if when == 'during_apply_get' and len(calls) == 3:
+            foreign_write()
+    client = real_client(ledger, monkeypatch, calls, on_get)
+    plan = booking.book(state, ledger, client, tmp_path / 'plan.json')
+    if when == 'between_plan_apply':
+        foreign_write()
+    with pytest.raises(RuntimeError, match='ledger_changed_replan_required'):
+        booking.book(state, ledger, client, tmp_path / 'apply.json', apply=True,
+                     expected_sha=plan['pre_ledger_sha256'])
+    assert not (tmp_path / 'apply.json').exists()
+    rows = list(map(json.loads, ledger.read_text().splitlines()))
+    assert all('cost_booking' not in row for row in rows)
+    assert any(row['operation_id'] == 'unrelated' for row in rows)
+
+
+@pytest.mark.parametrize('symlink', [False, True])
+def test_existing_usage_audit_refuses_before_api(tmp_path, monkeypatch, symlink):
+    ledger, state, _, _ = fixture(tmp_path)
+    before = ledger.read_bytes()
+    receipt = tmp_path / 'plan.json'
+    audit = Path(str(receipt) + '.usage.jsonl')
+    if symlink:
+        audit.symlink_to(ledger)
+    else:
+        audit.write_bytes(b'retained failed attempt\n')
+    retained = audit.read_bytes()
+    calls = []
+    client = real_client(ledger, monkeypatch, calls)
+    with pytest.raises(FileExistsError):
+        booking.book(state, ledger, client, receipt)
+    assert calls == [] and ledger.read_bytes() == before
+    assert audit.read_bytes() == retained and not receipt.exists()

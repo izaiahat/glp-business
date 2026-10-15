@@ -83,6 +83,18 @@ def book(state, ledger, client, receipt, *, apply=False, expected_sha=None):
     with (state / 'run.lock').open('a') as run_lock:
         fcntl.flock(run_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with producer.budget_locked():
+            # Usage GETs themselves log started/terminal rows. Keep those real
+            # client audit records separate, so neither plan nor apply changes
+            # the CAS target merely by reading usage. Never filter shared rows:
+            # even unrelated metadata writes must still invalidate the plan.
+            usage_audit = None
+            if isinstance(client, FirecrawlClient):
+                usage_audit = Path(str(receipt) + '.usage.jsonl')
+                usage_audit.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                audit_fd = os.open(usage_audit, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                os.close(audit_fd)
+                client = FirecrawlClient(client.caller, run_id=client.run_id,
+                                         api_key=client.key, ledger_path=usage_audit)
             usage = client.request('team/credit-usage', method='GET')
             history = client.request('team/credit-usage/historical', method='GET')
             observed = dt.datetime.now(dt.timezone.utc)
@@ -128,6 +140,8 @@ def book(state, ledger, client, receipt, *, apply=False, expected_sha=None):
                           'pre_ledger_sha256': pre, 'expected_post_ledger_sha256': sha(before + extra),
                           'booked_operations': len(charges), 'charges': [{k: v for k, v in c.items() if k != 'original'} for c in charges],
                           'usage_evidence': evidence, 'usage_evidence_sha256': evidence_sha,
+                          'usage_audit': ({'path': str(usage_audit.resolve()), 'sha256': sha(usage_audit.read_bytes())}
+                                          if usage_audit is not None else None),
                           'paid_operations_executed': 0, 'reservations_changed': False}
                 # Prepare durable pre/post evidence BEFORE appending. A crash is
                 # reconciled by these hashes, never by repeating provider work.
