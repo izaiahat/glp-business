@@ -26,7 +26,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - run: python3 -m venv .venv && .venv/bin/python -m pip install 'pytest==8.3.5'
+      - run: python3 -m venv .venv && .venv/bin/python -m pip install 'pytest==8.3.5' 'PyYAML==6.0.2'
       - name: Offline causal acceptance contracts
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
