@@ -9,13 +9,16 @@ import time
 from types import SimpleNamespace
 
 import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'ops'))
+sys.path.insert(0, str(ROOT / 'scripts'))
+
 import host_disk_large_sweep as sweep
 import host_disk_cold_classes as cold
 import host_disk_completed_dependencies as dependencies
 import host_disk_auto_classes as auto
 import host_disk_r2 as r2
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def entrypoint(path, namespace, argv, monkeypatch):
@@ -167,16 +170,28 @@ def test_default_sweep_still_constructs_existing_destination(tmp_path, monkeypat
 
 
 def test_local_only_reference_drift_still_refuses_before_work(tmp_path, monkeypatch):
-    fixture_sweep(tmp_path, monkeypatch)
-    error = ValueError('relay/lane discovery changed during collection')
-    error.changed_source = 'fixture/route/queue'
-    def refuse(*a, **k):
-        raise error
-    monkeypatch.setattr(__import__('host_disk_relay_custody'), 'collect', refuse)
+    bus, proof = fixture_sweep(tmp_path, monkeypatch)
+    import host_disk_relay_custody as custody
+    queue = bus / 'ops/gpt6pro-relay/route/queue'
+    queue.mkdir(parents=True)
+    (queue / 'original.json').write_text(json.dumps({'pin': str(proof)}))
+    real_lanes = custody.lane_sources
+    changed = []
+    def churn(*args):
+        result = real_lanes(*args)
+        # A noncooperative publication after relay discovery, before its final
+        # complete-identity validation. The actual collector raises the error.
+        if not changed:
+            (queue / 'new.json').write_text(json.dumps({'pin': str(proof)}))
+            changed.append(str(queue))
+        return result
+    monkeypatch.setattr(custody, 'lane_sources', churn)
     report = tmp_path / 'report'
-    with pytest.raises(ValueError) as caught:
+    with pytest.raises(ValueError, match='relay/lane discovery changed during collection') as caught:
         sweep.run(report, budget=10, local_only=True)
-    assert caught.value is error
+    assert changed == [str(queue)]
+    assert caught.value.changed_source == str(queue)
     data = json.loads((report / 'large-classes.json').read_text())
     assert data['attributable_bytes_freed'] == 0 and data['r2'] is None
-    assert data['reference_veto_source'] == 'fixture/route/queue'
+    assert data['reference_veto_source'] == str(queue)
+    assert proof.read_text() == 'fixture retained proof'

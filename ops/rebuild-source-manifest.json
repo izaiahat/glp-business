@@ -6501,7 +6501,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "1e897ec4688824c47c7c1ea5d0a85f18f378e16f80c6893998e20070474d4f28"
+      "sha256": "5aec4ff4d5ef6d2073ad9e889ead4ae54fdf4f6a3c3d327cfac90919fb6fe28c"
     },
     "tests/test_host_health_audit.py": {
       "callers": [
