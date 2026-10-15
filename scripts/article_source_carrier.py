@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import html
+from html.parser import HTMLParser
 import json
 import os
 from pathlib import Path
@@ -195,10 +196,66 @@ def verified_live_html_hash(body, expected):
         restored = decode(match[1])
         return restored if restored in expected else match[0]
 
+    # CF inserts this literal immediately before the next real script after
+    # protecting an email. Parse boundaries before any reversal: regex deletion
+    # alone can erase data inside JSON-LD, JavaScript, or an attribute.
+    decoder = '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+    href_pattern = r'href="/cdn-cgi/l/email-protection#([a-fA-F0-9]{4,8192})"'
+    span_pattern = r'<span class="__cf_email__" data-cfemail="([a-fA-F0-9]{4,8192})">\[email&#160;protected\]</span>'
+
+    class Boundaries(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=False)
+            self.lines = [0] + [m.end() for m in re.finditer('\n', body)]
+            self.scripts, self.emails = [], []
+            self.inert = []
+
+        def handle_starttag(self, tag, attrs):
+            # HTMLParser handles script/style data itself; do not interpret
+            # script-looking literals in other raw-text/inert containers.
+            if self.inert:
+                if tag == self.inert[-1]:
+                    self.inert.append(tag)
+                return
+            if tag in ('textarea','title','xmp','iframe','noembed','noframes','plaintext','template','noscript'):
+                self.inert.append(tag)
+                return
+            line, column = self.getpos()
+            offset = self.lines[line-1] + column
+            raw = self.get_starttag_text() or ''
+            if tag == 'script':
+                self.scripts.append(offset)
+            email_href = re.search(href_pattern, raw) if tag == 'a' else None
+            email_span = re.match(span_pattern, body[offset:]) if tag == 'span' else None
+            if ((email_href and dict(attrs).get('href') == email_href[0][6:-1]
+                    and href(email_href) != email_href[0])
+                    or (email_span and text(email_span) != email_span[0])):
+                self.emails.append(offset)
+
+        def handle_endtag(self, tag):
+            if self.inert and tag == self.inert[-1]:
+                self.inert.pop()
+
     try:
-        normalized = re.sub(r'href="/cdn-cgi/l/email-protection#([a-fA-F0-9]{4,8192})"', href, body)
-        normalized = re.sub(r'<span class="__cf_email__" data-cfemail="([a-fA-F0-9]{4,8192})">\[email&#160;protected\]</span>', text, normalized)
-        normalized = re.sub(r'<script data-cfasync="false" src="/cdn-cgi/scripts/[a-f0-9]{8}/cloudflare-static/email-decode\.min\.js"></script>', '', normalized)
+        boundary = Boundaries()
+        boundary.feed(body)
+        injections = [i for i, pos in enumerate(boundary.scripts) if body.startswith(decoder, pos)]
+        if body != expected and injections:
+            if len(injections) != 1:
+                raise RuntimeError('live_article_content_drift')
+            i = injections[0]
+            pos = boundary.scripts[i]
+            first_email = min(boundary.emails, default=len(body))
+            first_script_after_email = next((s for s in boundary.scripts if s > first_email), None)
+            if (pos != first_script_after_email
+                    or i+1 == len(boundary.scripts)
+                    or boundary.scripts[i+1] != pos+len(decoder)):
+                raise RuntimeError('live_article_content_drift')
+            body_without_decoder = body[:pos] + body[pos+len(decoder):]
+        else:
+            body_without_decoder = body
+        normalized = re.sub(href_pattern, href, body_without_decoder)
+        normalized = re.sub(span_pattern, text, normalized)
     except (ValueError, UnicodeError, IndexError) as exc:
         raise RuntimeError('live_article_content_drift') from exc
     if normalized != expected:

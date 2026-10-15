@@ -221,11 +221,53 @@ class SourceCarrierTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'live_indexability'):
                 carrier.live_readback('/guides/new/','Reviewed & title')
 
+    def test_live_decoder_reversal_requires_observed_script_boundary(self):
+        decoder = '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+        script = '<script src="/assets/editorial-share.js" defer></script>'
+        opening = '<script type="application/ld+json">'
+        source = ('<title>Reviewed title</title><meta name="robots" content="index,follow">'
+                  '<link rel="canonical" href="https://glpclinicscout.com/guides/new/">'
+                  + opening + '{"name":"Reviewed"}</script>'
+                  '<main data-note=\'original\'><a href="mailto:support@example.test">Email</a>'
+                  + script + '<a href="mailto:support@example.test">Footer email</a>'
+                  '<script>const data = "original";</script></main>')
+        encoded = '7f' + bytes(b ^ 127 for b in b'support@example.test').hex()
+        transformed = source.replace('href="mailto:support@example.test"',
+                                    'href="/cdn-cgi/l/email-protection#'+encoded+'"')
+        edge = transformed.replace(script, decoder+script)
+        with tempfile.TemporaryDirectory() as tmp:
+            expected = Path(tmp)/'index.html'; expected.write_text(source)
+            for body in (source, edge):
+                with patch.object(carrier,'fetch',return_value=(200,body)):
+                    live = carrier.live_readback('/guides/new/','Reviewed title',expected_html=expected)
+                    self.assertEqual(live['deployed_html_sha256'],carrier.digest(expected))
+                    self.assertEqual(live['html_sha256'],__import__('hashlib').sha256(body.encode()).hexdigest())
+            # RV526: a nested decoder literal corrupts the original JSON-LD.
+            # Also refuse insertion into JS/attributes, unrelated boundaries,
+            # duplicates, no associated email transform, and unobserved literals.
+            mutations = (
+                source.replace(opening, opening+decoder),
+                transformed.replace(opening, opening+decoder),
+                transformed.replace('const data = "original";', decoder+'const data = "original";'),
+                transformed.replace("data-note='original'", "data-note='"+decoder+"original'"),
+                transformed+decoder,
+                transformed.replace('</main>', decoder+'</main>'),
+                transformed.replace('<script>const data', decoder+'<script>const data'),
+                edge.replace(decoder, decoder+decoder),
+                source.replace(script, decoder+script),
+                edge.replace('5c5dd728','12345678'),
+            )
+            for body in mutations:
+                with self.subTest(body=body), patch.object(carrier,'fetch',return_value=(200,body)):
+                    with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                        carrier.live_readback('/guides/new/','Reviewed title',expected_html=expected)
+
     def test_successor_live_hash_reverses_only_exact_cloudflare_email_transforms(self):
         source = ('<title>Reviewed title</title><meta name="robots" content="index,follow">'
                   '<link rel="canonical" href="https://glpclinicscout.com/guides/new/">'
                   '<main><p>Accepted prose</p><a href="mailto:?subject=Reviewed&amp;body=Guide">Email</a>'
-                  '<a href="mailto:support@example.test">support@example.test</a></main>')
+                  '<a href="mailto:support@example.test">support@example.test</a>'
+                  '<script src="/assets/editorial-share.js" defer></script></main>')
         def protected(text):
             return '7f' + bytes(b ^ 127 for b in text.encode()).hex()
         edge = source.replace('href="mailto:?subject=Reviewed&amp;body=Guide"',
@@ -234,7 +276,8 @@ class SourceCarrierTests(unittest.TestCase):
             'href="/cdn-cgi/l/email-protection#'+protected('support@example.test')+'"')
         edge = edge.replace('>support@example.test</a>',
             '><span class="__cf_email__" data-cfemail="'+protected('support@example.test')+'">[email&#160;protected]</span></a>')
-        edge += '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+        edge = edge.replace('<script src="/assets/editorial-share.js"',
+            '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="/assets/editorial-share.js"')
         with tempfile.TemporaryDirectory() as tmp:
             expected = Path(tmp)/'index.html'; expected.write_text(source)
             for body in (source, edge):
