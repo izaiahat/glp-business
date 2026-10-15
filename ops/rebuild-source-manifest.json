@@ -21,7 +21,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "bd19d107c3541514533651ebd6a4a9604603ee45f67e4c7aca886b7165c26d1f"
+      "sha256": "b5eb7d5ee27cd70a02eb6939292ad0e79a7c3b6d776561b51942223c9fc9d378"
     },
     "tests/test_terminal_mode_receipt.py": {
       "kind": "test",
@@ -290,7 +290,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bc6afdf1d767e07e7e1a74b0a91ea3281685b7248a7409741084c751f5dbe201"
+      "sha256": "8bcfb0f312fb6e39195e0013eb4ffded49f41e6552b66a885073006e5549f154"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -766,14 +766,14 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "runtime-pins",
-      "sha256": "7aa15cec141584166c0f9580426bcde98d57f842e8d6468de282826616154f7f"
+      "sha256": "0f31a04074f6ccc22967789639f0be4e4436cac33e58bf699c61bd15df6f26ea"
     },
     "ops/glp/reporting-v2/source-manifest-j6.json": {
       "callers": [
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "repository_control",
-      "sha256": "8f2c1866ffd57a98a48055dbbc52e8732eaa0d6f2aae4b15ea2fd79d393423c8"
+      "sha256": "ca18d65bfffd38b1da76cb0a7f4fc4b14ac86bb1da971ff5cd3b200e365f81d2"
     },
     "ops/glp/reporting-v2/source-manifest-j7.json": {
       "callers": [
@@ -781,14 +781,14 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "b0181e598ae0153beae698f9a996e8fcb53e5de788ba10975f3027a20193ab9f"
+      "sha256": "a57e75e22c6de26d111af292b91e1cdb9f159ad8db0e19a5481b4af80884f6f4"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "bfef07748558a1a9c4cca8fd790dc2d6b835f71dc10ea60702186bb8f52c6dd4"
+      "sha256": "cb7b1fc11e8a9362a0cb05154b5148ff20c8add53d3f4676a4e1156922005b9e"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -994,7 +994,7 @@
     "ops/glp334-conversion-reconciliation.md": {
       "callers": [],
       "kind": "source_control",
-      "sha256": "0689b06ca3e975e87fa7d5056466b1f8bd74995e90846ff67efe7110e9bdc748"
+      "sha256": "7265b8e2f5ec89af3a038beb9c020523c2dc9df7285f6b8d98ec33c3af325e7a"
     },
     "ops/glp335-current-consumer.md": {
       "callers": [
@@ -1175,7 +1175,7 @@
         "native GLP334 reconciliation job"
       ],
       "kind": "script",
-      "sha256": "7ef469a95d9690d25d5c128dc158062d90ac90f5551884cdf4a88000d44d81b5"
+      "sha256": "a9c71fbd7afa4971eca21436facad2a09eb20ff91de96a15ce4866a1b23194f8"
     },
     "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py": {
       "callers": [],
@@ -1240,21 +1240,21 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "6a9c4a226b425c35352938b6ddb138bfcf46310daed9e8d6b1f1cfe9b66f1fad"
+      "sha256": "ae2ffc4be777702ea94dc2bb2181e4be9edb38d428c831646fafbec47c01b758"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh": {
       "callers": [
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "d0f6abe3b352b7332ca9af54bfe3821fb6a976be4ca454a847566bcf9fea11d6"
+      "sha256": "49bc2349ed508258ad5d1f04586206d276a99ac3d9971bb17ba4bf193380970b"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh": {
       "callers": [
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "script",
-      "sha256": "dcbec7256923d3e33d613bc7135be02cd1713865b89af9956db6af618165baf3"
+      "sha256": "64efba6607249b7761ad91ad5559afc7b440ccdfc034e84ba73f687959a363ae"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh": {
       "callers": [
@@ -1262,7 +1262,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "b56681704de41039cf39bb35603a3642d170fa19b93c2a016985a227e4591525"
+      "sha256": "43926fd713b3200ccbdbdca26ccd73a7d88f4ab182b56e9ee38a9aa7f9ae853e"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2752,7 +2752,7 @@
         "ops/hermes-cron-scripts/glp334_live_reconciliation.sh"
       ],
       "kind": "script",
-      "sha256": "511a6f3b2c014195e9776ded2e1451bbd11ee0d9b83e0ee55d7a26584bca7dbc"
+      "sha256": "42654dfed9f75047f80e45d4df7b5e5d2c67bd2f85fabf46b73fced46130c694"
     },
     "scripts/glp345_a4_adoption.py": {
       "callers": [
@@ -2866,7 +2866,7 @@
         "scripts/glp_affiliate_weekly_reporting_job.py"
       ],
       "kind": "script",
-      "sha256": "547f31d3543f72833ea470eee909b36ebb56a32283f5e3011c72a24d13256b7c"
+      "sha256": "060bc4e747bcaa2cc4047c8a1e77cfec184814de19561e732679c8c5051a5352"
     },
     "scripts/glp_affiliate_weekly_reporting_j5.py": {
       "callers": [
@@ -5492,7 +5492,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "8c7b49fddf7065269d8e594c9a839c7be69d6f5a8ef5a27d5fcd757c3532b8cc"
+      "sha256": "13fdcf0d2dcec19e75034180b72de3ebe468c364318008bc9576a7978aac6518"
     },
     "tests/test_glp334_live_reconciliation.py": {
       "callers": [

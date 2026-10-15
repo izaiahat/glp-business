@@ -26,7 +26,7 @@ D1_SECRET = Path('/home/ubuntu/.hermes/secrets/cloudflare/glp-observability-d1.e
 # Execute the exact verified bytes, not a second import-time read.
 DEPENDENCIES = {
     'glp_network_revenue_v2': 'cbb68056ffe1988ebd3fb6ae2b158f027d1cbdfffdb4b0e79e80ddd1581763e1',
-    'glp_affiliate_weekly_reporting': '547f31d3543f72833ea470eee909b36ebb56a32283f5e3011c72a24d13256b7c',
+    'glp_affiliate_weekly_reporting': '060bc4e747bcaa2cc4047c8a1e77cfec184814de19561e732679c8c5051a5352',
 }
 MAX_ROWS = 10000
 COUNT_SQL = 'SELECT count(*) AS n FROM analytics_revenue_ledger_v1'

@@ -325,6 +325,15 @@ def reconcile_conversions(snapshot, observations, identities):
                for k in ('cs_click_id', 'network_click_id')):
             row['gaps'].append('EARNINGS_CLICK_IDENTITY_CONFLICT')
             continue
+        # A paid parent does not approve its commission. Preserve a source-owned
+        # signed negative reversal exactly once, but never negate a positive
+        # historical amount or manufacture zero from a reversed status.
+        status, amount = earning.get('mapped_status'), earning.get('commission_minor')
+        signed_reversal = (status == 'reversed' and type(amount) is int
+                           and -(2**63-1) <= amount < 0)
+        if status not in ('approved', 'payable', 'paid') and not signed_reversal:
+            row['gaps'].append('EARNINGS_APPROVAL_OR_REVERSAL_UNVERIFIED')
+            continue
         row.update(earnings_state='JOINED', currency=earning.get('currency'))
         row['evidence']['earnings'] = {k: earning[k] for k in
                                       ('provider_event_id', 'receipt_sha256', 'receipt_pointer', 'conversion_join_evidence_ref')}

@@ -25,7 +25,7 @@ def fixture():
                   'authenticated': True, 'classification': 'REAL', 'attribution': 'GLP'}
     earnings = {**IDENTITY, **provenance, 'provider_event_id': 'commission-1', 'event_type': 'commission',
                 'conversion_id': 'native-conversion-1', 'conversion_join_evidence_ref': 'fixture:native-conversion-mapping',
-                'currency': 'USD', 'commission_minor': 2500, 'payout_id': 'payout-1',
+                'currency': 'USD', 'commission_minor': 2500, 'mapped_status': 'approved', 'payout_id': 'payout-1',
                 'payout_join_evidence_ref': 'fixture:transaction-membership'}
     payout = {**IDENTITY, **provenance, 'provider_event_id': 'payout-1', 'event_type': 'settlement',
               'mapped_status': 'paid', 'currency': 'USD', 'net_paid_minor': 9000}
@@ -65,6 +65,63 @@ def test_exact_source_supported_chain_keeps_payout_total_separate_from_conversio
     assert result['commission_minor'] is result['cash_minor'] is None
     assert result['provenance'] == 'SUPPLIED_LOCAL_EVIDENCE_NOT_VERIFIED_PRODUCTION_DATA'
     assert result['input_sha256'] == weekly.digest(fixture())
+
+
+@pytest.mark.parametrize('status', ['reversed', 'rejected', 'pending', 'unknown', None, True, ['approved']])
+def test_unapproved_or_reversed_commission_never_joins_positive_earnings_or_paid_payout(status):
+    # Offline evidence-contract counterexample, not an authentic production earning.
+    data = fixture()
+    earning = data['financial_records'][0]
+    earning['mapped_status'] = status
+    # A native label, authenticated receipt and paid parent are not approval.
+    earning['source_status'] = 'approved'
+    before = deepcopy(data)
+    got = row(data)
+    assert got['earnings_state'] == got['payout_state'] == 'UNKNOWN'
+    assert got['commission_minor'] is got['payout_total_minor'] is got['cash_minor'] is None
+    assert 'EARNINGS_APPROVAL_OR_REVERSAL_UNVERIFIED' in got['gaps']
+    assert data == before
+
+
+def test_missing_commission_status_does_not_inherit_approval_from_paid_settlement():
+    data = fixture()
+    data['financial_records'][0].pop('mapped_status')
+    got = row(data)
+    assert got['commission_minor'] is got['payout_total_minor'] is None
+    assert got['earnings_state'] == got['payout_state'] == 'UNKNOWN'
+    assert 'EARNINGS_APPROVAL_OR_REVERSAL_UNVERIFIED' in got['gaps']
+
+
+@pytest.mark.parametrize('amount', [0, 2500, '-2500', False, -(2**63)])
+def test_reversed_state_without_bounded_signed_negative_amount_stays_unknown(amount):
+    data = fixture()
+    data['financial_records'][0].update(mapped_status='reversed', commission_minor=amount)
+    got = row(data)
+    assert got['commission_minor'] is got['payout_total_minor'] is None
+    assert got['earnings_state'] == got['payout_state'] == 'UNKNOWN'
+    assert 'EARNINGS_APPROVAL_OR_REVERSAL_UNVERIFIED' in got['gaps']
+
+
+def test_identical_negative_reversal_receipts_are_not_reversed_or_counted_twice():
+    data = fixture()
+    earning = data['financial_records'][0]
+    earning.update(mapped_status='reversed', commission_minor=-1250)
+    observations = [{'records': [deepcopy(earning)]}, {'accounting_projection': [deepcopy(earning)]}]
+    got = row(data, observations=observations)
+    assert got['earnings_state'] == 'JOINED' and got['commission_minor'] == -1250
+    assert got['cash_minor'] is None
+    assert len(reconcile(data, observations=observations)['rows']) == 1
+
+
+@pytest.mark.parametrize('status', ['approved', 'payable', 'paid'])
+def test_supported_earning_states_preserve_explicit_amount_without_allocating_cash(status):
+    data = fixture()
+    data['financial_records'][0]['mapped_status'] = status
+    got = row(data)
+    assert got['earnings_state'] == got['payout_state'] == 'JOINED'
+    assert got['commission_minor'] == 2500 and got['payout_total_minor'] == 9000
+    assert got['cash_minor'] is None
+    assert 'PER_CONVERSION_CASH_ALLOCATION_UNAVAILABLE' in got['gaps']
 
 
 @pytest.mark.parametrize('field', ['payout_id', 'payout_join_evidence_ref'])
