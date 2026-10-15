@@ -15,7 +15,7 @@ def producer(output):
     output.mkdir()
     atomic(output/'REPORT.json', {'gsc_rows': {'gsc-28': 12},
         'recommendations': 2, 'module_statuses': {'page2': 'PASS_ANALYSIS_ONLY'},
-        'weekly_spend': {'within_cap': True, 'cap_usd': '25'},
+        'weekly_spend': {'within_cap': True, 'cap_usd': '25', 'committed_usd': '0'},
         'input_observations': {'ga4': {'ok': True, 'complete': True}}})
     atomic(output/'TOPIC-RECOMMENDATIONS.json', {'week_start': '2026-10-12',
         'recommendations': [{'route': '/reviews/example/', 'query': 'example reviews'}]})
@@ -174,3 +174,48 @@ def test_report_drift_at_consumer_lock_refuses_ack(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match='host_binding_changed'):
         owner.consume(result, owner.CONSUMER)
     assert not (tmp_path/'2026-10-12'/'CONSUMED-GLP44.json').exists()
+
+
+@pytest.mark.parametrize('change', ['missing_cost', 'true_with_unknown',
+    'true_with_open', 'true_with_unknown_reservation'])
+def test_malformed_budget_must_not_be_promoted(tmp_path, change):
+    # RV512-514 final reproduction; open estimates alone are a positive control.
+    def malformed(path):
+        result = producer(path)
+        doc = json.loads(Path(result['report']).read_bytes())
+        spend = {'within_cap': False, 'cap_usd': '25', 'committed_usd': '1.308552',
+            'rail_journal_unknown': True, 'open_reservations': [],
+            'unknown_cost_reservations': [],
+            'refusals': [{'reason': 'unknown_prior_spend_this_week'}]}
+        if change == 'missing_cost':
+            del spend['committed_usd']
+        else:
+            spend['within_cap'] = True
+            if change == 'true_with_open':
+                spend.update(rail_journal_unknown=False, open_reservations=['unsettled'])
+            if change == 'true_with_unknown_reservation':
+                spend.update(rail_journal_unknown=False, unknown_cost_reservations=['unknown'])
+        doc['weekly_spend'] = spend
+        doc['module_statuses']['keyword_gap'] = 'UNKNOWN_INPUT'
+        atomic(Path(result['report']), doc)
+        return result
+    if change == 'true_with_open':
+        result = owner.run_owned(tmp_path, malformed, now=NOW)
+        assert owner.verify_completion(result['host_completion'])['metered_collection_status'] == 'WITHIN_CAP'
+    else:
+        with pytest.raises(ValueError, match='host_weekly_budget_unproved'):
+            owner.run_owned(tmp_path, malformed, now=NOW)
+        assert not (tmp_path/'2026-10-12'/'COMPLETED.json').exists()
+
+
+@pytest.mark.parametrize('cost', [None, '', 'UNKNOWN', True, 'NaN', 'Infinity', '-1', '25.01'])
+def test_unknown_or_invalid_committed_cost_refuses(cost):
+    with pytest.raises(ValueError, match='host_weekly_budget_unproved'):
+        owner.metered_status({'weekly_spend': {'cap_usd': '25',
+            'committed_usd': cost, 'within_cap': True}})
+
+
+def test_explicit_zero_cost_is_not_missing_cost():
+    assert owner.metered_status({'weekly_spend': {'cap_usd': '25',
+        'committed_usd': '0', 'within_cap': True}}) == 'WITHIN_CAP'
+

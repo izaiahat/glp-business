@@ -12,6 +12,9 @@ from tests.test_glp336_host_weekly import (
     test_completion_and_ack_require_validated_report_hash,
     test_rebound_invalid_report_cannot_verify_or_ack,
     test_report_drift_at_consumer_lock_refuses_ack,
+    test_malformed_budget_must_not_be_promoted,
+    test_unknown_or_invalid_committed_cost_refuses,
+    test_explicit_zero_cost_is_not_missing_cost,
 )
 
 ROOT=Path(__file__).resolve().parents[1]

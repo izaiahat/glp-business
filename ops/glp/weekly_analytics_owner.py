@@ -21,11 +21,20 @@ CONSUMER = '020bcdd7f0e1'
 
 def metered_status(report):
     spend = report.get('weekly_spend', {})
-    cap = Decimal(str(spend.get('cap_usd', 0)))
-    known = Decimal(str(spend.get('committed_usd', 0)))
-    if cap != 25 or not known.is_finite() or not 0 <= known <= cap:
+    try:
+        # Missing/unmeasured cost is UNKNOWN, never an implicit zero.
+        cap = Decimal(str(spend['cap_usd']))
+        known = Decimal(str(spend['committed_usd']))
+    except (KeyError, TypeError, ArithmeticError) as exc:
+        raise ValueError('host_weekly_budget_unproved') from exc
+    if not cap.is_finite() or cap != 25 or not known.is_finite() or not 0 <= known <= cap:
         raise ValueError('host_weekly_budget_unproved')
     if spend.get('within_cap') is True:
+        # Open reservations with priced estimates are counted in committed
+        # spend by the unchanged ledger. Unknown costs are not priced estimates.
+        if (spend.get('rail_journal_unknown', False) is not False or
+                spend.get('unknown_cost_reservations')):
+            raise ValueError('host_weekly_budget_unproved')
         return 'WITHIN_CAP'
     # Completion of free, nonempty analysis is not permission to spend.
     # Carry the unchanged guard's genuine hold rather than claiming a known
