@@ -83,6 +83,41 @@ def test_future_null_guard_and_uncovered_history_fail_closed(tmp_path):
         booking.book(state, ledger, client, tmp_path / 'uncovered.json', apply=False)
 
 
+def test_exact_round1_decision_extends_only_approved_terminal_operation(tmp_path):
+    ledger, state, row, client = fixture(tmp_path)
+    row.update(operation_id='224ef323-f3b6-4780-8553-fbf191c3c598',
+               at_utc='2026-10-15T03:53:23.394211+00:00',
+               http_status=408, outcome='http_error', run='sponsor-supply-20261015T0343')
+    ledger.write_text(json.dumps(row) + '\n')
+    before = ledger.read_bytes()
+    reservations = (state / 'firecrawl-supply-budget.json').read_bytes()
+    with pytest.raises(RuntimeError, match='outside_decision_scope'):
+        booking.book(state, ledger, client, tmp_path / 'old.json')
+    approved_sha = 'f24d941b78b9612439102b541e1ed805c8025471af685894b1ab4d93202fa432'
+    with pytest.raises(RuntimeError, match='exact_operation_decision_invalid'):
+        booking.book(state, ledger, client, tmp_path / 'forged.json',
+                     exact_operation_decision_sha='0' * 64)
+    plan = booking.book(state, ledger, client, tmp_path / 'plan.json',
+                        exact_operation_decision_sha=approved_sha)
+    assert ledger.read_bytes() == before and plan['booked_operations'] == 1
+    result = booking.book(state, ledger, client, tmp_path / 'apply.json', apply=True,
+                          expected_sha=plan['pre_ledger_sha256'],
+                          exact_operation_decision_sha=approved_sha)
+    assert result['unknown_remaining'] == 0
+    latest = json.loads(ledger.read_text().splitlines()[-1])
+    assert latest['creditsUsed'] == 13 and latest['outcome'] == 'http_error'
+    assert latest['cost_booking']['exact_operation_decision_sha256'] == approved_sha
+    assert ledger.read_bytes().startswith(before)
+    assert (state / 'firecrawl-supply-budget.json').read_bytes() == reservations
+    for key, value in [('operation_id', 'unapproved'), ('http_status', 500),
+                       ('at_utc', '2026-10-15T04:00:00Z'), ('outcome', 'started')]:
+        altered = dict(row, **{key: value})
+        ledger.write_text(json.dumps(altered) + '\n')
+        with pytest.raises(RuntimeError, match='outside_decision_scope'):
+            booking.book(state, ledger, client, tmp_path / (key + '.json'),
+                         exact_operation_decision_sha=approved_sha)
+
+
 def test_same_budget_and_run_locks_refuse_before_api(tmp_path):
     import fcntl
     ledger, state, row, client = fixture(tmp_path)
@@ -149,6 +184,46 @@ def test_documented_plan_apply_with_actual_shared_ledger_client(tmp_path, monkey
     producer.operations = lambda: list(map(json.loads, ledger.read_text().splitlines()))
     with pytest.raises(RuntimeError, match='ambiguous_capture_effect_no_replay'):
         producer.capture_admissible('scrape', 'target')
+
+
+def test_exact_round1_real_client_plan_apply_preserves_null_receipt(tmp_path, monkeypatch):
+    ledger, state, row, _ = fixture(tmp_path)
+    row.update(operation_id='224ef323-f3b6-4780-8553-fbf191c3c598',
+               at_utc='2026-10-15T03:53:23.394211+00:00',
+               http_status=408, outcome='http_error', run='sponsor-supply-20261015T0343')
+    ledger.write_text(json.dumps(row) + '\n')
+    before = ledger.read_bytes()
+    calls = []
+    client = real_client(ledger, monkeypatch, calls)
+    kw = {'exact_operation_decision_sha': booking.EXACT_OPERATION_DECISION_SHA256}
+    plan = booking.book(state, ledger, client, tmp_path / 'plan.json', **kw)
+    result = booking.book(state, ledger, client, tmp_path / 'apply.json', apply=True,
+                          expected_sha=plan['pre_ledger_sha256'], **kw)
+    assert result['status'] == 'applied' and result['unknown_remaining'] == 0
+    assert ledger.read_bytes().startswith(before) and len(calls) == 4
+    latest = json.loads(ledger.read_text().splitlines()[-1])
+    assert latest['creditsUsed'] == 13 and latest['http_status'] == 408
+    assert latest['outcome'] == 'http_error'
+    assert result['exact_operation_decision_sha256'] == booking.EXACT_OPERATION_DECISION_SHA256
+    assert all('/team/credit-usage' in url for url in calls)
+    with pytest.raises(RuntimeError, match='ambiguous_capture_effect_no_replay'):
+        producer = supply.Producer(state_dir=state, import_only=True)
+        producer.operations = lambda: list(map(json.loads, ledger.read_text().splitlines()))
+        producer.capture_admissible('scrape', 'target')
+
+
+def test_exact_round1_cli_rejects_unapproved_decision_before_client(tmp_path, monkeypatch):
+    old, exact = tmp_path / 'old.md', tmp_path / 'round1.md'
+    old.write_bytes(b'old approved decision fixture')
+    exact.write_bytes(b'unapproved extension')
+    monkeypatch.setattr(booking, 'DECISION_SHA256', hashlib.sha256(old.read_bytes()).hexdigest())
+    monkeypatch.setattr(sys, 'argv', ['booking', '--decision', str(old),
+        '--exact-operation-decision', str(exact), '--receipt', str(tmp_path / 'receipt.json')])
+    monkeypatch.setattr(booking, 'FirecrawlClient', lambda *a, **k: pytest.fail('client before authority'))
+    with pytest.raises(SystemExit) as rejected:
+        booking.main()
+    assert rejected.value.code == 2
+    assert not (tmp_path / 'receipt.json').exists()
 
 
 @pytest.mark.parametrize('when', ['between_plan_apply', 'during_apply_get'])
