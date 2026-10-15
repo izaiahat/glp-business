@@ -40,6 +40,12 @@
 !/scripts/fable_deferred_handoff.py
 !/tests/test_fable_deferred_handoff.py
 !/tests/test_fable_parent_handoff.py
+# GLP110 offline maintenance preparation (no runtime registration)
+!/scripts/hermes_maintenance_window.py
+!/tests/test_hermes_maintenance_window.py
+!/.github/workflows/glp110-maintenance-window.yml
+!/ops/hermes-maintenance-window.md
+
 # GLP337 fixed shared-bridge custody (source only)
 !/scripts/shared_bridge_predecessor_migration.py
 !/tests/test_glp337_shared_bridge_generation.py
@@ -60,6 +66,7 @@
 !/tests/test_glp109_scheduler_health.py
 !/.github/workflows/
 /.github/workflows/*
+!/.github/workflows/glp110-maintenance-window.yml
 !/.github/workflows/maintenance-pause-cursor-race.yml
 !/tests/test_maintenance_pause_cursor_race.py
 !/tests/test_maintenance_post_pause_completion.py
