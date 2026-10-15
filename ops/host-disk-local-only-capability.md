@@ -122,7 +122,8 @@ kept by the controller across reference capture, all protected final checks and
 local retirement in both the large sweep and legacy D/A/B/C subprocesses, and
 closed in `finally` on ordinary return or exception. It is not passed to child
 processes or retained by a proof observer. The existing phase budgets remain
-2700s large sweep, 300s safe rules and 1050s D/A/B/C; external-pin calls and
+900s large sweep (2700s under existing pressure selection), 300s safe rules and
+1050s D/A/B/C; external-pin calls and
 completion delivery retain their existing limits. No deadline, age, threshold or
 qualification budget is extended. The default full controller and other jobs do
 not acquire this exclusion; invoking the raw sweep is not a registered selector.

@@ -167,6 +167,8 @@ def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path,
     monkeypatch.setitem(g, 'BUS', bus)
     monkeypatch.setitem(g, 'HOME', home)
     monkeypatch.setitem(g, 'STATE', home / 'runstate/last.json')
+    # Private pressure fixture, not the host/runner's unrelated free-space state.
+    monkeypatch.setitem(g, 'disk', lambda: {'free_bytes': 10 * 1024**3, 'total_bytes': 100 * 1024**3})
     monkeypatch.setattr(auto, 'external_pins', lambda: set())
     monkeypatch.setitem(sys.modules, 'post_discord_message', SimpleNamespace(
         send=lambda *a: {'id': 'fixture'}, readback=lambda *a: {}))

@@ -1821,7 +1821,7 @@
         "GLP349"
       ],
       "kind": "documentation",
-      "sha256": "9903488651c9fdc03ea4952da3e0522198b74b059f3a0e9d30f6dd2cdf8cfae0"
+      "sha256": "521346b2e87395c84766c3a16ac9e15db381dde4b28ae15f346838ac47c44a62"
     },
     "ops/systemd/host-disk-cleanup-local-only.conf.example": {
       "callers": [
@@ -6515,7 +6515,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "fa0eebae28ce1d48078b2be7f6f1494b8555b40f9166e8a394004979a4456e9b"
+      "sha256": "57005ddb7c57ce24b778c39f18fae50a8fe4ebcafe45e90c78284dec8f900c43"
     },
     "tests/test_host_health_audit.py": {
       "callers": [
