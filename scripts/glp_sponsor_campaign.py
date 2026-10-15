@@ -1130,19 +1130,99 @@ def run(config,dry_run=False,*,transport_preflight=False,preflight_at=None):
   if not transport_preflight:save(STATE/'latest-dry-run.json' if not enabled else STATE/'latest-run.json',receipt)
   return receipt
 
+# Only exact maintained reason literals may cross the diagnostic boundary. Never
+# stringify arbitrary exceptions (HTTP libraries often embed bodies/credentials).
+FAILURE_CODES=frozenset('''
+approval_or_postal_address_incomplete approved_manifest_not_in_packet
+approved_packet_binding_missing approved_packet_member_ambiguous
+attachment_readback_failed bouncer_guard_access_unconfirmed
+canonical_inbox_poll_lock_timeout canonical_sponsor_poll_refresh_failed
+canonical_sponsor_reply_coverage_incomplete canonical_sponsor_reply_coverage_unknown
+choose_preview_or_transport_preflight coordinator_technical_receiving_invalid
+current_sponsor_source_binding_missing exact_operator_approval_missing
+mail_coverage_incomplete mail_pagination_cycle ops_alert_readback_mismatch
+original_personal_message_scope_changed outbound_dash_rule
+outside_approved_weekday_06_17_PT_send_window packet_bytes_changed
+paypal_draft_readback_missing paypal_request_readback_missing poll_receipt_refused
+preflight_at_requires_transport_preflight registry_schema_drift
+sent_identity_readback_failed sponsor_activation_invalid
+sponsor_approval_changed_at_boundary sponsor_invoice_provider_held
+sponsor_invoice_provider_stopped technical_manifest_binding_missing
+technical_manifest_invalid technical_manifest_outward_changed
+technical_manifest_scope_changed technical_manifest_source_missing
+technical_packet_binding_missing technical_packet_member_ambiguous
+technical_packet_scope_changed technical_predecessor_changed
+technical_sender_not_reviewed transport_preflight_approval_required
+independent_installed_source_review_required current_coordinator_authority_missing
+current_coordinator_execution_required current_coordinator_receiving_invalid
+recorded_operator_receiving_invalid current_packet_config_changed
+current_packet_manifest_invalid current_packet_manifest_not_installed
+current_packet_members_invalid current_operator_decision_missing
+'''.split())
+FAILURE_PREFIX_CODES=frozenset('''
+approved_asset_changed approved_packet_source_changed
+current_coordinator_execution_required current_coordinator_receiving_invalid
+current_packet_campaign_guard_changed current_packet_installed_binding_changed
+current_packet_member_changed technical_admission_source_changed
+technical_outward_bytes_changed suppression_ledger_incomplete
+'''.split())
+
+
+def safe_failure_diagnostic(exc):
+ """Bounded, JSON-only metadata; no traceback text, source lines or locals.
+
+ Unknown messages are entirely redacted, not regex-scrubbed: even innocent
+ looking HTTP text may contain credentials. Preserve the innermost throw site
+ and class chain without retaining exception objects in the receipt.
+ """
+ result={'error_code':'sponsor_unexpected_failure','message':'[redacted unexpected exception]',
+         'origin':None,'exception_chain':[]}
+ try:
+  args=exc.args
+  if len(args)==1 and type(args[0]) is str:
+   if args[0] in FAILURE_CODES:result.update(error_code=args[0],message=args[0])
+   else:
+    prefix,separator,_=args[0].partition(':')
+    if separator and prefix in FAILURE_PREFIX_CODES:
+     result.update(error_code=prefix,message=prefix+':[redacted details]')
+  tb=exc.__traceback__
+  if tb:
+   while tb.tb_next:tb=tb.tb_next
+   code=tb.tb_frame.f_code
+   filename=Path(code.co_filename).name
+   function=code.co_name
+   result['origin']={
+    'filename':filename if re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,95}\.py',filename) else '[redacted]',
+    'function':function if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,95}|<module>|<lambda>',function) else '[redacted]',
+    'line':tb.tb_lineno}
+  seen=set();current=exc
+  while current is not None and id(current) not in seen and len(seen)<8:
+   seen.add(id(current));name=type(current).__name__
+   result['exception_chain'].append(name if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,63}',name) else 'Exception')
+   current=current.__cause__ if current.__cause__ is not None else (None if current.__suppress_context__ else current.__context__)
+ except Exception:pass # Reporting cannot change the original fail-closed outcome.
+ return result
+
+
 def main():
  sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'ops'),str(ROOT)]
  ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--scheduled',action='store_true')
  ap.add_argument('--transport-preflight',action='store_true');ap.add_argument('--preflight-at',type=dt.datetime.fromisoformat);args=ap.parse_args()
- config=campaign_config()
- try:r=run(config,dry_run=args.dry_run,transport_preflight=args.transport_preflight,preflight_at=args.preflight_at)
+ try:
+  config=campaign_config()
+  r=run(config,dry_run=args.dry_run,transport_preflight=args.transport_preflight,preflight_at=args.preflight_at)
  except Exception as exc:
-  if args.dry_run or args.transport_preflight:raise
+  # All entry modes use the same safe reporting boundary. Diagnostic modes
+  # remain non-sending; never leak a raw HTTP exception via their traceback.
   # A failed batch may have sent many messages. Report durable PT-day totals,
   # never claim this exception means zero effects or authorize a blind replay.
   failure={'status':'FAILED_RECONCILE_BEFORE_RETRY','error_class':type(exc).__name__,
            'generated_utc':stamp(),'scope':'PT-day ledger totals, not current-run totals',
            'replay_allowed':False,'day_sends':None,'outstanding_claims':None}
+  failure.update(error_code='sponsor_diagnostic_unavailable',message='[redacted diagnostic unavailable]',
+                 origin=None,exception_chain=[])
+  try:failure.update(safe_failure_diagnostic(exc))
+  except Exception:pass
   try:
    ledger=load(STATE/'ledger.json');day=now().astimezone(PT).date()
    day_sends=[];claims=[]
@@ -1157,10 +1237,10 @@ def main():
    failure.update(pt_day=day.isoformat(),day_sends=day_sends,outstanding_claims=claims)
   except (OSError,ValueError,KeyError,TypeError,AttributeError):pass # Unknown is not zero.
   try:save(STATE/'latest-failure.json',failure)
-  except OSError:pass
+  except Exception:pass # Serialization/storage failure must still exit 1 safely.
   count='unknown' if failure['day_sends'] is None else len(failure['day_sends'])
   claims='unknown' if failure['outstanding_claims'] is None else len(failure['outstanding_claims'])
-  print(f"Sponsor outreach FAILED ({failure['error_class']}); PT-day confirmed sends: {count}; outstanding claims: {claims}. Reconcile ledger and Gmail before retry; not current-run totals.",file=sys.stderr)
+  print(f"Sponsor outreach FAILED ({failure['error_class']}; {failure['error_code']}); PT-day confirmed sends: {count}; outstanding claims: {claims}. Reconcile ledger and Gmail before retry; not current-run totals.",file=sys.stderr)
   raise SystemExit(1) from None
  if args.dry_run or args.transport_preflight:print(json.dumps({k:v for k,v in r.items() if k not in ('previews','exclusions')},sort_keys=True))
  elif r['send_enabled']:print(f"Sponsor outreach: {r['sent']} sent; eligible {r['eligible_recipient_count']}. Replies stop follow-ups.")
