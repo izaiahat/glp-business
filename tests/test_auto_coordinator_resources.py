@@ -11,14 +11,14 @@ from test_auto_coordinator_loop import task, row, board, Backend
 
 def test_writers_require_disjoint_areas_and_maximum_three():
     plan = [task(f'GLP-{i}', i, read_only=False, write_area=f'repo:area-{i}') for i in range(1, 6)]
-    assert len(m.select(plan, [], board(*(p['issue'] for p in plan)), slots=7)[0]) == 3
+    assert len(m.select(plan, [row(p['issue']) for p in plan], board(*(p['issue'] for p in plan)), slots=7)[0]) == 3
     plan[1]['write_area'] = plan[0]['write_area']
-    assert [a['issue'] for a in m.select(plan[:2], [], board('GLP-1', 'GLP-2'), slots=7)[0]] == ['GLP-1']
+    assert [a['issue'] for a in m.select(plan[:2], [row('GLP-1'), row('GLP-2')], board('GLP-1', 'GLP-2'), slots=7)[0]] == ['GLP-1']
 
 
 def test_heavy_requires_fresh_external_admission_not_implicit_refill():
-    assert not m.select([task(heavy=True)], [], board('GLP-1'), slots=7)[0]
-    assert not m.select([task(read_only=False)], [], board('GLP-1'), slots=7)[0]
+    assert not m.select([task(heavy=True)], [row()], board('GLP-1'), slots=7)[0]
+    assert not m.select([task(read_only=False)], [row()], board('GLP-1'), slots=7)[0]
 
 
 def test_inputs_hash_bind_owner_and_reject_changed_result(tmp_path):

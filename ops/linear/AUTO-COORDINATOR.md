@@ -25,6 +25,8 @@ message's prose, historical reports, an old dispatch ledger or a model's ideas.
 Do not run ingestion from this loop or advance its cursors. Source disappearance,
 changed evidence, malformed input, conflicting terminal rows, unknown ownership,
 a live owner, parked/held state or unresolved dependency fails closed.
+An empty or advisory-only inbox produces zero actions: PLAN alone cannot dispatch
+work. Each action requires one eligible authenticated, same-owner inbox row.
 
 ### READY_TO_CLOSE
 
@@ -32,11 +34,14 @@ Join one non-support row to its exact PLAN issue and explicit owner. Re-run the
 PLAN's allowlisted read-only `proof_cmd` and the maintained closer with
 `--check-only`. Require `proof_complete: true`, a hash-bound worker RESULT and
 an issue-specific PASS. Recheck the real board, TUI idle gate and source hashes
-immediately before the effect. Fsync an issue-level intent, call the maintained
-closer with `--apply`, then GET the exact issue and require Done. Never mark a
-PR merged, a report complete, or an API exit code as whole-issue acceptance.
+before reporting `closure_ready` / `ready_for_coordinator`. Do not create a closure
+effect intent or call the closer with `--apply`; subprocesses use the worker role,
+never orchestrator authority. Only the authorized coordinator may accept and close
+Linear. Never mark a PR merged, a report complete, or an API exit code as whole-issue
+acceptance.
 
-Missing/incomplete proof prohibits closure, not authorized dispatch.
+Missing/incomplete proof reports no closure readiness; a READY_TO_CLOSE row is
+not converted into dispatch work.
 
 ### REDISPATCH and refill
 
@@ -72,7 +77,7 @@ intent before an effect. A timeout, crash, absent ACK, unknown readback or
 ambiguous closer outcome latches that issue even if its fingerprint later
 changes. Do not clear a fence or replay automatically. Only a verified dispatch
 joined to its exact new hash-bound terminal worker RESULT may progress to
-closure or same-owner redispatch. Preserve historical receipts and queues.
+closure readiness or same-owner redispatch. Preserve historical receipts and queues.
 
 Print one bounded status card (at most ten lines). Delivery is the **existing
 native cron route to ops-alerts**, not a new webhook, channel, outbox or send

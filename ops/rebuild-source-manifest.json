@@ -3,28 +3,45 @@
   "files": {
     "scripts/auto_coordinator_loop.py": {
       "kind": "script",
-      "callers": ["scripts/auto_coordinator_runner.py"],
-      "sha256": "18efe2340ca11c2e41c827fb488bb0fe42344027da44cbb95dd3894e06f5a9db"
+      "callers": [
+        "scripts/auto_coordinator_runner.py"
+      ],
+      "sha256": "c7d18c13f417280706d58fde58b22354949a65a7699b3fe66b0e6ec2ecf54993"
     },
     "tests/test_auto_coordinator_adapter.py": {
-      "kind": "test", "callers": ["coordinator-receipt-ci"],
-      "sha256": "52008c85a4e11848e63eec894d58f6fdae0f68b65fddad1da7d11244f299fdaa"
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "fbc0a1ab3a52b3f3680a47b26a79f4d2ad2064effa81022bd153c7831c5bc23d"
     },
     "tests/test_auto_coordinator_capacity_identity.py": {
-      "kind": "test", "callers": ["coordinator-receipt-ci"],
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
       "sha256": "541a2175065f7229c99fd541b49a3f38616038b79ccceb98c306f1024c3a07a7"
     },
     "tests/test_auto_coordinator_idle.py": {
-      "kind": "test", "callers": ["coordinator-receipt-ci"],
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
       "sha256": "c819629b83093b8abc557ca6ee941c2ed5f80bed95fd00ee6a2dec9a6f5f2abf"
     },
     "tests/test_auto_coordinator_loop.py": {
-      "kind": "test", "callers": ["coordinator-receipt-ci"],
-      "sha256": "e497f87f2d14624aab419d31f48671309d07675e1cbd70fbd0b915d87e895a99"
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "66bc002dd9663ebc06f8bc589e4e8a83469676968d35a3b2e92b48d295f6e0af"
     },
     "tests/test_auto_coordinator_resources.py": {
-      "kind": "test", "callers": ["coordinator-receipt-ci"],
-      "sha256": "e16bb6f90a43da6fa9558143c029269a459a2e7a42d90557a937f7dc60ef3999"
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "060411c02fcfdee67fbc197ded005dbba10c0a6542c5a3beb08491477328f19c"
     },
     "ops/glp/weekly_analytics_owner.py": {
       "kind": "script",
@@ -1585,7 +1602,7 @@
     "ops/linear/AUTO-COORDINATOR.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "8ef32e2045b7d6a05aaa5cb28064eb7f5db3a5b03013b4c2f93879d68c85ce20"
+      "sha256": "4ee9c1f2890e8c0b0d26abcdbc49f78517c72621a252ba44ae520adab81bde81"
     },
     "ops/linear/CONVENTIONS.md": {
       "callers": [],

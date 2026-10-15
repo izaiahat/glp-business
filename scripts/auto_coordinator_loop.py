@@ -118,6 +118,8 @@ def select(plan, inbox, board, *, slots):
         rows = [r for r in inbox if r.get('issue') == issue and r.get('source') not in {'pro', 'dot'}]
         if not reason and len(rows) > 1:
             reason = 'MULTIPLE_ROWS_REQUIRE_OWNER_RECONCILIATION'
+        elif not reason and not rows:
+            reason = 'NO_ELIGIBLE_INBOX_ROW'
         r = rows[0] if len(rows) == 1 else None
         if not reason and r:
             if r.get('status') not in {'READY_TO_CLOSE', 'REDISPATCH'}:
@@ -129,12 +131,12 @@ def select(plan, inbox, board, *, slots):
         if reason:
             skipped.append({'issue': issue, 'reason': reason})
             continue
-        kind = 'close' if r and r['status'] == 'READY_TO_CLOSE' else 'redispatch' if r else 'dispatch'
+        assert r is not None  # exactly one eligible row is required above
+        kind = 'close' if r['status'] == 'READY_TO_CLOSE' else 'redispatch'
         a = {'issue': issue, 'owner': p['owner'], 'kind': kind, 'plan': p,
-             'fingerprint': r['fingerprint'] if r else digest(json.dumps(p, sort_keys=True).encode())}
-        if r:
-            a['inbox'] = r
-            a['failure_text'] = r.get('failure_text', '')
+             'fingerprint': r['fingerprint']}
+        a['inbox'] = r
+        a['failure_text'] = r.get('failure_text', '')
         if kind != 'close':
             try:
                 a['route'] = route(p.get('executor'))
@@ -170,8 +172,9 @@ def select(plan, inbox, board, *, slots):
 
 def summary(result):
     return ('⚠️ **GLP Auto-Coordinator** — ' + result['status'] + '\n\n'
-            + 'closed: %s · dispatched: %s · uncertain: %s\n' % (
-                result.get('closed', 0), result.get('dispatched', 0), result.get('uncertain', 0))
+            + 'closure-ready: %s · closed: %s · dispatched: %s · uncertain: %s\n' % (
+                result.get('closure_ready', 0), result.get('closed', 0),
+                result.get('dispatched', 0), result.get('uncertain', 0))
             + 'Skipped: %s; input rows: %s\n' % (len(result.get('skipped', [])), result.get('rows', 0))
             + 'No TUI input, scheduler changes, support consumption or article-carrier activation.')
 
@@ -195,7 +198,7 @@ def run_pass(directory, plan, inbox, backend, *, slots=7):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     result = {'status': 'COMPLETE', 'started_at': now(), 'closed': 0, 'dispatched': 0,
-              'uncertain': 0, 'rows': len(inbox), 'skipped': [], 'actions': []}
+              'closure_ready': 0, 'uncertain': 0, 'rows': len(inbox), 'skipped': [], 'actions': []}
     with (directory / '.loop.lock').open('a') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -230,14 +233,18 @@ def run_pass(directory, plan, inbox, backend, *, slots=7):
             if not refreshed or backend.guard()['status'] != 'IDLE':
                 result['skipped'].append({'issue': a['issue'], 'reason': 'PRE_EFFECT_STATE_CHANGED'})
                 continue
+            if a['kind'] == 'close':
+                # Readiness is not coordinator acceptance or permission to mutate
+                # Linear. No effect intent/latch is created for a check-only pass.
+                result['closure_ready'] += 1
+                result['actions'].append({'status': 'ready_for_coordinator', 'action': a})
+                continue
             record = {'key': key, 'status': 'intent', 'action': a, 'created_at': now()}
             save(fence, record)
             try:
                 record['effect'] = backend.effect(a)
-                if a['kind'] == 'close' and backend.observe([a['issue']])[a['issue']]['state'] != 'Done':
-                    raise ValueError('exact Linear target did not read back Done')
                 record['status'] = 'verified'
-                result['closed' if a['kind'] == 'close' else 'dispatched'] += 1
+                result['dispatched'] += 1
             except Exception as exc:
                 record.update(status='uncertain', error_class=type(exc).__name__)
                 result['uncertain'] += 1
@@ -277,9 +284,10 @@ class InstalledBackend:
         return values
 
     def call(self, argv):
-        cp = subprocess.run(argv, cwd=self.root, env=dict(os.environ, LINEAR_ROLE='orchestrator'),
-                            capture_output=True, text=True,
-                            timeout=None if '--apply' in argv else 120)
+        if '--apply' in argv:
+            raise ValueError('loop permits check-only preflight, never apply')
+        cp = subprocess.run(argv, cwd=self.root, env=dict(os.environ, LINEAR_ROLE='worker'),
+                            capture_output=True, text=True, timeout=120)
         self.read_index += 1
         save(self.run_dir / ('CALL-%04d.json' % self.read_index),
              {'argv': argv, 'rc': cp.returncode, 'stdout': cp.stdout, 'stderr': cp.stderr})
@@ -306,13 +314,9 @@ class InstalledBackend:
         return cp.returncode == 0 and bool(re.search(r'^' + re.escape(action['issue']) + r' PASS(?:\s|$)', cp.stdout, re.M))
 
     def effect(self, action):
-        self.current(action)
         if action['kind'] == 'close':
-            cp = self.call([sys.executable, '-B', str(self.root / 'scripts/linear_close.py'),
-                            action['issue'], action['inbox']['worker_result'], '--apply'])
-            if cp.returncode:
-                raise ValueError('closer returned nonzero; reconcile exact target, never retry')
-            return {'target': action['issue'], 'observed': cp.stdout}
+            raise ValueError('closure is coordinator-owned; loop reports readiness only')
+        self.current(action)
         request = self.run_dir / (action['issue'] + '-WORK.json')
         # The existing owned checkout MUST already exist: no competing worktree,
         # owner assignment, queue or installer is created by this coordinator.
