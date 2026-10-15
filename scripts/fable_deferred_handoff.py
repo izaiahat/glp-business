@@ -74,19 +74,77 @@ def load_issue(bridge,issue_id,tuple_sha256,*,bound):
     return guard,path,issue
 
 
+def _reconcile_unsent(bridge,guard,path,issue):
+    """Read newest-first through issue creation; UNKNOWN/extra activity refuses.
+
+    A classifier miss alone is NOT proof of no request (e.g. lost mentions).
+    Only an explicit, unedited, non-intake Kael routing status is harmless.
+    """
+    import time
+    identities=(issue['issue_id'],issue['tuple_sha256'],issue['request_content_sha256'])
+    def check_state():
+        state=json.loads(bridge.STATE.read_text())
+        if not isinstance(state,dict):raise RuntimeError('deferred_send_state_unavailable')
+        for key in ('reviewer_receipts','successor_issues'):
+            records=state.get(key,{})
+            if not isinstance(records,dict):raise RuntimeError('deferred_send_state_unavailable')
+            if any(value in json.dumps(records) for value in identities):
+                raise RuntimeError('deferred_send_existing_activity')
+    check_state()
+    floor=int((guard._timestamp(issue['issued_at_utc'],'issue').timestamp()*1000-1420070400000))*2**22
+    before=str((int(time.time()*1000)-1420070400000+1)*2**22)
+    for _ in range(40):
+        rows=bridge.api('GET',f'/channels/{bridge.CHANNEL}/messages?before={before}&limit=100')
+        if not isinstance(rows,list) or not rows or len(rows)>100:
+            raise RuntimeError('deferred_send_history_incomplete')
+        ids=[int(row['id']) for row in rows]
+        if ids!=sorted(set(ids),reverse=True) or ids[0]>=int(before):
+            raise RuntimeError('deferred_send_history_nonmonotonic')
+        for row in rows:
+            if not any(value in json.dumps(row) for value in identities):continue
+            text=row.get('content','');author=row.get('author',{})
+            if (bridge.classify_message(row) is not None
+                or 'NOT reviewer intake or acceptance.' not in text
+                or author.get('id')!=bridge.KAEL_BOT_ID or author.get('bot') is not True
+                or row.get('type',0)!=0 or row.get('edited_timestamp') is not None
+                or row.get('webhook_id') is not None or row.get('mentions')
+                or row.get('message_reference') or row.get('attachments')
+                or bridge.REVIEW_REQUEST_MARKER.casefold() in text.casefold()
+                or 'BRIDGE REQUEST' in text or 'TRUE-BRIDGE FABLE' in text):
+                raise RuntimeError('deferred_send_existing_activity')
+        if ids[-1]<=floor:break
+        if len(rows)<100:raise RuntimeError('deferred_send_history_incomplete')
+        before=str(ids[-1])
+    else:raise RuntimeError('deferred_send_history_incomplete')
+    # Close latency in history/capacity/authentication; do not trust the old dict.
+    _,fresh=guard.load_issue_record(path,expected_subject_id=issue['subject_id'],
+        expected_tuple_sha256=issue['tuple_sha256'],require_bound=False)
+    if fresh!=issue:raise RuntimeError('deferred_send_issue_changed')
+    check_state()
+
+
 def send_request(bridge,issue_id,tuple_sha256,admission_path):
     require_installed(bridge)
-    guard,path,issue=load_issue(bridge,issue_id,tuple_sha256,bound=False)
-    if issue.get('schema')!='boring_ai_bridge_request_issue_v2' or any(k in issue for k in ('predecessor_issue_id','request_message_id')):
-        raise RuntimeError('deferred_handoff_initial_issue_required')
-    if bridge.top_stakes_category('review_request',issue['request_content'])!='production_or_high_impact_change':
-        raise RuntimeError('deferred_handoff_truthful_production_scope_required')
-    permit=authorize(bridge,issue,admission_path,'send_request')
-    def revalidate():
-        if authorize(bridge,issue,admission_path,'send_request')!=permit:
-            raise RuntimeError('deferred_admission_changed')
-    path,record=guard._send_registered_issue(path,issue,before_post=revalidate)
-    return {'issue_record_path':str(path),'request_message_id':record['request_message_id'],'status':'BOUND'}
+    with bridge.bridge_state_lock():
+        guard,path,issue=load_issue(bridge,issue_id,tuple_sha256,bound=False)
+        if issue.get('schema')!='boring_ai_bridge_request_issue_v2' or any(k in issue for k in ('predecessor_issue_id','request_message_id')):
+            raise RuntimeError('deferred_handoff_initial_issue_required')
+        if bridge.top_stakes_category('review_request',issue['request_content'])!='production_or_high_impact_change':
+            raise RuntimeError('deferred_handoff_truthful_production_scope_required')
+        permit=authorize(bridge,issue,admission_path,'send_request')
+        snapshot=bridge.refresh_included_capacity()
+        _reconcile_unsent(bridge,guard,path,issue)
+        if not bridge._included_quota_available(snapshot):
+            raise RuntimeError('fresh_positive_included_capacity_required')
+        def revalidate():
+            snapshot=bridge.refresh_included_capacity()
+            if authorize(bridge,issue,admission_path,'send_request')!=permit:
+                raise RuntimeError('deferred_admission_changed')
+            _reconcile_unsent(bridge,guard,path,issue)
+            if not bridge._included_quota_available(snapshot):
+                raise RuntimeError('fresh_positive_included_capacity_required')
+        path,record=guard._send_registered_issue(path,issue,before_post=revalidate)
+        return {'issue_record_path':str(path),'request_message_id':record['request_message_id'],'status':'BOUND'}
 
 
 def dispatch(bridge,source_id,issue_id,tuple_sha256,admission_path):

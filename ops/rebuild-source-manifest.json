@@ -7123,7 +7123,7 @@
         "scripts/fable_bridge.py"
       ],
       "kind": "script",
-      "sha256": "75a7217516d35283cadb3d90acdd3128dc20111c45239f9b1767de4a6d479988"
+      "sha256": "92c10111d9da550e97ec43f591e6263cadecc4bbde4b2b7c612a68319b15b091"
     },
     "tests/test_pro_unsent_nonchat.py": {
       "kind": "test",
@@ -7592,14 +7592,14 @@
       "callers": [
         "scripts/fable_bridge.py --dispatch-deferred-review"
       ],
-      "sha256": "d5c3f43e767becc63dc14ddb04c40b025e8ab94d8f82b439165456e2a256fb9d"
+      "sha256": "21b05ceb2d174a3a3eca47dab435d7b2eaa6cd5a419451828ea5678ecaf8d7ef"
     },
     "tests/test_fable_deferred_handoff.py": {
       "kind": "test",
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "7f83016e58508e0a915188bc20af9570787fc3bc12e6e6a36465ce3186149291"
+      "sha256": "e5dc1abd87e98e4ea2d2bf2cdb7bbeefb067580d5bd172e6a4ddef243f7a2b25"
     },
     "tests/test_recovery_copied_authorship.py": {
       "kind": "test",

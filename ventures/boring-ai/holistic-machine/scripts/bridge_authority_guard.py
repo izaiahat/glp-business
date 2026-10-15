@@ -409,13 +409,14 @@ def _send_registered_issue(path, issue, *, before_post=None):
     if json.loads(path.read_text(encoding="utf-8")) != issue:
         raise BridgeAuthorityError("bridge_successor_issue_changed")
     validate_successor_payload(issue, payload)
-    if before_post is not None:
-        before_post()
     request = urllib.request.Request(
         f"{_DISCORD_API_BASE}/channels/{FIXED_BRIDGE_CHANNEL_ID}/messages",
         data=json.dumps(payload).encode("utf-8"), method="POST",
         headers={"Authorization": f"Bot {_discord_bot_token()}", "Content-Type": "application/json",
                  "User-Agent": "BoringAI-BridgeAuthorityGuard/3.0"})
+    # Token lookup can block: the caller's final interlock belongs after it.
+    if before_post is not None:
+        before_post()
     # No blind retry, including 429, timeout or a missing/invalid POST response.
     with urllib.request.urlopen(request, timeout=30) as response:
         posted = json.loads(response.read().decode("utf-8"))
