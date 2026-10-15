@@ -369,7 +369,9 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
             seen.append(row['id'])
     assert sorted(seen) == sorted(allowed)
     launcher = 'scripts/cron_bridge_action.py'
-    launcher_pin = 'fc1146a502f250c267c3460e8171bde678be7ee20ca773304aa9f0ffbfbfbd4b'
+    # GLP-320 successor adds only GET lineage proof propagation; retain literal
+    # cohort equality and all historical inventory deltas below.
+    launcher_pin = 'ad0398af92b07a67878eb5b0f3cd8456d8c306954eddddc711685e047c78bd72'
     assert sha((ROOT/launcher).read_bytes()) == launcher_pin
     shared = 0
     for row in expected['jobs']:
