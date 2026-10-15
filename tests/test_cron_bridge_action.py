@@ -90,6 +90,52 @@ class CronBridgeTests(unittest.TestCase):
             failure.write_text(json.dumps(bad))
             self.assertFalse(cron.article_failed_before_publish(receipt))
 
+    def test_article_lineage_ack_clears_only_known_pending_get_and_retains_proof(self):
+        from unittest.mock import MagicMock
+        from scripts import article_source_carrier as source
+        action, args = 'article_carrier_consume', {'mode':'consume'}
+        digest = hashlib.sha256(json.dumps({'action':'script','name':action,'args':args},sort_keys=True).encode()).hexdigest()
+        state_path = self.root / f'{action}-{digest}.state.json'
+        prior = self.root / 'prior.json'; prior.write_text('{"status":"FAIL"}')
+        state_path.write_text(json.dumps({'pending':{'job_id':'original-job',
+            'payload_sha256':digest,'receipt_path':str(prior),
+            'due_slot':'2026-10-12T11:00:America/Los_Angeles'}}))
+        machine = {'schema':'n8n.article_carrier.v1','status':'BLOCKED_CONSUME_FAILED',
+            'operation_id':'sealed-op','receipt_path':'failure.json'}
+        job = {'job_id':'original-job','status':'done','rc':0,'timed_out':False,
+               'stdout_tail':json.dumps(machine),'receipt_path':'bridge.json'}
+        calls = []
+        def call(path, payload=None):
+            calls.append((path,payload)); self.assertEqual(path,'/job/original-job')
+            return 200,job
+        response = MagicMock(); response.__enter__.return_value.status = 200
+        lineage = {'mode':'sealed-deployed-article-content','original_deployment_id':'old',
+                   'current_deployment_id':'current','article_html_sha256':'a'*64}
+        recovered = {'status':'PASS_PUBLISHED','published':True,'url':'https://glpclinicscout.com/guides/accepted/',
+            'route':'/guides/accepted/','receipt_path':'sealed-consumption.json','publication_lineage':lineage}
+        options = dict(state_dir=self.root,actions={action:{}},call=call,notify=lambda *a: {},
+            invocation='manual_registered',due_slot='2026-10-14T11:00:America/Los_Angeles')
+        with patch.object(source,'published_operation_readback',return_value=None) as readback, \
+             patch('urllib.request.urlopen',return_value=response), \
+             patch.object(cron,'heartbeat',return_value={}), patch.object(cron,'post_once',return_value={}):
+            refused = cron.run_action(action,args,**options)
+            self.assertEqual(refused['rc'],125)
+            self.assertEqual(json.loads(state_path.read_text())['pending']['job_id'],'original-job')
+            readback.return_value = recovered
+            accepted = cron.run_action(action,args,**options)
+            self.assertEqual(accepted['status'],'PASS')
+            self.assertEqual(accepted['effects']['publication_lineage'],lineage)
+            self.assertEqual(accepted['effects']['output_count'],1)
+            self.assertEqual(accepted['reconciled_prior_receipt'],str(prior))
+            self.assertNotIn('pending',json.loads(state_path.read_text()))
+            self.assertEqual(prior.read_text(),'{"status":"FAIL"}')
+            self.assertEqual(calls,[('/job/original-job',None)]*2)
+            # Recovery must not be promoted to a new natural scheduled publish.
+            from scripts.article_health_acceptance import validate_carrier
+            validate_carrier(accepted,natural=False)
+            with self.assertRaisesRegex(ValueError,'natural dispatch'):
+                validate_carrier(accepted,natural=True)
+
     def test_article_live_verifier_identifies_itself_instead_of_python_urllib(self):
         from urllib.request import Request
         machine = {'schema':'n8n.article_carrier.v1','status':'PASS_PUBLISHED',

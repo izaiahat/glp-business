@@ -1821,7 +1821,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "c1418d9929c98a8f1ad54664dedced5d7f230789d9562fcad2d476d101235387"
+      "sha256": "0f6432df579b60791e2d393fdabef376c7d256589e88ee969e039b9f34a66112"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -2413,7 +2413,7 @@
         "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py"
       ],
       "kind": "registered_producer",
-      "sha256": "71cffa833f71da8bb0c63f3693ab0f5970877e1e6369b27598caec0f606263b1"
+      "sha256": "10a5fb42cea8620b8902927a86b179a4f2d463e1de5c356c7a0575c6238f0d02"
     },
     "scripts/auto_coordinator_guard.py": {
       "callers": [
@@ -2581,7 +2581,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "fc1146a502f250c267c3460e8171bde678be7ee20ca773304aa9f0ffbfbfbd4b"
+      "sha256": "ad0398af92b07a67878eb5b0f3cd8456d8c306954eddddc711685e047c78bd72"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -4865,7 +4865,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "9bd6bd9f12a60a8c664e9d04aa1a52271402a8823accc35b6cf949204affc0e5"
+      "sha256": "1aebd8c9c868848f689432b9bce44fe739d9432957fc5905d493ceebf6abcecf"
     },
     "tests/test_audit_20260916_gates.py": {
       "callers": [
@@ -4999,7 +4999,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "e9189cf48a32c24f8344431ab40210414d58c412dfb1e988d36c40199c124ff5"
+      "sha256": "5cd2d756a8bad69659d4ebc316c4606de765e11bcfb126eca227284971b2ee85"
     },
     "tests/test_current_release_acceptance.py": {
       "callers": [
@@ -6979,7 +6979,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "e05e882977f19ee4cf4cbba000953a5e8aeb78fdb85e51097582610636de0449"
+      "sha256": "6de88ee4f1d04b34e403dc9c6ca418d882c9736e9421d4f4425c1daf606cbfd7"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [

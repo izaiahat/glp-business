@@ -221,6 +221,154 @@ class SourceCarrierTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'live_indexability'):
                 carrier.live_readback('/guides/new/','Reviewed & title')
 
+    def test_live_decoder_reversal_requires_observed_script_boundary(self):
+        decoder = '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+        script = '<script src="/assets/editorial-share.js" defer></script>'
+        opening = '<script type="application/ld+json">'
+        source = ('<title>Reviewed title</title><meta name="robots" content="index,follow">'
+                  '<link rel="canonical" href="https://glpclinicscout.com/guides/new/">'
+                  + opening + '{"name":"Reviewed"}</script>'
+                  '<main data-note=\'original\'><a href="mailto:support@example.test">Email</a>'
+                  + script + '<a href="mailto:support@example.test">Footer email</a>'
+                  '<script>const data = "original";</script></main>')
+        encoded = '7f' + bytes(b ^ 127 for b in b'support@example.test').hex()
+        transformed = source.replace('href="mailto:support@example.test"',
+                                    'href="/cdn-cgi/l/email-protection#'+encoded+'"')
+        edge = transformed.replace(script, decoder+script)
+        with tempfile.TemporaryDirectory() as tmp:
+            expected = Path(tmp)/'index.html'; expected.write_text(source)
+            for body in (source, edge):
+                with patch.object(carrier,'fetch',return_value=(200,body)):
+                    live = carrier.live_readback('/guides/new/','Reviewed title',expected_html=expected)
+                    self.assertEqual(live['deployed_html_sha256'],carrier.digest(expected))
+                    self.assertEqual(live['html_sha256'],__import__('hashlib').sha256(body.encode()).hexdigest())
+            # RV526: a nested decoder literal corrupts the original JSON-LD.
+            # Also refuse insertion into JS/attributes, unrelated boundaries,
+            # duplicates, no associated email transform, and unobserved literals.
+            mutations = (
+                source.replace(opening, opening+decoder),
+                transformed.replace(opening, opening+decoder),
+                transformed.replace('const data = "original";', decoder+'const data = "original";'),
+                transformed.replace("data-note='original'", "data-note='"+decoder+"original'"),
+                transformed+decoder,
+                transformed.replace('</main>', decoder+'</main>'),
+                transformed.replace('<script>const data', decoder+'<script>const data'),
+                edge.replace(decoder, decoder+decoder),
+                source.replace(script, decoder+script),
+                edge.replace('5c5dd728','12345678'),
+            )
+            for body in mutations:
+                with self.subTest(body=body), patch.object(carrier,'fetch',return_value=(200,body)):
+                    with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                        carrier.live_readback('/guides/new/','Reviewed title',expected_html=expected)
+
+    def test_successor_live_hash_reverses_only_exact_cloudflare_email_transforms(self):
+        source = ('<title>Reviewed title</title><meta name="robots" content="index,follow">'
+                  '<link rel="canonical" href="https://glpclinicscout.com/guides/new/">'
+                  '<main><p>Accepted prose</p><a href="mailto:?subject=Reviewed&amp;body=Guide">Email</a>'
+                  '<a href="mailto:support@example.test">support@example.test</a>'
+                  '<script src="/assets/editorial-share.js" defer></script></main>')
+        def protected(text):
+            return '7f' + bytes(b ^ 127 for b in text.encode()).hex()
+        edge = source.replace('href="mailto:?subject=Reviewed&amp;body=Guide"',
+            'href="/cdn-cgi/l/email-protection#'+protected('?subject=Reviewed&amp;body=Guide')+'"')
+        edge = edge.replace('href="mailto:support@example.test"',
+            'href="/cdn-cgi/l/email-protection#'+protected('support@example.test')+'"')
+        edge = edge.replace('>support@example.test</a>',
+            '><span class="__cf_email__" data-cfemail="'+protected('support@example.test')+'">[email&#160;protected]</span></a>')
+        edge = edge.replace('<script src="/assets/editorial-share.js"',
+            '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="/assets/editorial-share.js"')
+        with tempfile.TemporaryDirectory() as tmp:
+            expected = Path(tmp)/'index.html'; expected.write_text(source)
+            for body in (source, edge):
+                with patch.object(carrier,'fetch',return_value=(200,body)):
+                    live = carrier.live_readback('/guides/new/','Reviewed title', expected_html=expected)
+                    self.assertEqual(live['deployed_html_sha256'],carrier.digest(expected))
+                    self.assertEqual(live['html_sha256'],__import__('hashlib').sha256(body.encode()).hexdigest())
+            for body in (edge.replace('Accepted prose','Altered prose'),
+                         edge.replace(protected('support@example.test'),protected('attacker@example.test')),
+                         edge.replace('email-decode.min.js','other.js'),
+                         edge+'<script>unreviewed()</script>', edge.replace('<main>','<main data-new="effect">')):
+                with self.subTest(body=body), patch.object(carrier,'fetch',return_value=(200,body)):
+                    with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                        carrier.live_readback('/guides/new/','Reviewed title',expected_html=expected)
+
+    def test_live_span_reversal_requires_email_text_in_active_html(self):
+        def span(text):
+            encoded = '7f' + bytes(b ^ 127 for b in text.encode()).hex()
+            return '<span class="__cf_email__" data-cfemail="'+encoded+'">[email&#160;protected]</span>'
+        email = 'support@example.test'
+        cases = [('json-brace', '<script type="application/ld+json">{"name":"Guide"}</script>', '{'),
+                 ('prose', '<p>Accepted prose</p>', 'Accepted prose'),
+                 ('attribute', '<p data-note=\''+email+'\'>Text</p>', email),
+                 ('comment', '<!-- '+email+' -->', email)]
+        for tag in ('script','style','textarea','title','xmp','iframe','noembed','noframes','noscript',
+                    'template','svg','math','select','option','optgroup','plaintext'):
+            cases.append((tag, '<'+tag+'>'+email+'</'+tag+'>', email))
+        cases.extend([
+            ('inert-attribute', '<div inert><p>'+email+'</p></div>', email),
+            ('template-script-end', '<template><script>"</template>"</script>'+email+'</template>', email),
+            ('inert-template-end', '<div inert><template></div>'+email+'</template>', email),
+            ('self-closing-template', '<template/>'+email+'</template>', email),
+            ('self-closing-script', '<script/>'+email+'</script>', email),
+            ('plaintext-close', '<plaintext></plaintext>'+email, email),
+            ('escaped-script', '<script><!--<script></script>'+email+'--></script>', email),
+        ])
+        for name, original, text in cases:
+            with self.subTest(case=name):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(original.replace(text, span(text), 1), original)
+        source = '<p>'+email+'</p>'
+        self.assertEqual(carrier.verified_live_html_hash(source.replace(email,span(email)),source),
+                         __import__('hashlib').sha256(source.encode()).hexdigest())
+
+    def test_live_href_reversal_requires_an_actual_unambiguous_anchor_attribute(self):
+        email = 'support@example.test'
+        original = 'href="mailto:'+email+'"'
+        encoded = '7f' + bytes(b ^ 127 for b in email.encode()).hex()
+        protected = 'href="/cdn-cgi/l/email-protection#'+encoded+'"'
+        cases = [('script', '<script>const s=\''+original+'\';</script>'),
+                 ('attribute', '<a data-note=\''+original+'\'>Email</a>'),
+                 ('suffix', '<a data-'+original+'>Email</a>'),
+                 ('non-anchor', '<div '+original+'>Email</div>'),
+                 ('comment', '<!-- '+original+' -->'),
+                 ('duplicate', '<a href="/other" '+original+'>Email</a>'),
+                 ('duplicate-case', '<a HREF="/other" '+original+'>Email</a>'),
+                 ('malformed', '<a class="cta"'+original+'>Email</a>')]
+        for tag in ('style','textarea','title','xmp','iframe','noembed','noframes','noscript',
+                    'template','svg','math','select','option','optgroup','plaintext'):
+            cases.append((tag, '<'+tag+'><a '+original+'>Email</a></'+tag+'>'))
+        cases.append(('inert-attribute', '<div inert><a '+original+'>Email</a></div>'))
+        cases.append(('escaped-script', '<script><!--<script></script><a '+original+'>Email</a>--></script>'))
+        for name, source in cases:
+            with self.subTest(case=name):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(source.replace(original,protected),source)
+        source = '<a class="cta" data-note=\'href="/unchanged"\' hidden '+original+'>Email</a>'
+        self.assertEqual(carrier.verified_live_html_hash(source.replace(original,protected),source),
+                         __import__('hashlib').sha256(source.encode()).hexdigest())
+
+    def test_live_email_reversal_rejects_unobserved_payloads_and_attribute_shapes(self):
+        for text in ('{', 'Accepted prose', 'support@example.test<em>markup</em>'):
+            encoded = '7f' + bytes(b ^ 127 for b in text.encode()).hex()
+            source = '<a href="mailto:'+text+'">Email</a>'
+            body = source.replace('mailto:'+text, '/cdn-cgi/l/email-protection#'+encoded)
+            with self.subTest(payload=text):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(body,source)
+        email = 'support@example.test'
+        encoded = '7f' + bytes(b ^ 127 for b in email.encode()).hex()
+        source = '<a href="mailto:'+email+'">'+email+'</a>'
+        span = '<span class="__cf_email__" data-cfemail="'+encoded+'">[email&#160;protected]</span>'
+        body = source.replace('>'+email+'<','>'+span+'<')
+        for bad in (body.replace('class="__cf_email__"','class="__cf_email__" class="other"'),
+                    body.replace(' data-cfemail=', 'data-cfemail='),
+                    body.replace(encoded,encoded+'f'), body.replace(encoded,'7fff'),
+                    body.replace('[email&#160;protected]','[email protected]')):
+            with self.subTest(body=bad):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(bad,source)
+
     def test_reconciliation_uses_real_packet_and_never_republishes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -372,6 +520,120 @@ class SourceCarrierTests(unittest.TestCase):
                 self.assertIsNone(carrier.published_operation_readback(op))
                 terminal.write_bytes(before[terminal])
             self.assertEqual({p:p.read_bytes() for p in before},before)
+
+    def test_superseded_native_publication_acknowledges_only_identical_deployed_article(self):
+        """Real immutable consumption/terminal/manifest pins; GET edges isolated."""
+        import copy
+        from types import SimpleNamespace
+        import article_buffer_cli as cli
+        cron = SimpleNamespace(article_current_base=lambda: None, article_production_head_id=lambda: None)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            op = 'host-superseded'
+            entry = {'entry_id':'a'*24, 'topic_id':'topic', 'target_route':'/guides/new/'}
+            pr = {'state':'MERGED', 'url':'https://github.com/izaiahat/glp-site-candidate/pull/50',
+                  'headRefOid':'a'*40, 'mergeCommit':{'oid':'b'*40}}
+            old, new = root / 'old', root / 'new'
+            row = {'entry_id':entry['entry_id'], 'route':entry['target_route']}
+            for key in ('article','qa','review'):
+                for release in (old,new):
+                    release.mkdir(exist_ok=True)
+                    (release / (key+'.json')).write_text('{"accepted":"'+key+'"}')
+                row[key] = {'path':key+'.json','sha256':carrier.digest(old / (key+'.json'))}
+            public_rel = 'public/guides/new/index.html'
+            for release in (old,new):
+                public = release / public_rel; public.parent.mkdir(parents=True)
+                public.write_text('<title>Reviewed title</title>')
+            rows = [{'path':spec['path'], 'sha256':spec['sha256'], 'size':(old/spec['path']).stat().st_size}
+                    for spec in (row['article'],row['qa'],row['review'])]
+            rows.append({'path':public_rel,'sha256':carrier.digest(old/public_rel),
+                         'size':(old/public_rel).stat().st_size})
+            def manifest(path, release, head):
+                path.write_text(json.dumps({'schema':'glp-opus-release-deployment-manifest-v1',
+                    'release_root':str(release),'site_head':head,'release_rows':rows}))
+            old_manifest = root / '01-deployment-manifest.json'
+            manifest(old_manifest,old,pr['headRefOid'])
+            terminal = root / 'terminal.json'
+            terminal.write_text(json.dumps({'schema':'glp-opus-production-terminal-receipt-v1',
+                'status':'PASS_PRODUCTION_TERMINAL','deployment':{'deployment_id':'original'},
+                'site_head':pr['headRefOid'],
+                'evidence_sha256':{old_manifest.name:carrier.digest(old_manifest)}}))
+            current_manifest = root / 'current-manifest.json'
+            manifest(current_manifest,new,'c'*40)
+            pointer = root / 'pointer.json'
+            pointer.write_text(json.dumps({'deployment_id':'successor','site_head':'c'*40,
+                'release_root':str(new),'manifest':carrier.buffer._spec(current_manifest)}))
+            claim = root / 'claim.json'
+            carrier.buffer._write_once(claim,{'schema':carrier.buffer.CLAIM_SCHEMA,
+                'operation_id':op,'entry_id':entry['entry_id']},'claim_sha256')
+            binding = {'deployment_id':'original','site_head':pr['headRefOid'],
+                'release_root':str(old),'terminal_receipt':carrier.buffer._spec(terminal)}
+            result = {'status':'PASS_PRODUCTION_TERMINAL','scope':'operator-approved-main-release',
+                'site_main':pr['mergeCommit']['oid'],'source_pr':pr['url'],'deployment_id':'original',
+                'search_submission':{'binding':binding}}
+            live = {'http':200,'title':'Reviewed title','url':carrier.SITE+entry['target_route'],
+                    'deployed_html_sha256':carrier.digest(old/public_rel)}
+            publication = {**carrier.publication_receipt(pr,result,live,row),'receipt':str(terminal)}
+            carrier.record_consumption(root,entry,op,publication,claim)
+            sealed = carrier.consumed_path(root,op)
+            preserved = {p:p.read_bytes() for p in (sealed,claim,terminal,old_manifest)}
+            with patch.object(cli,'DEFAULT_ROOT',root), patch.object(cli,'POINTER',pointer), \
+                 patch.object(cli,'current_context',return_value=(None,new,{entry['target_route']},set())), \
+                 patch.object(carrier,'source_rows',return_value=[row]), \
+                 patch.object(carrier,'accepted_entry',return_value=(root,entry,{'title':'Reviewed title'})), \
+                 patch.object(carrier,'live_readback',return_value=live) as get, \
+                 patch.object(cron,'article_current_base',side_effect=lambda: {'deployment_id':'successor','pointer_sha256':carrier.digest(pointer)}), \
+                 patch.object(cron,'article_production_head_id',return_value='successor') as head, \
+                 patch.dict(sys.modules,{'scripts.cron_bridge_action':cron}), \
+                 patch.object(carrier,'run',side_effect=AssertionError('no child/write allowed')), \
+                 patch.object(carrier,'record_consumption',side_effect=AssertionError('no new seal')):
+                recovered = carrier.published_operation_readback(op)
+                self.assertIsNotNone(recovered, 'unchanged accepted article under a successor must acknowledge')
+                self.assertEqual(recovered['publication_lineage']['original_deployment_id'],'original')
+                self.assertEqual(recovered['publication_lineage']['current_deployment_id'],'successor')
+                self.assertEqual(recovered['publication_lineage']['live_readback'],live)
+                self.assertEqual(recovered['receipt_path'],str(sealed))
+                get.assert_called_once_with(entry['target_route'],'Reviewed title',expected_html=new/public_rel)
+                for bad_hash in (None, 'f'*64):
+                    get.return_value = {**live,'deployed_html_sha256':bad_hash}
+                    self.assertIsNone(carrier.published_operation_readback(op))
+                get.return_value = live
+                # Hash-bound current snapshots cannot bless changed article HTML,
+                # even when accepted source/title/route remain unchanged.
+                original_current = current_manifest.read_bytes()
+                for mutation in ('html','missing_html','duplicate_html','source','original_manifest','terminal','production','live'):
+                    with self.subTest(mutation=mutation):
+                        changed = json.loads(original_current)
+                        if mutation == 'html':
+                            (new/public_rel).write_text('Different article, same title')
+                            changed['release_rows'][-1].update(sha256=carrier.digest(new/public_rel),size=(new/public_rel).stat().st_size)
+                        elif mutation == 'missing_html':
+                            changed['release_rows'].pop()
+                        elif mutation == 'duplicate_html':
+                            changed['release_rows'].append(copy.deepcopy(changed['release_rows'][-1]))
+                        elif mutation == 'source':
+                            (new/'article.json').write_text('changed source')
+                        elif mutation == 'original_manifest':
+                            old_manifest.write_text('{}')
+                        elif mutation == 'terminal':
+                            terminal.write_text('{}')
+                        elif mutation == 'production':
+                            head.return_value = 'other'
+                        elif mutation == 'live':
+                            get.side_effect = RuntimeError('wrong canonical')
+                        current_manifest.write_text(json.dumps(changed))
+                        pointer.write_text(json.dumps({'deployment_id':'successor','site_head':'c'*40,
+                            'release_root':str(new),'manifest':carrier.buffer._spec(current_manifest)}))
+                        self.assertIsNone(carrier.published_operation_readback(op))
+                        for p, raw in preserved.items():
+                            if p in (terminal,old_manifest): p.write_bytes(raw)
+                        (new/public_rel).write_bytes((old/public_rel).read_bytes())
+                        (new/'article.json').write_bytes((old/'article.json').read_bytes())
+                        head.return_value = 'successor'; get.side_effect = None
+                # Restore current snapshot; original evidence was never rewritten
+                # by the production reader (only explicit tamper fixtures above).
+                current_manifest.write_bytes(original_current)
+            self.assertEqual({p:p.read_bytes() for p in preserved},preserved)
 
     def test_compatibility_preflight_uses_native_source_lane(self):
         import validate_article_carrier_base_compatibility as compatibility
