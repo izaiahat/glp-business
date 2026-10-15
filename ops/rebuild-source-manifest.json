@@ -1602,7 +1602,7 @@
     "ops/linear/AUTO-COORDINATOR.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "4ee9c1f2890e8c0b0d26abcdbc49f78517c72621a252ba44ae520adab81bde81"
+      "sha256": "93bafa8d029c7e458fc78089159945cd93b2db4517cc1c054c73d69a9b811a23"
     },
     "ops/linear/CONVENTIONS.md": {
       "callers": [],
@@ -7857,5 +7857,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1144
+  "tracked_count": 1150
 }

@@ -40,7 +40,9 @@ never orchestrator authority. Only the authorized coordinator may accept and clo
 Linear. Never mark a PR merged, a report complete, or an API exit code as whole-issue
 acceptance.
 
-Missing/incomplete proof reports no closure readiness; a READY_TO_CLOSE row is
+Missing/incomplete proof prohibits closure, not authorized dispatch.
+A REDISPATCH row can still authorize same-owner work without closure proof;
+a READY_TO_CLOSE row with incomplete proof reports no closure readiness and is
 not converted into dispatch work.
 
 ### REDISPATCH and refill
