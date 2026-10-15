@@ -8,6 +8,7 @@ set -u
 LOCK=/home/ubuntu/.hermes/state/glp_auto_coordinator.lock
 exec 9>"$LOCK"
 flock -n 9 || exit 0
+export GLP_AUTO_COORDINATOR_LOCK_FD=9
 cd /home/ubuntu/business || exit 1
 OUT=/home/ubuntu/business/reports/ops/auto-coordinator/run-$(date -u +%Y%m%dT%H%M%SZ).log
 mkdir -p "$(dirname "$OUT")"
@@ -17,19 +18,15 @@ if [ "$GUARD_RC" -ne 0 ]; then
   python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print("⚠️ **GLP Auto-Coordinator** — deferred to TUI ownership\n\nstatus: **%s** · live child slots: **%s** · closed: **0**\n→ current TUI coordinator retains dispatch and closure ownership\n-# artifacts: %s" % (d["status"],d.get("live_child_slots","UNKNOWN"),sys.argv[1]))' "$OUT.guard.json"
   exit 0
 fi
-# Included OpenAI executor only: no paid fallback, reset redemption, new support
-# sends, maintenance, ad work or publishing outside the PLAN dispatch/close loop.
-# The runner reserves one shared host slot before starting the coordinator and
-# releases it only after the oneshot actually exits. Its own lease is ignored
-# only by guards in that installed runner's process ancestry.
+# No-model decision driver; included OpenAI workers only. It never opens a paid
+# fallback, redeems a reset, injects a TUI, installs or enables a scheduler.
+# The runner and each fresh leaf reserve their existing shared host leases.
+# FD 9 survives through workers; no orphaned effect can lose the singleton.
 /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/auto_coordinator_runner.py > "$OUT" 2>&1 < /dev/null
 RC=$?
 if [ "$RC" -eq 10 ]; then
   printf '⚠️ **GLP Auto-Coordinator** — deferred by shared host admission\n\nclosed: **0** · dispatches: **0**\n→ current owner retains its live work; inspect the admission readback\n-# artifacts: %s\n' "$OUT"
   exit 0
 fi
-python3 -c 'import re,sys;lines=[re.sub(r"\x1b\[[0-9;]*[a-zA-Z]","",x) for x in open(sys.argv[1])];lines=[x.rstrip() for x in lines if x.strip() and "┊" not in x and "preparing" not in x];print("\n".join(lines[-10:]))' "$OUT"
-if [ "$RC" -ne 0 ]; then
-  printf '⚠️ **GLP Auto-Coordinator** — run failed\n\nrc: **%s**\n→ inspect the exact run log before retrying\n-# artifacts: %s\n' "$RC" "$OUT"
-fi
+python3 -c 'import sys;from scripts.auto_coordinator_loop import render_log;print(render_log(sys.argv[1],int(sys.argv[2])))' "$OUT" "$RC"
 exit "$RC"

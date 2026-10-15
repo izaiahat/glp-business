@@ -1,85 +1,126 @@
-# GLP auto-coordinator v2 (hourly, unattended)
+# Hourly AUTO-COORDINATOR — GLP-358
 
-## PLAN-only hourly mode (L2b)
-The registered wrapper sets `GLP_AUTO_COORDINATOR_MODE=plan-dispatch-close-only`.
-In this mode these rules supersede the maintenance/support actions below:
-* First run `python3 scripts/auto_coordinator_guard.py`. Any nonzero exit means
-  **DEFER** the entire pass to the TUI coordinator's live children: no dispatch,
-  no close, no consume, no support sends and no shared STATE mutation. Recheck
-  immediately before every dispatch/close. An unknown/corrupt lease is not idle.
-* Use only `reports/ops/fable-plan-2-20261009/PLAN.json`, sorted by numeric order.
-  Setup S1–S8 rows and existing issue rows are both included. Never invent work.
-  Skip Done, parked/operator-held rows, unmet dependencies and any issue with a
-  live owner. Never reopen a closed issue.
-  Missing/incomplete proof prohibits closure, not authorized dispatch.
-  Include its exact proof gap in the same PLAN owner's brief; the end-to-end
-  owner must bind genuine output and an executable read-only proof, never a stub.
-* Read poller-produced `INGEST.json`; READY_TO_CLOSE is preflight, not acceptance.
-  Re-run its PLAN `proof_cmd` and the no-write closer. Only the coordinator then
-  runs `LINEAR_ROLE=orchestrator python3 scripts/linear_close.py ISSUE RESULT --apply`.
-  Read the exact Linear state and preserve the row+fingerprint+typed-result
-  receipt before marking consumed. A failed or uncertain close is read back,
-  never blindly repeated. Never weaken the business-output gate.
-* REDISPATCH goes to the same end-to-end owner, NEEDS_REVIEWER to its distinct
-  reviewer, only within existing PLAN scope and eight-slot host admission. Keep
-  routing/provider/model/effort explicit: included OpenAI execution, no paid
-  fallback. Do not perform reset redemption, pruning, account repair, polling of
-  individual executors, unassigned support tickets, publishing, ad changes or sends.
-  A PLAN-assigned Rook/Finch dispatch is permitted only under its existing ticket,
-  owner/correlation, standing authorization and duplicate-send guard.
-* Causal retention (source contract `scripts/auto_coordinator_receipt.py`): the
-  runner supplies `GLP_AUTO_COORDINATOR_RECEIPT_DIR` with immutable INPUT.json
-  containing exact PLAN/inbox bytes and the previous retained decision. Do not
-  alter it or reconstruct missing historical fields. Before an action, retain
-  actual Linear, dependency/hold and live-owner readbacks in this directory.
-  Write one exclusive-create DECISION.json using schema `glp-coordinator-causal-v1`:
-  `input_sha256`, `plan_sha256`, `execution_id`, `coordinator_session`,
-  `native_output`, `linear_readback` (issue-keyed actual board), `readbacks`
-  (path/sha256/native_message_id), and complete numeric-order `eligibility`
-  (order, issue, disposition, live_owner, dependencies_met, held, reason,
-  evidence_paths). Allowed dispositions are SELECT, SKIP_DONE, SKIP_HOLD,
-  SKIP_DEPENDENCY, SKIP_LIVE_OWNER, SKIP_RECONCILED; no invented S5/S6 rows.
-  `actions` bind issue/owner/kind/fingerprint/inbox_sha256, pre-effect guard and
-  guard_message_id, and `effect` with native message_id plus dispatch call_id,
-  exact brief and child_session (account for every task/child in a batched call),
-  or closure worker_result, preflight_message_id and done_readback. A closure
-  requires direct native `LINEAR_ROLE=orchestrator python3 scripts/linear_close.py
-  ISSUE WORKER --check-only` then `--apply` tool-call/result linkage; retain the
-  issue id, open state before the gate, and bound completed readback with genuine
-  updatedAt during apply, read back after apply. Historical Done/no-op is not a
-  new closure. Include this receipt
-  directory in every dispatched brief. Retain unknown/uncertain effects as
-  failures; never repeat them to fill the receipt. `reconciliation` covers each
-  preceding action's exact [issue,owner,kind,fingerprint] logical_key and
-  prior_effect, actual readback_path and UNCHANGED_NO_REPEAT only when observed.
-  A failed task continuation is NOT unchanged-output idempotence. Require the
-  selected child's genuine RESULT to bind issue, owner, child_session and exact
-  logical_key, with an output_receipt (path/sha256) containing the same issue/key
-  and an output object with a concrete observed business identifier/value. Have
-  that child retain and cite its RESULT path+sha256 in its final native message;
-  an unrelated DONE_READY_TO_CLOSE cannot stand in for its output. Include these
-  bindings in the original brief; do not backfill them after a failed run.
-  Prerequisite closure < activation < first verified natural execution is required.
-  Changed inputs
-  require a new decision, not a manufactured unchanged receipt. Print this
-  directory and the genuine coordinator session ID in the final native output.
-  Missing native/readback bindings leave acceptance incomplete. This retention
-  contract does not grant new action authority or weaken the closer.
-* Output at most ten lines for the registered ops-alerts delivery. Only the TUI
-  parent writes shared STATE. Empty eligible PLAN/inbox means IDLE, not filler.
-Cron may remain enabled in this guarded mode while TUI children are live; such a
-natural scheduler fire proves **deferral only**, NOT unattended dispatch/closure.
-A separate post-handoff natural run must perform a real dispatch or new closure
-for GLP-358's full acceptance. Activation remains after L2b's first new closure.
+**Source candidate only. Do not install, resume cron `13d3fff8734a`, or enable
+anything as part of this PR. A distinct reviewer and the designated orchestrator
+own the next gate.** The n8n article-carrier remains inactive.
 
-## Full fallback mode (requires idle TUI handoff)
-You are the GLP coordinator for this run. Load linear-orchestrator and follow its inbox loop. Work in /home/ubuntu/business; finish within 40 minutes. Authority: workflow-v3, resource-sop, universal-portal-login and OPERATOR-DECISION-20261009-fable2-decisions.md under ops/linear/approvals; latest corrections win. Remain paused while a TUI coordinator is active; resume cron 13d3fff8734a only after handoff when TUI is idle.
-1. Inbox: verify `python3 scripts/fleet_ingest.py --help`, then --list --since-last-run if supported (until installed, the skill's six manual source reads). Re-run each READY_TO_CLOSE proof_cmd, then `LINEAR_ROLE=orchestrator python3 scripts/linear_close.py <GLP-n> <RESULT> --apply`; Installed path/hash + Output concrete value. Re-dispatch REDISPATCH to the same owner with failure text; designated distinct reviewer for NEEDS_REVIEWER; OPERATOR goes to pending-decision file and #decisions. Mark consumed only after durable action/handoff.
-2. Capacity: subscription monitor, API credit tracker, `df /`, `free -g`. Wrapper/native routing uses custom:anthropic-api-credits/claude-opus-5-5 only while remaining_usd >5, otherwise openai-codex/gpt-6.1-sol fast. Per-task explicit provider/model/effort/speed and reviewer identity take precedence; never choose API below $5. Confirmed $200/month split: ~$45 reviewer, ~$30 batch, ~$100 Opus overflow, ~$5 Haiku, $10 reserve; reset 11th, no rollover, auto-reload OFF.
-3. Account-2 at 0% included: the registered capacity mechanism automatically redeems one banked reset from account-2 or account-3, never oauth-4; account-3 has two operator-confirmed resets. Inspect exact-target receipt/count before an uncertain retry; no ad hoc reset or new purchase. If mechanism is absent, append the implementation gap to its same owner's brief, do not fabricate redemption.
-4. Refill to eight host slots from newest reports/ops/fable-plan-*/PLAN.json order, applying operator corrections; skip unmet dependencies/operator-only rows. Brief per skill. Native delegate where possible, detached oneshot only if native unavailable with exact pid/artifact recorded. Depth one, ≤3 writing lanes on disjoint areas, one heavy build/browser; admission refusal is backpressure. No overlapping live owner/effect.
-5. Support: Pro up to two chats/enabled account, six/IP hard cap stays; real prompts from ops/gpt6pro-relay/route/backlog/ only. Coordinator fixes account-2 draft; operator only for unsatisfied device/MFA. One genuine Rook/Finch ticket each; one self-contained Cloud PR while verified approved balance remains (≤$10/task). Empty backlog means idle, never filler.
-6. Cron health: enabled erroring GLP job with open owning issue gets exact failure appended to that same owner's brief, not a new issue. Sunday's weekly SEO review (cron 020bcdd7f0e1) governs every article written/updated that week. Manual verification never substitutes for natural-slot acceptance.
-7. Disk: below 40 GB free, run registered safe pruner once: `hermes cron run 075ed81c6b43`; preserve active effects and historical/financial evidence.
-8. Checkpoint handoff top section: timestamp, owner, children, holds, next action; only designated parent writes shared STATE. Post ≤10 lines to ops-alerts: rows ingested/closed/redispatched, slots used/refused, support active, API $, Codex %, disk, pending decisions. Operator approvals/review requests go to #decisions (1524254375453786294), human tone, plain-word tag.
-Hard limits: ≤20 actionable open (including Triage/blockers), ideas only BACKLOG; GLP-345/65/68/69 stay parked, no ads. Never print/create/reset credentials; vault passwords/MFA only. No unapproved payment/charge/send or whole-zone purge; GLP-328 approved 25/day only after verified pipeline; GLP-250 permission requests approved; GLP-327/125/47 exact review still required. Fella excluded, provider holds intact, no tracking-link visits. No pkill/pgrep patterns, no killing Chrome/CDP/TUI/in-flight effects; no generating-tab reload. One writer/resource; Sheet drain only; n8n article-carrier stays inactive.
+## Execution contract
+
+The registered shell entry owns the existing singleton lock, checks real TUI
+idleness, and calls `scripts/auto_coordinator_runner.py`. The runner reserves one
+of the existing eight host slots and calls a **deterministic no-model loop**,
+not a prompt with unrestricted coordinator tools. No code sends text to a TUI,
+resumes an operator session, edits scheduler state, or changes Linear
+root/order/admission/ownership. Workers are fresh noninteractive one-shots.
+
+Only these existing work inputs may introduce actions:
+
+- `reports/ops/fable-plan-2-20261009/PLAN.json`, `issues`, numeric `order`;
+- `reports/ops/fleet-inbox/GLP-*/*/INGEST.json`, produced by the independent S1
+  ingester, with the existing `fleet-ingest-v1` schema and hash-bound artifacts.
+
+Fresh Linear GETs, native leases, pressure checks and TUI census are *readback
+vetoes*, never a second assignment source. Do not discover work from an inbox
+message's prose, historical reports, an old dispatch ledger or a model's ideas.
+Do not run ingestion from this loop or advance its cursors. Source disappearance,
+changed evidence, malformed input, conflicting terminal rows, unknown ownership,
+a live owner, parked/held state or unresolved dependency fails closed.
+An empty or advisory-only inbox produces zero actions: PLAN alone cannot dispatch
+work. Each action requires one eligible authenticated, same-owner inbox row.
+
+### READY_TO_CLOSE
+
+Join one non-support row to its exact PLAN issue and explicit owner. Re-run the
+PLAN's allowlisted read-only `proof_cmd` and the maintained closer with
+`--check-only`. Require `proof_complete: true`, a hash-bound worker RESULT and
+an issue-specific PASS. Recheck the real board, TUI idle gate and source hashes
+before reporting `closure_ready` / `ready_for_coordinator`. Do not create a closure
+effect intent or call the closer with `--apply`; subprocesses use the worker role,
+never orchestrator authority. Only the authorized coordinator may accept and close
+Linear. Never mark a PR merged, a report complete, or an API exit code as whole-issue
+acceptance.
+
+Missing/incomplete proof prohibits closure, not authorized dispatch.
+A REDISPATCH row can still authorize same-owner work without closure proof;
+a READY_TO_CLOSE row with incomplete proof reports no closure readiness and is
+not converted into dispatch work.
+
+### REDISPATCH and refill
+
+Send the exact `failure_text` back to **the same explicitly bound owner**, with
+its already-owned checkout and the PLAN's next action and acceptance. Unknown
+owner is not permission to pick an owner from the executor/model name. Refill
+in numeric PLAN order, never eight *additional* slots: one coordinator plus at
+most seven admitted native children. Every child uses the shared host admission
+and pressure gates and holds its lease until natural exit. At most three writing
+lanes with explicit disjoint `write_area` bindings; heavy work is held for the
+separate existing heavy-resource admission. No timeout kills a live effect to
+free capacity. The singleton FD survives through launched workers.
+
+PLAN must explicitly bind `owner`, `worktree`, and an unambiguous supported
+`executor`; writing tasks also need `write_area`, or `read_only: true` for a real
+read-only task. These are existing PLAN fields, not a new dispatch queue. The
+orchestrator must reconcile old composite executor strings and absent bindings;
+this lane must not rewrite PLAN to make itself executable.
+
+Routing currently implemented: `sol` = `openai-codex/gpt-6.1-sol`, medium,
+Fast; `astra` = `openai-codex/gpt-6-astra-900k`, high, standard. The installed CLI
+has no per-invocation speed switch, so a mismatching inherited tier refuses
+before inference instead of changing shared config. Native worker toolsets
+exclude delegation. Ultra/Cloud/API and Pro/Rook/Finch are not inferred fallbacks.
+Pro/Rook/Finch support tickets stay open and their rows remain unchanged;
+advisories do not confer closure authority on the consuming issue.
+
+### Idempotency and alerts
+
+Reuse `reports/ops/auto-coordinator` for causal INPUT/LOOP/board/call receipts and
+issue effect fences. A fence is not a queue: it cannot introduce work. Fsync
+intent before an effect. A timeout, crash, absent ACK, unknown readback or
+ambiguous closer outcome latches that issue even if its fingerprint later
+changes. Do not clear a fence or replay automatically. Only a verified dispatch
+joined to its exact new hash-bound terminal worker RESULT may progress to
+closure readiness or same-owner redispatch. Preserve historical receipts and queues.
+
+Print one bounded status card (at most ten lines). Delivery is the **existing
+native cron route to ops-alerts**, not a new webhook, channel, outbox or send
+retry. Delivery uncertainty does not authorize repeating business effects. An
+actual native delivery/message receipt is required for live acceptance.
+
+## Capacity acceptance and remaining gates
+
+Reuse the registered `subscription_capacity_monitor.s7_extensions` and
+`capacity_reset_policy.reset_tick`: current per-account included quota/reset
+GETs; trigger only account-2 at exactly 0%; redeem one eligible banked reset on
+account-2/account-3, never oauth-4; exact-subject readback and durable
+no-replay latch. The operator's historical account-3 count is not invented as a
+current API observation. This PR strengthens identity continuity before and
+after redemption. It does not call redemption, install the monitor or alter its
+registration.
+
+The included executor never opens a paid fallback. `api_allowed` encodes the
+confirmed $45 reviewer / $30 batch / $100 Opus / $5 Haiku / $10 inaccessible
+reserve split, refuses UNKNOWN/nonfinite balances and projected balances below
+$5. **It is an admission oracle, not a paid dispatcher or complete category
+ledger integration.** The customized runtime already has a separate live
+Claude API $5 floor. Wiring atomic category reservation to that existing paid
+lane remains unresolved source integration; do not claim the whole API
+acceptance clause or enable paid calls from this PR.
+
+## Next gated steps — not performed here
+
+1. Distinct review of the exact PR head and green focused CI. Reconcile missing
+   PLAN owner/checkout/resource bindings through the orchestrator only.
+2. Resolve the existing paid-lane category-ledger integration; no new account,
+   paid fallback, balance assumption or spending approval is implied.
+3. Separately authorize merge and scoped source installation, preserving live
+   edits and installed pins. Verify wrapper/source bytes and the existing
+   ops-alerts delivery declaration at the installed exact head.
+4. Only while the actual TUI is idle, authorize/resume existing cron
+   `13d3fff8734a`, obtain one natural unattended run with >=1 real wave or closure
+   and a real ops-alerts receipt, then a second idempotent run. Bind natural
+   native execution IDs, INPUT/LOOP receipts, terminal worker output or exact Done
+   readback, and delivery receipts. S1's real rows are required.
+5. No live proof is claimed by offline fakes. Legacy causal-v1 verifier receipts
+   are retained, not upgraded: its native-message proof does not authenticate
+   this new no-model driver. Review the new execution-chain readback before
+   accepting runtime closure. Only the orchestrator may close GLP-358.

@@ -64,7 +64,7 @@
       "callers": [
         "GitHub exact-head CI"
       ],
-      "sha256": "70751291aa2d5ff3e053bf504d9dd420f9f68623ec21eae2f344cbccb2423fe1"
+      "sha256": "e5e43950377988e5e87ac34b9e5919a70a68d67d2d055c68f82fb75358d69a20"
     },
     "ops/linear/GLP358-CAUSAL-RECEIPTS.md": {
       "kind": "operations",
@@ -1283,7 +1283,7 @@
         "Hermes cron:13d3fff8734a"
       ],
       "kind": "script",
-      "sha256": "c0057a0a74b73b233396a5c9d70fde6d70c8d81e972547bc9ec6eb344459d720"
+      "sha256": "a107330b80714f1e81850794a85b088c2929989eb8b054f71be8af951e27c6f9"
     },
     "ops/hermes-cron-scripts/glp_best_terms_weekly.py": {
       "callers": [
@@ -1560,7 +1560,7 @@
     "ops/linear/AUTO-COORDINATOR.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "6362f2406ae3749ee38b5b200dee7e49272c4a98b528f465b1e70a3360ec8eb5"
+      "sha256": "93bafa8d029c7e458fc78089159945cd93b2db4517cc1c054c73d69a9b811a23"
     },
     "ops/linear/CONVENTIONS.md": {
       "callers": [],
@@ -2420,14 +2420,14 @@
         "ops/hermes-cron-scripts/glp_auto_coordinator.sh"
       ],
       "kind": "script",
-      "sha256": "b30b13d80e162c6ca1210a684cd97154a75401357d5840628f03b30bc5cd2059"
+      "sha256": "53e434c07ad5043997268afb0e9f00694574e2c41300a173879899f2f6bedb81"
     },
     "scripts/auto_coordinator_runner.py": {
       "callers": [
         "ops/hermes-cron-scripts/glp_auto_coordinator.sh"
       ],
       "kind": "script",
-      "sha256": "4cae62230a7fee1e4fdf70b69f86d89c86653537b09710bde27ee642144d0bcf"
+      "sha256": "6e76ba7f56b75ffdc6187cd40046f62e39f460bb886c04323327b02fa22d875c"
     },
     "scripts/awin_fresh_preflight.py": {
       "callers": [
@@ -2542,7 +2542,7 @@
         "scripts/subscription_capacity_monitor.py"
       ],
       "kind": "script",
-      "sha256": "4c8a3925ce2daa905fd6d2a11fa178a1629720971c34b047ea4a1674e078031d"
+      "sha256": "fb6ec03d17ccee147939dae06f7816cb2f5e17dbb237df46568c86a2f5c437ae"
     },
     "scripts/capture_glp331_surface_fixture.py": {
       "callers": [
@@ -4943,7 +4943,7 @@
         "subscription_capacity_monitor"
       ],
       "kind": "test",
-      "sha256": "329a457ff4b90bfae6ce873ef57a7d8ce2ce6df8c8f3c61c58f88ee989eb86f6"
+      "sha256": "ca56c0f52b22290806cf5e750f40b4f1360eace545bdf45ed5c1e9dda44a36e8"
     },
     "tests/test_cgroup_headroom_guardian.py": {
       "callers": [
@@ -7871,6 +7871,48 @@
         "manual:GLP-328 approved conservative accounting"
       ],
       "sha256": "c4e9d744d7895e8f8d27a05d7fda9ae48093e453647324de71bb7b9acd6540b8"
+    },
+    "scripts/auto_coordinator_loop.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/auto_coordinator_runner.py"
+      ],
+      "sha256": "c7d18c13f417280706d58fde58b22354949a65a7699b3fe66b0e6ec2ecf54993"
+    },
+    "tests/test_auto_coordinator_adapter.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "fbc0a1ab3a52b3f3680a47b26a79f4d2ad2064effa81022bd153c7831c5bc23d"
+    },
+    "tests/test_auto_coordinator_capacity_identity.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "541a2175065f7229c99fd541b49a3f38616038b79ccceb98c306f1024c3a07a7"
+    },
+    "tests/test_auto_coordinator_idle.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "c819629b83093b8abc557ca6ee941c2ed5f80bed95fd00ee6a2dec9a6f5f2abf"
+    },
+    "tests/test_auto_coordinator_loop.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "66bc002dd9663ebc06f8bc589e4e8a83469676968d35a3b2e92b48d295f6e0af"
+    },
+    "tests/test_auto_coordinator_resources.py": {
+      "kind": "test",
+      "callers": [
+        "coordinator-receipt-ci"
+      ],
+      "sha256": "060411c02fcfdee67fbc197ded005dbba10c0a6542c5a3beb08491477328f19c"
     }
   },
   "omitted_runtime_inputs": [
@@ -7881,5 +7923,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1153
+  "tracked_count": 1159
 }
