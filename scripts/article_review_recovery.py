@@ -15,6 +15,11 @@ satisfy:
   deployed release source must carry exactly these 06/07 bytes and this review.
 Copying old QA into the successor cannot manufacture equality: 07 must hash the
 successor 06 and the recompiled 06 must match.
+
+The additive review-only supplement admits no source repairs and never replaces
+published article/QA/review bytes. Its native-reviewed candidate must equal the
+complete deployed file. Current compiler/QA and independent native custody stay
+mandatory; preparation alone is neither a PASS nor permission to invoke/publish.
 """
 import argparse
 import fcntl
@@ -27,10 +32,12 @@ from pathlib import Path
 
 ROOT = Path('/home/ubuntu/business')
 SCHEMA = 'glp-postpublication-review-recovery-v2'
+SUPPLEMENT_SCHEMA = 'glp-postpublication-review-supplement-v1'
 SUBJECTS = {'00-authority.json', '01-evidence-ledger.json', '02-serp-brief.json',
             '03-editorial-brief.md', '04-draft.md', '05-claim-source-map.json',
             '06-article.json', '07-qa-receipt.json'}
 CANDIDATE = '08-candidate-guide.html'
+CORE = tuple(sorted(SUBJECTS))
 IDENTITY = ('00-authority.json', '02-serp-brief.json')
 SOURCE_REPAIRS = ('01-evidence-ledger.json', '03-editorial-brief.md', '04-draft.md', '05-claim-source-map.json')
 
@@ -311,7 +318,8 @@ def validate_successor_documents(entry_path, doc, *, root=ROOT, session_db=None)
     import opus_review_loop as loop
     import compile_review_packet_article as compiler
     entry = read(entry_path)
-    require(doc['schema'] == SCHEMA and doc['status'] == 'PASS_POSTPUBLICATION_REVIEW', 'recovery_schema')
+    require(doc['schema'] in (SCHEMA, SUPPLEMENT_SCHEMA)
+            and doc['status'] == 'PASS_POSTPUBLICATION_REVIEW', 'recovery_schema')
     require(doc.get('natural_acceptance') is False and doc.get('historical_custody_repaired') is False,
             'recovery_scope')
     require(checked(doc['entry']) == entry_path.resolve(), 'recovery_entry_replay')
@@ -340,6 +348,26 @@ def validate_successor_documents(entry_path, doc, *, root=ROOT, session_db=None)
     derivation = successor_contract(entry_path.parent / 'packet', fresh, entry['packet_files'], manifest,
                                     compile_packet=compiler.compile_packet, root=root)
     require(doc['successor'] == derivation, 'successor_derivation_changed')
+    if doc['schema'] == SUPPLEMENT_SCHEMA:
+        require(not derivation['source_repairs'], 'supplement_cannot_repair_source')
+        supplement_job = read(checked(doc['review_only_job']))
+        loop.validate_review_only_job(supplement_job, apply=False, review_only_once=True)
+        require(supplement_job['artifact_role'] == 'postpublication_review_only_job'
+                and Path(supplement_job['packet_dir']).resolve(strict=True) == fresh
+                and receipt['job_id'] == manifest['job_id'] == supplement_job['job_id'],
+                'supplement_review_job_binding')
+        import review_transports
+        route = review_transports.transport(supplement_job['review_transport'])
+        require(raw['hermes_runtime']['transport_id'] == receipt['review_transport'] == route['transport_id'],
+                'supplement_native_route_mismatch')
+        validate_review_only_binding(supplement_job, route, root=root, session_db=session_db)
+        intent_path = Path(supplement_job['history_dir'])/'native-review-intent.json'
+        intent = read(checked(doc['native_review_intent']))
+        require(checked(doc['native_review_intent']) == intent_path.resolve(strict=True)
+                and intent['job_id'] == receipt['job_id']
+                and intent['subject_manifest_sha256'] == sha(manifest_path)
+                and intent.get('retry_allowed') is False,
+                'supplement_single_native_intent')
     payload = loop.parse_result(raw)
     loop.validate_review(payload, raw, manifest, receipt['round'])
     require(payload['verdict'] == receipt['status'] == 'PASS_OPUS_SEO_DRAFT'
@@ -359,6 +387,28 @@ def validate_successor_documents(entry_path, doc, *, root=ROOT, session_db=None)
             'successor_authors': successor_authors}
 
 
+def validate_supplement_deployed_source(entry_path, doc, release, fresh):
+    """A supplement cannot replace, update or newly publish the accepted source."""
+    from article_source_carrier import source_rows
+    entry = read(entry_path)
+    job = read(checked(doc['review_only_job']))
+    binding = job['postpublication_binding']
+    rows = [r for r in source_rows(release) if r.get('entry_id') == entry['entry_id']
+            and r.get('route') == entry['target_route']]
+    require(len(rows) == 1 and rows[0] == binding['deployed_source'], 'supplement_published_source_drift')
+    row = rows[0]
+    originals = {'article': entry_path.parent/'packet/06-article.json',
+                 'qa': entry_path.parent/'packet/07-qa-receipt.json',
+                 'review': checked(entry['pass_receipt'])}
+    for key, original in originals.items():
+        source = release/row[key]['path']
+        require(source.resolve(strict=True).is_relative_to(release.resolve(strict=True))
+                and not source.is_symlink() and sha(source) == row[key]['sha256'] == sha(original),
+                'supplement_original_published_source_changed')
+    live_file = release/'public'/entry['target_route'].strip('/')/'index.html'
+    require(live_file.read_bytes() == (fresh/CANDIDATE).read_bytes(), 'supplement_complete_candidate_drift')
+
+
 def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     result = validate_successor_documents(entry_path, doc, root=root, session_db=session_db)
     entry = read(entry_path)
@@ -366,13 +416,16 @@ def validate_documents(entry_path, doc, *, root=ROOT, session_db=None):
     round_path = checked(doc['review'])
     pointer = read(root / 'reports/glp-clinic-scout/seo-machine/current-content-base.json')
     release = Path(pointer['release_root'])
-    rows = [r for r in read(release / 'data/blog/accepted-guides/updates.json')['entries']
-            if r['route'] == entry['target_route']]
-    require(len(rows) == 1 and rows[0]['article']['sha256'] == sha(fresh / '06-article.json')
-            and rows[0]['qa']['sha256'] == sha(fresh / '07-qa-receipt.json')
-            and rows[0]['review']['sha256'] == sha(round_path)
-            and all(sha(release / rows[0][k]['path']) == rows[0][k]['sha256'] for k in ('article', 'qa', 'review')),
-            'deployed_source_not_successor')
+    if doc['schema'] == SUPPLEMENT_SCHEMA:
+        validate_supplement_deployed_source(entry_path, doc, release, fresh)
+    else:
+        rows = [r for r in read(release / 'data/blog/accepted-guides/updates.json')['entries']
+                if r['route'] == entry['target_route']]
+        require(len(rows) == 1 and rows[0]['article']['sha256'] == sha(fresh / '06-article.json')
+                and rows[0]['qa']['sha256'] == sha(fresh / '07-qa-receipt.json')
+                and rows[0]['review']['sha256'] == sha(round_path)
+                and all(sha(release / rows[0][k]['path']) == rows[0][k]['sha256'] for k in ('article', 'qa', 'review')),
+                'deployed_source_not_successor')
     binding = doc['live_binding']
     live_file = release / 'public' / entry['target_route'].strip('/') / 'index.html'
     snapshot = checked(doc['live_snapshot'])
@@ -395,7 +448,7 @@ def validate_recovery(entry_path, *, root=ROOT, natural=False, session_db=None):
 
 
 def successor_documents(entry_path, history, packet, *, root=ROOT,
-                        source_author_packet=None, source_author_review=None):
+                        source_author_packet=None, source_author_review=None, review_only_job_path=None):
     """Build in-memory validator inputs; do not write a receipt or invoke a model."""
     sys.path.insert(0, str(root / 'systems/seo-blog-machine/scripts'))
     import compile_review_packet_article as compiler
@@ -427,14 +480,20 @@ def successor_documents(entry_path, history, packet, *, root=ROOT,
             'raw': spec(origin_review['raw_review_path'])}
     else:
         require(source_author_review is None, 'copied_source_review_without_packet')
+    if review_only_job_path is not None:
+        require(source_author_packet is None and source_author_review is None,
+                'supplement_cannot_replace_authorship')
+        doc.update(schema=SUPPLEMENT_SCHEMA, review_only_job=spec(review_only_job_path),
+                   native_review_intent=spec(history/'native-review-intent.json'))
     return doc
 
 
 def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
-         source_author_packet=None, source_author_review=None):
+         source_author_packet=None, source_author_review=None, review_only_job_path=None):
     doc = successor_documents(entry_path, history, packet, root=root,
                               source_author_packet=source_author_packet,
-                              source_author_review=source_author_review)
+                              source_author_review=source_author_review,
+                              review_only_job_path=review_only_job_path)
     doc.update(live_snapshot=spec(snapshot), live_binding=read(binding_path))
     validate_documents(entry_path, doc, root=root)
     path = recovery_path(entry_path, root)
@@ -445,28 +504,220 @@ def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
     return path
 
 
+def review_only_job(original, packet, history, route, *, validator, binding):
+    """Emit data for the existing native controller, never a review decision."""
+    import copy
+    import opus_review_loop as loop
+    job = copy.deepcopy(original)
+    for key in ('publish', 'repair', 'bridge_extension'):
+        job.pop(key, None)
+    job.update(job_id=history.parent.name + '-postpublication-review-only',
+               packet_dir=str(packet), history_dir=str(history), max_rounds=1,
+               artifact_role='postpublication_review_only_job',
+               materialization_reason='exact_published_entry_review_only',
+               materialized_at_utc=loop.now(), review_transport=route['transport_id'],
+               review_wrapper_sha256=sha(route['wrapper']), rubric_sha256=sha(loop.RUBRIC),
+               review_schema_sha256=sha(loop.REVIEW_SCHEMA),
+               subject_files=[*CORE, CANDIDATE], validator=validator,
+               postpublication_binding=binding)
+    job['prompt_intro'] = (
+        'Independently review all five gates for the exact sealed already-published article. '
+        'The candidate is the byte-exact deployed page, not a new build. The source inputs '
+        'are immutable historical inputs; 06/07 are current deterministic compiler/QA outputs. '
+        'Judge discrepancies, health/source safety, independent-publisher identity and all '
+        'commercial/delivery requirements without treating any historical verdict as approval. '
+        'No repair, publication, deployment, research, send or model retry is authorized. '
+        'A source-safety decision is not clinical acceptance.')
+    loop.validate_topic_authority(job)
+    return job
+
+
+def validate_review_only_binding(job, route, *, root=ROOT, session_db=None, for_invocation=False):
+    """Read-only native/immutable admission immediately before the controller call."""
+    from datetime import datetime, timezone
+    from article_health_acceptance import packet_authors, author_session, SESSION_DB
+    from weekly_strategy_consumer import load_strategy
+    import review_transports
+    require(route['transport_id'] in review_transports.NATIVE_INVOCATION_TRANSPORT_IDS
+            and route['provider'] == 'openai-codex' and route.get('speed') == 'fast',
+            'review_only_included_native_fast_route_required')
+    binding = job.get('postpublication_binding') or {}
+    entry = read(checked(binding['entry']))
+    original = read(checked(binding['original_job']))
+    pointer_snapshot = checked(binding['current_pointer'])
+    if for_invocation:
+        require(pointer_snapshot.read_bytes() == (Path(root)/'reports/glp-clinic-scout/seo-machine/current-content-base.json').read_bytes(),
+                'review_only_current_pointer_drift')
+    candidate = checked(binding['deployed_candidate'])
+    require(binding.get('publication_authorized') is False
+            and binding.get('recovery_acceptance') is False, 'review_only_binding_effects')
+    packet = Path(job['packet_dir']).resolve(strict=True)
+    origin = Path(original['packet_dir']).resolve(strict=True)
+    require(job['subject_files'] == [*CORE, CANDIDATE], 'review_only_exact_subject_set')
+    for row in entry['packet_files']:
+        if row['path'] in CORE[:6]:
+            require(sha(packet/row['path']) == row['sha256'] == sha(origin/row['path']),
+                    'review_only_source_changed_before_review')
+    require(sha(packet/CANDIDATE) == sha(candidate), 'review_only_candidate_changed_before_review')
+    proposed = {'model': route['model'], 'runtime': {'native_session_id': 'NOT_YET_INVOKED'}}
+    clock = datetime.now(timezone.utc).timestamp()
+    authors = packet_authors(session_db or SESSION_DB, [origin/n for n in CORE[:6]], proposed, clock)
+    require(authors == binding['original_source_authors'], 'review_only_native_author_drift')
+    for sid in {row['session_id'] for row in authors}:
+        author_session(session_db or SESSION_DB, sid, proposed, clock)
+    _, strategy = load_strategy(Path(root)/'reports/glp-clinic-scout/weekly-strategy/current-strategy.json')
+    require(strategy.get('applied') is True and strategy == binding['weekly_strategy'],
+            'review_only_current_weekly_strategy_drift')
+
+
+def prepare_review_only(entry_path, original_job, output, transport_id, *, root=ROOT,
+                        session_db=None):
+    """Prepare one effect-free job without materializing a publication or calling a model.
+
+    This is preparation only: normal host/quota/source-lock admission is still required
+    before the native controller, and the unchanged recovery validator remains fail closed.
+    """
+    import subprocess
+    from datetime import datetime, timezone
+    import article_source_carrier as carrier
+    from article_health_acceptance import packet_authors, author_session, SESSION_DB
+    import opus_review_loop as loop
+    import review_transports
+    from weekly_strategy_consumer import load_strategy
+    root = Path(root).resolve(strict=True)
+    entry_path = Path(entry_path).resolve(strict=True)
+    expected = root / 'reports/glp-clinic-scout/seo-machine/article-buffer/entries'
+    require(entry_path.name == 'entry.json' and entry_path.parent.parent == expected,
+            'review_only_entry_location')
+    entry = read(entry_path)
+    require(entry['entry_id'] == entry_path.parent.name, 'review_only_entry_identity')
+    require(len(entry['packet_files']) == len(CORE)
+            and {r['path'] for r in entry['packet_files']} == set(CORE), 'review_only_original_subject_set')
+    for row in entry['packet_files']:
+        subject = entry_path.parent/'packet'/row['path']
+        require(subject.is_file() and not subject.is_symlink() and sha(subject) == row['sha256'],
+                'review_only_original_subject_drift')
+    original = read(original_job)
+    require(original.get('schema') == 'glp-opus-seo-review-job-v1'
+            and original.get('operation') == 'new_article'
+            and original.get('bridge_extension') is None, 'review_only_original_job_contract')
+    receipt = read(checked(entry['pass_receipt']))
+    require(original['job_id'] == receipt['job_id'], 'review_only_original_job_identity')
+    origin = Path(original['packet_dir']).resolve(strict=True)
+    for name in CORE[:6]:
+        require((origin/name).is_file() and not (origin/name).is_symlink()
+                and (origin/name).read_bytes() == (entry_path.parent/'packet'/name).read_bytes(),
+                'review_only_original_source_identity')
+    for key in ('topic_id', 'target_route'):
+        require(original[key] == entry[key], 'review_only_topic_identity')
+    require(original['target_query'] == receipt['authority']['selection_binding']['target_query']
+            and checked(original['selection_receipt']) == checked(entry['selection_receipt']),
+            'review_only_selection_identity')
+    loop.validate_topic_authority(original)
+    route = review_transports.transport(transport_id)
+    require(transport_id in review_transports.NATIVE_INVOCATION_TRANSPORT_IDS
+            and route['provider'] == 'openai-codex' and route.get('speed') == 'fast',
+            'review_only_registered_included_fast_route_required')
+    proposed = {'model': route['model'], 'runtime': {'native_session_id': 'NOT_YET_INVOKED'}}
+    clock = datetime.now(timezone.utc).timestamp()
+    authors = packet_authors(session_db or SESSION_DB, [origin/n for n in CORE[:6]], proposed, clock)
+    for sid in {row['session_id'] for row in authors}:
+        author_session(session_db or SESSION_DB, sid, proposed, clock)
+    _, strategy = load_strategy(root/'reports/glp-clinic-scout/weekly-strategy/current-strategy.json')
+    require(strategy.get('applied') is True, 'review_only_current_weekly_strategy:'+str(strategy.get('reason')))
+    pointer_path = root/'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    pointer = read(pointer_path); release = Path(pointer['release_root']).resolve(strict=True)
+    rows = [r for r in carrier.source_rows(release) if r.get('entry_id') == entry['entry_id']]
+    require(len(rows) == 1 and rows[0]['route'] == entry['target_route'], 'review_only_published_source_identity')
+    for key, name in (('article', '06-article.json'), ('qa', '07-qa-receipt.json')):
+        require(rows[0][key]['sha256'] == sha(entry_path.parent/'packet'/name)
+                == sha(release/rows[0][key]['path']), 'review_only_published_original_'+key)
+    require(rows[0]['review']['sha256'] == entry['pass_receipt']['sha256']
+            == sha(release/rows[0]['review']['path']), 'review_only_published_original_review')
+    candidate = release/'public'/entry['target_route'].strip('/')/'index.html'
+    require(candidate.is_file() and not candidate.is_symlink(), 'review_only_deployed_candidate')
+    pointer_raw = pointer_path.read_bytes()
+    output = Path(output).absolute()
+    require(output.parent.resolve(strict=True).is_relative_to(root/'reports')
+            and not output.exists() and not output.is_symlink(), 'review_only_unused_report_directory')
+    output.mkdir(mode=0o700); packet = output/'packet'; packet.mkdir(mode=0o700)
+    pointer_snapshot = output/'current-pointer.json'; pointer_snapshot.write_bytes(pointer_raw)
+    binding = {'entry': spec(entry_path), 'original_job': spec(original_job),
+               'original_source_authors': authors, 'current_pointer': spec(pointer_snapshot),
+               'deployed_source': rows[0], 'deployed_candidate': spec(candidate), 'weekly_strategy': strategy,
+               'publication_authorized': False, 'recovery_acceptance': False}
+    for name in CORE[:6]:
+        (packet/name).write_bytes((entry_path.parent/'packet'/name).read_bytes())
+    (packet/CANDIDATE).write_bytes(candidate.read_bytes())
+    controls = root/'systems/seo-blog-machine/scripts'
+    argv = [sys.executable, str(controls/'validate_opus_article_packet.py'), '--packet', str(packet),
+            '--expected-topic-id', entry['topic_id'], '--expected-query', original['target_query'],
+            '--expected-route', entry['target_route'], '--selection-receipt', entry['selection_receipt']['path'],
+            '--operation', 'new_article', '--config', str(root/'systems/seo-blog-machine/config/verticals/glp-clinic-scout.json')]
+    validator = {'argv': argv, 'executable': sys.executable, 'executable_sha256': sha(sys.executable),
+                 'control_files': {str(controls/n): sha(controls/n) for n in (
+                     'validate_opus_article_packet.py', 'compile_review_packet_article.py',
+                     'selection_receipt.py', 'r2_update_carrier.py')}, 'timeout': 300}
+    loop.validate_executable(validator, 'validator')
+    proc = subprocess.run(argv, capture_output=True, text=True, timeout=300, cwd=root)
+    (output/'validator.stdout.txt').write_text(proc.stdout)
+    (output/'validator.stderr.txt').write_text(proc.stderr)
+    require(proc.returncode == 0 and read(packet/'07-qa-receipt.json')['status'] == 'PASS',
+            'review_only_current_deterministic_qa_failed')
+    require(pointer_path.read_bytes() == pointer_raw and sha(candidate) == binding['deployed_candidate']['sha256'],
+            'review_only_publication_changed_during_preparation')
+    job = review_only_job(original, packet, output/'history', route, validator=validator, binding=binding)
+    path = output/'job.json'; loop.atomic_json(path, job)
+    return path
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--entry', type=Path, required=True)
-    parser.add_argument('--history', type=Path, required=True)
-    parser.add_argument('--packet', type=Path, required=True)
-    parser.add_argument('--live-binding', type=Path, required=True)
-    parser.add_argument('--live-snapshot', type=Path, required=True)
+    parser.add_argument('--history', type=Path)
+    parser.add_argument('--packet', type=Path)
+    parser.add_argument('--live-binding', type=Path)
+    parser.add_argument('--live-snapshot', type=Path)
+    parser.add_argument('--prepare-review-only', action='store_true',
+                        help='emit one effect-free native-controller job; no review or publication')
+    parser.add_argument('--original-job', type=Path)
+    parser.add_argument('--output', type=Path)
+    parser.add_argument('--review-transport')
+    parser.add_argument('--review-only-job', type=Path,
+                        help='seal a postpublication supplement; requires genuine native PASS and no source change')
     parser.add_argument('--source-author-packet', type=Path,
                         help='exact byte-identical source packet with native write/patch custody')
     parser.add_argument('--source-author-review', type=Path,
                         help='native origin review binding the copied source hashes (provenance only)')
     args = parser.parse_args()
+    if args.prepare_review_only:
+        if (not all((args.original_job, args.output, args.review_transport))
+                or any((args.history, args.packet, args.live_binding, args.live_snapshot,
+                        args.source_author_packet, args.source_author_review, args.review_only_job))):
+            parser.error('prepare-review-only requires original-job/output/review-transport and forbids sealing inputs')
+        from sync_from_repo import source_lock
+        with source_lock(ROOT):
+            path = prepare_review_only(args.entry, args.original_job, args.output, args.review_transport)
+        print(json.dumps({'status': 'PREPARED_REVIEW_ONLY_NOT_INVOKED', 'job': spec(path),
+                          'native_calls': 0, 'publication_authorized': False, 'health_accepted': False}))
+        return
+    if not all((args.history, args.packet, args.live_binding, args.live_snapshot)):
+        parser.error('sealing requires history/packet/live-binding/live-snapshot')
+    if any((args.original_job, args.output, args.review_transport)):
+        parser.error('preparation inputs require prepare-review-only')
     from glp_release_main import RUNS
     RUNS.mkdir(parents=True, exist_ok=True)
     # Same nonblocking lock as hourly main release and the :17 sync job;
     # retain it through all input admission, full-byte validation and sealing.
     with (RUNS / 'run.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        sealing = {'source_author_packet': args.source_author_packet,
+                   'source_author_review': args.source_author_review}
+        if args.review_only_job is not None:
+            sealing['review_only_job_path'] = args.review_only_job
         path = seal(args.entry.resolve(strict=True), args.history.resolve(strict=True),
                     args.packet.resolve(strict=True), args.live_binding.resolve(strict=True),
-                    args.live_snapshot.resolve(strict=True), source_author_packet=args.source_author_packet,
-                    source_author_review=args.source_author_review)
+                    args.live_snapshot.resolve(strict=True), **sealing)
     print(json.dumps({'status': 'PASS_POSTPUBLICATION_REVIEW', 'recovery': spec(path)}))
 
 

@@ -646,10 +646,45 @@ def hold_extension(job: dict[str, Any], extension: dict[str, Any], rounds: list[
     return closeout
 
 
+def validate_review_only_job(job, *, apply, review_only_once):
+    if job.get('artifact_role') != 'postpublication_review_only_job':
+        return
+    if apply or not review_only_once or job.get('max_rounds') != 1:
+        raise RuntimeError('review_only_single_effect_free_mode_required')
+    if any(key in job for key in ('publish', 'repair', 'bridge_extension')):
+        raise RuntimeError('review_only_effect_spec_forbidden')
+
+
+def reserve_review_only_intent(history, job, manifest_sha256):
+    # Native failures are uncertain effects too: this exclusive intent is never
+    # cleared on provider refusal, process exit or a BLOCKED review.
+    path = history / 'native-review-intent.json'
+    intent = {'schema': 'glp-native-review-only-intent-v1', 'job_id': job['job_id'],
+              'created_at_utc': now(), 'subject_manifest_sha256': manifest_sha256,
+              'retry_allowed': False, 'publication_authorized': False}
+    # O_EXCL, not atomic_json's exists/replace pair: concurrent controllers
+    # must not both pass the preflight and spend the same review intent.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w') as stream:
+        json.dump(intent, stream, indent=2, sort_keys=True)
+        stream.write('\n'); stream.flush(); os.fsync(stream.fileno())
+    directory = os.open(history, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def review_only_refusal_policy():
+    return {'autonomous_retry_required': False, 'queue_may_advance': False,
+            'retry_policy': 'consumed_intent_no_model_retry'}
+
+
 def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[str, Any]:
     if review_only_once and apply:
         raise RuntimeError("review_only_cannot_apply")
     job = read_json(job_path)
+    validate_review_only_job(job, apply=apply, review_only_once=review_only_once)
     if job.get("schema") != "glp-opus-seo-review-job-v1":
         raise RuntimeError("review_job_contract_invalid")
     if job.get("bridge_extension") is not None:
@@ -695,6 +730,12 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
         command.extend(["--context-file", str(context_bundle)])
         if review_only_once and active_transport['transport_id'] == 'claude-code-opus-policy-independent':
             command.append('--no-schema-retry')
+        if job.get('artifact_role') == 'postpublication_review_only_job':
+            sys.path.insert(0, str(SYSTEM_DIR.parents[1] / 'scripts'))
+            from article_review_recovery import validate_review_only_binding
+            validate_review_only_binding(job, active_transport, for_invocation=True)
+        if review_only_once:
+            reserve_review_only_intent(history, job, sha_file(manifest_path))
         proc = subprocess.run(command, cwd=packet, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=int(job.get("review_timeout") or 1200) + 30)
         review_execution_path = history / f"round-{round_number:02d}-review-execution.json"
         review_streams = {
@@ -769,6 +810,8 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
         "retry_policy": "repair_rematerialize_rereview_next_refill",
         "publication_policy": "host_consumes_only_passing_buffer_alternative",
     }
+    if review_only_once:
+        escalation.update(review_only_refusal_policy())
     escalation["escalation_sha256"] = payload_hash(escalation, "escalation_sha256")
     atomic_json(history / "bridge-escalation.json", escalation)
     return escalation

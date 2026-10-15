@@ -1,6 +1,13 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_postpublication_review_only.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci:GLP109-protected-native-custody"
+      ],
+      "sha256": "59f7af87ca2a4455275d5c4b42a21a057ad9e64484f0a752b86e86812bd58f73"
+    },
     "ops/glp/weekly_analytics_owner.py": {
       "kind": "script",
       "callers": [
@@ -290,7 +297,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "25ecf0e3d319f47153ab39941adc88de1cc7d52be2aa35460589e4e8747905df"
+      "sha256": "65f9e5ee4123419075f21857509a146198ca48d1fecb9128bd6d15a2cf992c11"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -4220,7 +4227,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "94543db589a59fe0a6ef99dc7c686e8149e97b8ffc45bceb9acb8ce2bf0176e4"
+      "sha256": "d3b9b6e3e823b62887948a89ff6959c2515c9808c0acf667cf763e2292ed6f9e"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [
@@ -7627,7 +7634,7 @@
         "scripts/article_health_acceptance.py"
       ],
       "kind": "script",
-      "sha256": "ca05d84ca6001a6b11a1ebbb910bd0743b44b15adbadf241f09c7069f13b5f52"
+      "sha256": "3f2bde52cc4abfaac0434edabeddd3017f877cfe050b8c2a85cdece52bb214b0"
     },
     "scripts/glp_release_search_notify.py": {
       "callers": [
@@ -7923,5 +7930,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1159
+  "tracked_count": 1160
 }
