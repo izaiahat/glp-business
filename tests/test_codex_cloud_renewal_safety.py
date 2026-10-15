@@ -84,33 +84,77 @@ def vault_fixture(tmp_path, monkeypatch, *, success=True, matching=True):
     tools = types.SimpleNamespace(browser_vault_list=lambda:events.append('list') or json.dumps({'success':True,'items':[
         {'handle':meta.id,'origin':meta.origin,'identifier':meta.identifier,'label':meta.label,'kind':'login'}]}),
         browser_vault_fill=lambda handle, task_id:events.append(('fill',handle)) or json.dumps({'success':success,'origin':'https://chatgpt.com','kind':'login','filled_fields':1}))
-    monkeypatch.setattr(v, 'dependencies', lambda:(store, registry, tools))
+    # Retain the former external seam only as an offline counterexample double.
+    monkeypatch.setattr(v,'dependencies',lambda:(store,registry,tools),raising=False)
     monkeypatch.setattr(r, 'SECURE', tmp_path)
     monkeypatch.setattr(r, 'STATE', tmp_path / 'state.json')
     monkeypatch.setitem(sys.modules, 'gpt6pro_relay', types.SimpleNamespace(load_config=lambda:{}, account_of=lambda *a:{'cdp_port':9340}))
     return v, env, row, state, events
 
 
-def test_vault_transfer_uses_registered_list_fill_on_bound_target(tmp_path, monkeypatch):
+def test_vault_unavailable_contract_refuses_before_every_effect(tmp_path, monkeypatch):
     v, env, row, state, events = vault_fixture(tmp_path, monkeypatch)
-    v.fill(env,row,r,state)
-    assert events == [('bind','fixture-target'),'list',('fill','vault_fixture')]
-    assert row['phase'] == 'VAULT_FILLED'
-    assert row['vault_fill_receipt']['origin'] == 'https://chatgpt.com'
-    assert 'OFFLINE-NOT-A-CREDENTIAL' not in r.STATE.read_text()
+    # Even an unchanged matching account/editor and successful origin-only tool
+    # are insufficient. Refusal must precede private read, staging and intent.
+    before = json.dumps(state, sort_keys=True)
+    pending = Path(row['secret_path'])
+    pending_bytes, pending_stat = pending.read_bytes(), pending.stat()
+    monkeypatch.setattr(r, 'private_read', lambda *a: pytest.fail('must not read key'))
+    monkeypatch.setattr(r, 'atomic', lambda *a: pytest.fail('must not journal'))
+    monkeypatch.setattr(v, 'dependencies', lambda: pytest.fail('must not start vault/browser'))
+    with pytest.raises(ValueError, match='registered_vault_exact_context_fill_unavailable'):
+        v.fill(env, row, r, state)
+    assert events == []
+    assert json.dumps(state, sort_keys=True) == before
+    assert not r.STATE.exists()
+    assert pending.read_bytes() == pending_bytes
+    assert (pending.stat().st_ino, pending.stat().st_mode) == (pending_stat.st_ino, pending_stat.st_mode)
 
 
-@pytest.mark.parametrize('matching,success', [(False,True),(True,False)])
-def test_vault_refusal_never_advances_or_replays(tmp_path, monkeypatch, matching, success):
-    v, env, row, state, events = vault_fixture(tmp_path, monkeypatch,matching=matching,success=success)
-    with pytest.raises(ValueError): v.fill(env,row,r,state)
+@pytest.mark.parametrize('phase', ['VAULT_FILL_INTENT', 'VPN_SAVE_INTENT'])
+def test_vault_uncertain_intent_never_replays(tmp_path, monkeypatch, phase):
+    v, env, row, state, events = vault_fixture(tmp_path, monkeypatch)
+    row['phase'] = phase
+    before = json.dumps(state, sort_keys=True)
+    monkeypatch.setattr(v, 'dependencies', lambda: pytest.fail('must not start vault/browser'))
+    with pytest.raises(ValueError, match='uncertain_no_replay'):
+        v.fill(env, row, r, state)
+    assert events == []
+    assert json.dumps(state, sort_keys=True) == before
+    assert not r.STATE.exists()
+
+
+@pytest.mark.parametrize('drift', ['same-origin-path', 'same-origin-account'])
+def test_rv519_origin_only_fill_must_not_write_after_context_drift(tmp_path, monkeypatch, drift):
+    """RV519 counterexamples: drift during staging after the early precheck.
+
+    Only the external origin-only vault transport is doubled. It deliberately
+    accepts both same-origin drifts, as the reviewed registered contract does.
+    No real credential, browser, or installed-host dependency is used in CI.
+    """
+    v, env, row, state, events = vault_fixture(tmp_path, monkeypatch)
+    store, registry, tools = v.dependencies()
+    meta = store.list_items()[0]
+    page = {'url': row['draft_task_url'], 'account': env['account']}
+    writes = []
+    def staging_read():
+        if drift == 'same-origin-path':
+            page['url'] = 'https://chatgpt.com/local/other-draft'
+        else:
+            page['account'] = 'other@example.test'
+        return [meta]
+    def origin_only_fill(handle, task_id):
+        writes.append(dict(page))
+        return json.dumps({'success': True, 'origin': 'https://chatgpt.com', 'kind': 'login'})
+    store.list_items = staging_read
+    tools.browser_vault_fill = origin_only_fill
+    try:
+        v.fill(env, row, r, state)
+    except ValueError:
+        pass
+    assert writes == [], {'drift': drift, 'writes': writes, 'phase': row['phase']}
     assert row['phase'] != 'VAULT_FILLED'
-    before = list(events)
-    if matching:
-        with pytest.raises(ValueError,match='uncertain'): v.fill(env,row,r,state)
-        assert events == before
-    else:
-        assert not any(isinstance(e,tuple) and e[0]=='fill' for e in events)
+    assert not row.get('vault_fill_receipt')
 
 
 @pytest.mark.parametrize('phase', ['MINTED','VAULT_FILL_INTENT','VAULT_FILL_REQUIRED','VPN_SAVE_INTENT'])

@@ -55,14 +55,21 @@ inherited seats require the existing `require_held` and are not released here.
 The protected fleet lock source itself is unchanged.
 
 Browser code no longer reads pending secrets or inserts them via raw CDP.
-`codex_cloud_vpn_vault.py` stages only the already-issued, descriptor-checked
-pending key into the default-profile encrypted vault. It binds the supervisor
-to the exact account's owned editor target, verifies account/config/path and
-one password field, calls registered `browser_vault_list`, then
-`browser_vault_fill`. Only metadata is persisted. Fill/save intents are durable;
-uncertain fills/saves refuse replay. Saving requires the fill receipt's exact
-target/path, then supported Save and Save draft. This path has offline tests,
-not live future-renewal proof, and is unreachable while safety preflight fails.
+The renewal transfer boundary `codex_cloud_vpn_vault.py` now refuses with
+`registered_vault_exact_context_fill_unavailable` before reading a pending key,
+staging/listing/filling a vault item, starting a browser or writing fill intent.
+The registered vault API supports only an atomic origin check, not the expected
+authenticated account/config and exact owned editor document/URL/target at the
+credential-write boundary. An earlier precheck can expire during staging or
+intent I/O; a later Save refusal cannot undo disclosure. No accepting adapter or
+raw-CDP secret insertion is substituted. Reopening transfer requires a supported
+registered exact-context contract which verifies all bindings in the same
+operation immediately before the write and returns an exact-context receipt.
+Until then even unchanged-context transfer refuses, records no VAULT_FILLED,
+and makes no live future-renewal claim. Uncertain fill/save intents still refuse
+replay; Save still requires its exact target/path receipt. Offline regressions
+retain RV519's same-origin path/account drift counterexamples. The whole renewal
+CLI also remains unreachable past its no-effect safety preflight.
 
 The refusal is a missing provider capability, not a safe parser relaxation.
 Tailscale's documented network-flow export logs only successful connections;
