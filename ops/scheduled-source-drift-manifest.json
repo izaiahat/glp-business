@@ -1263,8 +1263,24 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/host_disk_pruner.py",
       "source": "ops/hermes-cron-scripts/host_disk_pruner.py",
-      "reviewed_sha256": "7d469fb2305cdb5bfc742b25e8681df73b3a7dbe4b385b18b54e10de8fd379d2",
-      "payloads": []
+      "reviewed_sha256": "35a23b99209c58a1d43d237228f3fce8af3fea405b0dddcf7b7cbf26dd4d5f45",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/host_disk_pruner_trigger.py",
+          "sha256": "e3e01d65d345943a4fd880930b9c42eeffadaa2fd3fee1b6a63135c6d549a896",
+          "owner": "/home/ubuntu/.hermes/scripts/host_disk_pruner.py"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/host_disk_cleanup_large_unit.py",
+          "sha256": "68a6abb5d6b229f1182aaf2afadd9171561a3c1d80a4efa9df5970ae38b587da",
+          "owner": "/home/ubuntu/.hermes/scripts/host_disk_pruner.py"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/host_disk_large_sweep.py",
+          "sha256": "27ad053cfa29dd506c842f5af93708f94a66f7adff6f3a104ef0f64fc418ce09",
+          "owner": "/home/ubuntu/.hermes/scripts/host_disk_pruner.py"
+        }
+      ]
     },
     {
       "id": "f918ef069c4a",

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Large-first scheduled controller; the original running source stays unchanged."""
+import argparse
 import collections
 import datetime
 import fcntl
@@ -7,12 +8,13 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import time
 BUS=Path('/home/ubuntu/business')
 HOME=Path('/home/ubuntu/.hermes')
-sys.path.insert(0,str(BUS/'scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 from evidence_preserving_pruner import atomic_json
 UNIT='host-disk-cleanup.service'
 STATE=HOME/'runstate/host-disk-cleanup-last.json'
@@ -42,19 +44,44 @@ def phase_result(result, report, rows, *, accepted_returncodes=(0,), partial_ret
             'report_present':present,'status_counts':dict(statuses),
             'partial_rows':partial,'gated_rows':gated,'failed_rows':failed}
 
-def main():
-    lock=open(HOME/'runstate/host-disk-cleanup.lock','a+')
-    try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    except BlockingIOError:
-        print('Existing cleanup owner retained; duplicate skipped.');return 0
+def main(*,local_only=False):
+    from contextlib import ExitStack
+    # Same protocol/inode as pro_route.singleton(): dispatcher -> heavy/account.
+    # Acquire before cleanup/source leases; never wait for or disturb its owner.
+    # ExitStack closes both descriptors on return AND exceptions. Children do not
+    # inherit the route fd; this controller retains it through every final check.
+    with ExitStack() as custody:
+        if local_only:
+            path=BUS/'ops/gpt6pro-relay/route/dispatcher.lock'
+            try:
+                fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK)
+                route=custody.enter_context(os.fdopen(fd,'rb'))
+                opened=os.fstat(route.fileno());named=path.lstat()
+                if not stat.S_ISREG(opened.st_mode) or (opened.st_dev,opened.st_ino)!=(named.st_dev,named.st_ino):
+                    raise ValueError('dispatcher lock identity unavailable')
+                fcntl.flock(route,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except (OSError,ValueError) as error:
+                print(f'Local-only cleanup deferred: existing Pro dispatcher exclusion unavailable ({type(error).__name__}); no cleanup started.',flush=True)
+                return 75
+        lock=custody.enter_context(open(HOME/'runstate/host-disk-cleanup.lock','a+'))
+        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            print('Existing cleanup owner retained; duplicate skipped.');return 0
+        return cleanup(local_only=local_only)
+
+
+def cleanup(*,local_only=False):
     started=time.monotonic();stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     report=BUS/'reports/host-disk-prune'/('large-full-'+stamp);report.mkdir(parents=True)
     before=disk();rows=[];phases={};pressure=free_space_pressure(before)
     state={'unit':UNIT,'pid':os.getpid(),'report_dir':str(report),'root_before':before,
-           'status':'running','stage':'large_classes','pressure_trigger':pressure}
+           'status':'running','stage':'large_classes','pressure_trigger':pressure,
+           'local_only':local_only}
     atomic_json(STATE,state)
     command=['sudo','-n','/usr/bin/python3','-I',str(BUS/'scripts/host_disk_large_sweep.py'),
              '--report',str(report/'large'),'--budget','2700' if pressure else '900']
+    if local_only:
+        command.append('--local-only')
     # Open PR / Linear / live release / R8 / worktree / PREPARED references need
     # the unprivileged gh/Linear identity; collected here, fail-closed in the sweep.
     try:
@@ -128,4 +155,9 @@ def main():
     atomic_json(report/'delivery.json',delivery)
     return 0 if receipt['status']=='completed' else 1
 
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--local-only',action='store_true',
+                        help='disable all R2 destination/control work; retain guarded local classes')
+    args=parser.parse_args()
+    raise SystemExit(main(local_only=args.local_only))

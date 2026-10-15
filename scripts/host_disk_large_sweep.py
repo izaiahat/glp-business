@@ -155,7 +155,7 @@ def idle_targets(scratch, tmp=Path('/tmp'), *, include_declared=True):
     return targets
 
 
-def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=False):
+def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=False,local_only=False):
     if completed_ci_only and not dry_run:raise ValueError('scoped completed-CI entry is dry-run only')
     report=Path(report);report.mkdir(parents=True,exist_ok=True)
     deadline=time.monotonic()+budget
@@ -173,7 +173,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
              'ok':False,'partial':True,'bytes_freed':0,'reason':str(error),
              'error_type':type(error).__name__,'changed_source':source}
         d=os.statvfs('/')
-        m.write_json(report/'large-classes.json',{'stage':'reference_inventory_refused',
+        m.write_json(report/'large-classes.json',{'stage':'reference_inventory_refused','local_only':local_only,
             'pressure_trigger':pressure,'threshold_free_fraction':0.15,
             'before_free_bytes':before,'after_free_bytes':d.f_bavail*d.f_frsize,
             'df_delta_bytes':d.f_bavail*d.f_frsize-before,'rows':[row],'r2':None,
@@ -184,7 +184,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     guarded=ReferenceGuardAPI(api,reference_data['reference_source_identity'])
     def save(stage):
         d=os.statvfs('/')
-        m.write_json(report/'large-classes.json',{'stage':stage,'pressure_trigger':pressure,
+        m.write_json(report/'large-classes.json',{'stage':stage,'pressure_trigger':pressure,'local_only':local_only,
             'threshold_free_fraction':0.15,'before_free_bytes':before,
             'after_free_bytes':d.f_bavail*d.f_frsize,'df_delta_bytes':d.f_bavail*d.f_frsize-before,
             'rows':rows,'r2':r2info,'reference_veto_source':guarded.last_reference_veto,
@@ -226,8 +226,16 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     save('cold_evidence')
     class Unavailable:
         def store(self,*args):raise RuntimeError('R2 destination unavailable')
-    remote=Unavailable();r2info={'bucket':'glp-cold-evidence','status':'DRY_RUN_NO_CONTACT'}
-    if external_ok and not dry_run:
+    remote=None
+    if local_only:
+        # None selects the already supported local-verified archive path. Do not
+        # construct an R2 destination, call its control plane, migrate an
+        # existing archive, or request a summary.
+        r2info={'status':'DISABLED_LOCAL_ONLY'}
+    else:
+        remote=Unavailable()
+        r2info={'bucket':'glp-cold-evidence','status':'DRY_RUN_NO_CONTACT'}
+    if external_ok and not dry_run and not local_only:
         try:
             from host_disk_r2 import Destination
             remote=Destination.from_environment()
@@ -245,7 +253,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     roots=cold_report_roots(pins,pressure=pressure)
     estimates,ranking_refusals=rank_reports(roots,deadline)
     rows.extend(ranking_refusals)
-    if external_ok and time.monotonic()<deadline:
+    if external_ok and not local_only and time.monotonic()<deadline:
         from host_disk_r2 import migrate_archives
         save('r2_existing_archives')
         rows.extend(migrate_archives(guarded,m,BUS/'reports/host-disk-prune',remote,
@@ -254,7 +262,8 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
         if not external_ok:break
         if amount<1024**2 or time.monotonic()+60>deadline:continue
         name=p.relative_to(BUS/'reports').as_posix().replace('/','--')
-        for cold_days,destination in [(30,remote),(7,None)]:
+        phases=[(7,None)] if local_only else [(30,remote),(7,None)]
+        for cold_days,destination in phases:
             index=0
             while time.monotonic()+60<deadline:
                 index+=1
@@ -286,7 +295,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     if time.monotonic()<deadline:
         rows.extend(m.verified_duplicates(guarded,duplicate_targets,report/'duplicate-manifest.json',
             pins=pins,dry_run=dry_run,deadline=deadline))
-    if external_ok and not dry_run and hasattr(remote,'summary'):
+    if external_ok and not dry_run and not local_only and hasattr(remote,'summary'):
         try:r2info=remote.summary()
         except Exception as error:r2info.update(status='OBJECT_COUNTS_UNKNOWN',error_type=type(error).__name__)
     save('complete');return rows
@@ -298,7 +307,8 @@ if __name__=='__main__':
     parser.add_argument('--budget',type=int,default=1800)
     parser.add_argument('--external-pins')
     parser.add_argument('--completed-ci-only',action='store_true',help='finite completed dependencies; requires --dry-run')
+    parser.add_argument('--local-only',action='store_true',help='guarded local work only; no R2 construction/contact/upload')
     args=parser.parse_args()
     result=run(args.report,dry_run=args.dry_run,budget=args.budget,external_pins=args.external_pins,
-               completed_ci_only=args.completed_ci_only)
+               completed_ci_only=args.completed_ci_only,local_only=args.local_only)
     raise SystemExit(1 if any(not r.get('ok',True) for r in result) else 0)
