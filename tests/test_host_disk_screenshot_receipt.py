@@ -290,7 +290,11 @@ class CurrentPolicyPointerTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(raw).hexdigest(),
                              '53fa1c1a7b482859b4b4df98003f059c5167fc0ec41cd390a20b209bdeb2a911')
 
-        raw = source.read_bytes()
+        # Preserve the exact historical pointer-only successor and every
+        # tamper/reversal assertion; newer deny-only pins are proved below.
+        raw = subprocess.check_output([
+            'git', '-C', str(SOURCE.parents[1]), 'show',
+            '9b271bdb691f03d14355d8c05bb7cc8953f220c7:ops/disk-retention-policy.json'])
         verify(raw)
         # These are private byte mutations, not policy edits or receipt reseals.
         for before, after in (
@@ -301,6 +305,23 @@ class CurrentPolicyPointerTests(unittest.TestCase):
                 self.assertEqual(raw.count(before.encode()), 1)
                 with self.assertRaises(AssertionError):
                     verify(raw.replace(before.encode(), after.encode()))
+
+
+    def test_current_policy_adds_only_exact_deny_roots(self):
+        predecessor = subprocess.check_output([
+            'git', '-C', str(SOURCE.parents[1]), 'show',
+            '9b271bdb691f03d14355d8c05bb7cc8953f220c7:ops/disk-retention-policy.json'])
+        self.assertEqual(hashlib.sha256(predecessor).hexdigest(),
+                         '53fa1c1a7b482859b4b4df98003f059c5167fc0ec41cd390a20b209bdeb2a911')
+        raw = (SOURCE.parents[1] / 'ops/disk-retention-policy.json').read_bytes()
+        added = b'"/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912", "/home/ubuntu/business/reports/ops/system-resume-20261006", "/home/ubuntu/business/ops/gpt6pro-relay", '
+        self.assertEqual(raw.count(added), 1)
+        self.assertEqual(raw.replace(added, b'', 1), predecessor)
+        self.assertEqual(json.loads(raw)['protected_roots'], [
+            '/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912',
+            '/home/ubuntu/business/reports/ops/system-resume-20261006',
+            '/home/ubuntu/business/ops/gpt6pro-relay',
+            *json.loads(predecessor)['protected_roots']])
 
 
 if __name__ == '__main__':
