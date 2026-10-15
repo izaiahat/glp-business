@@ -231,7 +231,7 @@ jobs:
       - name: Host intent and continuation custody (offline)
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_custody.py
       - name: GLP334 fresh receiver and retained network input contracts (offline)
-        run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp334_live_reconciliation.py
+        run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp334_live_reconciliation.py tests/test_glp334_conversion_reconciliation.py tests/test_glp334_native_financial_intake.py
       - name: GLP-320 portable cron runner test group (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

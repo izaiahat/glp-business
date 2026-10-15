@@ -9,7 +9,7 @@ check_source() {
   [[ "${actual%% *}" == "$2" ]] || { printf 'K3_REPORTING_SOURCE_DRIFT\n' >&2; exit 66; }
 }
 check_source scripts/glp_affiliate_weekly_reporting_j5_job.py 2846d96997de5a4f475dc78f5aa4a83dc1cff997b1f02a50059be579839da7d9
-check_source ops/glp/reporting-v2/source-manifest-j5.json 7aa15cec141584166c0f9580426bcde98d57f842e8d6468de282826616154f7f
+check_source ops/glp/reporting-v2/source-manifest-j5.json 0f31a04074f6ccc22967789639f0be4e4436cac33e58bf699c61bd15df6f26ea
 check_source ops/glp/reporting-v2/identity-registry.json 0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513
 check_source reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json 9e0bc9ba3f1910e1f5e540bcbfcaa1c344a27366fbc0209ee55972ef4628a799
 args=(--live-network-readonly)
@@ -24,7 +24,7 @@ export PYTHONDONTWRITEBYTECODE=1
 exec /home/ubuntu/.hermes/hermes-agent/venv/bin/python -B \
   /home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_j5_job.py \
   --source-manifest /home/ubuntu/business/ops/glp/reporting-v2/source-manifest-j5.json \
-  --manifest-sha256 7aa15cec141584166c0f9580426bcde98d57f842e8d6468de282826616154f7f \
+  --manifest-sha256 0f31a04074f6ccc22967789639f0be4e4436cac33e58bf699c61bd15df6f26ea \
   --roster /home/ubuntu/business/reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json \
   --identity-registry /home/ubuntu/business/ops/glp/reporting-v2/identity-registry.json \
   --report-root /home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/weekly-reporting \

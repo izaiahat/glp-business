@@ -44,6 +44,16 @@ Supported edges:
   provenance contract. These are supplied assertions, not live verification.
   Integer minor units with a supported currency preserve explicit zero;
   missing, boolean or textual minor-unit amounts remain null.
+- Earnings additionally require an explicit normalized `mapped_status` of
+  `approved`, `payable` or `paid`. A paid settlement or native status string
+  cannot supply missing commission approval. A `reversed` commission preserves
+  only its already source-supplied, bounded negative integer amount; the reader
+  does not negate a historical positive amount or manufacture zero. Reversed
+  positive/zero/untyped amounts, pending, rejected and unresolved states remain
+  UNKNOWN with `EARNINGS_APPROVAL_OR_REVERSAL_UNVERIFIED`, before payout lookup.
+  Identical evidence stays deduplicated and competing original/reversal
+  revisions stay ambiguous. This is not a complete original-to-reversal bridge
+  or proof of closed-period adjustment coverage; both still require native data.
 - A commission's string `payout_id` and `payout_join_evidence_ref` must establish
   settlement transaction membership. The exact payout ID must match one
   settlement in the same typed tuple, with authenticated provenance, REAL/GLP
