@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 import time
 import host_disk_cold_classes as m
@@ -75,7 +76,9 @@ def test_small_class_is_refused_before_content_hashing(tmp_path,monkeypatch):
 
 
 @pytest.mark.parametrize('error', [ValueError('relay/lane discovery changed during collection'),
-                                  PermissionError('reference source unreadable')])
+                                  PermissionError('reference source unreadable'),
+                                  subprocess.CalledProcessError(1,['stat','--','site-run']),
+                                  subprocess.TimeoutExpired(['stat','--','site-run'],30)])
 def test_reference_collection_refusal_has_terminal_zero_effect_receipt(tmp_path,monkeypatch,error):
     import host_disk_relay_custody
     bus=tmp_path/'business'

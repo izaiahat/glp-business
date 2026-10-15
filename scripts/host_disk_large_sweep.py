@@ -164,7 +164,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     rows=[];r2info=None
     try:
         pins=references(report)
-    except (OSError,ValueError,RuntimeError,KeyError,TimeoutError) as error:
+    except (OSError,ValueError,RuntimeError,KeyError,subprocess.SubprocessError) as error:
         # Reference refusal is terminal and precedes every effect. Preserve the
         # original exception/exit status while exposing its actual source to the
         # registered controller, rather than leaving an absent report/empty rows.
