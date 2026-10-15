@@ -91,7 +91,8 @@ def ensure_main_acceptance(main_sha, gh=gh_json):
     previous = next(p for p in prs if (p.get('mergeCommit') or {}).get('oid') == main_sha)
     tree = gh('api', f'{api}/commits/{main_sha}')['commit']['tree']['sha']
     branch = 'release/accepted-main-' + main_sha
-    marker_path = 'ops/main-release-acceptance.json'
+    # data/** is deliberately enrolled in both existing exact-head CI workflows.
+    marker_path = 'data/main-release-acceptance.json'
     marker = json.dumps({'schema': 'glp-main-integration-acceptance-v1',
                          'source_main_sha': main_sha, 'source_main_tree': tree,
                          'previous_pr': previous['url'],
