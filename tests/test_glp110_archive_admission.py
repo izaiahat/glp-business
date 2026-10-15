@@ -569,13 +569,18 @@ def test_daily_backup_large_synthetic_page_stream_fits_pacing_budget():
     assert scope['deadline'] >= clock[0] + 900
     assert len(logs) >= 30, 'long snapshot must publish progress heartbeats'
     # Size-scaled time must not relax growth/headroom/WAL refusal guards.
-    for change in ({'limit': logical_bytes - 1}, {'free_bytes': lambda: 0},
-                   {'wal': SimpleNamespace(exists=lambda: True, stat=lambda:
-                        SimpleNamespace(st_size=2 * 1024**3))}):
+    for reason, change in (
+            ('SIZE', {'limit': logical_bytes - 1}),
+            ('HEADROOM', {'free_bytes': lambda: 0}),
+            ('WAL_GROWTH', {'wal': SimpleNamespace(exists=lambda: True, stat=lambda:
+                SimpleNamespace(st_size=2 * 1024**3))})):
         guarded = dict(scope, **change)
         clock[0] = 0.0
-        with pytest.raises(TimeoutError, match='bounded ledger snapshot refused: state.db'):
+        with pytest.raises(TimeoutError, match='reason='+reason):
             exec(code, guarded)
+    clock[0] = scope['deadline'] + 1
+    with pytest.raises(TimeoutError, match='reason=DEADLINE'):
+        scope['progress'](0, pages_total - 256, pages_total)
 
 
 def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(tmp_path):

@@ -3515,7 +3515,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "9208246eb97e2fbd850a763e15a34b510977a4f642af14c97c0fde00862c8cb3"
+      "sha256": "a5606f1a931f6c12a7fd83368b42c3f827cdc9842c81d0df9a9acd7c0249cd4d"
     },
     "scripts/hermes_active_work_gate.py": {
       "callers": [
@@ -5262,7 +5262,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "fb2d0575a481b408f20001307360647be3f69726bedff81293cf41c459f31030"
+      "sha256": "843d5cd83e27fa9f86ccf2a8bd3115c0145019e28e1103f7b4136c633ce0507e"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [

@@ -175,10 +175,19 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
                         +' total_bytes='+str(total*page_size)+' wall_seconds='+str(round(elapsed, 3))
                         +' budget_seconds='+str(round(copy_budget_seconds, 3)))
                     heartbeat_at = time.monotonic()
-                if (time.monotonic() >= deadline or total * page_size > limit
-                        or (is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size)
-                        or (is_state and wal.exists() and wal.stat().st_size > wal_before + 1024**3)):
-                    raise TimeoutError('bounded ledger snapshot refused: '+rel)
+                reason = None
+                if time.monotonic() >= deadline:
+                    reason = 'DEADLINE'
+                elif total * page_size > limit:
+                    reason = 'SIZE'
+                elif is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size:
+                    reason = 'HEADROOM'
+                elif is_state and wal.exists() and wal.stat().st_size > wal_before + 1024**3:
+                    reason = 'WAL_GROWTH'
+                if reason:
+                    raise TimeoutError('bounded ledger snapshot refused: '+rel+' reason='+reason
+                        +' elapsed_seconds='+str(round(elapsed, 3))+' remaining_pages='+str(remaining)
+                        +' total_pages='+str(total))
                 if is_state and status in (sqlite3.SQLITE_OK, sqlite3.SQLITE_DONE):
                     # backup(sleep=...) sleeps ONLY on BUSY/LOCKED, not after
                     # successful copies. Pace real copied pages at 10 MiB/s;
