@@ -447,7 +447,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     payloads = [
         ('scripts/host_disk_pruner_trigger.py', 'e3e01d65d345943a4fd880930b9c42eeffadaa2fd3fee1b6a63135c6d549a896'),
         ('scripts/host_disk_cleanup_large_unit.py', '68a6abb5d6b229f1182aaf2afadd9171561a3c1d80a4efa9df5970ae38b587da'),
-        ('scripts/host_disk_large_sweep.py', '27ad053cfa29dd506c842f5af93708f94a66f7adff6f3a104ef0f64fc418ce09'),
+        ('scripts/host_disk_large_sweep.py', '04dae0459281e8e5192ddd965ceb86f00e1983916e335b29ee7f7c5bfe01bce7'),
     ]
     for rel, pin in payloads:
         assert sha((ROOT/rel).read_bytes()) == pin

@@ -292,13 +292,16 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
             members,_=m.inventory(root,pins,time.time()-7*86400,deadline,hashes=False)
             duplicate_targets.extend(root/r['name'] for r in members if not r['signature'][2]&0o222)
         except (OSError,ValueError,TimeoutError):continue
-    if time.monotonic()<deadline:
-        rows.extend(m.verified_duplicates(guarded,duplicate_targets,report/'duplicate-manifest.json',
-            pins=pins,dry_run=dry_run,deadline=deadline))
+    # The worker owns cooperative expiry, including already-expired admission.
+    # Checkpoint before custody so an unrelated exception retains its real stage.
+    save('verified_duplicates')
+    rows.extend(m.verified_duplicates(guarded,duplicate_targets,report/'duplicate-manifest.json',
+        pins=pins,dry_run=dry_run,deadline=deadline))
     if external_ok and not dry_run and not local_only and hasattr(remote,'summary'):
         try:r2info=remote.summary()
         except Exception as error:r2info.update(status='OBJECT_COUNTS_UNKNOWN',error_type=type(error).__name__)
-    save('complete');return rows
+    save('partial' if any(r.get('partial') or not r.get('ok',True) for r in rows) else 'complete')
+    return rows
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()

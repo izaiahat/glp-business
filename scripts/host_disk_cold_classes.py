@@ -244,31 +244,46 @@ def verified_duplicates(api,targets,manifest,*,pins=(),dry_run=True,deadline):
     No mutable-source hardlinks. File identities, SHA256 and live references are
     rechecked before removal; unknown ownership/age/database cases stay.
     """
-    groups={}; rows=[]; cutoff=time.time()-7*86400; pins=custody_pins(pins)
-    for target in targets:
-        p=Path(target)
-        if time.monotonic()>deadline:raise TimeoutError('duplicates')
-        if p.is_symlink() or protected(p,pins) or dirty_worktree(p):continue
-        s=p.lstat()
-        if not stat.S_ISREG(s.st_mode) or s.st_mode & 0o222 or s.st_nlink!=1 or max(s.st_mtime,s.st_ctime)>cutoff:continue
-        fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NOATIME)
-        with os.fdopen(fd,'rb') as f:
-            header=f.read(16)
-            if header==b'SQLite format 3\0' or header[8:12]==b'DUCK':continue
-        sig=signature(p); digest=sha(p); key=(s.st_size,digest)
-        if key not in groups:groups[key]=(p,sig);continue
-        keep,keep_sig=groups[key]
-        row={'rule':'verified_cold_duplicate','path':str(p),'retained_copy':str(keep),
-             'sha256':digest,'bytes_freed':0}
-        if (protected(p,custody_pins(pins)) or not inactive(api,p) or not inactive(api,keep) or signature(p)!=sig
-            or signature(keep)!=keep_sig or sha(keep)!=digest or sha(p)!=digest):
-            rows.append(dict(row,status='REFUSED'));continue
-        if dry_run:row.update(status='ELIGIBLE',eligible_bytes=s.st_blocks*512)
-        else:
-            # Intent manifest is durable before the unlink, not merely a summary.
-            write_json(manifest,rows+[dict(row,status='VERIFIED_REMOVAL_INTENT')])
-            p.unlink();row.update(status='REMOVED',bytes_freed=s.st_blocks*512)
-        rows.append(row)
+    groups={}; rows=[]; cutoff=time.time()-7*86400
+    def expired():
+        # Only our own cooperative clock check becomes a partial result. Never
+        # catch custody/hash/unlink failures or replace an uncertain intent.
+        if time.monotonic()<=deadline:return False
+        rows.append({'rule':'verified_cold_duplicate','status':'TIME_BUDGET_PARTIAL',
+                     'reason':'duplicates','partial':True,'ok':False,'bytes_freed':0})
+        return True
+    if not expired():
+        pins=custody_pins(pins)
+        if not expired():
+            for target in targets:
+                if expired():break
+                p=Path(target)
+                if p.is_symlink() or protected(p,pins) or dirty_worktree(p):continue
+                s=p.lstat()
+                if not stat.S_ISREG(s.st_mode) or s.st_mode & 0o222 or s.st_nlink!=1 or max(s.st_mtime,s.st_ctime)>cutoff:continue
+                fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NOATIME)
+                with os.fdopen(fd,'rb') as f:
+                    header=f.read(16)
+                    if header==b'SQLite format 3\0' or header[8:12]==b'DUCK':continue
+                sig=signature(p); digest=sha(p); key=(s.st_size,digest)
+                if key not in groups:groups[key]=(p,sig);continue
+                keep,keep_sig=groups[key]
+                row={'rule':'verified_cold_duplicate','path':str(p),'retained_copy':str(keep),
+                     'sha256':digest,'bytes_freed':0}
+                changed=(protected(p,custody_pins(pins)) or not inactive(api,p) or not inactive(api,keep) or signature(p)!=sig
+                    or signature(keep)!=keep_sig or sha(keep)!=digest or sha(p)!=digest)
+                if expired():break
+                if changed:
+                    rows.append(dict(row,status='REFUSED'));continue
+                if dry_run:row.update(status='ELIGIBLE',eligible_bytes=s.st_blocks*512)
+                else:
+                    # Intent is durable before the unlink. Expiry here is still
+                    # certain zero effect; an actual unlink failure propagates
+                    # with this intent intact, never finalized as zero/PASS.
+                    write_json(manifest,rows+[dict(row,status='VERIFIED_REMOVAL_INTENT')])
+                    if expired():break
+                    p.unlink();row.update(status='REMOVED',bytes_freed=s.st_blocks*512)
+                rows.append(row)
     if not dry_run:write_json(manifest,rows)
     return rows
 
