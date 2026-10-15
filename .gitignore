@@ -84,6 +84,7 @@
 !/ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md
 !/ops/glp/evidence-refresh-k3/SOURCE-CUSTODY.md
 !/tests/test_glp80_k3_prepared_consumer.py
+!/tests/test_glp_evidence_refresh_entry_pins.py
 !/ops/glp/reporting-v2/
 /ops/glp/reporting-v2/*
 !/ops/glp/reporting-v2/identity-registry.json
