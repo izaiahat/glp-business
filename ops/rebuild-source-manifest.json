@@ -6,7 +6,7 @@
       "callers": [
         "GLP-349 release input/recovery contract"
       ],
-      "sha256": "db9240f4f5353657c351db29b9c0844c3c7192cc3db869e42039b0257d1fd5cc"
+      "sha256": "d856e9ad35a4d9fbc2734c6aaffc3e3a318c2668c0f0c019621f21d33e225660"
     },
     "scripts/glp_release_inputs.py": {
       "kind": "script",
@@ -14,14 +14,14 @@
         "hermes:415ec5eba194",
         "scripts/glp_release_main.py"
       ],
-      "sha256": "432721bbe80e332559958351bc8d4557684303f5edd4a9b0b5f6b983e696687c"
+      "sha256": "93aca56ff042f2604e746fba56e8d3171a6d2c93ee489e7a4e1ce94fc0faf5b8"
     },
     "tests/test_glp_release_inputs.py": {
       "kind": "test",
       "callers": [
         "business-source-ci:GLP349-release-health"
       ],
-      "sha256": "2ac183329e2602efa0ca45fef805e31a2a2b06e639e3b8d14dae3ace1cc670d9"
+      "sha256": "9f7c0e2185c84a1f97439a216928a137d519798ccc5715e41178d1ee409c251c"
     },
     "tests/test_postpublication_review_only.py": {
       "kind": "test",

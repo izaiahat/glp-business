@@ -10,6 +10,37 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
 
+@pytest.fixture(autouse=True)
+def compiler_fixture(tmp_path, monkeypatch):
+    import glp_deploy_glp34_authority_v1 as carrier
+    root=tmp_path/'compiler';root.mkdir()
+    (root/'compiler.js').write_text('compiler-v1')
+    monkeypatch.setattr(carrier, 'TOOLCHAIN', root)
+    return root
+
+
+def test_package_compiler_is_an_input(tmp_path, compiler_fixture):
+    import glp_release_inputs as inputs
+    argv=['/bin/true','--clearenv','--unshare-all','--cap-drop','ALL','--bind',str(tmp_path),'/site']
+    config={'namespace':'/site','base_argv':argv}
+    capture=lambda: inputs.capture(config,source_tree='T',source_revision='H',sheet_sha256='S')
+    old=capture()
+    (compiler_fixture/'compiler.js').write_text('compiler-v2')
+    assert capture()['sha256'] != old['sha256']
+
+
+def test_local_lazy_imports_are_build_inputs(tmp_path):
+    import glp_release_inputs as inputs
+    scripts=tmp_path/'scripts';scripts.mkdir()
+    (scripts/'entry.py').write_text('def run():\n import helper\n')
+    helper=scripts/'helper.py';helper.write_text('VALUE=1\n')
+    old=inputs.producer_closure(scripts, ('entry.py',))
+    helper.write_text('VALUE=2\n')
+    new=inputs.producer_closure(scripts, ('entry.py',))
+    assert old['scripts/entry.py'] == new['scripts/entry.py']
+    assert old['scripts/helper.py'] != new['scripts/helper.py']
+
+
 def write_recipe(source):
     prefix = ('npm run generate:provider-logo-atlas && npm run generate:home-imagery && '
               'npm run generate:phase3-product-renders && npm run assemble:css && '

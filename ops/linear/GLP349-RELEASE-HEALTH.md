@@ -25,7 +25,8 @@ input), including dependencies lockfiles,
 all tracked data, taxonomy and manifests, a clean source boundary, the fresh
 sole-writer Sheet snapshot, exact namespace/config, every namespace bind's
 readable bytes/types/modes/links, all explicitly set environment values (hashes,
-not secrets), runtime/tool bytes, producer source and UTC rendering day.
+not secrets), the complete host Worker compiler/toolchain closure, transitive
+local producer source imports, runtime/tool bytes and UTC rendering day.
 Namespace networking, capabilities and inherited environment remain closed.
 Nested symbolic links are interpreted in the namespace, not followed into
 unmounted host secrets; inaccessible entries retain their permission identity.

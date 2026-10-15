@@ -81,6 +81,38 @@ def path_digest(path, *, file_cache=None):
     return walk(root)
 
 
+def producer_closure(root, entrypoints):
+    """Hash local Python imports, including lazy imports, without executing them."""
+    import ast
+    root=Path(root); project=root.parent
+    pending=[root/name for name in entrypoints]; result={}
+    while pending:
+        path=pending.pop().resolve()
+        key=str(path.relative_to(project))
+        if key in result:
+            continue
+        raw=path.read_bytes(); result[key]=hashlib.sha256(raw).hexdigest()
+        tree=ast.parse(raw, filename=str(path))
+        for node in ast.walk(tree):
+            names=[]; bases=[root,project]
+            if isinstance(node, ast.Import):
+                names=[a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                module=node.module or ''
+                names=[module]+[module+'.'+a.name if module else a.name for a in node.names]
+                if node.level:
+                    bases=[path.parents[node.level-1]]
+            for name in names:
+                parts=name.split('.')
+                for count in range(1,len(parts)+1):
+                    for base in bases:
+                        rel=base.joinpath(*parts[:count])
+                        for candidate in (rel.with_suffix('.py'), rel/'__init__.py'):
+                            if candidate.is_file() and candidate.resolve().is_relative_to(project):
+                                pending.append(candidate)
+    return dict(sorted(result.items()))
+
+
 def capture(config, *, source_tree, source_revision, sheet_sha256, now=None):
     """An unsupported/open environment or unreadable input cannot yield a key."""
     argv = list(config['base_argv'])
@@ -119,13 +151,14 @@ def capture(config, *, source_tree, source_revision, sheet_sha256, now=None):
     tool = shutil.which(argv[0])
     if not tool:
         raise ValueError('build_input_namespace_tool_missing')
-    producers = {}
-    for name in ('glp_release_inputs.py', 'glp_release_main.py', 'glp_affiliate_sync_job.py',
-                 'glp_affiliate_registry_sync.py', 'glp_affiliate_absence_audit.py',
-                 'glp_affiliate_release.py', 'glp_deploy_glp34_authority_v1.py'):
-        p = Path(__file__).with_name(name)
-        producers[name] = hashlib.sha256(p.read_bytes()).hexdigest()
+    producers = producer_closure(Path(__file__).parent, (
+        'glp_release_inputs.py', 'glp_release_main.py', 'glp_affiliate_sync_job.py',
+        'glp_affiliate_registry_sync.py', 'glp_affiliate_absence_audit.py',
+        'glp_affiliate_release.py', 'glp_deploy_glp34_authority_v1.py'))
+    import glp_deploy_glp34_authority_v1 as carrier
+    package_compiler = carrier.toolchain_closure(carrier.TOOLCHAIN)
     body = {'schema': SCHEMA, 'source_tree': source_tree, 'source_revision': source_revision,
+            'package_compiler': package_compiler,
             'sheet_sha256': sheet_sha256,
             'execution_identity': [os.geteuid(), os.getegid(), sorted(os.getgroups())],
             'config_sha256': digest(config),
