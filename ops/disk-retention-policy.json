@@ -1,7 +1,7 @@
 {
   "schema": "disk-retention-v1",
   "inventory_status": "PARTIAL_EXACT_GATES",
-  "protected_roots": ["/home/ubuntu/business/site-system/flagship-v2/qa", "/home/ubuntu/business/site-system/flagship-v2/releases/sealed-d2j-review-20260909T152123Z", "/home/ubuntu/business/site-system/flagship-v2/candidates/glp-visual-ultracode-20260821", "/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13"],
+  "protected_roots": ["/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912", "/home/ubuntu/business/reports/ops/system-resume-20261006", "/home/ubuntu/business/ops/gpt6pro-relay", "/home/ubuntu/business/site-system/flagship-v2/qa", "/home/ubuntu/business/site-system/flagship-v2/releases/sealed-d2j-review-20260909T152123Z", "/home/ubuntu/business/site-system/flagship-v2/candidates/glp-visual-ultracode-20260821", "/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13"],
   "rule_D": {
     "image_roots": ["/home/ubuntu/business/site-system/flagship-v2/qa", "/home/ubuntu/business/site-system/flagship-v2/candidates"],
     "cold_days": 30,

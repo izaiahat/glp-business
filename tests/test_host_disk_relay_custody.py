@@ -82,6 +82,13 @@ def test_lane_result_transitive_target_evidence(tmp_path):
     assert proof in pins and nested in pins and str(nested) in pins.identities
 
 
+def test_sole_private_registry_is_protected():
+    root=Path('/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912')
+    assert cold.protected(root,())
+    assert cold.protected(root/'data/approved-program-registry.json',())
+    assert not cold.protected(root.parent/'ordinary-unreferenced-run',())
+
+
 def test_corrupt_ledger_refuses_inventory(tmp_path):
     import pytest
     fixture(tmp_path)

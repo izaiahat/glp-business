@@ -25,6 +25,9 @@ PROTECTED.update({'.enzyme','.ssh','.aws','.gnupg','.azure','.config','financial
 # Sealed release toolchains (site-system/toolchains/**) are deploy custody, never cache.
 PROTECTED.add('toolchains')
 
+# Only retained private approved-program registry; never cold candidate payload.
+APPROVED_REGISTRY_ROOT=Path('/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912')
+
 LIVE_HOME=Path('/home/ubuntu/.hermes')
 TMP_ROOT=Path('/tmp')
 
@@ -86,7 +89,7 @@ def protected(p, pins=()):
         cached=(pins,frozenset(map(str,pins))); _PIN_CACHE[key]=cached
     pinset=cached[1]
     referenced=any(str(a) in pinset for a in [p,*p.parents])
-    return (referenced or p.name.endswith('.tar.zst.partial') or
+    return (p==APPROVED_REGISTRY_ROOT or APPROVED_REGISTRY_ROOT in p.parents or referenced or p.name.endswith('.tar.zst.partial') or
             p.suffix.lower() in {'.db','.sqlite','.sqlite3','.duckdb','.db-wal','.db-shm','.db-journal','.sqlite-wal','.sqlite-shm','.sqlite-journal','.sqlite3-wal','.sqlite3-shm','.zst','.tar','.tgz','.gz'} or
             any(re.search(r'(^|[^a-z0-9])r8([^a-z0-9]|$)',n.lower()) or n in PROTECTED or n.startswith(('.env','tmux-','.org.chromium.',
                 'browser-profile','chrome-profile','chromium-profile','sealed','seal-'))
