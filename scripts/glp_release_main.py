@@ -284,7 +284,7 @@ def try_identical_inputs(config, report, pointer, pr):
         recheck = report / 'post-validation-inputs'
         recheck.mkdir(exist_ok=True)
         if fresh_release_inputs(config, recheck, pr) != current:
-            raise ValueError('identical_inputs_changed_during_validation')
+            return miss('inputs_changed_during_validation_build_fresh')
         out.update(status='SKIPPED_IDENTICAL_INPUTS', sensor_result=sensor)
         job.save(receipt, out)
         return out

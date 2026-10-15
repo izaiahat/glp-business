@@ -28,13 +28,13 @@ def digest(value):
                                      separators=(',', ':')).encode()).hexdigest()
 
 
-def path_digest(path):
+def path_digest(path, *, file_cache=None):
     """Hash names, types, modes, symlinks and bytes; fail on races/special files."""
     root = Path(path)
+    cache = {} if file_cache is None else file_cache
     if root.is_symlink():
         # A bind source is dereferenced by bwrap before mounting it.
-        return digest(['bound-link', os.readlink(root), path_digest(root.resolve(strict=True))])
-    cache = {}
+        return digest(['bound-link', os.readlink(root), path_digest(root.resolve(strict=True), file_cache=cache)])
     active = set()
 
     def walk(p):
@@ -50,7 +50,7 @@ def path_digest(path):
             return digest(['unreadable', before.st_mode, before.st_uid, before.st_gid,
                            before.st_size, before.st_mtime_ns, before.st_ctime_ns])
         key = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
-        if key in cache:
+        if stat.S_ISREG(before.st_mode) and key in cache:
             return cache[key]
         if p in active:
             raise ValueError('build_input_symlink_cycle')
@@ -73,8 +73,10 @@ def path_digest(path):
                 after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
             raise ValueError('build_input_changed_during_hash:' + str(p))
         active.remove(p)
-        cache[key] = digest(value)
-        return cache[key]
+        result = digest(value)
+        if stat.S_ISREG(before.st_mode):
+            cache[key] = result
+        return result
 
     return walk(root)
 
@@ -90,7 +92,7 @@ def capture(config, *, source_tree, sheet_sha256, now=None):
         raise ValueError('build_inputs_require_network_isolation')
     if not any(argv[i:i + 2] == ['--cap-drop', 'ALL'] for i in range(len(argv))):
         raise ValueError('build_inputs_require_capability_drop')
-    mounts, environment = [], {}
+    mounts, environment, file_cache = [], {}, {}
     source_mounts = 0
     arities = {'--die-with-parent': 0, '--new-session': 0, '--unshare-all': 0, '--clearenv': 0,
                '--cap-drop': 1, '--chdir': 1, '--dev': 1, '--proc': 1,
@@ -108,7 +110,7 @@ def capture(config, *, source_tree, sheet_sha256, now=None):
                 source_mounts += 1
             else:
                 mounts.append({'destination': destination, 'mode': token,
-                               'sha256': path_digest(origin)})
+                               'sha256': path_digest(origin, file_cache=file_cache)})
         elif token == '--setenv':
             environment[argv[i + 1]] = hashlib.sha256(argv[i + 2].encode()).hexdigest()
         i += 1 + arities[token]

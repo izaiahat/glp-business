@@ -80,6 +80,22 @@ def test_mount_links_are_namespace_links_not_host_file_reads(tmp_path):
     assert inputs.path_digest(bound) != first
 
 
+def test_duplicate_file_bindings_hash_bytes_once_per_capture(tmp_path, monkeypatch):
+    import os
+    import glp_release_inputs as inputs
+    data=tmp_path/'input'; data.write_text('same physical input')
+    alias=tmp_path/'alias'; os.link(data, alias)
+    reads=[]; original=Path.open
+    def opened(path, *a, **kw):
+        if path in (data, alias): reads.append(path)
+        return original(path, *a, **kw)
+    monkeypatch.setattr(Path, 'open', opened)
+    argv=['/bin/true','--clearenv','--unshare-all','--cap-drop','ALL',
+          '--bind',str(tmp_path),'/site','--ro-bind',str(data),'/a','--ro-bind',str(alias),'/b']
+    inputs.capture({'namespace':'/site','base_argv':argv}, source_tree='T', sheet_sha256='S')
+    assert len(reads)==1
+
+
 def test_unreadable_mount_entries_are_not_build_readable_inputs(tmp_path):
     import glp_release_inputs as inputs
     private = tmp_path / 'private'
@@ -129,6 +145,11 @@ def test_identical_inputs_skip_requires_success_binding_and_passing_sensor(tmp_p
     with pytest.raises(ValueError, match='completeness_sensor'):
         release.try_identical_inputs({}, report, pointer, {'headRefOid':'HEAD','url':'PR'})
     job.save(base_report / 'SUCCESSFUL-INPUTS.json', {**baseline,'status':'PREPARED'})
+    assert release.try_identical_inputs({}, report, pointer, {'headRefOid':'HEAD','url':'PR'}) is None
+    job.save(base_report / 'SUCCESSFUL-INPUTS.json', baseline)
+    sequence=iter([key, {**key,'sha256':'changed while validating'}])
+    monkeypatch.setattr(release, 'fresh_release_inputs', lambda *a: next(sequence))
+    monkeypatch.setattr(hook, 'attach_sensor_result', lambda *a, **k: {'status':'PASS','failure_count':0})
     assert release.try_identical_inputs({}, report, pointer, {'headRefOid':'HEAD','url':'PR'}) is None
 
 
