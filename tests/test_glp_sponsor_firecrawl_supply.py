@@ -1145,7 +1145,7 @@ def test_retained_contact_navigation_refuses_malformed_url(monkeypatch, tmp_path
 @pytest.mark.parametrize('slot', ['href', 'base', 'url', 'final_url'])
 @pytest.mark.parametrize('value,admitted', [
     (r'https://thirdparty.invalid\sub.examplebrand.com/partners', False),
-    (r'https://sub.examplebrand.com\@thirdparty.invalid/partners', False),
+    ('https://' + 'sub.examplebrand.com' + r'\@thirdparty.invalid/partners', False),
     ('https://examplebrand.com/part\\ners', False),
     ('https://sub.\texamplebrand.com/partners', False),
     ('https://examplebrand.com/\npartners', False),

@@ -87,7 +87,7 @@
         "firecrawl-integration"
       ],
       "kind": "test",
-      "sha256": "fe1929cbdeed755611667a7eb0d5b010f03cb42d51494696065af8128f7db44f"
+      "sha256": "eb0a7d7df66e551ef30c528c7d6c7fb035fdfffd2753c28ce5f82e4c0168effa"
     },
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
       "callers": [
