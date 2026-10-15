@@ -217,6 +217,12 @@ def prepare_sync_source(source, report, changed):
 def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_only=True):
     """Default to source production; hourly main must explicitly own publication."""
     from glp_affiliate_registry_sync import sync
+    # Resume receipts already bind a PR to an exact head. Reuse the existing
+    # read-only CI admission before allocating another clone for that head.
+    if source_ref and source_pr:
+        resumed=ci(source_pr,report)
+        if resumed['headRefOid']!=source_ref:raise RuntimeError('source_pr_head_mismatch')
+    # Keep the post-sync CI/head check below: sync may produce a different PR.
     source=report/'candidate'
     run(['git','clone','--quiet','--single-branch','git@github.com:'+REPO+'.git',str(source)])
     if source_ref:
