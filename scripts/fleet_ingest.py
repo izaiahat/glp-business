@@ -377,6 +377,67 @@ def discover(root, live, config, prs):
     return events, errors
 
 
+def completion_preflight(root, issue, result, policy, runner=run, timeout=30):
+    """Dispatch a coordinator-selected contract; never infer completion from prose.
+
+    Protected retained contracts have no schema discriminator in the maintained
+    writer; require its exact scope and reject foreign schema labels. All arms
+    still run their authenticated acceptance/evidence validators, check-only.
+    """
+    try:
+        root = Path(root).resolve()
+        if not ISSUE.fullmatch(str(issue)):
+            raise ValueError('exact GLP issue required')
+        contract = policy.get('completion_contract', 'worker')
+        if contract not in ('worker', 'ordinary', 'protected-runtime', 'protected-noncode'):
+            raise ValueError('unknown coordinator completion_contract')
+        if not result:
+            raise ValueError('completion has no genuine worker RESULT.json for closure')
+        path = Path(result)
+        if not path.is_absolute():
+            path = root / path
+        if contract == 'worker':
+            argv = [sys.executable, str(root / 'scripts/linear_close.py'), issue,
+                    str(path), '--check-only']
+        else:
+            if (path.name != 'RESULT.json' or path.is_symlink() or not path.is_file()
+                    or not path.resolve().is_relative_to((root / 'reports').resolve())):
+                raise ValueError('typed completion needs existing RESULT.json under reports')
+            path = path.resolve()
+            data = json.loads(path.read_bytes())
+            if not isinstance(data, dict) or data.get('issue') != issue or data.get('status') != 'COMPLETE':
+                raise ValueError('typed completion requires exact issue and COMPLETE')
+            if contract == 'ordinary':
+                if (data.get('schema') != 'linear-ordinary-completion-v1'
+                        or data.get('scope') not in ('ordinary-code', 'ordinary-runtime', 'ordinary-readonly-runtime')):
+                    raise ValueError('ordinary completion scope/schema mismatch')
+            elif data.get('scope') != contract or 'schema' in data:
+                raise ValueError('protected completion scope/schema mismatch')
+            argv = [sys.executable, str(root / 'scripts/linear_orchestrator.py'),
+                    'pass', issue, str(path), '--' + contract, '--check-only']
+        check = {'argv': argv, **runner(argv, root, timeout)}
+        if check['rc'] != 0:
+            return check
+        if contract == 'worker':
+            valid = re.search(r'^' + re.escape(issue) + r' PASS(?:\s|$)',
+                              check.get('stdout', ''), re.M)
+            error = 'no-write closer did not return explicit PASS'
+        else:
+            try:
+                response = json.loads(check.get('stdout', ''))
+            except (ValueError, TypeError):
+                response = None
+            valid = (isinstance(response, dict) and response.get('identifier') == issue
+                     and response.get('validated') is True
+                     and type(response.get('writes')) is int and response['writes'] == 0)
+            error = 'no-write typed validator did not return exact identifier/validated:true/writes:0'
+        if not valid:
+            check.update(rc=3, stderr=error)
+        return check
+    except (ValueError, TypeError, OSError) as exc:
+        return {'rc': 2, 'stdout': '', 'stderr': str(exc)}
+
+
 def ingest(root, item, policy, runner=run, timeout=30, retry=False):
     inbox = root / 'reports/ops/fleet-inbox'
     target = inbox / item['issue'] / item['lane'] / 'INGEST.json'
@@ -401,6 +462,8 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
     fingerprint = hashlib.sha256(json.dumps({'event': item, 'policy': policy,
         'closer': digest(closer) if closer.is_file() else None,
         'gate': digest(root / 'scripts/linear_orchestrator.py') if (root / 'scripts/linear_orchestrator.py').is_file() else None,
+        'dispatcher': digest(root / 'scripts/fleet_ingest.py') if (root / 'scripts/fleet_ingest.py').is_file() else None,
+        'typed_lint': digest(root / 'scripts/result_lint.py') if (root / 'scripts/result_lint.py').is_file() else None,
         'proof_verifier': digest(root / 'scripts/fleet_plan_proof.py') if (root / 'scripts/fleet_plan_proof.py').is_file() else None}, sort_keys=True).encode()).hexdigest()
     prior = read(target)
     if prior.get('fingerprint') == fingerprint and not retry:
@@ -428,15 +491,8 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
         checks['proof'] = {'rc': 2, 'stderr': str(exc), 'stdout': ''}
     if checks['proof']['rc']:
         failures.append('proof: ' + (checks['proof'].get('stderr') or checks['proof'].get('stdout') or 'nonzero exit'))
-    if item['worker_result']:
-        argv = [sys.executable, str(closer), item['issue'], item['worker_result'], '--check-only']
-        checks['linear_close'] = {'argv': argv, **runner(argv, root, timeout)}
-        if checks['linear_close']['rc'] == 0 and not re.search(
-                r'^' + re.escape(str(item['issue'])) + r' PASS(?:\s|$)',
-                checks['linear_close'].get('stdout', ''), re.M):
-            checks['linear_close'].update(rc=3, stderr='no-write closer did not return explicit PASS')
-    else:
-        checks['linear_close'] = {'rc': 2, 'stderr': 'completion has no genuine worker RESULT.json for closure', 'stdout': ''}
+    checks['linear_close'] = completion_preflight(root, item['issue'], item['worker_result'],
+                                                 policy, runner, timeout)
     if checks['linear_close']['rc']:
         failures.append('linear_close: ' + (checks['linear_close'].get('stderr') or checks['linear_close'].get('stdout') or 'nonzero exit'))
     row = {'schema': 'fleet-ingest-v1', **item, 'fingerprint': fingerprint,

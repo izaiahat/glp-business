@@ -117,6 +117,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_digital_pr_weekly.py -k 'not cron_wrapper and not canonical_packet'  # those two read live host files
+      - name: GLP358 closure preflight routing (offline, exact head; no live writes)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_closure_preflight.py tests/test_fleet_ingest.py tests/test_auto_coordinator_adapter.py tests/test_auto_coordinator_loop.py
       - name: GLP109 protected two-account native custody (offline, exact head; no live writes)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
