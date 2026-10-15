@@ -373,6 +373,113 @@ class SourceCarrierTests(unittest.TestCase):
                 terminal.write_bytes(before[terminal])
             self.assertEqual({p:p.read_bytes() for p in before},before)
 
+    def test_superseded_native_publication_acknowledges_only_identical_deployed_article(self):
+        """Real immutable consumption/terminal/manifest pins; GET edges isolated."""
+        import copy
+        from types import SimpleNamespace
+        import article_buffer_cli as cli
+        cron = SimpleNamespace(article_current_base=lambda: None, article_production_head_id=lambda: None)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            op = 'host-superseded'
+            entry = {'entry_id':'a'*24, 'topic_id':'topic', 'target_route':'/guides/new/'}
+            pr = {'state':'MERGED', 'url':'https://github.com/izaiahat/glp-site-candidate/pull/50',
+                  'headRefOid':'a'*40, 'mergeCommit':{'oid':'b'*40}}
+            old, new = root / 'old', root / 'new'
+            row = {'entry_id':entry['entry_id'], 'route':entry['target_route']}
+            for key in ('article','qa','review'):
+                for release in (old,new):
+                    release.mkdir(exist_ok=True)
+                    (release / (key+'.json')).write_text('{"accepted":"'+key+'"}')
+                row[key] = {'path':key+'.json','sha256':carrier.digest(old / (key+'.json'))}
+            public_rel = 'public/guides/new/index.html'
+            for release in (old,new):
+                public = release / public_rel; public.parent.mkdir(parents=True)
+                public.write_text('<title>Reviewed title</title>')
+            rows = [{'path':spec['path'], 'sha256':spec['sha256'], 'size':(old/spec['path']).stat().st_size}
+                    for spec in (row['article'],row['qa'],row['review'])]
+            rows.append({'path':public_rel,'sha256':carrier.digest(old/public_rel),
+                         'size':(old/public_rel).stat().st_size})
+            def manifest(path, release, head):
+                path.write_text(json.dumps({'schema':'glp-opus-release-deployment-manifest-v1',
+                    'release_root':str(release),'site_head':head,'release_rows':rows}))
+            old_manifest = root / '01-deployment-manifest.json'
+            manifest(old_manifest,old,pr['headRefOid'])
+            terminal = root / 'terminal.json'
+            terminal.write_text(json.dumps({'schema':'glp-opus-production-terminal-receipt-v1',
+                'status':'PASS_PRODUCTION_TERMINAL','deployment':{'deployment_id':'original'},
+                'site_head':pr['headRefOid'],
+                'evidence_sha256':{old_manifest.name:carrier.digest(old_manifest)}}))
+            current_manifest = root / 'current-manifest.json'
+            manifest(current_manifest,new,'c'*40)
+            pointer = root / 'pointer.json'
+            pointer.write_text(json.dumps({'deployment_id':'successor','site_head':'c'*40,
+                'release_root':str(new),'manifest':carrier.buffer._spec(current_manifest)}))
+            claim = root / 'claim.json'
+            carrier.buffer._write_once(claim,{'schema':carrier.buffer.CLAIM_SCHEMA,
+                'operation_id':op,'entry_id':entry['entry_id']},'claim_sha256')
+            binding = {'deployment_id':'original','site_head':pr['headRefOid'],
+                'release_root':str(old),'terminal_receipt':carrier.buffer._spec(terminal)}
+            result = {'status':'PASS_PRODUCTION_TERMINAL','scope':'operator-approved-main-release',
+                'site_main':pr['mergeCommit']['oid'],'source_pr':pr['url'],'deployment_id':'original',
+                'search_submission':{'binding':binding}}
+            live = {'http':200,'title':'Reviewed title','url':carrier.SITE+entry['target_route']}
+            publication = {**carrier.publication_receipt(pr,result,live,row),'receipt':str(terminal)}
+            carrier.record_consumption(root,entry,op,publication,claim)
+            sealed = carrier.consumed_path(root,op)
+            preserved = {p:p.read_bytes() for p in (sealed,claim,terminal,old_manifest)}
+            with patch.object(cli,'DEFAULT_ROOT',root), patch.object(cli,'POINTER',pointer), \
+                 patch.object(cli,'current_context',return_value=(None,new,{entry['target_route']},set())), \
+                 patch.object(carrier,'source_rows',return_value=[row]), \
+                 patch.object(carrier,'accepted_entry',return_value=(root,entry,{'title':'Reviewed title'})), \
+                 patch.object(carrier,'live_readback',return_value=live) as get, \
+                 patch.object(cron,'article_current_base',side_effect=lambda: {'deployment_id':'successor','pointer_sha256':carrier.digest(pointer)}), \
+                 patch.object(cron,'article_production_head_id',return_value='successor') as head, \
+                 patch.dict(sys.modules,{'scripts.cron_bridge_action':cron}), \
+                 patch.object(carrier,'run',side_effect=AssertionError('no child/write allowed')), \
+                 patch.object(carrier,'record_consumption',side_effect=AssertionError('no new seal')):
+                recovered = carrier.published_operation_readback(op)
+                self.assertIsNotNone(recovered, 'unchanged accepted article under a successor must acknowledge')
+                self.assertEqual(recovered['publication_lineage']['original_deployment_id'],'original')
+                self.assertEqual(recovered['publication_lineage']['current_deployment_id'],'successor')
+                self.assertEqual(recovered['receipt_path'],str(sealed))
+                # Hash-bound current snapshots cannot bless changed article HTML,
+                # even when accepted source/title/route remain unchanged.
+                original_current = current_manifest.read_bytes()
+                for mutation in ('html','missing_html','duplicate_html','source','original_manifest','terminal','production','live'):
+                    with self.subTest(mutation=mutation):
+                        changed = json.loads(original_current)
+                        if mutation == 'html':
+                            (new/public_rel).write_text('Different article, same title')
+                            changed['release_rows'][-1].update(sha256=carrier.digest(new/public_rel),size=(new/public_rel).stat().st_size)
+                        elif mutation == 'missing_html':
+                            changed['release_rows'].pop()
+                        elif mutation == 'duplicate_html':
+                            changed['release_rows'].append(copy.deepcopy(changed['release_rows'][-1]))
+                        elif mutation == 'source':
+                            (new/'article.json').write_text('changed source')
+                        elif mutation == 'original_manifest':
+                            old_manifest.write_text('{}')
+                        elif mutation == 'terminal':
+                            terminal.write_text('{}')
+                        elif mutation == 'production':
+                            head.return_value = 'other'
+                        elif mutation == 'live':
+                            get.side_effect = RuntimeError('wrong canonical')
+                        current_manifest.write_text(json.dumps(changed))
+                        pointer.write_text(json.dumps({'deployment_id':'successor','site_head':'c'*40,
+                            'release_root':str(new),'manifest':carrier.buffer._spec(current_manifest)}))
+                        self.assertIsNone(carrier.published_operation_readback(op))
+                        for p, raw in preserved.items():
+                            if p in (terminal,old_manifest): p.write_bytes(raw)
+                        (new/public_rel).write_bytes((old/public_rel).read_bytes())
+                        (new/'article.json').write_bytes((old/'article.json').read_bytes())
+                        head.return_value = 'successor'; get.side_effect = None
+                # Restore current snapshot; original evidence was never rewritten
+                # by the production reader (only explicit tamper fixtures above).
+                current_manifest.write_bytes(original_current)
+            self.assertEqual({p:p.read_bytes() for p in preserved},preserved)
+
     def test_compatibility_preflight_uses_native_source_lane(self):
         import validate_article_carrier_base_compatibility as compatibility
         with patch.object(carrier,'preflight',return_value={'status':'PASS_SOURCE_MAIN_COMPATIBILITY'}) as preflight:

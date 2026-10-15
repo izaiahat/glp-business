@@ -2413,7 +2413,7 @@
         "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py"
       ],
       "kind": "registered_producer",
-      "sha256": "71cffa833f71da8bb0c63f3693ab0f5970877e1e6369b27598caec0f606263b1"
+      "sha256": "031b2b810e3c7c3c062bdbded50ca8ef16546f2d43dcd86d030d979cb4ca03fc"
     },
     "scripts/auto_coordinator_guard.py": {
       "callers": [
@@ -2581,7 +2581,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "fc1146a502f250c267c3460e8171bde678be7ee20ca773304aa9f0ffbfbfbd4b"
+      "sha256": "ad0398af92b07a67878eb5b0f3cd8456d8c306954eddddc711685e047c78bd72"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -4865,7 +4865,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "9bd6bd9f12a60a8c664e9d04aa1a52271402a8823accc35b6cf949204affc0e5"
+      "sha256": "f657133291daa8b133363093dd01b5cdef9ea4a7da48c2656d93369d406cb2a0"
     },
     "tests/test_audit_20260916_gates.py": {
       "callers": [
@@ -4999,7 +4999,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "e9189cf48a32c24f8344431ab40210414d58c412dfb1e988d36c40199c124ff5"
+      "sha256": "5cd2d756a8bad69659d4ebc316c4606de765e11bcfb126eca227284971b2ee85"
     },
     "tests/test_current_release_acceptance.py": {
       "callers": [

@@ -216,6 +216,85 @@ def record_consumption(root, entry, operation_id, publication, claim=None):
     return buffer._read_sealed(target,buffer.CONSUME_SCHEMA,'consumption_sha256')
 
 
+def successor_publication_lineage(publication, pointer):
+    """Authenticate content containment, not merely a surviving title or route.
+
+    The immutable consumption pins the original native terminal via its search
+    binding. That terminal pins the original deployment manifest. The validated
+    CURRENT pointer pins the successor manifest and deployed closure. Require
+    the identical accepted article/QA/review AND rendered HTML in both closures.
+    No ancestry guess, mutable receipt retrofit, publishing or new consumption.
+    Recovery-snapshot records deliberately retain their exact-pointer contract.
+    """
+    main = publication['main_release']
+    binding = main['search_submission']['binding']
+    original_id = publication['deployment_id']
+    if (binding['deployment_id'] != original_id
+            or main['deployment_id'] != original_id
+            or pointer['deployment_id'] == original_id):
+        raise RuntimeError('source_lineage_original_deployment_invalid')
+    terminal_spec = binding['terminal_receipt']
+    terminal_path = buffer._verify_spec(terminal_spec, 'source_lineage_terminal')
+    if publication['receipt'] != str(terminal_path):
+        raise RuntimeError('source_lineage_terminal_binding_invalid')
+    terminal = json.loads(terminal_path.read_text())
+    if (terminal['schema'] != 'glp-opus-production-terminal-receipt-v1'
+            or terminal['status'] != 'PASS_PRODUCTION_TERMINAL'
+            or terminal['deployment']['deployment_id'] != original_id
+            or terminal['site_head'] != binding['site_head']):
+        raise RuntimeError('source_lineage_terminal_identity_invalid')
+    original_manifest_spec = {'path':str(terminal_path.parent / '01-deployment-manifest.json'),
+        'sha256':terminal['evidence_sha256']['01-deployment-manifest.json']}
+    original_manifest_path = buffer._verify_spec(original_manifest_spec, 'source_lineage_manifest')
+    current_manifest_path = buffer._verify_spec(pointer['manifest'], 'source_lineage_current_manifest')
+    original_manifest = json.loads(original_manifest_path.read_text())
+    current_manifest = json.loads(current_manifest_path.read_text())
+    row = publication['source_entry']
+    route = row['route']
+    if not re.fullmatch(r'/guides/[a-z0-9-]+/', route):
+        raise RuntimeError('source_lineage_route_invalid')
+    specs = [row[key] for key in ('article','qa','review')]
+    public_rel = 'public/' + route.strip('/') + '/index.html'
+    public_hashes = []
+    for manifest, release_root, site_head in (
+            (original_manifest,binding['release_root'],binding['site_head']),
+            (current_manifest,pointer['release_root'],pointer['site_head'])):
+        if (manifest['schema'] != 'glp-opus-release-deployment-manifest-v1'
+                or manifest['release_root'] != release_root or manifest['site_head'] != site_head):
+            raise RuntimeError('source_lineage_manifest_identity_invalid')
+        release = Path(release_root)
+        if not release.is_absolute() or release.is_symlink():
+            raise RuntimeError('source_lineage_release_invalid')
+        for rel, expected in [(s['path'],s['sha256']) for s in specs] + [(public_rel,None)]:
+            relative = Path(rel)
+            if relative.is_absolute() or '..' in relative.parts:
+                raise RuntimeError('source_lineage_path_invalid')
+            matches = [r for r in manifest['release_rows'] if r['path'] == rel]
+            if len(matches) != 1:
+                raise RuntimeError('source_lineage_manifest_row_invalid')
+            item = matches[0]
+            target = release / rel
+            if (target.is_symlink() or not target.is_file()
+                    or not target.resolve().is_relative_to(release.resolve())
+                    or digest(target) != item['sha256']
+                    or target.stat().st_size != item['size']
+                    or (expected is not None and item['sha256'] != expected)):
+                raise RuntimeError('source_lineage_content_drift')
+            if rel == public_rel:
+                public_hashes.append(item['sha256'])
+    if public_hashes[0] != public_hashes[1]:
+        raise RuntimeError('source_lineage_rendered_article_drift')
+    # Recheck the historical pins after reading their bound leaf bytes.
+    buffer._verify_spec(terminal_spec, 'source_lineage_terminal')
+    buffer._verify_spec(original_manifest_spec, 'source_lineage_manifest')
+    return ({'deployment_id':original_id, 'site_head':binding['site_head'],
+             'final_receipt':terminal_spec},
+            {'mode':'sealed-deployed-article-content', 'original_deployment_id':original_id,
+             'current_deployment_id':pointer['deployment_id'], 'route':route,
+             'article_html_sha256':public_hashes[0], 'original_manifest':original_manifest_spec,
+             'current_manifest':pointer['manifest']})
+
+
 def published_operation_readback(operation_id):
     """GET-only recovery of a failed acknowledgement after native reconciliation.
 
@@ -235,40 +314,45 @@ def published_operation_readback(operation_id):
             return None
         publication = record['publication']
         current = article_current_base()
-        if (publication.get('status') != 'PASS_BUFFER_PUBLISHED'
-                or publication.get('deployment_id') != current['deployment_id']):
+        if publication.get('status') != 'PASS_BUFFER_PUBLISHED':
             return None
+        lineage = None
         reconciled = publication.get('source_reconciled') is True
         if reconciled:
-            if publication.get('current_base') != buffer._spec(cli.POINTER):
+            if (publication.get('deployment_id') != current['deployment_id']
+                    or publication.get('current_base') != buffer._spec(cli.POINTER)):
                 return None
         else:
             # Normal consume seals the native main result, not a recovery
             # snapshot. Authenticate its terminal receipt against the validated
             # CURRENT pointer; never retrofit fields into immutable consumption.
             pointer = json.loads(cli.POINTER.read_text())
-            pr, main = publication['source_pr'], publication['main_release']
             if (digest(cli.POINTER) != current['pointer_sha256']
-                    or pointer['deployment_id'] != current['deployment_id']
-                    or pr['state'] != 'MERGED'
+                    or pointer['deployment_id'] != current['deployment_id']):
+                return None
+            publication_base = pointer
+            if publication.get('deployment_id') != current['deployment_id']:
+                publication_base, lineage = successor_publication_lineage(publication,pointer)
+            pr, main = publication['source_pr'], publication['main_release']
+            if (pr['state'] != 'MERGED'
                     or not re.fullmatch(r'https://github\.com/izaiahat/glp-site-candidate/pull/[1-9][0-9]*', pr['url'])
                     or any(not re.fullmatch('[a-f0-9]{40}', value)
                            for value in (pr['headRefOid'], pr['mergeCommit']['oid']))
-                    or pointer['site_head'] not in (pr['headRefOid'], pr['mergeCommit']['oid'])
+                    or publication_base['site_head'] not in (pr['headRefOid'], pr['mergeCommit']['oid'])
                     or main['status'] not in ('PASS_PRODUCTION_TERMINAL', 'PASS_ALREADY_CURRENT')
                     or main.get('prepare_only') is True
                     or main['scope'] != 'operator-approved-main-release'
                     or main['site_main'] != pr['mergeCommit']['oid']
-                    or main['deployment_id'] != current['deployment_id']
+                    or main['deployment_id'] != publication_base['deployment_id']
                     or (main['status'] == 'PASS_PRODUCTION_TERMINAL' and main.get('source_pr') != pr['url'])):
                 return None
-            terminal_path = buffer._verify_spec(pointer['final_receipt'], 'source_readback_terminal')
+            terminal_path = buffer._verify_spec(publication_base['final_receipt'], 'source_readback_terminal')
             terminal = json.loads(terminal_path.read_text())
             if (publication['receipt'] != str(terminal_path)
                     or terminal['schema'] != 'glp-opus-production-terminal-receipt-v1'
                     or terminal['status'] != 'PASS_PRODUCTION_TERMINAL'
-                    or terminal['deployment']['deployment_id'] != current['deployment_id']
-                    or terminal['site_head'] != pointer['site_head']):
+                    or terminal['deployment']['deployment_id'] != publication_base['deployment_id']
+                    or terminal['site_head'] != publication_base['site_head']):
                 return None
         claim_path = buffer._verify_spec(record['claim'],'source_readback_claim')
         claim = buffer._read_sealed(claim_path,buffer.CLAIM_SCHEMA,'claim_sha256')
@@ -286,7 +370,8 @@ def published_operation_readback(operation_id):
             return None
         return {'status':'PASS_PUBLISHED','published':True,'entry_id':entry['entry_id'],
                 'topic_id':entry['topic_id'],'route':entry['target_route'],'url':live['url'],
-                'receipt_path':str(path),'reconciled_live':live}
+                'receipt_path':str(path),'reconciled_live':live,
+                **({'publication_lineage':lineage} if lineage else {})}
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, StopIteration):
         return None
 

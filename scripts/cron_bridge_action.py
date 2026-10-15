@@ -648,6 +648,10 @@ def finish_action(action, args, job, state, state_path, *, call=None):
                 raise TerminalRefusal(status, "article_carrier_failed_before_publish_no_effect")
             raise RuntimeError("article_carrier_missed_day_or_refused_see_machine_receipt")
         effects = {"machine_status": status, "output_count": int(published)}
+        if published and r.get("publication_lineage"):
+            # Preserve the new GET proof in this receipt, never edit the sealed
+            # original publication/consumption to impersonate the successor.
+            effects["publication_lineage"] = r["publication_lineage"]
         if published:
             from urllib.request import Request, urlopen
             from urllib.parse import urlparse
