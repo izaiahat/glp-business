@@ -22,4 +22,4 @@ def trigger():
 if __name__=='__main__':
     result=trigger()
     verb='launched' if result['launched'] else 'already running; skipped duplicate launch'
-    print(f"⚙️ **Host Disk** — {verb} **{UNIT}** · detached full backlog pass · completion receipt and reclaimed GiB will be posted by the unit")
+    print(f"⚙️ **Host Disk** — {verb} **{UNIT}** · detached guarded cleanup pass · completion receipt and reclaimed GiB will be posted by the unit")

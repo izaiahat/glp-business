@@ -39,16 +39,20 @@ controller's existing completion notification remains part of the chain.
 - `ops/systemd/host-disk-cleanup-local-only.conf.example`: opt-in fixed ExecStart
   for the existing unit and unchanged proof hooks. Parent must authenticate the
   effective loaded ExecStart, not just the example file.
-- `ops/hermes-cron-scripts/host_disk_pruner.py`: repair stale repository legacy
-  wrapper to the authentic already-installed registered trigger wrapper bytes
-  (installed/registered SHA256 `e9847e3fd7a3e9ae27bcf891b09e2219045d7b87ad39b57f703119b1cda76c72`).
-- `scripts/host_disk_pruner_trigger.py`: curate authentic installed source,
-  unchanged in behavior. Low-free wrapper unchanged, registered SHA256
+- `ops/hermes-cron-scripts/host_disk_pruner.py`: restore the authentic trigger
+  execution body from the installed/registered baseline SHA256
+  `e9847e3fd7a3e9ae27bcf891b09e2219045d7b87ad39b57f703119b1cda76c72`.
+  The output fixture now uses mode-neutral wording, so the successor requires
+  explicit `075ed81c6b43` native wrapper SHA repinning at authorized receiving.
+- `scripts/host_disk_pruner_trigger.py`: curate authentic installed launch logic,
+  with mode-neutral output (not an unsupported full-mode claim). Low-free wrapper
+  is unchanged, registered SHA256
   `0fd59dad6dcf953f836e85a904a0406ef9216fb1749b4a40decd79dc2add2b8b`.
-- Source manifest leaf hashes, source drift wrapper expectation, explicit
-  allowlist, focused test and its existing exact-head CI step are reviewed
-  together. These are repository metadata, **not** installed sync baselines or
-  native job-pin writes. No global manifest adoption is authorized.
+- Source manifest leaves, source-drift wrapper expectation and direct trigger /
+  controller / sweep payload pins, explicit allowlist, focused tests and their
+  existing exact-head CI step are reviewed together. These are source metadata,
+  **not** installed sync baselines or native job-pin writes. No global manifest
+  adoption is authorized.
 
 Receiving/adoption is parent-owned and requires independent exact-head review,
 normal existing source/cleanup/native singleton custody and no active old
@@ -57,8 +61,16 @@ never install a controller/sweep partially or change the drop-in while a full
 invocation is active. No install, daemon-reload, trigger, qualification, policy
 pointer, credential/environment manipulation, upload or reclaim is performed
 here. Historical qualification receipt `c1a21e627ae455e071fa32afcb08b051d1e8f1f78ae01f5519f52c5b5ea6d44b`
-and policy remain untouched. Parent's sole natural observer remains pending and
-is not read or duplicated by this source work.
+and policy remain untouched. Parent consumed its sole natural observer: the
+bound PID 3282561 / invocation 042f7501c43545d88ad14d930aac3502 ended 11:17:23Z,
+ExecMainStatus 1 / completed_with_errors, authentic completion SHA256
+`ff989a803a28e6cde3a2c1e37d5df3b96d3991bf04f54158183b9ce6247a53f2`.
+Parent recomputed every row/rule total as zero. C's 160 candidates include 159
+snapshot refusals naming route/queue, not proof of 159 writes or an actual writer;
+one cites incomplete relay/lane/Linear refresh. D remained stale, A time-budget
+partial, B zero links. This does not assert a present lock-free window; later
+native invocations may exist. Observer/receipt namespace is not read or modified
+by this source work.
 
 ## Queue-reference churn: maintained-source trace, not PID attribution
 
@@ -121,5 +133,7 @@ check with all R2 boundaries counted/forbidden, a real private scratch archive
 compressed/verified/retired under unchanged local guards, and fixture-only
 legacy subprocess receipts/sends. It is **not** native scheduler/runtime proof.
 Two other checks preserve the default destination construction path (stubbed)
-and original fail-closed collector-drift exception/zero-effect receipt.
+and actual complete-collector identity refusal/zero-effect receipt after a real
+private queue publication. A fourth real read-only drift audit proves delegated
+trigger drift cannot be CLEAN under the new source payload pins.
 No host source hash readers, live cleanup or live R2 contact run in these tests.

@@ -195,3 +195,42 @@ def test_local_only_reference_drift_still_refuses_before_work(tmp_path, monkeypa
     assert data['attributable_bytes_freed'] == 0 and data['r2'] is None
     assert data['reference_veto_source'] == str(queue)
     assert proof.read_text() == 'fixture retained proof'
+
+
+def test_registered_trigger_payload_drift_is_not_clean(tmp_path):
+    import copy
+    import scheduled_source_drift as drift
+    spec = next(row for row in json.loads((ROOT / 'ops/scheduled-source-drift-manifest.json').read_text())['jobs']
+                if row['id'] == '075ed81c6b43')
+    spec = copy.deepcopy(spec)
+    wanted = {'scripts/host_disk_pruner_trigger.py',
+              'scripts/host_disk_cleanup_large_unit.py', 'scripts/host_disk_large_sweep.py'}
+    assert {pin['path'].removeprefix('/home/ubuntu/business/') for pin in spec['payloads']} == wanted
+    bus = tmp_path / 'business'
+    home = tmp_path / 'hermes'
+    (bus / 'ops/hermes-cron-scripts').mkdir(parents=True)
+    (home / 'scripts').mkdir(parents=True)
+    (home / 'cron').mkdir()
+    source = ROOT / spec['source']
+    installed = home / 'scripts/host_disk_pruner.py'
+    installed.write_bytes(source.read_bytes())
+    (bus / spec['source']).write_bytes(source.read_bytes())
+    spec['path'] = str(installed)
+    for pin in spec['payloads']:
+        rel = pin['path'].removeprefix('/home/ubuntu/business/')
+        path = bus / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes((ROOT / rel).read_bytes())
+        pin.update(path=str(path), owner=str(installed))
+    files = {spec['source']: {'sha256': spec['reviewed_sha256']}}
+    (bus / 'ops/rebuild-source-manifest.json').write_text(json.dumps({'files': files}))
+    (bus / 'ops/scheduled-source-drift-manifest.json').write_text(json.dumps(
+        {'schema': 'scheduled-source-drift-v1', 'jobs': [spec]}))
+    jobs = {'jobs': [{'id': spec['id'], 'script': installed.name,
+                     'script_sha256': spec['reviewed_sha256'], 'enabled': False}]}
+    (home / 'cron/jobs.json').write_text(json.dumps(jobs))
+    assert drift.audit(bus, home, crontab_ids=[])['status'] == 'CLEAN'
+    (bus / 'scripts/host_disk_pruner_trigger.py').write_text('drifted fixture\n')
+    result = drift.audit(bus, home, crontab_ids=[])
+    assert result['status'] == 'DRIFT'
+    assert result['counts']['payload_drift'] == 1
