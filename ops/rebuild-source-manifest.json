@@ -4,7 +4,7 @@
     "scripts/auto_coordinator_loop.py": {
       "kind": "script",
       "callers": ["scripts/auto_coordinator_runner.py"],
-      "sha256": "d9038cf1412a64330d51cd8dad5d09d36cbe62beaf53eefae8ebeab2f2a3b016"
+      "sha256": "18efe2340ca11c2e41c827fb488bb0fe42344027da44cbb95dd3894e06f5a9db"
     },
     "tests/test_auto_coordinator_adapter.py": {
       "kind": "test", "callers": ["coordinator-receipt-ci"],
@@ -24,7 +24,7 @@
     },
     "tests/test_auto_coordinator_resources.py": {
       "kind": "test", "callers": ["coordinator-receipt-ci"],
-      "sha256": "45e2385c4759fc6726ebac11fc56f01e00093a558a01283a1ab0b7aa0743c0c4"
+      "sha256": "e16bb6f90a43da6fa9558143c029269a459a2e7a42d90557a937f7dc60ef3999"
     },
     "ops/glp/weekly_analytics_owner.py": {
       "kind": "script",

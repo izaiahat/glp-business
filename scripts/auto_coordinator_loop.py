@@ -21,6 +21,8 @@ import time
 
 ROOT = Path('/home/ubuntu/business')
 PLAN = 'reports/ops/fable-plan-2-20261009/PLAN.json'
+# Exact registered fleet_ingest --live default; no other profile or runtime tree.
+LIVE = Path('/home/ubuntu/.hermes/cache/delegation/live')
 ISSUE = re.compile(r'GLP-[1-9][0-9]*')
 DONE = {'Done', 'Canceled', 'Cancelled', 'Duplicate'}
 SPLIT = {'reviewer': 45, 'batch': 30, 'opus': 100, 'haiku': 5, 'reserve': 10}
@@ -365,14 +367,18 @@ def inputs(root):
             path = Path(name)
             if not path.is_absolute():
                 path = root / path
-            if path.is_symlink() or not path.resolve().is_relative_to(root.resolve()) or digest(path.read_bytes()) != sha:
+            native_manifest = (row.get('source') == 'native' and path.name == 'manifest.json'
+                               and re.fullmatch(r'deleg_[A-Za-z0-9]+', path.parent.name)
+                               and path.resolve().parent.parent == LIVE.resolve())
+            if (path.is_symlink() or not (path.resolve().is_relative_to(root.resolve()) or native_manifest)
+                    or digest(path.read_bytes()) != sha):
                 raise ValueError('fleet evidence changed or escaped root')
         worker = row.get('worker_result')
         if worker:
             wref = binding(root, worker)
             if row.get('evidence', {}).get(str(root / wref['path'])) != wref['sha256']:
                 raise ValueError('worker RESULT not hash-bound by INGEST')
-            if wref['data'].get('issue') != row['issue']:
+            if wref['data'].get('issue', row['issue']) != row['issue']:
                 raise ValueError('worker RESULT issue mismatch')
             row = dict(row, owner=wref['data'].get('owner'))
             from fleet_ingest import alive

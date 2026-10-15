@@ -53,6 +53,32 @@ def test_old_non_plan_row_does_not_block_the_current_plan(tmp_path):
     assert m.inputs(tmp_path)[1] == []
 
 
+def test_native_ingester_manifest_root_is_an_explicit_custody_input(tmp_path, monkeypatch):
+    root = tmp_path / 'business'
+    live = tmp_path / 'native/live'; (live / 'deleg_1234abcd').mkdir(parents=True)
+    monkeypatch.setattr(m, 'LIVE', live, raising=False)
+    manifest = live / 'deleg_1234abcd/manifest.json'; manifest.write_text('{}')
+    plan = root / m.PLAN; plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps({'issues': [task()]}))
+    p = root / 'reports/ops/fleet-inbox/GLP-1/native/INGEST.json'; p.parent.mkdir(parents=True)
+    data = row(schema='fleet-ingest-v1', evidence={str(manifest): m.digest(manifest.read_bytes())})
+    p.write_text(json.dumps(data))
+    assert m.inputs(root)[1][0]['issue'] == 'GLP-1'
+    data['source'] = 'github'; p.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='escaped root'):
+        m.inputs(root)
+
+
+def test_legacy_worker_uses_existing_ingest_issue_binding_without_inventing_owner(tmp_path):
+    plan = tmp_path / m.PLAN; plan.parent.mkdir(parents=True)
+    plan.write_text(json.dumps({'issues': [task()]}))
+    result = tmp_path / 'reports/ops/owner/RESULT.json'; result.parent.mkdir(parents=True)
+    result.write_text(json.dumps({'owner': 'OWNER', 'status': 'REDISPATCH_NEEDED'}))
+    p = tmp_path / 'reports/ops/fleet-inbox/GLP-1/native/INGEST.json'; p.parent.mkdir(parents=True)
+    p.write_text(json.dumps(row(worker_result=str(result), evidence={str(result): m.digest(result.read_bytes())}, schema='fleet-ingest-v1')))
+    assert m.inputs(tmp_path)[1][0]['owner'] == 'OWNER'
+
+
 def test_child_command_has_no_delegate_or_tui_and_explicit_routing():
     cmd = m.worker_command(task(), Path('brief.md'))
     assert cmd[cmd.index('--provider') + 1] == 'openai-codex'
