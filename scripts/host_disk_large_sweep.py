@@ -161,7 +161,24 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     deadline=time.monotonic()+budget
     d=os.statvfs('/');before=d.f_bavail*d.f_frsize
     pressure=before/(d.f_blocks*d.f_frsize)<0.15
-    rows=[];pins=references(report);r2info=None
+    rows=[];r2info=None
+    try:
+        pins=references(report)
+    except (OSError,ValueError,RuntimeError,KeyError,subprocess.SubprocessError) as error:
+        # Reference refusal is terminal and precedes every effect. Preserve the
+        # original exception/exit status while exposing its actual source to the
+        # registered controller, rather than leaving an absent report/empty rows.
+        source=getattr(error,'changed_source',None)
+        row={'rule':'reference_inventory','status':'GATED_REFERENCE_INVENTORY',
+             'ok':False,'partial':True,'bytes_freed':0,'reason':str(error),
+             'error_type':type(error).__name__,'changed_source':source}
+        d=os.statvfs('/')
+        m.write_json(report/'large-classes.json',{'stage':'reference_inventory_refused',
+            'pressure_trigger':pressure,'threshold_free_fraction':0.15,
+            'before_free_bytes':before,'after_free_bytes':d.f_bavail*d.f_frsize,
+            'df_delta_bytes':d.f_bavail*d.f_frsize-before,'rows':[row],'r2':None,
+            'reference_veto_source':source,'attributable_bytes_freed':0})
+        raise
     from host_disk_reference_guard import ReferenceGuardAPI
     reference_data=json.loads((report/'references.json').read_text())
     guarded=ReferenceGuardAPI(api,reference_data['reference_source_identity'])
