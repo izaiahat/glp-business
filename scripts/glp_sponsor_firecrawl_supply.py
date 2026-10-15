@@ -539,6 +539,95 @@ class Producer:
         return live, self.c.recipients(self.c.read_values(), self.c.load(self.discovery), live)
 
     # -- capture -----------------------------------------------------------
+    def retained_contact_targets(self, res):
+        """Inert continuation from current first-party navigation, not contacts.
+
+        A host cache is not proof that every literal partnership page was
+        visited. Reuse its scope evidence, but never replay any attempted URL,
+        remap the host, guess a path, or re-enrich an existing contact.
+        """
+        from html.parser import HTMLParser
+        from urllib.parse import urljoin, urlsplit
+        import glp_sponsor_readiness as readiness
+
+        class Links(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.hrefs = []
+                self.hidden = 0
+                self.base_href = None
+
+            def handle_starttag(self, tag, attrs):
+                if tag in ('script', 'style', 'template', 'noscript'):
+                    self.hidden += 1
+                if tag == 'a' and not self.hidden:
+                    self.hrefs.extend(v for k, v in attrs if k == 'href' and v)
+                if tag == 'base' and not self.hidden and self.base_href is None:
+                    self.base_href = dict(attrs).get('href')
+
+            def handle_endtag(self, tag):
+                if tag in ('script', 'style', 'template', 'noscript'):
+                    self.hidden = max(0, self.hidden - 1)
+
+        host = res['host']
+        if not hasattr(self, '_retained_contact_orgs'):
+            self._retained_contact_orgs = self.c.load(self.discovery).get('organizations', {})
+        org = self._retained_contact_orgs.get(host, {})
+        if org.get('professional_contacts') or self.c.public_business_contact(host, org, now()):
+            return []
+        pages, scope = [], list(org.get('scope_evidence', []))
+        retained = list(res.get('pages', [])) + list(org.get('discovery', {}).get('_markup', []))
+        for page in retained:
+            html = page.get('html', '')
+            final = page.get('final_url', page.get('url'))
+            if (not self.c.source_on_provider(page.get('url'), host)
+                    or not self.c.source_on_provider(final, host)
+                    or hashlib.sha256(html.encode('utf-8', 'replace')).hexdigest() != page.get('sha256')
+                    or not readiness.current_evidence({'captured_at_utc':page.get('fetched_at_utc'),
+                            'evidence_sha256':page.get('sha256')}, now())):
+                continue
+            rows, contacts = evidence(host, final, html, page['sha256'], page['fetched_at_utc'],
+                self.c.public_page_hits, self.c.BUSINESS_LOCALS, self.c.same, sponsor=True)
+            if contacts:
+                return []  # negative Bouncer contacts are not retry candidates either
+            scope.extend(rows)
+            pages.append(page)
+        bound = {'scope_evidence':scope, 'discovery':{'_markup':pages}}
+        qualified = self.c.sponsor_scope_current(host, bound, self.c, now())
+        own_us = [r for r in qualified if r.get('country') == 'US'
+            and US_SCOPE.search(r.get('country_excerpt', ''))
+            and re.search(r'\b(?:we|our|available|ship\w*|deliver\w*|residents?)\b',
+                          r.get('country_excerpt', ''), re.I)]
+        if not own_us or not any(r.get('sponsor_category') for r in qualified):
+            return []
+        def key(url):
+            u = urlsplit(url)
+            return ((u.hostname or '').removeprefix('www.'), u.path.rstrip('/'))
+        seen = {key(p[k]) for p in retained for k in ('url', 'final_url') if p.get(k)}
+        attempted = {digest for op in self.operations() if op.get('endpoint') == '/v2/scrape'
+                     for digest in op.get('url_hash', [])}
+        route = re.compile(r'(?:/(?:en-us|us|en|pages|company))?/(?:partners?|partnerships?|'
+            r'corporate-partnerships|brand-partnerships|affiliates?|affiliate-program|'
+            r'affiliate-programme|become-an-affiliate)/?', re.I)
+        targets = {}
+        for page in pages:
+            parser = Links(); parser.feed(page['html'])
+            for href in parser.hrefs:
+                try:
+                    base = urljoin(page['final_url'], parser.base_href or '')
+                    url = urljoin(base, href)
+                    u = urlsplit(url)
+                except ValueError:
+                    continue
+                if (u.scheme != 'https' or u.query or u.fragment
+                        or not self.c.source_on_provider(url, host)
+                        or not (route.fullmatch(u.path) or (u.path in ('', '/')
+                            and (u.hostname or '').split('.')[0] in ('affiliate', 'affiliates', 'partners')))
+                        or key(url) in seen or hashlib.sha256(url.encode()).hexdigest() in attempted):
+                    continue
+                targets.setdefault(key(url), url)
+        return sorted(targets.values())
+
     def _page(self, url, html, meta, source):
         at = now().isoformat()
         sha = hashlib.sha256(html.encode('utf-8', 'replace')).hexdigest()
@@ -547,12 +636,21 @@ class Producer:
 
     def capture_host(self, host, max_pages=7):
         out = self.pages / (host + '.json')
+        continuation = False
+        res, picks = {}, []
         if out.exists():
             res = self.c.load(out)
             if dt.datetime.fromisoformat(res['captured_utc']) > now() - dt.timedelta(days=25):
+                picks = self.retained_contact_targets(res)
+                if not picks:
+                    return res
+                continuation = True
+        if not self.budget.allow(min(max_pages, len(picks)) if continuation else max_pages + 1):
+            if continuation:
                 return res
-        if not self.budget.allow(max_pages + 1):
             return {'host': host, 'pages': [], 'skipped': 'budget'}
+        if continuation:
+            return self._capture_pages(out, res, picks[:max_pages])
         res = {'host': host, 'pages': [], 'errors': [], 'credits': 0, 'captured_utc': now().isoformat()}
         try:
             self.capture_admissible('map', 'https://' + host)
@@ -569,7 +667,11 @@ class Producer:
                 picks.append(u)
         picks[1:] = sorted(picks[1:], key=lambda u: (not bool(re.search(r'partner|affiliat|contact', u, re.I)),
                                                      not bool(re.search(r'about|terms', u, re.I)), u))
-        for u in picks[:max_pages]:
+        return self._capture_pages(out, res, picks[:max_pages])
+
+    def _capture_pages(self, out, res, picks):
+        host = res['host']
+        for u in picks:
             try:
                 self.capture_admissible('scrape', u)
                 # Official v2 /scrape parsers=[] disables per-page PDF parsing;

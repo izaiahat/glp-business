@@ -1087,6 +1087,173 @@ def test_mapped_pdf_disables_page_parsing_and_null_history_refuses(monkeypatch, 
     assert len(calls) == 2
 
 
+def retained_contact_producer(tmp_path, monkeypatch):
+    """Effects-denied capture seam; no Sheets, mailbox or provider client."""
+    from types import SimpleNamespace
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    p = supply.Producer.__new__(supply.Producer)
+    p.c = campaign; p.state = tmp_path; p.pages = tmp_path/'pages'
+    p.pages.mkdir(); p.discovery = tmp_path/'discovery.json'; p.report = {}
+    campaign.save(p.discovery, {'organizations':{}})
+    p.budget = supply.Budget(56428)
+    p.operations = lambda: []
+    html = ('<p>Our physician-led telehealth program offers semaglutide for weight loss.</p>'
+            '<p>Telehealth available nationwide in all 50 states.</p>'
+            '<a href="/become-an-affiliate">Become an Affiliate</a>')
+    page = {'url':'https://examplebrand.com/', 'final_url':'https://examplebrand.com/',
+            'html':html, 'sha256':hashlib.sha256(html.encode()).hexdigest(),
+            'fetched_at_utc':supply.now().isoformat()}
+    cache = {'host':'examplebrand.com', 'pages':[page], 'errors':[], 'credits':8,
+             'captured_utc':supply.now().isoformat()}
+    campaign.save(p.pages/'examplebrand.com.json', cache)
+    calls = []
+    def scrape(payload, **kwargs):
+        calls.append(payload)
+        return {'success':True, 'creditsUsed':1, 'data':{'rawHtml':'<p>Application form</p>',
+                'metadata':{'statusCode':200, 'url':payload['url']}}}
+    p.client = SimpleNamespace(scrape=scrape,
+        request=lambda *a, **k: pytest.fail('retained continuation must not map or read usage'))
+    p.paid = lambda credits, transport, payload, **kw: transport(payload, **kw)
+    return p, cache, calls
+
+
+def test_fresh_host_cache_continues_literal_uncaptured_business_page(monkeypatch, tmp_path):
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    result = p.capture_host('examplebrand.com', max_pages=4)
+    assert [call['url'] for call in calls] == ['https://examplebrand.com/become-an-affiliate']
+    assert result['pages'][0] == cache['pages'][0]
+    assert result['captured_utc'] == cache['captured_utc']
+    assert len(result['pages']) == 2
+    assert all(call['parsers'] == [] and call['formats'] == ['rawHtml']
+               and call['proxy'] == 'basic' for call in calls)
+    p.capture_host('examplebrand.com', max_pages=4)
+    assert len(calls) == 1
+
+
+def test_retained_contact_navigation_refuses_malformed_url(monkeypatch, tmp_path):
+    import hashlib
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    page = cache['pages'][0]
+    page['html'] = page['html'].replace('/become-an-affiliate', 'https://[malformed/partners')
+    page['sha256'] = hashlib.sha256(page['html'].encode()).hexdigest()
+    p.c.save(p.pages/'examplebrand.com.json', cache)
+    assert p.capture_host('examplebrand.com')['pages'] == cache['pages']
+    assert not calls
+
+
+def test_retained_contact_navigation_honors_external_html_base(monkeypatch, tmp_path):
+    import hashlib
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    page = cache['pages'][0]
+    page['html'] = '<base href="https://external.example/">' + page['html']
+    page['sha256'] = hashlib.sha256(page['html'].encode()).hexdigest()
+    assert p.retained_contact_targets(cache) == []
+    assert not calls
+
+
+@pytest.mark.parametrize('href', [
+    'http://examplebrand.com/partners', 'https://thirdparty.example/partners',
+    '/partners?ref=affiliate', '/partners#apply', '/blog/partners',
+    '/contact-us', 'mailto:partners@examplebrand.com',
+    'https://user:password@examplebrand.com/partners',
+    'https://examplebrand.com:8443/partners'])
+def test_retained_contact_navigation_does_not_guess_or_broaden(monkeypatch, tmp_path, href):
+    import hashlib
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    page = cache['pages'][0]
+    page['html'] = page['html'].replace('/become-an-affiliate', href)
+    page['sha256'] = hashlib.sha256(page['html'].encode()).hexdigest()
+    assert p.retained_contact_targets(cache) == []
+    assert not calls
+
+
+@pytest.mark.parametrize('state', ['started', 'error', 'success'])
+def test_retained_contact_any_exact_prior_attempt_is_consumed(monkeypatch, tmp_path, state):
+    import hashlib
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    p.operations = lambda: [{'endpoint':'/v2/scrape', 'caller':'other_registered_producer',
+        'url_hash':[hashlib.sha256(b'https://examplebrand.com/become-an-affiliate').hexdigest()],
+        'outcome':state, 'http_status':408 if state == 'error' else None, 'creditsUsed':None}]
+    assert p.retained_contact_targets(cache) == []
+    assert not calls
+
+
+@pytest.mark.parametrize('failure', ['no_us_service', 'no_category', 'stale', 'hash_mismatch',
+                                    'public_contact', 'professional_contact'])
+def test_retained_contact_continuation_preserves_qualification_and_existing_contact_stop(monkeypatch, tmp_path, failure):
+    import hashlib
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    page = cache['pages'][0]
+    if failure == 'no_us_service':
+        page['html'] = page['html'].replace('Telehealth available nationwide in all 50 states.',
+                                           '123 Main Street, Denver, CO 80202')
+    elif failure == 'no_category':
+        page['html'] = page['html'].replace('physician-led telehealth program offers semaglutide for weight loss',
+                                           'company offers general supplements')
+    elif failure == 'stale':
+        page['fetched_at_utc'] = (supply.now()-dt.timedelta(days=40)).isoformat()
+    elif failure == 'public_contact':
+        page['html'] += '<p>For business partnerships: partners@examplebrand.com</p>'
+    elif failure == 'professional_contact':
+        p._retained_contact_orgs = {'examplebrand.com':{'professional_contacts':[{'id':'held'}]}}
+    page['sha256'] = '0'*64 if failure == 'hash_mismatch' else hashlib.sha256(page['html'].encode()).hexdigest()
+    assert p.retained_contact_targets(cache) == []
+    assert not calls
+
+
+def test_retained_contact_continuation_consumes_only_bounded_new_pages(monkeypatch, tmp_path):
+    import hashlib
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    page = cache['pages'][0]
+    page['html'] += '<a href="/partners">Partner program</a>'
+    page['sha256'] = hashlib.sha256(page['html'].encode()).hexdigest()
+    p.c.save(p.pages/'examplebrand.com.json', cache)
+    result = p.capture_host('examplebrand.com', max_pages=1)
+    assert len(calls) == 1 and len(result['pages']) == 2
+    assert result['pages'][0] == cache['pages'][0]
+
+
+def test_retained_contact_reuses_actual_paid_fence_unknown_408_is_not_zero(monkeypatch, tmp_path):
+    import firecrawl_client as fc
+    import glp_firecrawl_jobs as jobs
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    ledger = tmp_path/'operations.jsonl'
+    monkeypatch.setattr(fc, 'LEDGER', ledger)
+    monkeypatch.setattr(jobs, 'spent_today', lambda *a: 0)
+    at = supply.now(); p.budget_day = at.date().isoformat()
+    p.reservations = tmp_path/'reservation.json'
+    row = {'operation_id':'unresolved-408', 'caller':supply.CALLER, 'at_utc':at.isoformat(),
+           'endpoint':'/v2/scrape', 'url_hash':['a-different-existing-target'],
+           'outcome':'error', 'http_status':408, 'creditsUsed':None}
+    ledger.write_text(json.dumps(row)+'\n')
+    before = ledger.read_bytes()
+    p.operations = supply.Producer.operations.__get__(p)
+    p.paid = supply.Producer.paid.__get__(p)
+    usage = {'remainingCredits':56428, 'planCredits':100000,
+             'billingPeriodStart':(at-dt.timedelta(days=1)).isoformat(),
+             'billingPeriodEnd':(at+dt.timedelta(days=30)).isoformat()}
+    p.client.request = lambda endpoint, **kw: {'data':usage} if endpoint == 'team/credit-usage' else pytest.fail('map')
+    result = p.capture_host('examplebrand.com')
+    assert not calls and result['pages'] == cache['pages']
+    assert result['errors'] == ['scrape:RuntimeError']
+    assert ledger.read_bytes() == before
+    assert not p.reservations.exists()
+
+
+def test_retained_contact_continuation_is_reached_by_actual_daily(monkeypatch, tmp_path):
+    p, cache, calls = retained_contact_producer(tmp_path, monkeypatch)
+    monkeypatch.setattr(p.c, 'ROOT', tmp_path)
+    monkeypatch.setattr(p.c, 'read_values', lambda: [['Provider']])
+    monkeypatch.setattr(supply, 'SPONSOR_SEEDS', ['examplebrand.com'])
+    p.plan = lambda: ({'suppression':{'entries':[]}, 'conversations':[]}, {'exclusions':[]})
+    p.import_only = False
+    p.discover = lambda: {}
+    p.merge = lambda: None; p.apollo = lambda: None; p.verify = lambda: None
+    assert p.daily()['status'] == 'COMPLETED'
+    assert [r['url'] for r in calls] == ['https://examplebrand.com/become-an-affiliate']
+
+
 @pytest.mark.parametrize('proxy,formats,expected', [('basic',['rawHtml'],None), ('auto',['markdown'],None), ('auto',['json'],None)])
 def test_null_capture_cost_is_unknown_bounded_or_refused(monkeypatch, tmp_path, proxy, formats, expected):
     import glp_firecrawl_jobs as jobs
