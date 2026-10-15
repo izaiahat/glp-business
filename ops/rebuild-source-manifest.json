@@ -297,7 +297,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "65f9e5ee4123419075f21857509a146198ca48d1fecb9128bd6d15a2cf992c11"
+      "sha256": "d4491c8041e41f3a11e439a4372297aae46298c3a8fed7f583cb92d61d88a9ea"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -459,7 +459,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7ae6d93742891b930a9f6be3dc5ba5e62cd73b9b0f6aa02d681d2c1bf34f1fa1"
+      "sha256": "cca92862e54b68468d04cb7ee71d9afa954c96afc73b6dfcbc9b5ac10b3be19a"
     },
     ".hermes.md": {
       "callers": [],
@@ -1445,7 +1445,7 @@
         "hermes:075ed81c6b43"
       ],
       "kind": "script",
-      "sha256": "7d469fb2305cdb5bfc742b25e8681df73b3a7dbe4b385b18b54e10de8fd379d2"
+      "sha256": "35a23b99209c58a1d43d237228f3fce8af3fea405b0dddcf7b7cbf26dd4d5f45"
     },
     "ops/hermes-cron-scripts/inbox_control_plane_cron.py": {
       "callers": [
@@ -1828,7 +1828,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "0f6432df579b60791e2d393fdabef376c7d256589e88ee969e039b9f34a66112"
+      "sha256": "4f8c6fa605e02835ca21cfff368f6783ccdff59d3de200f0e0ce5a27339c8da9"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3551,7 +3551,7 @@
         "systemd:host-disk-cleanup.service.d/large-classes.conf"
       ],
       "kind": "script",
-      "sha256": "ba9faaa3920e3aaaaff5e5eaa1e6c7dda3b2e494ee67b63d8af435a2fc0f4784"
+      "sha256": "68a6abb5d6b229f1182aaf2afadd9171561a3c1d80a4efa9df5970ae38b587da"
     },
     "scripts/host_disk_cold_classes.py": {
       "callers": [
@@ -3572,7 +3572,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "8f16b58fc569e70734581c64e963cd2e3e0729a087f47b8c987e43e5bd441730"
+      "sha256": "27ad053cfa29dd506c842f5af93708f94a66f7adff6f3a104ef0f64fc418ce09"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -6493,7 +6493,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "test",
-      "sha256": "570c850a3f3924fdf3ef2e00ee245f54064dc4fef09c3e797e46a363f23163c8"
+      "sha256": "7435aecd89777505fa97bf5b0d7d12d69f0bbadd6727d5e3bf0f3b1fda0ca04e"
     },
     "tests/test_host_health_audit.py": {
       "callers": [
@@ -6986,7 +6986,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "6de88ee4f1d04b34e403dc9c6ca418d882c9736e9421d4f4425c1daf606cbfd7"
+      "sha256": "1538d1d1e363b93ec832de3880bd8148bc54a58cd90035e3aad9cd77c15657c2"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -7920,6 +7920,35 @@
         "coordinator-receipt-ci"
       ],
       "sha256": "060411c02fcfdee67fbc197ded005dbba10c0a6542c5a3beb08491477328f19c"
+    },
+    "ops/host-disk-local-only-capability.md": {
+      "callers": [
+        "GLP349"
+      ],
+      "kind": "documentation",
+      "sha256": "cb8769257c237b131911bb94b4cc3781b8a75ae1eacf03d7eb9c90d3dccea39a"
+    },
+    "ops/systemd/host-disk-cleanup-local-only.conf.example": {
+      "callers": [
+        "systemd:host-disk-cleanup.service.d/large-classes.conf (opt-in alternative only)"
+      ],
+      "kind": "source_control",
+      "sha256": "02b3b3744500bd465ee4428a2ca5e457da3fc1bb513332dfcec5b9add984013e"
+    },
+    "scripts/host_disk_pruner_trigger.py": {
+      "callers": [
+        "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py",
+        "wrapper:ops/hermes-cron-scripts/host_disk_low_free_trigger.py"
+      ],
+      "kind": "script",
+      "sha256": "e3e01d65d345943a4fd880930b9c42eeffadaa2fd3fee1b6a63135c6d549a896"
+    },
+    "tests/test_host_disk_local_only.py": {
+      "callers": [
+        "business-source-ci"
+      ],
+      "kind": "test",
+      "sha256": "e94b7ebd52e6a835977e49d3811d814531d36316de3673ded66a1c0d26a30121"
     }
   },
   "omitted_runtime_inputs": [
@@ -7930,5 +7959,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1160
+  "tracked_count": 1164
 }
