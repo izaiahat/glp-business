@@ -293,6 +293,44 @@ class SourceCarrierTests(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
                         carrier.live_readback('/guides/new/','Reviewed title',expected_html=expected)
 
+    def test_live_decoder_reversal_accepts_observed_terminal_footer_injection(self):
+        # Fresh 2026-10-15 article GET has one pre-share decoder and one
+        # terminal decoder after a newly protected footer email, before </body>.
+        decoder = '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+        script = '<script src="/assets/editorial-share.js" defer></script>'
+        email = 'support@example.test'
+        encoded = '7f' + bytes(b ^ 127 for b in email.encode()).hex()
+        source = ('<html><body><main><a href="mailto:'+email+'">Share</a>'
+                  +script+'</main><footer><a href="mailto:'+email+'">'
+                  +email+'</a></footer></body></html>')
+        protected = source.replace('href="mailto:'+email+'"',
+            'href="/cdn-cgi/l/email-protection#'+encoded+'"')
+        protected = protected.replace('>'+email+'</a>',
+            '><span class="__cf_email__" data-cfemail="'+encoded+'">[email&#160;protected]</span></a>')
+        before_script = protected.replace(script, decoder+script)
+        edge = before_script.replace('</body>',decoder+'</body>')
+        self.assertEqual(carrier.verified_live_html_hash(edge,source),
+                         __import__('hashlib').sha256(source.encode()).hexdigest())
+        mutations = (
+            edge.replace(decoder,decoder+decoder,1),
+            edge.replace('</body>',decoder+'</body>'),
+            protected.replace('</body>',decoder+'</body>'),
+            before_script.replace('</footer>',decoder+'</footer>'),
+            before_script+decoder,
+            edge.replace('</footer>'+decoder,'</footer>'+decoder+' '),
+            edge.replace('</footer>'+decoder,'</footer><script>unchanged()</script>'+decoder),
+        )
+        for body in mutations:
+            with self.subTest(body=body):
+                with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+                    carrier.verified_live_html_hash(body,source)
+        # A second decoder without a later protected email is not observed CF.
+        early = '<html><body><a href="mailto:'+email+'">Email</a>'+script+'</body></html>'
+        early_edge = early.replace('href="mailto:'+email+'"',
+            'href="/cdn-cgi/l/email-protection#'+encoded+'"').replace(script,decoder+script)
+        with self.assertRaisesRegex(RuntimeError,'live_article_content_drift'):
+            carrier.verified_live_html_hash(early_edge.replace('</body>',decoder+'</body>'),early)
+
     def test_live_span_reversal_requires_email_text_in_active_html(self):
         def span(text):
             encoded = '7f' + bytes(b ^ 127 for b in text.encode()).hex()
