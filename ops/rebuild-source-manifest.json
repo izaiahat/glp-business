@@ -2866,7 +2866,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "ae0fea96634b14f284c22d4ca4f592e0971334d61d0ef5010abac463e7f17468"
+      "sha256": "66e2b56373e99b0e90727ed3132033933788bef334bc92438d37bb9c1431e628"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [

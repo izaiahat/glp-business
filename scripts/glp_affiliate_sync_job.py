@@ -50,7 +50,7 @@ def namespace(config,source,report):
     return argv
 
 
-def ci(pr,report,*,receipt_name='CI.json'):
+def ci(pr,report,receipt_name='CI.json'):
     # PR creation and Actions registration are asynchronous. Poll read-only
     # metadata until checks exist; never mistake that short gap for CI failure.
     for attempt in range(60):
@@ -222,7 +222,7 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_
     if source_ref and source_pr:
         # Admission is preliminary: a later fetch/sync failure must not add a
         # retention custody marker. CI.json remains authoritative post-sync.
-        resumed=ci(source_pr,report,receipt_name='CI-admission.non-custody.json')
+        resumed=ci(source_pr,report,'CI-admission.non-custody.json')
         if resumed['headRefOid']!=source_ref:raise RuntimeError('source_pr_head_mismatch')
     # Keep the post-sync CI/head check below: sync may produce a different PR.
     source=report/'candidate'
