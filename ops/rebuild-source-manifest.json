@@ -2700,7 +2700,7 @@
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "91b5dccad7f1e14ae8b1a14ab74ee825cca9ee98709f3c0a1b650816d15d547f"
+      "sha256": "b783ff3e5c8a4485a44eada7362d21c0016c2544c8e0fe65526f06318d11e2e7"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -6646,7 +6646,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "11afa6dbdbd1b899d73f3194550446a54f3b4d788d410e95cd5ea14bd56bb870"
+      "sha256": "195c85388a18fc0d40890ef8937611b6b958d908658312aa7a5a3c235cd23aba"
     },
     "tests/test_linear_close.py": {
       "callers": [],

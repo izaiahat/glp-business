@@ -413,7 +413,7 @@ def completion_preflight(root, issue, result, policy, runner=run, timeout=30):
                     raise ValueError('ordinary completion scope/schema mismatch')
             elif data.get('scope') != contract or 'schema' in data:
                 raise ValueError('protected completion scope/schema mismatch')
-            argv = [sys.executable, str(root / 'scripts/linear_orchestrator.py'),
+            argv = [sys.executable, '-B', str(root / 'scripts/linear_orchestrator.py'),
                     'pass', issue, str(path), '--' + contract, '--check-only']
         check = {'argv': argv, **runner(argv, root, timeout)}
         if check['rc'] != 0:

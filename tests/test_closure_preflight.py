@@ -7,6 +7,7 @@ These artifacts are test inputs, never receipts for live acceptance.
 from contextlib import redirect_stdout
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import types
@@ -28,13 +29,14 @@ def validator_runner(target, calls):
     def run(argv, root, timeout):
         calls.append(argv)
         assert argv[-1] == '--check-only' and '--apply' not in argv
-        assert Path(argv[1]).name == 'linear_orchestrator.py'
-        assert argv[2:4] == ['pass', target['identifier']]
+        assert argv[:2] == [sys.executable, '-B']
+        assert Path(argv[2]).name == 'linear_orchestrator.py'
+        assert argv[3:5] == ['pass', target['identifier']]
         output = io.StringIO()
         try:
             with redirect_stdout(output):
-                lo.pass_issue(target, argv[4], {}, check_only=True, **{
-                    argv[5][2:].replace('-', '_'): True})
+                lo.pass_issue(target, argv[5], {}, check_only=True, **{
+                    argv[6][2:].replace('-', '_'): True})
         except SystemExit as exc:
             return {'rc': 3, 'stdout': output.getvalue(), 'stderr': str(exc)}
         return {'rc': 0, 'stdout': output.getvalue(), 'stderr': ''}
@@ -127,6 +129,95 @@ def test_valid_response_with_nonzero_exit_still_refuses(readonly_completion):
         {'completion_contract': 'ordinary'}, lambda *a: {'rc': 7, 'stdout': json.dumps({
             'identifier': target['identifier'], 'validated': True, 'writes': 0}), 'stderr': 'refused'})
     assert result['rc'] == 7
+
+
+# The transport is offline, but the dispatcher launches the real Python child,
+# real orchestrator and real cold sibling import. This portable refusing lint
+# fixture tests import effects, not successful protected/host-lint acceptance.
+COLD_CHILD_SITE = '''import atexit, json, os, sys
+from pathlib import Path
+fixture = json.loads(Path(os.environ['CLOSURE_FIXTURE']).read_text())
+observed = {'linear': [], 'fs': [], 'imports': [],
+            'dont_write_bytecode': sys.dont_write_bytecode,
+            'inherited_no_bytecode': 'PYTHONDONTWRITEBYTECODE' in os.environ}
+report = Path(os.environ['CLOSURE_AUDIT'])
+def gql(query, variables=None):
+    observed['linear'].append(query)
+    if 'mutation' in query:
+        raise AssertionError('Linear mutation attempted')
+    if 'states{' in query:
+        return {'team': {'states': {'nodes': [{'name': 'Done', 'id': 'done'}]}}}
+    if 'issue(id:' in query:
+        return {'issue': fixture['target']}
+    if 'comment(id:' in query:
+        return {'comment': fixture['comments'][variables['id']]}
+    raise AssertionError('unexpected offline query: ' + query)
+def trace(frame, event, arg):
+    if (event == 'call' and frame.f_code.co_name == 'main'
+            and frame.f_code.co_filename.endswith('/linear_orchestrator.py')):
+        frame.f_globals['gql'] = gql
+        sys.settrace(None)
+    return trace
+sys.settrace(trace)
+def audit(event, args):
+    if event == 'import':
+        observed['imports'].append(args[0])
+    elif event == 'open' and args[2] & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND):
+        if str(args[0]) != str(report):
+            observed['fs'].append([event, str(args[0]), args[2]])
+    elif event in {'os.mkdir', 'os.rename', 'os.remove', 'os.rmdir'}:
+        observed['fs'].append([event, repr(args)])
+    elif event.startswith('socket.') or event in {'subprocess.Popen', 'os.system'}:
+        raise AssertionError('network or nested subprocess forbidden: ' + event)
+sys.addaudithook(audit)
+@atexit.register
+def save():
+    report.write_text(json.dumps(observed))
+'''
+
+
+def test_actual_cold_typed_child_check_only_has_no_filesystem_writes(
+        protected_noncode_completion, monkeypatch):
+    target, path, _, writes, parent, independent, *_ = protected_noncode_completion
+    root = path.parent.parent
+    scripts = root / 'scripts'
+    (scripts / 'linear_orchestrator.py').write_bytes(
+        (Path(fi.__file__).parent / 'linear_orchestrator.py').read_bytes())
+    # Not a runner or sys.modules replacement: importlib must read and execute
+    # this cold .py through unchanged _lint_result(), then genuinely refuse.
+    (scripts / 'result_lint.py').write_text(
+        "def lint(*args, **kwargs):\n    return ['offline cold-child lint refusal']\n")
+    transport = root / 'transport.json'
+    transport.write_text(json.dumps({'target': target, 'comments': {
+        parent['id']: parent, independent['id']: independent}}))
+    injection = root / 'injection'
+    injection.mkdir()
+    (injection / 'sitecustomize.py').write_text(COLD_CHILD_SITE)
+    audit = root / 'audit.json'
+    # Do not inherit suite-wide no-bytecode protection or credentials. -B in
+    # the parent interpreter is deliberately insufficient for this child.
+    for key in list(os.environ):
+        monkeypatch.delenv(key)
+    monkeypatch.setenv('PATH', '/usr/bin:/bin')
+    monkeypatch.setenv('HOME', str(root))
+    monkeypatch.setenv('PYTHONPATH', str(injection))
+    monkeypatch.setenv('CLOSURE_FIXTURE', str(transport))
+    monkeypatch.setenv('CLOSURE_AUDIT', str(audit))
+    before = snapshot(root)
+    assert not list(root.rglob('*.pyc'))
+    result = fi.completion_preflight(root, target['identifier'], path,
+                                    {'completion_contract': 'protected-noncode'})
+    observed = json.loads(audit.read_text())
+    assert result['rc'] != 0 and 'offline cold-child lint refusal' in result['stderr'], result
+    assert 'result_lint' in observed['imports']
+    assert len(observed['linear']) == 4 and not any('mutation' in q for q in observed['linear'])
+    assert not observed['inherited_no_bytecode'] and writes == []
+    assert not observed['fs'], observed
+    assert observed['dont_write_bytecode'] is True
+    assert not list(root.rglob('*.pyc'))
+    after = snapshot(root)
+    after.pop(str(audit))  # Only the test recorder's explicit output is exempt.
+    assert after == before
 
 
 def test_loop_binds_coordinator_config_contract_and_detects_change(tmp_path):
