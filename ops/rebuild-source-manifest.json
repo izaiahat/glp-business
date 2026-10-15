@@ -7790,14 +7790,14 @@
       "callers": [
         "scripts/glp_sponsor_firecrawl_supply.py"
       ],
-      "sha256": "81ac1e5451093d38814748e1510b263e8a4ead2b00d2858914cfb90050d87b41"
+      "sha256": "e7fbed9912e6cc946e09c80da3e56f1521f9d0f5aa59708e2227aa46613e7aaa"
     },
     "tests/test_glp_sponsor_discovery.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "960702a4d5080351de6fee60be4026a52e48703743fc28e644831a6fe6c03573"
+      "sha256": "cc672a603b7365d8cef1dc5930773d67641885a6ef2e2b4ce52713dc46ac24ac"
     },
     "tests/test_glp_sponsor_discovery_integration.py": {
       "kind": "test",

@@ -10,10 +10,12 @@ by glp_sponsor_firecrawl_supply. No credentials, mailboxes, or sends here.
 from __future__ import annotations
 
 import datetime as dt
+import email.utils
 import hashlib
 import ipaddress
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -171,6 +173,10 @@ class Discovery:
             if index >= len(DIRECTORIES):
                 report['directory_status'] = 'exhausted'
                 break
+            if (state.get('directory_not_before') and
+                    dt.datetime.now(dt.timezone.utc) < dt.datetime.fromisoformat(state['directory_not_before'])):
+                report['directory_status'] = 'retry_after'
+                break
             if str(state.get('directory_failed_at', '')).startswith(at[:10]):
                 report['directory_status'] = 'failed_today'
                 break
@@ -193,6 +199,19 @@ class Discovery:
             except Exception as exc:
                 report['directory_status'] = 'failed:' + type(exc).__name__
                 state['directory_failed_at'] = at
+                if isinstance(exc, urllib.error.HTTPError) and exc.code in (429, 503):
+                    # Server deadlines survive process and UTC-day boundaries.
+                    # Measure delta-seconds at receipt, not the start of the run.
+                    value = str((exc.headers or {}).get('Retry-After', '')).strip()
+                    try:
+                        deadline = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=int(value))
+                                    if re.fullmatch(r'\d+', value) else email.utils.parsedate_to_datetime(value))
+                        if deadline.tzinfo is not None:
+                            state['directory_not_before'] = deadline.astimezone(dt.timezone.utc).isoformat()
+                    except (TypeError, ValueError, OverflowError):
+                        pass  # Retain the conservative same-day failure latch.
+                    finally:
+                        exc.close()
                 self.save(state)
                 break
             bound = self.receipt('directory', {'at': at, 'params': params, 'pages': pages, 'entities': entities})
