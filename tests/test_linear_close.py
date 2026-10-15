@@ -47,6 +47,12 @@ def test_negative_duplicate_spend_is_not_a_financial_write():
     ('avoid duplicate finding/publication/spend; spend $50 on ads.', 'financial-write'),
     ('Spend $50; avoid duplicate finding/publication/spend.', 'financial-write'),
     ('avoid duplicate finding/publication/spend and charge the invoice.', 'financial-write'),
+    ('Preserve no-charge boundaries; charge $50.', 'financial-write'),
+    ('Charge $50; preserve no-charge boundaries.', 'financial-write'),
+    ('Preserve no-charge boundaries; refund the payment and raise the budget.', 'financial-write'),
+    ('Read-only no-charge review; paid invoice.', 'financial-write'),
+    ('Do not preserve no-charge boundaries.', 'financial-write'),
+    ('Preserve no-charge boundaries; send REPLY.md to jane@example.com.', 'third-party-send'),
     ('Make the payout to the network.', 'financial-write'),
     ('Record REAL earnings.', 'financial-write'),
     ('Publish the new health claims page; retain REPLY.md.', 'health-claim-publish'),
@@ -54,6 +60,55 @@ def test_negative_duplicate_spend_is_not_a_financial_write():
 ])
 def test_real_protected_effects_survive_artifacts_and_negative_guard(text, effect):
     assert lo.protected_effect(text) == effect
+
+
+def test_retention_no_charge_boundary_passes_readonly_closer(tmp_path, monkeypatch):
+    # Exact live GLP-360 title/description read 2026-10-15; retain the full scope.
+    target = {'id': '9636731c-e436-44c4-b3c8-f1a1ed1d5801', 'identifier': 'GLP-360',
+        'title': 'Review retained Google Cloud account-retention notice without authorizing an upgrade',
+        'description': (
+            'Kind: blocker\n\nCanonical inbox classified this retained infrastructure notice as actionable '
+            'for active GLP, but it has no owning machine. Review whether retention remediation remains '
+            'needed. This is a review blocker only: no paid upgrade, charge, account change or third-party '
+            'send is authorized. Verify current account state through authorized read-only access before '
+            'proposing action.\n\nNot admitted to planned work.\n\nSource: '
+            'inbox:evt_f6baa0d8f6e7576d7a4115750b7a\n\nOperation: '
+            'd328a46a-ef49-40a8-b380-7c1d36eeff52\n\n## Acceptance\n\n- [ ] Review whether retention '
+            'remediation remains needed using authorized read-only current account state; record supported '
+            'account/resource findings, remaining unknowns, and whether operator action is indicated. '
+            'Preserve the original no-upgrade, no-charge, no-account-change and no-third-party-send '
+            'boundaries of this review.\n\nCoordinator clarification 2026-10-15: this acceptance restates '
+            'the review objective above; it does not require proof of unrecorded historical deletion/upgrade '
+            'timing, authorize remediation, or accept the separately approved access setup as a substitute '
+            'for the retention review. The original description and notice identifiers remain unchanged.'),
+        'team': {'id': lo.TEAM, 'key': 'GLP'}, 'state': {'name': 'In Progress'}}
+    reports = tmp_path / 'reports'
+    reports.mkdir()
+    receipt = reports / 'retention.json'
+    receipt.write_text(json.dumps({'asset_counts': [50, 47, 29], 'review_id': 'retention-360'}))
+    worker = reports / 'RESULT.json'
+    worker.write_text(json.dumps({'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-360',
+        'live_run': 'Read-only retention-360', 'receipt': 'reports/retention.json'}))
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError('check-only attempted an external effect')
+
+    def gql(query, variables=None):
+        assert query == 'query{viewer{id}}'
+        return {'viewer': {'id': lo.OPERATOR_USER_ID}}
+
+    monkeypatch.setattr(lc, 'ROOT', tmp_path)
+    monkeypatch.setattr(lc, 'REPORTS', reports)
+    monkeypatch.setattr(lo, '__file__', str(tmp_path / 'scripts/linear_orchestrator.py'))
+    monkeypatch.setattr(lo, 'issue', lambda ident: target)
+    monkeypatch.setattr(lo, 'gql', gql)
+    monkeypatch.setattr(lo, 'comment', forbidden)
+    monkeypatch.setattr(lc, 'write', forbidden)
+    monkeypatch.setattr(lc, 'orchestrate', forbidden)
+    monkeypatch.setattr(subprocess, 'check_output', forbidden)
+    before = {p: p.read_bytes() for p in reports.iterdir()}
+    assert lc.close('GLP-360', worker, check_only=True)[0] == 'PASS'
+    assert {p: p.read_bytes() for p in reports.iterdir()} == before
 
 
 def test_genuine_send_refused_by_linear_close_even_with_reply_artifact(tmp_path):
