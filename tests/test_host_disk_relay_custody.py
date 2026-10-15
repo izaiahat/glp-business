@@ -187,6 +187,8 @@ def test_explicit_policy_layout_root_is_not_dropped(tmp_path):
 def test_hold_arriving_during_archive_hash_vetoes_actual_c_commit(tmp_path,monkeypatch):
     """Real scratch compression/verification; synthetic Git/process/Linear only."""
     import shutil
+    scratch=tmp_path/'archive-staging';scratch.mkdir()
+    monkeypatch.setattr(ep,'SCRATCH',scratch)
     root=tmp_path/'reports/cold';root.mkdir(parents=True)
     proof=root/'ordinary.txt';proof.write_bytes(b'compressible scratch proof\n'*65536)
     old=time.time()-40*86400
