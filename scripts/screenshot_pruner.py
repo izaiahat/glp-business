@@ -368,7 +368,14 @@ def run_units(api, units, pins, *, dry_run, deadline, journal_dir, progress=None
     for root in units:
         if time.monotonic()>=deadline:
             partial=True; break
+        started=time.monotonic()
+        timing_before={name:dict(values) for name,values in getattr(pins,'timings',{}).items()}
         row=prune_run(api,root,pins,dry_run=dry_run,deadline=deadline,journal_dir=journal_dir)
+        row['runtime_seconds']=round(time.monotonic()-started,6)
+        if hasattr(pins,'timings'):
+            row['reference_timings']={name:{key:value-timing_before.get(name,{}).get(key,0)
+                for key,value in values.items()} for name,values in pins.timings.items()
+                if values['calls']!=timing_before.get(name,{}).get('calls',0)}
         inventory=row.pop('image_inventory',[])
         for r in inventory:
             key=tuple(r['identity'][:2]); files+=1
@@ -380,6 +387,11 @@ def run_units(api, units, pins, *, dry_run, deadline, journal_dir, progress=None
         partial=partial or row.get('partial',False) or row.get('status')=='GATED_REFERENCE_CHANGED'
         rows.append(row)
         if progress: progress(rows)
+    if time.monotonic()>=deadline:
+        partial=True
+    elif dry_run and hasattr(pins,'validate_qualification'):
+        if not pins.validate_qualification(): partial=True
+    partial=partial or time.monotonic()>=deadline
     summary={'rule':RULE+'_summary','ok':True,'bytes_freed':0,'partial':partial,
              'status':'TIME_BUDGET_PARTIAL' if partial else 'COMPLETE',
              'runs_evaluated':len(rows),'image_files':files,
@@ -388,6 +400,10 @@ def run_units(api, units, pins, *, dry_run, deadline, journal_dir, progress=None
              'externally_linked_inodes':sum(v['names']<v['nlink'] for v in inodes.values()),
              'eligible_bytes':sum(v['blocks'] for v in inodes.values() if v['names']==v['nlink']) if not partial else 0,
              'reclaim_basis':'unique allocated image inodes with ALL link names eligible; gross before manifests/text copies'}
+    if hasattr(pins,'timings'):
+        summary['reference_timings']=pins.timings
+        summary['reference_cache_hits']=pins.cache_hits
+    if hasattr(pins,'last_changed_source'): summary['reference_source']=pins.last_changed_source
     rows.append(summary)
     return rows
 
@@ -483,6 +499,7 @@ def run_rules(api, config, *, dry_run, deadline, progress=None):
         reference_config=dict(config)
         reference_config['reference_roots']=list(dict.fromkeys(config['reference_roots']+
             [str(ep.BUS/'scripts'),str(flag/'scripts')]))
+        discovery_started=time.monotonic()
         sources=reference_files(reference_config,min(deadline,time.monotonic()+1200))
         sources.append(policy_path)
         # Maintained top-level configuration and installed host cron/service definitions.
@@ -490,7 +507,11 @@ def run_rules(api, config, *, dry_run, deadline, progress=None):
             if p.is_file() and not p.is_symlink() and ep.reference_source_allowed(p): sources.append(p)
         service=Path('/home/ubuntu/.config/systemd/user/host-disk-cleanup.service')
         if service.is_file(): sources.append(service)
-        pins=ep.ReferenceIndex(sources,ep.BUS,rule_D_qa_root=flag/'qa')
+        discovery_seconds=time.monotonic()-discovery_started
+        index_class=ep.QualificationReferenceIndex if dry_run else ep.ReferenceIndex
+        pins=index_class(sources,ep.BUS,rule_D_qa_root=flag/'qa')
+        if dry_run:
+            pins.timings['reference_discovery']={'calls':1,'seconds':discovery_seconds,'failures':0}
         units=[]
         infrastructure={'baselines','fixtures','tests','ws-v','scripts','quarantine'}
         for root in sorted(roots):
