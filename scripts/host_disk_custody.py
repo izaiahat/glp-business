@@ -100,4 +100,7 @@ def collect(*, bus=BUS, home=HOME, unit_roots=None, cron_text=None):
             match=re.fullmatch(r'([QP])(\d+)',p.name)
             if p.name=='D1' or match and ((match[1]=='Q' and 4<=int(match[2])<=11) or (match[1]=='P' and int(match[2])>=10)):
                 pins.add(p)
-    return pins
+    from host_disk_relay_custody import collect as relay_custody, BindingPins
+    bindings=relay_custody(bus=bus)
+    pins.update(bindings)
+    return BindingPins(pins,bindings.identities)

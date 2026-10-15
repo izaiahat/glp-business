@@ -202,7 +202,10 @@ class ReferenceIndex:
                 raise ValueError('reference_source_unreadable:'+str(p))
             self.sources.append((p,hashlib.sha256(self.consumer_text(p).encode()).hexdigest(),sig(p.stat())))
         self.texts=[self.consumer_text(p) for p,_,_ in self.sources]
-        self.ancestor_pins=[]
+        from host_disk_relay_custody import collect as relay_custody
+        bindings=relay_custody(bus=self.business)
+        self.relay_source_identities=bindings.identities
+        self.ancestor_pins=list(bindings)
         def pins(value,source):
             if isinstance(value,dict):
                 for key,item in value.items():
@@ -226,6 +229,22 @@ class ReferenceIndex:
         # positives preserve evidence; unknown/mutated reference input gates all.
         p=Path(p)
         if hasattr(self,'last_changed_source'): del self.last_changed_source
+        from host_disk_relay_custody import collect as relay_custody, matches as binding_matches
+        for source,expected in self.relay_source_identities.items():
+            if not binding_matches(source,expected):
+                self.last_changed_source=source;return True
+        # Never cache live issue descriptions or lane/JOB discovery across gates.
+        # Preserve the admitted pins; a fresh complete generation can only add
+        # protection here, not erase an earlier hold or replay a refused effect.
+        try:
+            fresh=relay_custody(bus=self.business)
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+            self.last_changed_source='relay_lane_linear_refresh_incomplete';return True
+        for source,expected in self.relay_source_identities.items():
+            if not binding_matches(source,expected):
+                self.last_changed_source=source;return True
+        live_pins=tuple(fresh)
+        if any(pin==p or pin in p.parents or p in pin.parents for pin in live_pins): return True
         for source,digest,signature in self.sources:
             if p in source.parents: return True
             if not source.exists() or source.is_symlink():
@@ -549,6 +568,10 @@ def archive_tree(api,root,pins,*,dry_run,deadline,state_dir=None,min_bytes=0):
         pointerdir=root.with_name('.'+root.name+'.archive-pointer')
         retired=root.with_name('.'+root.name+'.archive-retiring')
         if pointerdir.exists() or retired.exists(): return dict(row,status='GATED_TRANSACTION_COLLISION')
+        # Hashing a large verified archive can outlive the preceding reference
+        # check. Re-read live custody at the actual namespace-commit boundary.
+        if pins.references(root):
+            return dict(row,status='GATED_REFERENCE_BEFORE_COMMIT')
         pointerdir.mkdir(mode=0o755)
         atomic_json(pointerdir/'MANIFEST.json',pointer)
         (pointerdir/'README.md').write_text(f'# Archived evidence\n\nOriginal paths and bytes are preserved in `{archive.name}`.\n\nSHA256: `{archive_sha}`\n\nRestore in an empty directory with:\n```sh\nzstd -d -c {archive.name!r} | tar -xpf -\n```\n\nFull content, listing and metadata round-trip verification is recorded in MANIFEST.json.\n')
@@ -729,6 +752,7 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
         done=[]
         pending_statuses={'TIME_BUDGET_PARTIAL','ARCHIVE_BUILD_PARTIAL','ARCHIVE_VERIFY_PENDING','RETIREMENT_PENDING','GATED_REFERENCE_CHANGED'}
         save('C_cold_evidence_archive')
+        reference_refresh_attempted=False
         for p in candidates:
             if str(p) in done: continue
             if time.monotonic()+45>=deadline: break
@@ -742,6 +766,19 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
             archive_progress['roots_evaluated']=[str(root) for root in roots
                     if all(str(p) in done for p in candidates if root in p.parents)]
             save('C_cold_evidence_archive')
+            if result.get('status')=='GATED_REFERENCE_CHANGED' and not reference_refresh_attempted:
+                # Retain this refusal; never retry it from an old snapshot.
+                # A complete fresh inventory admits only subsequent candidates.
+                reference_refresh_attempted=True
+                try:
+                    pins=ReferenceIndex(reference_files(config,min(deadline,time.monotonic()+1200)),config['business'])
+                except (OSError,ValueError,ScanBudget) as exc:
+                    state['full_pass_complete']=False
+                    rows.append({'rule':'C_cold_evidence_archive','ok':True,
+                        'status':'GATED_REFERENCE_INVENTORY_INCOMPLETE',
+                        'reason':str(exc)[:300],'bytes_freed':0})
+                    save('C_reference_refresh_gated')
+                    return rows
         archive_progress['roots_evaluated']=[str(root) for root in roots
                 if all(str(p) in done for p in candidates if root in p.parents)]
         state['full_pass_complete']=not (d_partial or (not archive_only and (state.get('A_cursor') or state.get('A_pending') or bstate.get('cursors')))

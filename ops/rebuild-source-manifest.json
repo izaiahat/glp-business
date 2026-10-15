@@ -290,7 +290,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8bcfb0f312fb6e39195e0013eb4ffded49f41e6552b66a885073006e5549f154"
+      "sha256": "25ecf0e3d319f47153ab39941adc88de1cc7d52be2aa35460589e4e8747905df"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -648,7 +648,7 @@
     "ops/disk-retention-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "53fa1c1a7b482859b4b4df98003f059c5167fc0ec41cd390a20b209bdeb2a911"
+      "sha256": "7c2aeba6f20dd6d6f60d5e3ffb2ff5a4f8c59ae93fd29adc2aa48a3446015485"
     },
     "ops/fable-mention-recovery.md": {
       "callers": [],
@@ -2651,7 +2651,7 @@
         "scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"
       ],
       "kind": "script",
-      "sha256": "1b92457135572cb8fd0a3dbe9110366eb2ef559bd22ba1fc9738afbcce9a91ce"
+      "sha256": "41ed1a4b6850e8d9d0f5488f05e6ea1223275c034a12668b61da8da33ec51307"
     },
     "scripts/f13_atop_retention_launcher.c": {
       "callers": [
@@ -2859,7 +2859,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "004a57d4518eb2348a9e2f032c9b312e0a8d30805323071ceb6dc20e605af830"
+      "sha256": "b5511bd83033a92309c212f5dbf86a2910ff05d5ea3fbe71002472222cc2ae80"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -3537,7 +3537,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "820d546d4fc6099c3d03f8e61a6ef157ad7ad2c1706cddb87aa85669c000f560"
+      "sha256": "5883c985fb79db6113bb7169895577c71360afa9dee4d9e1ffe019d787d0aad0"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3551,7 +3551,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "8d7a8d58a94b2b00b7c7c43c50d23a75a832f24dddcb6ec9bf9cb356f0ceb6b5"
+      "sha256": "92b6ff4e807d7f51534bf6821d8966c1aea261ac39ada8dade5b011a2ec9e9fd"
     },
     "scripts/host_disk_large_classes.py": {
       "callers": [
@@ -3565,7 +3565,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "23f1b3a588d6ee59d965c7d34b601c1902b758ab51e5b3d759181ba5419409d3"
+      "sha256": "8f16b58fc569e70734581c64e963cd2e3e0729a087f47b8c987e43e5bd441730"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -3586,7 +3586,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "ec0651bfae596a158051cc17b5b2b72b117cfcdd261f8e207215d32445584dbe"
+      "sha256": "f4a3c707820fba0d903a7f216bcae4fe43298174de2362398c4c840c5dc8269e"
     },
     "scripts/host_health_audit.py": {
       "callers": [
@@ -5255,7 +5255,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "9b82fe5e9410e8b9944dc0bf79f0840881c7b45a65841f8e67ccdeb4815b0c1f"
+      "sha256": "a4eafce2696f74df42dd5e22f8ebe791d00648e43fedb27f5512ee105bc56984"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
@@ -6479,7 +6479,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "d91b372745a8add822605e3c4c3e3254cdefb5885979e5266f6de8c8c65789f8"
+      "sha256": "90caa3ded34ea191ff05cda676556b7475b64fb738a6d3cdcb33e2ab4f3aef5c"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [
@@ -7271,7 +7271,7 @@
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "script",
-      "sha256": "1edced31c6a77a2c3fe4cfe0ecb66e4ca615f134631e8116cdd9a2ba60057664"
+      "sha256": "78099878693f3ed1bc51f478bf58f08480264d0796d3c91412ce7ebee0621611"
     },
     "scripts/host_disk_report_caches.py": {
       "callers": [
@@ -7571,7 +7571,7 @@
       "callers": [
         "business-source-ci: GLP349 owning pruner group"
       ],
-      "sha256": "2f63aa30c498f303c97f4677f421342e9142cb8422090dcb0f0e5043a43931e7"
+      "sha256": "4470b0851a50689bf7508565f4f46a757f083a784ed483bbe4f859c440a3ced4"
     },
     "ops/rook-mcp/DOT-RECEIVING-GLP359.md": {
       "callers": [
@@ -7805,6 +7805,51 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "f898df4543c09004a497f9735212caaa1c307237f6b11dd2ccecee7e2e4c617a"
+    },
+    "scripts/host_disk_tmp_custody.py": {
+      "callers": [
+        "scripts/host_disk_cold_classes.py",
+        "scripts/host_disk_auto_classes.py"
+      ],
+      "kind": "script",
+      "sha256": "4b901ec7a6c0013c420ec02b92ec5544f0491f22ad625a9812656d1d74edd471"
+    },
+    "tests/test_host_disk_tmp_custody.py": {
+      "callers": [
+        "business-source-ci"
+      ],
+      "kind": "test",
+      "sha256": "86dcbbef6323b8390fd048cf7ad63886767898617911757e4d87a383903b8058"
+    },
+    "tests/test_host_disk_reference_refresh.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "8308b7e75558cf3bcdae5475c41e6137553f238ab285a96a910993de72c99155"
+    },
+    "tests/test_host_disk_archive_order.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "df8832489b14c31a668dc60b9cb8e69cf467870e1c5a62576bf951fc98c0da73"
+    },
+    "scripts/host_disk_relay_custody.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_custody.py",
+        "scripts/host_disk_large_sweep.py",
+        "scripts/evidence_preserving_pruner.py"
+      ],
+      "sha256": "55d076afbc5e4eec65e7300a3f91bde23015f2592d7758cb0ce229c6d1f746f5"
+    },
+    "tests/test_host_disk_relay_custody.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "8b6bbb376551ab7858cff67985abe151144abe9f215ffe91b69ef176393f25fa"
     }
   },
   "omitted_runtime_inputs": [
@@ -7815,5 +7860,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1144
+  "tracked_count": 1150
 }

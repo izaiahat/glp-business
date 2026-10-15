@@ -87,6 +87,34 @@ def test_registry_clone_retention_bounds_hourly_regrowth(tmp_path, monkeypatch):
     assert sum(r['status'] == 'RETIRED' for r in rows) == 2
 
 
+def test_registry_clone_retention_retires_orphans_and_preserves_generated_diff(tmp_path,monkeypatch):
+    """Real disposable local Git clones/remotes; no host cleanup or network."""
+    monkeypatch.setattr(job,'save',lambda p,v:Path(p).write_text(json.dumps(v)))
+    root=tmp_path/'registry-site-sync'
+    orphan=clone_run(root,'20261001T001701Z');(orphan/'FAILURE.json').unlink()
+    noop=clone_run(root,'20261001T011701Z','PASS_SOURCE_NO_CHANGE')
+    generated=clone_run(root,'20261001T021701Z');(generated/'FAILURE.json').unlink()
+    source=generated/'candidate';(source/'data').mkdir();(source/'data/program-registry.json').write_text('{}\n')
+    git(source,'add','.');git(source,'commit','-qm','base registry');git(source,'push','-q','origin','HEAD')
+    (source/'data/program-registry.json').write_text('{"generated":true}\n')
+    expected=subprocess.check_output(['git','-C',str(source),'diff','--no-ext-diff','--binary','HEAD'])
+    unknown=clone_run(root,'20261001T031701Z');(unknown/'candidate/a.html').write_text('unknown source change')
+    unpushed=clone_run(root,'20261001T041701Z');(unpushed/'candidate/a.html').write_text('unique commit')
+    git(unpushed/'candidate','commit','-qam','unpushed')
+    publication=clone_run(root,'20261001T051701Z',extra=('publish-intent.json',))
+    pr=clone_run(root,'20261001T061701Z',extra=('PR.json',))
+    pinned=clone_run(root,'20261001T071701Z')
+    newest=[clone_run(root,f'20261009T0{i}1701Z') for i in range(3)]
+    rows=job.retire_disposable_clones(root,pins=[pinned/'prepared/release'])
+    for retired in (orphan,noop,generated): assert not (retired/'candidate').exists()
+    assert (generated/'candidate.DIFF.patch').read_bytes()==expected
+    receipt=json.loads((generated/'candidate.RETIRED.json').read_text())
+    assert receipt['generated_diff']['sha256']==__import__('hashlib').sha256(expected).hexdigest()
+    assert (generated/'candidate.DIFF.patch').is_file()
+    for kept in (unknown,unpushed,publication,pr,pinned,*newest): assert (kept/'candidate/a.html').is_file()
+    assert sum(row['status']=='RETIRED' for row in rows)==3
+
+
 def test_rebuildable_report_node_modules_removed_even_when_checkout_dirty(tmp_path, monkeypatch):
     reports = tmp_path / 'reports'; co = reports / 'ops/x-20260901/checkout'; co.mkdir(parents=True)
     git(co, 'init', '-q'); (co / '.gitignore').write_text('node_modules/\n'); (co / 'package-lock.json').write_text('{}')
