@@ -6,7 +6,7 @@
       "callers": [
         "business-source-ci:GLP109-protected-native-custody"
       ],
-      "sha256": "b4674432419fb19555f1b00d3298b70f41666e305ff6ed81f1916a4ca619899c"
+      "sha256": "5b9f0b68bf5b858941807db95812b013cb4c7b9fedb86af8b1490b5eb63bddaf"
     },
     "ops/glp/weekly_analytics_owner.py": {
       "kind": "script",
@@ -4227,7 +4227,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "d3b9b6e3e823b62887948a89ff6959c2515c9808c0acf667cf763e2292ed6f9e"
+      "sha256": "e4cdf092727a3f1e9ea4d661121615fa7ba3fa3415cea06a184b31f238ce82e5"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [

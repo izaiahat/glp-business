@@ -731,7 +731,6 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
         if review_only_once and active_transport['transport_id'] == 'claude-code-opus-policy-independent':
             command.append('--no-schema-retry')
         if job.get('artifact_role') == 'postpublication_review_only_job':
-            sys.path.insert(0, str(SYSTEM_DIR.parents[1] / 'scripts'))
             from article_review_recovery import validate_review_only_binding
             validate_review_only_binding(job, active_transport, for_invocation=True)
         if review_only_once:

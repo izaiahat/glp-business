@@ -212,3 +212,103 @@ def test_supplement_keeps_historical_source_and_full_deployed_bytes(tmp_path, mo
             recovery.successor_documents(entry, output/'history', fresh, root=root,
                                          review_only_job_path=job_path)
         assert not recovery.recovery_path(entry, root).exists()
+
+
+def test_prepared_role_cli_reaches_offline_boundary_once(tmp_path, monkeypatch, capsys):
+    """Actual producer/controller __main__; synthetic inputs, no native invocation.
+
+    Only fixture paths/DB/authority and the external transport boundary differ.
+    The role-specific import, native author queries, input binding, pinned QA,
+    mode checks and durable intent run unchanged. A refused transport is never
+    retried; this fixture cannot emit a clinical review or recovery receipt.
+    """
+    import runpy
+    import subprocess
+    root, entry, original, output, db = producer_fixture(tmp_path, monkeypatch)
+    before = {p: p.read_bytes() for p in entry.parent.rglob('*') if p.is_file()}
+    preparer = ROOT/'scripts/article_review_recovery.py'
+    controller = ROOT/'systems/seo-blog-machine/scripts/opus_review_loop.py'
+    actual_prepare = recovery.prepare_review_only
+    actual_binding = recovery.validate_review_only_binding
+    admitted = []
+
+    def prepare(*args, **kwargs):
+        return actual_prepare(*args, root=root, session_db=db, **kwargs)
+
+    def binding(job, route, **kwargs):
+        actual_binding(job, route, root=root, session_db=db, **kwargs)
+        assert kwargs == {'for_invocation': True}
+        admitted.append(job['job_id'])
+
+    monkeypatch.setattr(recovery, 'validate_review_only_binding', binding)
+
+    def trace(frame, event, arg):
+        if event == 'call' and frame.f_code.co_name == 'main':
+            if frame.f_code.co_filename == str(preparer):
+                frame.f_globals.update(ROOT=root, prepare_review_only=prepare)
+            elif frame.f_code.co_filename == str(controller):
+                frame.f_globals.update(RUBRIC=loop.RUBRIC, REVIEW_SCHEMA=loop.REVIEW_SCHEMA,
+                                       validate_topic_authority=loop.validate_topic_authority)
+        return trace
+
+    def cli(script, args, exits=True):
+        monkeypatch.setattr(sys, 'argv', [str(script), *map(str, args)])
+        prior = sys.gettrace()
+        sys.settrace(trace)
+        try:
+            if exits:
+                with pytest.raises(SystemExit) as exc:
+                    runpy.run_path(str(script), run_name='__main__')
+                return exc.value.code
+            runpy.run_path(str(script), run_name='__main__')
+        finally:
+            sys.settrace(prior)
+
+    cli(preparer, ['--prepare-review-only', '--entry', entry,
+                  '--original-job', original, '--output', output, '--review-transport',
+                  'hermes-openai-codex-sol61-independent'], exits=False)
+    prepared = json.loads(capsys.readouterr().out)
+    assert prepared['status'] == 'PREPARED_REVIEW_ONLY_NOT_INVOKED'
+    assert prepared['native_calls'] == 0 and prepared['publication_authorized'] is False
+    job_path = output/'job.json'; job = json.loads(job_path.read_text())
+    assert job['artifact_role'] == 'postpublication_review_only_job'
+    assert job['max_rounds'] == 1 and not {'repair', 'publish'} & job.keys()
+    history = Path(job['history_dir'])
+    calls = []
+    actual_run = subprocess.run
+
+    def offline_transport(argv, **kwargs):
+        if Path(argv[1]).name == 'validate_opus_article_packet.py':
+            return actual_run(argv, **kwargs)  # Real bounded fixture QA subprocess.
+        assert admitted == [job['job_id']]
+        assert argv[1] == str(__import__('review_transports').transport(job['review_transport'])['wrapper'])
+        assert '--disable-tools' in argv and kwargs['cwd'] == Path(job['packet_dir'])
+        intent = json.loads((history/'native-review-intent.json').read_text())
+        assert intent['job_id'] == job['job_id']
+        assert intent['subject_manifest_sha256'] == loop.sha_file(history/'round-01-subject-manifest.json')
+        assert intent['retry_allowed'] is False and intent['publication_authorized'] is False
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 73, '', 'OFFLINE_TRANSPORT_BLOCKED_NO_NATIVE_CALL')
+
+    monkeypatch.setattr(subprocess, 'run', offline_transport)
+    # Mode policy must refuse before QA, binding or the offline boundary.
+    assert cli(controller, ['--job', job_path, '--review-only-once', '--apply']) == 2
+    assert 'review_only_cannot_apply' in capsys.readouterr().err
+    assert not history.exists() and not calls and not admitted
+    assert cli(controller, ['--job', job_path, '--review-only-once']) == 2
+    assert 'opus_review_failed:73' in capsys.readouterr().err
+    assert len(calls) == 1 and admitted == [job['job_id']]
+    intent_bytes = (history/'native-review-intent.json').read_bytes()
+    assert cli(controller, ['--job', job_path, '--review-only-once']) == 2
+    assert 'receipt_exists:' in capsys.readouterr().err
+    assert len(calls) == 1 and (history/'native-review-intent.json').read_bytes() == intent_bytes
+    assert loop.review_only_refusal_policy() == {
+        'autonomous_retry_required': False, 'queue_may_advance': False,
+        'retry_policy': 'consumed_intent_no_model_retry'}
+    assert not (history/'round-01-sol-raw.json').exists()
+    assert not (history/'loop-closeout.json').exists()
+    assert not list(history.glob('*repair*')) and not list(history.glob('*publication*'))
+    assert not recovery.recovery_path(entry, root).exists()
+    assert all(p.read_bytes() == data for p, data in before.items())
+    assert Path(recovery.__file__).resolve() == preparer
+    assert Path(loop.__file__).resolve() == controller
