@@ -123,16 +123,20 @@ def test_cached_validation_keeps_raw_held_oracle_without_build(tmp_path, monkeyp
     (report / 'registry').mkdir(parents=True)
     for name in ('registry-sync.json', 'sheet-snapshot.json'):
         (report / 'registry' / name).write_text('{}')
-    monkeypatch.setattr(job, 'ci', lambda *a: {})
+    monkeypatch.setattr(job, 'ci', lambda *a: {'state':'MERGED','headRefOid':'H'})
     monkeypatch.setattr(job, 'namespace', lambda *a: ['bwrap','--bind',str(root),'/site'])
     monkeypatch.setattr(absence, 'audit', lambda *a: {'status':'PASS'})
     calls = []
     monkeypatch.setattr(job, 'run', lambda argv, **kw: calls.append(argv) or '{}')
-    release.validate_cached_release({'namespace':'/site'}, report, root, {'url':'PR'})
+    pr = {'url':'PR','headRefOid':'H'}
+    release.validate_cached_release({'namespace':'/site'}, report, root, pr)
     assert any('assertRawHeldOutput' in ' '.join(a) for a in calls)
     assert any(a[-3:] == ['npm','run','validate'] for a in calls)
     assert not any('build' in ' '.join(a[-3:]) for a in calls)
     assert all('--ro-bind' in a for a in calls)
+    monkeypatch.setattr(job, 'ci', lambda *a: {'state':'MERGED','headRefOid':'OTHER'})
+    with pytest.raises(ValueError, match='exact_head_ci'):
+        release.validate_cached_release({'namespace':'/site'}, tmp_path/'bad-ci', root, pr)
 
 
 def test_only_a_successful_publication_records_a_reusable_baseline(tmp_path):

@@ -189,7 +189,9 @@ def validate_cached_release(config, report, root, pr):
     import shutil
     import glp_affiliate_sync_job as job
     from glp_affiliate_absence_audit import audit
-    job.ci(pr['url'], report)
+    evidence = job.ci(pr['url'], report)
+    if evidence.get('headRefOid') != pr['headRefOid'] or evidence.get('state') != 'MERGED':
+        raise ValueError('identical_inputs_exact_head_ci_drift')
     argv = job.namespace(config, root, report)
     for i, token in enumerate(argv):
         if token == '--bind' and argv[i + 2] == config['namespace']:

@@ -21,7 +21,7 @@
       "callers": [
         "business-source-ci:GLP349-release-health"
       ],
-      "sha256": "f0aee3140528da220343f30bbcbbf5eaa5633b942cd8ca10b51162d833ab02a2"
+      "sha256": "185020cf27e0f20f31ed5cd714fec0499b3c1e838bd6de407d21ae7e68085a4b"
     },
     "tests/test_postpublication_review_only.py": {
       "kind": "test",
@@ -3297,7 +3297,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "1b108622694d9133ea1940aad0b2293bad72b321a5c0d8a499431e927e81ee70"
+      "sha256": "3bde4d066237e3a27c84d3f6035065dda363890c15e00fa0b052e3d0cceddbbc"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [
