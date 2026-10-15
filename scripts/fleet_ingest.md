@@ -17,10 +17,14 @@ Changes to the proof policy or installed closer automatically retry. `--retry` e
   (relative or workspace-absolute), never a root-lane glob or a PID claim alone.
   The exact path must be named by a terminal native manifest's completed task,
   whose goal starts with OWNER and binds that one issue (GLP-n or GLPn).
-  A running task/PID referencing the path overrides historical completion. Symlinks,
-  cross-issue/shared-issue bindings, absent terminal custody and result writes newer
-  than the manifest are refused. Result and manifest hashes must remain stable
-  during discovery; changed native evidence at ingestion cannot become READY.
+  A running task/PID referencing the path overrides historical completion. Finalized
+  native `failed`/`error`/`interrupted`/`timeout` tasks do not suppress a completed retry,
+  but never authorize completion themselves; live PIDs still win and unknown or
+  unfinalized states fail closed. Symlinks, cross-issue/shared-issue bindings, absent
+  terminal custody and result writes newer than the manifest are refused. Root-lane
+  RESULT and manifest data are parsed and hashed from the same captured byte buffer,
+  then rehashed to refuse subsequent drift; changed native evidence at ingestion
+  cannot become READY.
   Truncated/braced goals that do not name the exact file remain undiscovered;
   registration is not permission to copy old proof or manufacture terminal custody.
 * Codex: finished RUN.json with exit_code and RESPONSE.md. Missing/failed response is REDISPATCH.

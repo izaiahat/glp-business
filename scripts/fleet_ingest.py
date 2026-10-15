@@ -39,6 +39,16 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def read_hashed(path):
+    """Parse and authenticate one buffer; callers recheck for subsequent drift."""
+    raw = Path(path).read_bytes()
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        data = {}
+    return (data if isinstance(data, dict) else {}), hashlib.sha256(raw).hexdigest()
+
+
 def atomic(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -216,8 +226,7 @@ def registered_root_native(root, live, config):
     for manifest in sorted(live.glob('*/manifest.json')):
         if manifest.is_symlink() or manifest.parent.is_symlink():
             continue
-        sha = digest(manifest)
-        data = read(manifest)
+        data, sha = read_hashed(manifest)
         for task in data.get('tasks', []):
             goal = task.get('goal', '')
             ids = {'GLP-' + n for n in re.findall(r'\bGLP-?([1-9][0-9]*)\b', goal)}
@@ -226,13 +235,17 @@ def registered_root_native(root, live, config):
                 owned = re.match(re.escape(path.parent.name) + r'(?:\s|/|$)', goal)
                 if not named and not (owned and ids == issues):
                     continue
-                # Any current reference/owner task wins over historical completion.
-                if (task.get('status') != 'completed'
+                # Live PIDs and unknown/unfinalized states override history;
+                # finalized failures are terminal, but cannot authorize success.
+                terminal_failure = (data.get('completed') and task.get('status')
+                                    in {'failed', 'error', 'interrupted', 'timeout'})
+                if ((task.get('status') != 'completed' and not terminal_failure)
                         or (data.get('pid') and alive(data['pid']))
                         or (task.get('pid') and alive(task['pid']))):
                     active.add(path)
                     continue
-                if (named and owned and len(issues) == 1 and ids == issues
+                if (task.get('status') == 'completed'
+                        and named and owned and len(issues) == 1 and ids == issues
                         and data.get('completed') and task.get('exit_reason') == 'completed'):
                     if path not in completed or manifest.stat().st_mtime_ns > completed[path][0].stat().st_mtime_ns:
                         completed[path] = (manifest, sha)
@@ -240,8 +253,7 @@ def registered_root_native(root, live, config):
     for path, (manifest, manifest_sha) in completed.items():
         if path in active or not path.is_file() or path.is_symlink():
             continue
-        result_sha = digest(path)
-        data = read(path)
+        data, result_sha = read_hashed(path)
         if (binding(data, path) not in registered[path]
                 or (data.get('pid') and alive(data['pid']))
                 or path.stat().st_mtime_ns > manifest.stat().st_mtime_ns):

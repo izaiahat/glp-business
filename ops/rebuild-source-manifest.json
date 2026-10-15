@@ -2686,14 +2686,14 @@
         "fleet-output-ingestion"
       ],
       "kind": "documentation",
-      "sha256": "19c787df01337c46aeca70e620eabc0ad9bd664ac23ef9ea976ef4655cb3d1f7"
+      "sha256": "305c06ad86a3a15e619c93e687bcf7e59534063f62a236b8b706c972fb070847"
     },
     "scripts/fleet_ingest.py": {
       "callers": [
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "d317880e874d2f2ec91000b8e0524e136c2a6286655e5e419400aa65483a8221"
+      "sha256": "3cfc4c4a0d3fc7f1bb25f2be6b916b197cc19e3f3fc5e23626ecd454238dbc91"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -5220,7 +5220,7 @@
         ".github/workflows/fleet-ingest.yml"
       ],
       "kind": "test",
-      "sha256": "04de637ed8da9b61af703d6ff47d97f8510584551474ab31f178cae78a71c0d8"
+      "sha256": "5e85e641d38b2a9238a534b8b084ac537a12469da6a42fff89518f94f7868db7"
     },
     "tests/test_fleet_pin_release.py": {
       "callers": [
