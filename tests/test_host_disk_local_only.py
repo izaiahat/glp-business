@@ -1,6 +1,39 @@
 """Private registered-chain fixture. No live systemd, cleanup, R2 or sends."""
 import ast
+import fcntl
 import json
+import socket
+
+# Compile only the maintained route singleton, never import live relay modules.
+ROUTE_HOLDER = '''
+import ast, fcntl, sys
+from pathlib import Path
+from contextlib import contextmanager
+source, route, hold = sys.argv[1:]
+node = next(n for n in ast.parse(Path(source).read_text()).body
+            if isinstance(n, ast.FunctionDef) and n.name == 'singleton')
+ns = dict(contextmanager=contextmanager, fcntl=fcntl, directory=lambda: Path(route))
+exec(compile(ast.Module(body=[node], type_ignores=[]), source, 'exec'), ns)
+try:
+    with ns['singleton']():
+        print('OWNED', flush=True)
+        if hold == 'hold': sys.stdin.readline()
+except BlockingIOError:
+    sys.exit(75)
+'''
+
+
+def route_command(route, mode='probe'):
+    return [sys.executable, '-c', ROUTE_HOLDER, str(ROOT / 'scripts/pro_route.py'), str(route), mode]
+
+
+def deny_network(monkeypatch):
+    def denied(*a, **k):
+        raise AssertionError('private cleanup fixture attempted network')
+    monkeypatch.setattr(socket, 'create_connection', denied)
+    monkeypatch.setattr(socket.socket, 'connect', denied)
+    return denied
+
 from pathlib import Path
 import runpy
 import subprocess
@@ -59,11 +92,41 @@ def fixture_sweep(tmp_path, monkeypatch):
     monkeypatch.setattr(cold, 'verified_duplicates', lambda *a, **k: [])
     monkeypatch.setattr(sweep, 'cold_report_roots', lambda *a, **k: [])
     monkeypatch.setattr(sweep, 'rank_reports', lambda *a: ([], []))
+    deny_network(monkeypatch)
     return bus, proof
 
 
-def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path, monkeypatch):
+@pytest.mark.parametrize('phase_exception', [False, True], ids=['normal-release', 'exception-release'])
+def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path, monkeypatch, phase_exception):
     bus, proof = fixture_sweep(tmp_path, monkeypatch)
+    deny_network(monkeypatch)
+    route = bus / 'ops/gpt6pro-relay/route'
+    route.mkdir(parents=True)
+    (route / 'queue').mkdir()
+    (route / 'queue/original.json').write_text(json.dumps({'pin': str(proof)}))
+    route_lock = route / 'dispatcher.lock'
+    route_lock.touch()
+    original_inode = route_lock.stat().st_ino
+    real_run = subprocess.run
+    excluded = []
+    def assert_excluded(stage):
+        assert route_lock.stat().st_ino == original_inode
+        cp = real_run(route_command(route), capture_output=True, text=True, timeout=10)
+        assert cp.returncode == 75, (stage, cp.stdout, cp.stderr)
+        excluded.append(stage)
+    import host_disk_relay_custody as custody
+    original_collect = custody.collect
+    def collect(**kwargs):
+        assert_excluded('reference_inventory')
+        return original_collect(**kwargs)
+    monkeypatch.setattr(custody, 'collect', collect)
+    real_unlink = Path.unlink
+    def unlink(path, *args, **kwargs):
+        if path.name == 'ordinary.txt':
+            assert_excluded('final_retirement')
+        return real_unlink(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'unlink', unlink)
+
     # No credentials are hidden: every destination/control/credential boundary is
     # forbidden instead. Even an attempted migration with an inert remote fails.
     contacts = []
@@ -131,6 +194,7 @@ def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path,
         script = next(Path(arg).name for arg in command if str(arg).endswith('.py'))
         if script == 'host_disk_large_sweep.py':
             assert '--local-only' in command
+            assert command[command.index('--budget') + 1] == '2700'
             offset = next(i for i, arg in enumerate(command) if str(arg).endswith('.py'))
             assert entrypoint(ROOT / 'scripts/host_disk_large_sweep.py', sweep.__dict__,
                               command[offset:], monkeypatch) == 0
@@ -141,6 +205,10 @@ def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path,
             report.mkdir(parents=True)
             (report / 'receipt.json').write_text('{"reclaimed_bytes":0}')
         elif script == 'evidence_preserving_pruner.py':
+            assert_excluded('D_A_B_C_final_phase')
+            assert command[command.index('--max-seconds') + 1] == '1050'
+            if phase_exception:
+                raise RuntimeError('private phase exception')
             seen.append('D_A_B_C')
             Path(command[command.index('--report') + 1]).write_text('{"rows":[]}')
         else:
@@ -148,8 +216,18 @@ def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path,
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(subprocess, 'run', process)
     monkeypatch.setattr(sys, 'argv', ['host_disk_pruner.py'])
-    candidate_run_path(str(ROOT / 'ops/hermes-cron-scripts/host_disk_pruner.py'), run_name='__main__')
-    assert seen == ['existing_unit', 'local_site_work', 'sweep', 'safe_rules', 'D_A_B_C']
+    if phase_exception:
+        with pytest.raises(RuntimeError, match='private phase exception'):
+            candidate_run_path(str(ROOT / 'ops/hermes-cron-scripts/host_disk_pruner.py'), run_name='__main__')
+    else:
+        candidate_run_path(str(ROOT / 'ops/hermes-cron-scripts/host_disk_pruner.py'), run_name='__main__')
+    assert seen == ['existing_unit', 'local_site_work', 'sweep', 'safe_rules'] + ([] if phase_exception else ['D_A_B_C'])
+    assert excluded == ['reference_inventory', 'final_retirement', 'D_A_B_C_final_phase']
+    cp = real_run(route_command(route), capture_output=True, text=True, timeout=10)
+    assert cp.returncode == 0, cp.stderr
+    with (home / 'runstate/host-disk-cleanup.lock').open('a+') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    assert route_lock.stat().st_ino == original_inode
     assert contacts == [], 'R2 attempted even if its exception was caught'
     assert proof.read_text() == 'fixture retained proof'
     receipts = list((bus / 'reports/host-disk-prune').glob('*/large/large-classes.json'))
@@ -158,6 +236,63 @@ def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path,
     assert data['r2']['status'] == 'DISABLED_LOCAL_ONLY'
     assert data['local_only'] is True
     assert data['rows'][0]['status'] == 'ARCHIVED_VERIFIED_RETIRED'
+
+
+def test_registered_local_only_busy_dispatcher_defers_before_cleanup(tmp_path, monkeypatch, capsys):
+    bus, _ = fixture_sweep(tmp_path, monkeypatch)
+    denied = deny_network(monkeypatch)
+    controller = runpy.run_path(str(ROOT / 'scripts/host_disk_cleanup_large_unit.py'))
+    g = controller['main'].__globals__
+    home = tmp_path / 'hermes'; (home / 'runstate').mkdir(parents=True)
+    monkeypatch.setitem(g, 'BUS', bus)
+    monkeypatch.setitem(g, 'HOME', home)
+    monkeypatch.setitem(g, 'STATE', home / 'runstate/last.json')
+    monkeypatch.setitem(g, 'disk', denied)
+    monkeypatch.setitem(g, 'atomic_json', denied)
+    monkeypatch.setattr(auto, 'external_pins', denied)
+    route = bus / 'ops/gpt6pro-relay/route'; route.mkdir(parents=True)
+    # Real maintained dispatcher singleton owns the private existing inode.
+    holder = subprocess.Popen(route_command(route, 'hold'), stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert holder.stdout.readline().strip() == 'OWNED'
+        inode = (route / 'dispatcher.lock').stat().st_ino
+        controller_rc = []
+        real_run_path = runpy.run_path
+        def candidate_run_path(path, **kwargs):
+            if str(path) == '/home/ubuntu/business/scripts/host_disk_pruner_trigger.py':
+                path = ROOT / 'scripts/host_disk_pruner_trigger.py'
+            return real_run_path(str(path), **kwargs)
+        monkeypatch.setattr(runpy, 'run_path', candidate_run_path)
+        def process(command, **kwargs):
+            if command[:3] == ['systemctl', '--user', 'is-active']:
+                return SimpleNamespace(returncode=3, stdout='inactive\n')
+            if command[:4] == ['systemctl', '--user', 'start', '--no-block']:
+                assert command[4:] == ['host-disk-cleanup.service']
+                unit = (ROOT / 'ops/systemd/host-disk-cleanup-local-only.conf.example').read_text()
+                assert 'host_disk_cleanup_large_unit.py --local-only\n' in unit
+                controller_rc.append(entrypoint(ROOT / 'scripts/host_disk_cleanup_large_unit.py', g,
+                                                ['controller', '--local-only'], monkeypatch))
+                return SimpleNamespace(returncode=0)
+            return denied()
+        monkeypatch.setattr(subprocess, 'run', process)
+        for name in ('from_environment', '__init__', 'store', 'upload', 'readback', 'summary'):
+            monkeypatch.setattr(r2.Destination, name, denied)
+        started = time.monotonic()
+        monkeypatch.setattr(sys, 'argv', ['host_disk_pruner.py'])
+        candidate_run_path(str(ROOT / 'ops/hermes-cron-scripts/host_disk_pruner.py'), run_name='__main__')
+        assert controller_rc == [75]
+        assert time.monotonic() - started < 2
+        assert 'deferred' in capsys.readouterr().out.lower()
+        assert not (home / 'runstate/host-disk-cleanup.lock').exists()
+        assert not (home / 'runstate/last.json').exists()
+        assert not (bus / 'reports/host-disk-prune').exists()
+        assert (route / 'dispatcher.lock').stat().st_ino == inode
+        assert holder.poll() is None
+    finally:
+        holder.stdin.write('release\n'); holder.stdin.flush()
+        assert holder.wait(timeout=10) == 0
+        holder.stdin.close(); holder.stdout.close(); holder.stderr.close()
 
 
 def test_default_sweep_still_constructs_existing_destination(tmp_path, monkeypatch):

@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -44,10 +45,32 @@ def phase_result(result, report, rows, *, accepted_returncodes=(0,), partial_ret
             'partial_rows':partial,'gated_rows':gated,'failed_rows':failed}
 
 def main(*,local_only=False):
-    lock=open(HOME/'runstate/host-disk-cleanup.lock','a+')
-    try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    except BlockingIOError:
-        print('Existing cleanup owner retained; duplicate skipped.');return 0
+    from contextlib import ExitStack
+    # Same protocol/inode as pro_route.singleton(): dispatcher -> heavy/account.
+    # Acquire before cleanup/source leases; never wait for or disturb its owner.
+    # ExitStack closes both descriptors on return AND exceptions. Children do not
+    # inherit the route fd; this controller retains it through every final check.
+    with ExitStack() as custody:
+        if local_only:
+            path=BUS/'ops/gpt6pro-relay/route/dispatcher.lock'
+            try:
+                fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK)
+                route=custody.enter_context(os.fdopen(fd,'rb'))
+                opened=os.fstat(route.fileno());named=path.lstat()
+                if not stat.S_ISREG(opened.st_mode) or (opened.st_dev,opened.st_ino)!=(named.st_dev,named.st_ino):
+                    raise ValueError('dispatcher lock identity unavailable')
+                fcntl.flock(route,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except (OSError,ValueError) as error:
+                print(f'Local-only cleanup deferred: existing Pro dispatcher exclusion unavailable ({type(error).__name__}); no cleanup started.',flush=True)
+                return 75
+        lock=custody.enter_context(open(HOME/'runstate/host-disk-cleanup.lock','a+'))
+        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            print('Existing cleanup owner retained; duplicate skipped.');return 0
+        return cleanup(local_only=local_only)
+
+
+def cleanup(*,local_only=False):
     started=time.monotonic();stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     report=BUS/'reports/host-disk-prune'/('large-full-'+stamp);report.mkdir(parents=True)
     before=disk();rows=[];phases={};pressure=free_space_pressure(before)

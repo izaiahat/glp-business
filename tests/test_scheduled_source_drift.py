@@ -446,7 +446,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     host[0]['reviewed_sha256'] = host_pin
     payloads = [
         ('scripts/host_disk_pruner_trigger.py', 'e3e01d65d345943a4fd880930b9c42eeffadaa2fd3fee1b6a63135c6d549a896'),
-        ('scripts/host_disk_cleanup_large_unit.py', '414cb536cd1fe79da7a661b46b21e3d4cf495ef4fde939c17f9afedabcff0d2b'),
+        ('scripts/host_disk_cleanup_large_unit.py', '68a6abb5d6b229f1182aaf2afadd9171561a3c1d80a4efa9df5970ae38b587da'),
         ('scripts/host_disk_large_sweep.py', 'd172d1feead8156891a95fdc1927bc76ac93bc7bdabfaa07ce180f7b5970ffc6'),
     ]
     for rel, pin in payloads:

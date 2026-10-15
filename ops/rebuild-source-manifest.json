@@ -1817,12 +1817,16 @@
       "sha256": "fb754c388a7a5b8e6cd31e09cf5f17b2c0ce89c026b08287b647741768bc7831"
     },
     "ops/host-disk-local-only-capability.md": {
-      "callers": ["GLP349"],
+      "callers": [
+        "GLP349"
+      ],
       "kind": "documentation",
-      "sha256": "5eabbec03d5fcab9ba0b198f0c48683be32c1235a6e6618f16e01bc636752008"
+      "sha256": "9903488651c9fdc03ea4952da3e0522198b74b059f3a0e9d30f6dd2cdf8cfae0"
     },
     "ops/systemd/host-disk-cleanup-local-only.conf.example": {
-      "callers": ["systemd:host-disk-cleanup.service.d/large-classes.conf (opt-in alternative only)"],
+      "callers": [
+        "systemd:host-disk-cleanup.service.d/large-classes.conf (opt-in alternative only)"
+      ],
       "kind": "source_control",
       "sha256": "02b3b3744500bd465ee4428a2ca5e457da3fc1bb513332dfcec5b9add984013e"
     },
@@ -1831,7 +1835,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "c910a7798bae64fb7094f1d6f5fa8e8c42fb3efbe3bb53c634a9384a39947088"
+      "sha256": "8340cf8f2dad0fdd67fb0b7f4edb60f70da9b507133fee4d42ff621440de3b1d"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3554,7 +3558,7 @@
         "systemd:host-disk-cleanup.service.d/large-classes.conf"
       ],
       "kind": "script",
-      "sha256": "414cb536cd1fe79da7a661b46b21e3d4cf495ef4fde939c17f9afedabcff0d2b"
+      "sha256": "68a6abb5d6b229f1182aaf2afadd9171561a3c1d80a4efa9df5970ae38b587da"
     },
     "scripts/host_disk_cold_classes.py": {
       "callers": [
@@ -6511,7 +6515,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "b2148a537ea5080acda023e58e8b8c09eb465cfb6ea15ea0cfb7f01eab023871"
+      "sha256": "fa0eebae28ce1d48078b2be7f6f1494b8555b40f9166e8a394004979a4456e9b"
     },
     "tests/test_host_health_audit.py": {
       "callers": [
@@ -7004,7 +7008,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "8b62520689f9e469b76b19b9d532d3d6f2c4f05527102f2ac6406c84170f1ff5"
+      "sha256": "29b4a63b73b15d3d3309a3df1cb78845238d2608c73d7a211f232049ed523bc5"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [

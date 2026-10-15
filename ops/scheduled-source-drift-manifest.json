@@ -1272,7 +1272,7 @@
         },
         {
           "path": "/home/ubuntu/business/scripts/host_disk_cleanup_large_unit.py",
-          "sha256": "414cb536cd1fe79da7a661b46b21e3d4cf495ef4fde939c17f9afedabcff0d2b",
+          "sha256": "68a6abb5d6b229f1182aaf2afadd9171561a3c1d80a4efa9df5970ae38b587da",
           "owner": "/home/ubuntu/.hermes/scripts/host_disk_pruner.py"
         },
         {

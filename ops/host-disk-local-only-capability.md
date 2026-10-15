@@ -107,27 +107,45 @@ remain bound. `ReferenceGuardAPI` and ordinary C consumers revalidate that
 admitted identity set again at effects. Locking only collection and releasing
 before effects may eliminate the initial race but cannot make later churn safe.
 
-### Bounded proposal; no lock change in this PR
+### Existing dispatcher exclusion in the explicit local-only controller
 
-A one-shot nonblocking shared lock on the **existing** dispatcher lock, acquired
-before complete collection and retained through an exact reference-dependent
-commit, can coordinate cooperative queue writers. It must not create/replace a
-lock inode or accept changed directory/file metadata. Every noncooperative drift
-still refuses. But the current public singleton API is exclusive, append/creates,
-not bus-parameterized, and has no reader deadline or effect-scoped snapshot API.
-Holding it across this sweep's slow Linear inventory / compression and all
-legacy phases would freeze the dispatcher for minutes; acquiring it under the
-host heavy seat can invert dispatcher→heavy order. Releasing between collection
-and effect preserves safety but does not solve stale-identity refusals.
+The registered controller now opens the **existing** `route/dispatcher.lock`
+read-only, no-follow, close-on-exec, verifies a regular file and the same named
+inode, then takes the same `flock(LOCK_EX|LOCK_NB)` protocol as the dispatcher.
+It neither constructs a route/lock nor imports the relay module. Missing,
+unreadable, changed or busy custody returns **75 / deferred before cleanup**:
+no cleanup lock, report, reference capture, local retirement or R2 operation is
+started. This is not completed cleanup or a zero-reclaim success.
 
-Therefore a safe stable read/commit protocol needs the **Pro route owner** to
-review a bounded existing-lock reader/commit API and lock-order contract before
-cleanup integration. Proposed tests there: a real separate-process dispatcher
-holder causes bounded refusal; reader release on exception; dispatcher→heavy
-order cannot deadlock; queue writes after admission or from a nonparticipant
-still veto; all new namespace/file/proof discovery and exact protected-reference
-controls remain enforced. No new lockstore, writer freeze, mtime/ctime exception,
-queue-file omission or speculative retry is added here.
+The EX lease is acquired **before** the cleanup singleton and any source lease,
+kept by the controller across reference capture, all protected final checks and
+local retirement in both the large sweep and legacy D/A/B/C subprocesses, and
+closed in `finally` on ordinary return or exception. It is not passed to child
+processes or retained by a proof observer. The existing phase budgets remain
+2700s large sweep, 300s safe rules and 1050s D/A/B/C; external-pin calls and
+completion delivery retain their existing limits. No deadline, age, threshold or
+qualification budget is extended. The default full controller and other jobs do
+not acquire this exclusion; invoking the raw sweep is not a registered selector.
+
+Lock-order trace: the native Pro wrapper validates its source pins then `exec`s
+`pro_route.py dispatch` without a cleanup/source/heavy lease. `dispatch` acquires
+dispatcher then `effect` acquires heavy then relay account/transport custody.
+The local-only controller acquires dispatcher nonblocking first, cleanup second;
+its evidence child later acquires the existing source lease in each D/A/B/C
+scope. Neither cleanup nor source custody is held while attempting dispatcher.
+No maintained queue writer was found with an outer cleanup/source lease, and
+no cleanup call to Pro's sender/consumer is introduced.
+
+Tradeoff: separately admitted local cleanup can pace **this dispatcher only**
+for the unchanged finite controller run. An already-owned dispatcher is never
+waited for, killed, paused, signalled or reclaimed; the cleanup defers. This is
+not authority to freeze arbitrary agents or to change Pro sender/consumer
+policy. Remote generating chats and UNKNOWN downloads remain untouched. The
+mutex coordinates cooperative queue writers only: all existing complete
+namespace discovery, mtime/ctime, directory/file identities and final checks
+remain mandatory. Noncooperative queue writes and unrelated/Linear churn still
+refuse. No new store, stable-generation API, lock framework or queue exception
+is needed or added.
 
 ## Focused acceptance
 
@@ -135,9 +153,14 @@ queue-file omission or speculative retry is added here.
 trigger → fixture systemd selected-unit → actual controller → actual sweep
 check with all R2 boundaries counted/forbidden, a real private scratch archive
 compressed/verified/retired under unchanged local guards, and fixture-only
-legacy subprocess receipts/sends. It is **not** native scheduler/runtime proof.
-Two other checks preserve the default destination construction path (stubbed)
-and actual complete-collector identity refusal/zero-effect receipt after a real
-private queue publication. A fourth real read-only drift audit proves delegated
-trigger drift cannot be CLEAN under the new source payload pins.
-No host source hash readers, live cleanup or live R2 contact run in these tests.
+legacy subprocess receipts/sends. The same chain uses a real separate-process
+contender running the maintained `pro_route.singleton()` body on one private
+lock inode: it is excluded at complete reference capture, local retirement and
+legacy final-phase admission, then admitted after ordinary or exceptional exit.
+A busy-owner CLI check proves exit75 before cleanup/source custody, local/R2
+effects or success receipts; no owner is disturbed. These are **not** native
+scheduler/runtime proof. The retained uncooperative private queue publication
+still invokes the complete collector's identity refusal and zero-effect receipt.
+Default destination construction and delegated-trigger source-drift checks are
+also retained. All fixtures deny network/R2 boundaries rather than hiding
+credentials; no live cleanup/queue collector/source importer/R2 contact runs.
