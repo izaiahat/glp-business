@@ -81,12 +81,12 @@ def path_digest(path, *, file_cache=None):
     return walk(root)
 
 
-def capture(config, *, source_tree, sheet_sha256, now=None):
+def capture(config, *, source_tree, source_revision, sheet_sha256, now=None):
     """An unsupported/open environment or unreadable input cannot yield a key."""
     argv = list(config['base_argv'])
     if '--clearenv' not in argv:
         raise ValueError('build_inputs_require_clearenv')
-    if not source_tree or not sheet_sha256:
+    if not source_tree or not source_revision or not sheet_sha256:
         raise ValueError('build_inputs_missing_source_or_sheet')
     if '--unshare-all' not in argv:
         raise ValueError('build_inputs_require_network_isolation')
@@ -125,7 +125,8 @@ def capture(config, *, source_tree, sheet_sha256, now=None):
                  'glp_affiliate_release.py', 'glp_deploy_glp34_authority_v1.py'):
         p = Path(__file__).with_name(name)
         producers[name] = hashlib.sha256(p.read_bytes()).hexdigest()
-    body = {'schema': SCHEMA, 'source_tree': source_tree, 'sheet_sha256': sheet_sha256,
+    body = {'schema': SCHEMA, 'source_tree': source_tree, 'source_revision': source_revision,
+            'sheet_sha256': sheet_sha256,
             'execution_identity': [os.geteuid(), os.getegid(), sorted(os.getgroups())],
             'config_sha256': digest(config),
             'clock_contract': 'UTC_render_day_and_fresh_native_temporal_validation',

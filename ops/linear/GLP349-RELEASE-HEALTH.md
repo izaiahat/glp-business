@@ -20,8 +20,9 @@ untouched. The proposal itself is not a release receipt.
 ## Exact input reuse
 
 A successful publication now retains BUILD-INPUTS.json and SUCCESSFUL-INPUTS.json.
-The key covers the full accepted Git tree (including dependencies lockfiles,
-all tracked data, taxonomy and manifests), a clean source boundary, the fresh
+The key covers the full accepted Git tree and revision (HEAD/history is a build
+input), including dependencies lockfiles,
+all tracked data, taxonomy and manifests, a clean source boundary, the fresh
 sole-writer Sheet snapshot, exact namespace/config, every namespace bind's
 readable bytes/types/modes/links, all explicitly set environment values (hashes,
 not secrets), runtime/tool bytes, producer source and UTC rendering day.

@@ -42,7 +42,8 @@ def test_exact_input_snapshot_tracks_source_data_deps_env_and_mount_bytes(tmp_pa
               '--setenv', 'GLP_PRIVATE_EVIDENCE_ROOT', '/data']}
     now = dt.datetime(2026, 10, 15, 21, tzinfo=dt.timezone.utc)
     capture = lambda **kw: inputs.capture(config, source_tree=kw.get('tree', 'TREE'),
-                                         sheet_sha256=kw.get('sheet', 'SHEET'), now=kw.get('now', now))
+                                         sheet_sha256=kw.get('sheet', 'SHEET'), now=kw.get('now', now),
+                                         source_revision=kw.get('head', 'HEAD'))
     baseline = capture()
     assert capture() == baseline
     for name in ['taxonomy.json', 'package-lock.json']:
@@ -51,6 +52,7 @@ def test_exact_input_snapshot_tracks_source_data_deps_env_and_mount_bytes(tmp_pa
         p.write_bytes(old + b' ')
         assert capture()['sha256'] != baseline['sha256']
         p.write_bytes(old)
+    assert capture(head='DIFFERENT_HEAD_SAME_TREE')['sha256'] != baseline['sha256']
     assert capture(tree='OTHER')['sha256'] != baseline['sha256']
     assert capture(sheet='OTHER')['sha256'] != baseline['sha256']
     assert capture(now=now + dt.timedelta(days=1))['sha256'] != baseline['sha256']
@@ -92,7 +94,7 @@ def test_duplicate_file_bindings_hash_bytes_once_per_capture(tmp_path, monkeypat
     monkeypatch.setattr(Path, 'open', opened)
     argv=['/bin/true','--clearenv','--unshare-all','--cap-drop','ALL',
           '--bind',str(tmp_path),'/site','--ro-bind',str(data),'/a','--ro-bind',str(alias),'/b']
-    inputs.capture({'namespace':'/site','base_argv':argv}, source_tree='T', sheet_sha256='S')
+    inputs.capture({'namespace':'/site','base_argv':argv}, source_tree='T', source_revision='H', sheet_sha256='S')
     assert len(reads)==1
 
 
@@ -220,8 +222,8 @@ def test_missing_or_unbounded_inputs_cannot_form_a_skip_key(tmp_path):
     inputs = importlib.import_module('glp_release_inputs')
     config = {'namespace':'/site', 'base_argv':['/bin/true', '--bind',str(tmp_path),'/site']}
     with pytest.raises(ValueError, match='clearenv'):
-        inputs.capture(config, source_tree='T', sheet_sha256='S')
+        inputs.capture(config, source_tree='T', source_revision='H', sheet_sha256='S')
     config['base_argv'][1:1] = ['--clearenv', '--unshare-all', '--cap-drop', 'ALL']
     config['base_argv'] += ['--ro-bind',str(tmp_path/'missing'),'/evidence']
     with pytest.raises(FileNotFoundError):
-        inputs.capture(config, source_tree='T', sheet_sha256='S')
+        inputs.capture(config, source_tree='T', source_revision='H', sheet_sha256='S')

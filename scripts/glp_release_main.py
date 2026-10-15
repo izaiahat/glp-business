@@ -179,7 +179,8 @@ def fresh_release_inputs(config, report, pr):
     if outcome['changed']:
         return None  # Full producer must propagate the fresh denial/terms delta.
     tree = gh_json('api', f'repos/izaiahat/glp-site-candidate/commits/{pr["headRefOid"]}')['commit']['tree']['sha']
-    snapshot = capture(config, source_tree=tree, sheet_sha256=job.sha(report / 'registry/sheet-snapshot.json'))
+    snapshot = capture(config, source_tree=tree, source_revision=pr['headRefOid'],
+                       sheet_sha256=job.sha(report / 'registry/sheet-snapshot.json'))
     job.save(report / 'CURRENT-INPUTS.json', snapshot)
     return snapshot
 
@@ -514,11 +515,11 @@ def main(argv=None):
             if job.run(['git', 'status', '--porcelain', '--untracked-files=all', '--ignored'], cwd=source):
                 raise ValueError('main_build_unsealed_source_inputs')
             tree = job.run(['git', 'rev-parse', 'HEAD^{tree}'], cwd=source)
-            before = capture(config, source_tree=tree,
+            before = capture(config, source_tree=tree, source_revision=head,
                              sheet_sha256=job.sha(rep / 'registry/sheet-snapshot.json'))
             job.save(rep / 'BUILD-INPUTS.json', before)
             original_gate(source, rep, config, head)
-            after = capture(config, source_tree=tree,
+            after = capture(config, source_tree=tree, source_revision=head,
                             sheet_sha256=job.sha(rep / 'registry/sheet-snapshot.json'))
             if before != after:
                 raise ValueError('main_build_inputs_changed_during_build')
