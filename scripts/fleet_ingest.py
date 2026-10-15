@@ -194,8 +194,73 @@ def verified_outbox(root, job):
     return paths
 
 
+def registered_root_native(root, live, config):
+    """Exact coordinator-configured root lanes only; never glob worker receipts."""
+    registered, completed, active = {}, {}, set()
+    for issue, policy in config.get('issues', {}).items():
+        raw = policy.get('worker_result') if isinstance(policy, dict) else None
+        if not ISSUE.fullmatch(str(issue)) or not isinstance(raw, str):
+            continue
+        path = Path(raw) if Path(raw).is_absolute() else root / raw
+        try:
+            rel = path.relative_to(root)
+        except ValueError:
+            continue
+        if (len(rel.parts) != 3 or rel.parts[0] != 'lanes'
+                or not LANE.fullmatch(rel.parts[1]) or rel.parts[2] != 'RESULT.json'
+                or path.resolve() != path or path.is_symlink()):
+            continue
+        registered.setdefault(path, set()).add(issue)
+    if not registered:
+        return []
+    for manifest in sorted(live.glob('*/manifest.json')):
+        if manifest.is_symlink() or manifest.parent.is_symlink():
+            continue
+        sha = digest(manifest)
+        data = read(manifest)
+        for task in data.get('tasks', []):
+            goal = task.get('goal', '')
+            ids = {'GLP-' + n for n in re.findall(r'\bGLP-?([1-9][0-9]*)\b', goal)}
+            for path, issues in registered.items():
+                named = re.search(re.escape(str(path)) + r'(?=$|[\s{},.;)])', goal)
+                owned = re.match(re.escape(path.parent.name) + r'(?:\s|/|$)', goal)
+                if not named and not (owned and ids == issues):
+                    continue
+                # Any current reference/owner task wins over historical completion.
+                if (task.get('status') != 'completed'
+                        or (data.get('pid') and alive(data['pid']))
+                        or (task.get('pid') and alive(task['pid']))):
+                    active.add(path)
+                    continue
+                if (named and owned and len(issues) == 1 and ids == issues
+                        and data.get('completed') and task.get('exit_reason') == 'completed'):
+                    if path not in completed or manifest.stat().st_mtime_ns > completed[path][0].stat().st_mtime_ns:
+                        completed[path] = (manifest, sha)
+    events = []
+    for path, (manifest, manifest_sha) in completed.items():
+        if path in active or not path.is_file() or path.is_symlink():
+            continue
+        result_sha = digest(path)
+        data = read(path)
+        if (binding(data, path) not in registered[path]
+                or (data.get('pid') and alive(data['pid']))
+                or path.stat().st_mtime_ns > manifest.stat().st_mtime_ns):
+            continue
+        issue = next(iter(registered[path]))
+        failure = '' if str(data.get('status', '')).upper() in {'DONE', 'DONE_READY_TO_CLOSE', 'PASS', 'COMPLETED', 'COMPLETE', 'CLOSED'} else 'native executor stopped without a complete worker RESULT'
+        item = event('native', issue, lane_name(data, 'sol', path), path,
+                     [path, manifest], path, failure)
+        if item['evidence'] == {str(path): result_sha, str(manifest): manifest_sha}:
+            events.append(item)
+    return events
+
+
 def discover(root, live, config, prs):
     events, errors, completed = [], [], {}
+    try:
+        events.extend(registered_root_native(root, live, config))
+    except (OSError, ValueError) as exc:
+        errors.append({'path': str(live), 'error': 'registered root native: ' + str(exc)})
     # A terminal native manifest is the runtime-owned equivalent of dead PID.
     # Explicit PID, if present, must still be dead; partial live RESULT is ignored.
     for manifest in live.glob('*/manifest.json'):
@@ -305,6 +370,10 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
     target = inbox / item['issue'] / item['lane'] / 'INGEST.json'
     closer = root / 'scripts/linear_close.py'
     item = dict(item, evidence=dict(item['evidence']))
+    if item['source'] == 'native' and any(
+            not Path(p).is_file() or Path(p).is_symlink() or digest(p) != sha
+            for p, sha in item['evidence'].items()):
+        item['source_failure'] = 'native evidence changed since discovery'
     supplied_result = policy.get('worker_result') or item.get('worker_result')
     result = result_pointer(root, {'worker_result': supplied_result})
     item['worker_result'] = str(result) if result else None
