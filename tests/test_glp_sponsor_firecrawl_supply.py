@@ -74,6 +74,26 @@ def test_eligible_hosts_excludes_fella_suppressed_holds_and_non_gap_reasons():
     assert supply.eligible_hosts(rows, {'held.com'}, lambda a, b: a == b) == ['a.com']
 
 
+def test_merge_persists_nonpublic_stock_hold_without_transport(tmp_path,monkeypatch):
+    import glp_sponsor_campaign as campaign
+    from test_glp_sponsor_campaign import inputs
+    _,disc,_=inputs()
+    org=disc['organizations']['example.com']
+    org['discovery']={}
+    org['professional_contacts']=[{'source':'apollo','email':'director@example.com'}]
+    producer=supply.Producer.__new__(supply.Producer)
+    producer.c=campaign;producer.discovery=tmp_path/'discovery.json'
+    producer.pages=tmp_path/'pages';producer.pages.mkdir()
+    producer.report={}
+    monkeypatch.setattr(producer,'locked',lambda:(tmp_path/'run.lock').open('a'))
+    monkeypatch.setattr(campaign,'public_business_contact',lambda *a,**kw:None)
+    campaign.save(producer.discovery,disc)
+    producer.merge()
+    stored=campaign.load(producer.discovery)
+    assert stored['organizations']['example.com']['professional_contacts'][0]['stock_status']=='HELD_NOT_PUBLIC'
+    assert producer.report['merge']==[{'hosts':0,'scope_rows':0,'contacts':0}]
+
+
 def test_apollo_contact_binds_id_title_country_org_and_email_domain():
     at = dt.datetime(2026, 10, 12, tzinfo=dt.timezone.utc)
     title = lambda t: bool(re.search('marketing|partnership', t or '', re.I))  # noqa: E731
