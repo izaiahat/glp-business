@@ -271,6 +271,108 @@ class SourceCarrierTests(unittest.TestCase):
                 claim.write_text('{"tampered":true}')
                 self.assertIsNone(carrier.published_operation_readback(op))
 
+    def test_normal_sealed_consumption_get_only_readback(self):
+        """Real seals/native terminal shape, no reconciliation-only fields/writers."""
+        import article_buffer_cli as cli
+        from types import SimpleNamespace
+        cron = SimpleNamespace(article_current_base=lambda: None, article_production_head_id=lambda: None)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            op = 'host-normal-success'
+            entry = {'entry_id':'a'*24,'topic_id':'topic','target_route':'/guides/new/'}
+            row = {**entry, 'article':{'path':'article.json','sha256':'a'*64}}
+            pr = {'state':'MERGED','url':'https://github.com/izaiahat/glp-site-candidate/pull/50',
+                  'headRefOid':'a'*40,'mergeCommit':{'oid':'b'*40}}
+            terminal = root / 'terminal.json'
+            terminal.write_text(json.dumps({'schema':'glp-opus-production-terminal-receipt-v1',
+                'status':'PASS_PRODUCTION_TERMINAL','site_head':pr['headRefOid'],
+                'deployment':{'deployment_id':'dep'}}))
+            pointer = root / 'pointer.json'
+            pointer.write_text(json.dumps({'deployment_id':'dep','site_head':pr['headRefOid'],
+                'final_receipt':carrier.buffer._spec(terminal)}))
+            claim = root / 'claim.json'
+            carrier.buffer._write_once(claim,{'schema':carrier.buffer.CLAIM_SCHEMA,
+                'operation_id':op,'entry_id':entry['entry_id']},'claim_sha256')
+            result = {'status':'PASS_PRODUCTION_TERMINAL','scope':'operator-approved-main-release',
+                      'deployment_id':'dep','site_main':pr['mergeCommit']['oid'],'source_pr':pr['url']}
+            live = {'http':200,'title':'Reviewed title','url':carrier.SITE + entry['target_route']}
+            publication = carrier.publication_receipt(pr,result,live,row)
+            publication['receipt'] = str(terminal)
+            carrier.record_consumption(root,entry,op,publication,claim)
+            sealed = carrier.consumed_path(root,op)
+            before = {p:p.read_bytes() for p in (sealed,claim,pointer,terminal)}
+            current = {'deployment_id':'dep','pointer_sha256':carrier.digest(pointer)}
+            with patch.object(cli,'DEFAULT_ROOT',root), patch.object(cli,'POINTER',pointer), \
+                 patch.object(cli,'current_context',return_value=(None,root,{entry['target_route']},set())), \
+                 patch.object(carrier,'source_rows',return_value=[row]), \
+                 patch.object(carrier,'accepted_entry',return_value=(root,entry,{'title':'Reviewed title'})), \
+                 patch.object(carrier,'live_readback',return_value=live), \
+                 patch.object(cron,'article_current_base',return_value=current), \
+                 patch.object(cron,'article_production_head_id',return_value='dep'), \
+                 patch.dict(sys.modules,{'scripts.cron_bridge_action':cron}), \
+                 patch.object(carrier,'run',side_effect=AssertionError('no subprocess')), \
+                 patch.object(carrier,'record_consumption',side_effect=AssertionError('no seal writes')):
+                recovered = carrier.published_operation_readback(op)
+                self.assertIsNotNone(recovered, 'normal successful consumption must acknowledge without recovery-only fields')
+                self.assertEqual(recovered['status'],'PASS_PUBLISHED')
+                self.assertEqual(recovered['receipt_path'],str(sealed))
+                # Exercise the registered wrapper's real postcondition path;
+                # only external GET/heartbeat/notification edges are isolated.
+                import ast
+                from unittest.mock import MagicMock
+                tree = ast.parse((ROOT / 'scripts/cron_bridge_action.py').read_text())
+                finish = next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name == 'finish_action')
+                namespace = {'machine_receipt':lambda *a,**k: {'status':'BLOCKED_CONSUME_FAILED','operation_id':op},
+                             'heartbeat':lambda *a,**k: {}, 'post_once':lambda *a,**k: {}}
+                exec(compile(ast.Module(body=[finish],type_ignores=[]),'registered-finish','exec'),namespace)
+                response = MagicMock()
+                response.__enter__.return_value.status = 200
+                with patch.dict(sys.modules,{'scripts.article_source_carrier':carrier}), \
+                     patch('urllib.request.urlopen',return_value=response) as get:
+                    effects = namespace['finish_action']('article_carrier_consume',{}, {'rc':0}, {},root / 'state')
+                self.assertEqual(effects['machine_status'],'PASS_PUBLISHED')
+                self.assertEqual(effects['output_count'],1)
+                self.assertEqual(effects['live_status'],200)
+                self.assertEqual(get.call_args.args[0].full_url,live['url'])
+                # Genuine seals with mismatched terminal/source identities must
+                # remain pending, even when the public route still returns 200.
+                import copy
+                mutations = [
+                    ('publication','deployment_id','stale'),
+                    ('publication','source_entry',{'entry_id':'b'*24}),
+                    ('publication','receipt',str(root / 'wrong-terminal.json')),
+                    ('publication','main_release','status','FAIL'),
+                    ('publication','main_release','prepare_only',True),
+                    ('publication','main_release','site_main','c'*40),
+                    ('publication','main_release','source_pr','wrong-pr'),
+                    ('publication','source_pr','state','OPEN'),
+                    ('publication','source_pr','headRefOid','invalid'),
+                ]
+                original = json.loads(sealed.read_text())
+                for index, change in enumerate(mutations):
+                    with self.subTest(change=change):
+                        variant = copy.deepcopy(original)
+                        variant_op = f'{op}-{index}'
+                        variant['operation_id'] = variant_op
+                        variant_claim = root / f'claim-{index}.json'
+                        carrier.buffer._write_once(variant_claim,{'schema':carrier.buffer.CLAIM_SCHEMA,
+                            'operation_id':variant_op,'entry_id':entry['entry_id']},'claim_sha256')
+                        variant['claim'] = carrier.buffer._spec(variant_claim)
+                        target = variant
+                        for key in change[:-2]:
+                            target = target[key]
+                        target[change[-2]] = change[-1]
+                        variant.pop('consumption_sha256')
+                        carrier.buffer._write_once(carrier.consumed_path(root,variant_op),variant,'consumption_sha256')
+                        self.assertIsNone(carrier.published_operation_readback(variant_op))
+                cron.article_production_head_id.return_value = 'stale'
+                self.assertIsNone(carrier.published_operation_readback(op))
+                cron.article_production_head_id.return_value = 'dep'
+                terminal.write_text('{}')
+                self.assertIsNone(carrier.published_operation_readback(op))
+                terminal.write_bytes(before[terminal])
+            self.assertEqual({p:p.read_bytes() for p in before},before)
+
     def test_compatibility_preflight_uses_native_source_lane(self):
         import validate_article_carrier_base_compatibility as compatibility
         with patch.object(carrier,'preflight',return_value={'status':'PASS_SOURCE_MAIN_COMPATIBILITY'}) as preflight:

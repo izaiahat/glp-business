@@ -235,10 +235,41 @@ def published_operation_readback(operation_id):
             return None
         publication = record['publication']
         current = article_current_base()
-        if (publication.get('source_reconciled') is not True
-                or publication.get('deployment_id') != current['deployment_id']
-                or publication.get('current_base') != buffer._spec(cli.POINTER)):
+        if (publication.get('status') != 'PASS_BUFFER_PUBLISHED'
+                or publication.get('deployment_id') != current['deployment_id']):
             return None
+        reconciled = publication.get('source_reconciled') is True
+        if reconciled:
+            if publication.get('current_base') != buffer._spec(cli.POINTER):
+                return None
+        else:
+            # Normal consume seals the native main result, not a recovery
+            # snapshot. Authenticate its terminal receipt against the validated
+            # CURRENT pointer; never retrofit fields into immutable consumption.
+            pointer = json.loads(cli.POINTER.read_text())
+            pr, main = publication['source_pr'], publication['main_release']
+            if (digest(cli.POINTER) != current['pointer_sha256']
+                    or pointer['deployment_id'] != current['deployment_id']
+                    or pr['state'] != 'MERGED'
+                    or not re.fullmatch(r'https://github\.com/izaiahat/glp-site-candidate/pull/[1-9][0-9]*', pr['url'])
+                    or any(not re.fullmatch('[a-f0-9]{40}', value)
+                           for value in (pr['headRefOid'], pr['mergeCommit']['oid']))
+                    or pointer['site_head'] not in (pr['headRefOid'], pr['mergeCommit']['oid'])
+                    or main['status'] not in ('PASS_PRODUCTION_TERMINAL', 'PASS_ALREADY_CURRENT')
+                    or main.get('prepare_only') is True
+                    or main['scope'] != 'operator-approved-main-release'
+                    or main['site_main'] != pr['mergeCommit']['oid']
+                    or main['deployment_id'] != current['deployment_id']
+                    or (main['status'] == 'PASS_PRODUCTION_TERMINAL' and main.get('source_pr') != pr['url'])):
+                return None
+            terminal_path = buffer._verify_spec(pointer['final_receipt'], 'source_readback_terminal')
+            terminal = json.loads(terminal_path.read_text())
+            if (publication['receipt'] != str(terminal_path)
+                    or terminal['schema'] != 'glp-opus-production-terminal-receipt-v1'
+                    or terminal['status'] != 'PASS_PRODUCTION_TERMINAL'
+                    or terminal['deployment']['deployment_id'] != current['deployment_id']
+                    or terminal['site_head'] != pointer['site_head']):
+                return None
         claim_path = buffer._verify_spec(record['claim'],'source_readback_claim')
         claim = buffer._read_sealed(claim_path,buffer.CLAIM_SCHEMA,'claim_sha256')
         if claim.get('operation_id') != operation_id or claim.get('entry_id') != record['entry_id']:
@@ -247,7 +278,8 @@ def published_operation_readback(operation_id):
         row = next(r for r in source_rows(release) if r['entry_id'] == record['entry_id'])
         _, entry, article = accepted_entry(cli.DEFAULT_ROOT,release,row)
         if (record['target_route'] != entry['target_route'] or record['topic_id'] != entry['topic_id']
-                or entry['target_route'] not in routes):
+                or entry['target_route'] not in routes
+                or (not reconciled and publication.get('source_entry') != row)):
             return None
         live = live_readback(entry['target_route'],article['title'])
         if article_production_head_id() != current['deployment_id'] or article_current_base() != current:
