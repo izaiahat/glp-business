@@ -39,6 +39,202 @@ class FleetTest(unittest.TestCase):
         spec.loader.exec_module(m)
         return m
 
+    def test_registered_root_lane_requires_current_terminal_native_custody(self):
+        """Private replay of the real native manifest shape, never live ingestion."""
+        import os
+        from unittest.mock import patch
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            result = root / 'lanes/AN-OWNER/RESULT.json'
+            result.parent.mkdir(parents=True)
+            payload = {'issue': 'GLP-336', 'owner': 'AN-OWNER',
+                       'status': 'DONE_READY_TO_CLOSE'}
+            result.write_text(json.dumps(payload))
+            live = root / 'runtime-owned-live'
+            manifest = live / 'deleg_c9b812c8/manifest.json'
+            manifest.parent.mkdir(parents=True)
+            # Same keys/statuses as retained deleg_c9b812c8; only paths and
+            # narrative are fixture-local. This is not a business receipt.
+            native = {'delegation_id': 'deleg_c9b812c8',
+                      'started': '2026-10-14 00:08:31', 'task_count': 1,
+                      'model': 'gpt-6.1-sol', 'provider': 'openai-codex',
+                      'tasks': [{'index': 0,
+                                 'goal': f'AN-OWNER continuation / GLP336 retain {result}',
+                                 'log': str(manifest.parent / 'task-0.log'),
+                                 'status': 'completed', 'exit_reason': 'completed'}],
+                      'completed': '2026-10-14 00:19:12'}
+            def save_native():
+                manifest.write_text(json.dumps(native))
+            save_native()
+            config = {'issues': {'GLP-336': {'worker_result': 'lanes/AN-OWNER/RESULT.json'}}}
+            def discover(cfg=config):
+                return m.discover(root, live, cfg, [])
+            with patch.object(m, 'run', side_effect=AssertionError('effects denied')), \
+                    patch('subprocess.run', side_effect=AssertionError('subprocess denied')), \
+                    patch('socket.socket', side_effect=AssertionError('network denied')):
+                self.assertEqual(discover({})[0], [])
+                items, errors = discover()
+                self.assertEqual(errors, [])
+                self.assertEqual(len(items), 1, 'registered root-lane terminal was falsely omitted')
+                item = items[0]
+                self.assertEqual(item['worker_result'], str(result))
+                self.assertEqual(item['issue'], 'GLP-336')
+                self.assertEqual(item['evidence'], {str(result): m.digest(result),
+                                                   str(manifest): m.digest(manifest)})
+                # Config attachment is not proof, and terminal status is not READY.
+                calls = []
+                def refused(argv, cwd, timeout):
+                    calls.append(argv)
+                    return {'rc': 2, 'stdout': '', 'stderr': 'fixture: acceptance unavailable'}
+                row = m.ingest(root, item, config['issues']['GLP-336'], refused)
+                self.assertEqual(row['status'], 'REDISPATCH')
+                self.assertEqual(row['linear_mutations'], 0)
+                self.assertEqual(calls[-1][-1], '--check-only')
+                self.assertNotIn('--apply', calls[-1])
+                self.assertEqual(m.ingest(root, item, config['issues']['GLP-336'], refused), row)
+                self.assertEqual(len(calls), 1)
+                with self.assertRaisesRegex(ValueError, 'lane collision'):
+                    m.ingest(root, dict(item, identity='different-source'), {}, refused)
+                active = live / 'deleg_active/manifest.json'
+                for change in ('running-task', 'running-owner-without-path',
+                               'running-manifest-pid', 'running-task-pid',
+                               'running-result-pid', 'missing-terminal', 'wrong-issue',
+                               'wrong-owner', 'unbound', 'post-terminal-change', 'symlink'):
+                    with self.subTest(change=change):
+                        original = json.loads(json.dumps(native))
+                        if change in {'running-task', 'running-owner-without-path'}:
+                            active.parent.mkdir(parents=True, exist_ok=True)
+                            task = dict(native['tasks'][0], status='running')
+                            if change == 'running-owner-without-path':
+                                task['goal'] = 'AN-OWNER / GLP336 same current owner'
+                            active.write_text(json.dumps({'tasks': [task]}))
+                        elif change == 'running-manifest-pid': native['pid'] = os.getpid()
+                        elif change == 'running-task-pid': native['tasks'][0]['pid'] = os.getpid()
+                        elif change == 'running-result-pid': result.write_text(json.dumps(dict(payload, pid=os.getpid())))
+                        elif change == 'missing-terminal': native.pop('completed')
+                        elif change == 'wrong-issue': result.write_text(json.dumps(dict(payload, issue='GLP-93')))
+                        elif change == 'wrong-owner': native['tasks'][0]['goal'] = f'REVIEW / GLP336 read {result}'
+                        elif change == 'unbound': native['tasks'][0]['goal'] = 'AN-OWNER / GLP336 no exact result pointer'
+                        elif change == 'symlink':
+                            result.rename(result.with_name('saved.json'))
+                            result.symlink_to(result.with_name('saved.json'))
+                        save_native()
+                        if change == 'post-terminal-change':
+                            newer = manifest.stat().st_mtime_ns + 1000000
+                            os.utime(result, ns=(newer, newer))
+                        self.assertEqual(discover()[0], [])
+                        if change in {'running-task', 'running-owner-without-path'}: active.unlink()
+                        if change == 'symlink':
+                            result.unlink()
+                            result.with_name('saved.json').rename(result)
+                        result.write_text(json.dumps(payload))
+                        native = original
+                        save_native()
+                # Native _build_result_entry emits failed/error and interrupted;
+                # _update_manifest persists them with a delegation completed marker.
+                # Historical terminal failures are not live-task vetoes on a retry.
+                previous = live / 'deleg_previous/manifest.json'
+                previous.parent.mkdir()
+                for status, reason in (('failed', 'error'), ('failed', 'completed'),
+                                       ('failed', 'max_iterations'), ('error', 'error'),
+                                       ('interrupted', 'interrupted'), ('timeout', 'timeout')):
+                    with self.subTest(terminal_retry=status):
+                        prior = json.loads(json.dumps(native))
+                        prior['tasks'][0].update(status=status, exit_reason=reason)
+                        previous.write_text(json.dumps(prior))
+                        older = manifest.stat().st_mtime_ns - 10000000
+                        os.utime(previous, ns=(older, older))
+                        retried, errors = discover()
+                        self.assertEqual(errors, [])
+                        self.assertEqual(len(retried), 1, 'terminal failure vetoed completed retry')
+                        self.assertEqual(retried[0]['source_failure'], '')
+                        saved = manifest.read_bytes()
+                        manifest.unlink()
+                        self.assertEqual(discover()[0], [], 'failed-only custody is not completion')
+                        manifest.write_bytes(saved)
+                        for pid_owner in (prior, prior['tasks'][0]):
+                            pid_owner['pid'] = os.getpid()
+                            previous.write_text(json.dumps(prior))
+                            self.assertEqual(discover()[0], [], 'live PID overrides failure status')
+                            del pid_owner['pid']
+                        prior.pop('completed')
+                        previous.write_text(json.dumps(prior))
+                        self.assertEqual(discover()[0], [], 'unfinalized failure must fail closed')
+                prior = json.loads(json.dumps(native))
+                prior['tasks'][0]['status'] = 'unknown-runtime-state'
+                previous.write_text(json.dumps(prior))
+                self.assertEqual(discover()[0], [], 'unknown state must fail closed')
+                previous.unlink()
+                # Neither shared issue registration nor unstable reads authenticate a result.
+                shared = json.loads(json.dumps(config))
+                shared['issues']['GLP-93'] = dict(shared['issues']['GLP-336'])
+                self.assertEqual(discover(shared)[0], [])
+                # Reproduce RV529's actual reader interleaving, never fabricate
+                # digest values. Endpoint hashes cannot bless other parsed bytes.
+                real_read_bytes, real_read_text = Path.read_bytes, Path.read_text
+                for target in (manifest, result):
+                    for reader_name in ('read_text', 'read_bytes'):
+                        with self.subTest(consumed_buffer=target.name, reader=reader_name):
+                            result.write_text(json.dumps(payload))
+                            stale = json.loads(json.dumps(native if target == manifest else payload))
+                            if target == manifest:
+                                stale.pop('completed')
+                                stale['tasks'][0]['status'] = 'running'
+                                stale['tasks'][0].pop('exit_reason')
+                            else:
+                                stale['status'] = 'REDISPATCH_NEEDED'
+                            target.write_text(json.dumps(stale))
+                            if target == result:
+                                save_native()  # genuine ordering: RESULT precedes terminal manifest
+                            original_bytes = real_read_bytes(target)
+                            terminal_bytes = json.dumps(native if target == manifest else payload).encode()
+                            original_reader = real_read_text if reader_name == 'read_text' else real_read_bytes
+                            consumed = []
+                            def transient_read(path, *args, **kwargs):
+                                if path == target and not consumed:
+                                    st = path.stat()
+                                    path.write_bytes(terminal_bytes)
+                                    try:
+                                        value = original_reader(path, *args, **kwargs)
+                                        consumed.append(value)
+                                        return value
+                                    finally:
+                                        path.write_bytes(original_bytes)
+                                        os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns))
+                                return original_reader(path, *args, **kwargs)
+                            with patch.object(Path, reader_name, transient_read):
+                                raced, errors = discover()
+                            self.assertEqual(errors, [])
+                            self.assertEqual(real_read_bytes(target), original_bytes)
+                            self.assertFalse([e for e in raced if not e['source_failure']],
+                                             'parsed terminal bytes authenticated by nonterminal hash')
+                            if reader_name == 'read_bytes':
+                                self.assertTrue(consumed, 'exercise the snapshot byte-reader path')
+                                self.assertEqual(raced, [], 'subsequent drift must refuse the snapshot')
+                            result.write_text(json.dumps(payload))
+                            save_native()
+                # Persistent drift also refuses, with actual bytes, not a fake hash.
+                for target in (manifest, result):
+                    with self.subTest(persistent_drift=target.name):
+                        consumed = []
+                        def changing_read(path, *args, **kwargs):
+                            value = real_read_bytes(path, *args, **kwargs)
+                            if path == target and not consumed:
+                                consumed.append(value)
+                                path.write_bytes(value + b' ')
+                            return value
+                        with patch.object(Path, 'read_bytes', changing_read):
+                            self.assertEqual(discover()[0], [])
+                        result.write_text(json.dumps(payload))
+                        save_native()
+                # Snapshot changes must not silently become new authenticated bytes.
+                item = discover()[0][0]
+                result.write_text(json.dumps(dict(payload, status='REDISPATCH_NEEDED')))
+                changed = m.ingest(root, item, config['issues']['GLP-336'], refused, retry=True)
+                self.assertEqual(changed['status'], 'REDISPATCH')
+                self.assertIn('native evidence changed', changed['failure_text'])
+
     def test_discovery_native_codex_pro_requires_terminal_evidence(self):
         m = self.load()
         with tempfile.TemporaryDirectory() as d:

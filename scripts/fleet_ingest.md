@@ -11,7 +11,22 @@ Changes to the proof policy or installed closer automatically retry. `--retry` e
 
 * Native: RESULT with a dead positive PID, or a runtime-owned completed delegation manifest
   naming its exact RESULT. A live PID always wins over a terminal claim. Partial worker results
-  are ingested as REDISPATCH, not reported complete.
+  are ingested as REDISPATCH, not reported complete. Existing recursive discovery remains
+  confined to `reports/ops`. Root `lanes/OWNER/RESULT.json` is eligible only through
+  the coordinator's existing `CONFIG.json issues[ISSUE].worker_result` override
+  (relative or workspace-absolute), never a root-lane glob or a PID claim alone.
+  The exact path must be named by a terminal native manifest's completed task,
+  whose goal starts with OWNER and binds that one issue (GLP-n or GLPn).
+  A running task/PID referencing the path overrides historical completion. Finalized
+  native `failed`/`error`/`interrupted`/`timeout` tasks do not suppress a completed retry,
+  but never authorize completion themselves; live PIDs still win and unknown or
+  unfinalized states fail closed. Symlinks, cross-issue/shared-issue bindings, absent
+  terminal custody and result writes newer than the manifest are refused. Root-lane
+  RESULT and manifest data are parsed and hashed from the same captured byte buffer,
+  then rehashed to refuse subsequent drift; changed native evidence at ingestion
+  cannot become READY.
+  Truncated/braced goals that do not name the exact file remain undiscovered;
+  registration is not permission to copy old proof or manufacture terminal custody.
 * Codex: finished RUN.json with exit_code and RESPONSE.md. Missing/failed response is REDISPATCH.
 * Pro: complete route queue row plus VERIFIED JOB.json receipt. All manifest, source reply and
   outbox file bytes are rehashed locally. No browser polling, recovery sends or CONSUMED writes.
