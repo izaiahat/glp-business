@@ -140,6 +140,33 @@ def test_secrets_scan(tmp_path):
         rm.secrets_scan(tmp_path)
 
 
+def test_main_acceptance_recovery_keeps_exact_tree_guard():
+    calls = []
+    def gh(*args):
+        calls.append(args)
+        if args[:2] == ('pr', 'list') and args[args.index('--state') + 1] == 'merged':
+            return [{'number':119,'url':'u119','headRefOid':'stale',
+                     'mergeCommit':{'oid':'main'}}]
+        if args[:2] == ('pr', 'list'): return []
+        if args[:2] == ('api', 'repos/izaiahat/glp-site-candidate/commits/main'):
+            return {'commit':{'tree':{'sha':'integrated'}}}
+        if args[:2] == ('api', 'repos/izaiahat/glp-site-candidate/commits/stale'):
+            return {'commit':{'tree':{'sha':'old'}}}
+        if 'git/matching-refs' in args[1]: return []
+        if 'git/trees' in args[1]: return {'sha':'proposal-tree'}
+        if args[1].endswith('/git/commits'): return {'sha':'proposal-head'}
+        if args[1].endswith('/git/refs'): return {}
+        if args[1].endswith('/pulls'): return {'html_url':'u120'}
+        raise AssertionError(args)
+    out = rm.ensure_main_acceptance('main', gh=gh)
+    assert out['status'] == 'DEFERRED_MAIN_ACCEPTANCE'
+    assert out['previous_head'] == 'stale'
+    assert out['main_tree'] == 'integrated'
+    assert not any(a[:2] == ['pr','merge'] for a in calls)
+    with pytest.raises(RuntimeError, match='main_tree_differs'):
+        rm.merged_pr_for('main', gh=gh)
+
+
 def test_merged_pr_for_requires_exact_merge_and_tree():
     trees = {'H': 'T', 'M': 'T', 'H2': 'T2'}
 

@@ -1,6 +1,28 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "ops/linear/GLP349-RELEASE-HEALTH.md": {
+      "kind": "operations",
+      "callers": [
+        "GLP-349 release input/recovery contract"
+      ],
+      "sha256": "05fd46ba42ce9df3600d63d01f5cdf65b26a40b9292a36c8351be762e1a7574e"
+    },
+    "scripts/glp_release_inputs.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:415ec5eba194",
+        "scripts/glp_release_main.py"
+      ],
+      "sha256": "bdf9aa931f96b60468f99027c19acc5247e1bd6321d5b02fb8ee9ad5ea90a5f8"
+    },
+    "tests/test_glp_release_inputs.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci:GLP349-release-health"
+      ],
+      "sha256": "f0aee3140528da220343f30bbcbbf5eaa5633b942cd8ca10b51162d833ab02a2"
+    },
     "tests/test_postpublication_review_only.py": {
       "kind": "test",
       "callers": [
@@ -285,7 +307,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "f17fb796f8da00d46d982a2b4aa39c59ffbfa9e1837072dfed67ec48e15c4a4a"
+      "sha256": "08a11431e5a0813a55b0159c09934425c61876969fc360527ec2e00e2960b917"
     },
     ".codex-task/RESULT.md": {
       "callers": [
@@ -297,7 +319,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d4491c8041e41f3a11e439a4372297aae46298c3a8fed7f583cb92d61d88a9ea"
+      "sha256": "775f971032f096c25c8dad9a14149b2bb1c45d2e4e02b48ee908ec4f9afdd5cc"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3275,7 +3297,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "b2f89df3b10d62479e8033b795cb7d3c20f8def09ad37e900d0c13f834ffdb5a"
+      "sha256": "e2d2f4102444ff341c09679e297a47fa5798bf0b93be62aae50ddc39c47d06c7"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [
@@ -6253,7 +6275,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "9154d917951db79da5a537cd48e7241e247cfd354945fb20f25d3c24b5524114"
+      "sha256": "25fc557d2b27fe5786de43e8bf3d53a804d2a6fbed51d543497a012f7e37ebac"
     },
     "tests/test_glp_research_autowire.py": {
       "callers": [
@@ -7959,5 +7981,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1164
+  "tracked_count": 1167
 }
