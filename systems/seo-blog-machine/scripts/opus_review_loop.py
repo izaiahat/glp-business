@@ -685,6 +685,25 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
         raise RuntimeError("review_only_cannot_apply")
     job = read_json(job_path)
     validate_review_only_job(job, apply=apply, review_only_once=review_only_once)
+    if job.get("artifact_role") == "postpublication_review_only_job":
+        import fcntl
+        from glp_release_main import RUNS
+
+        # Share recovery.main's release-run custody through QA, sealing and the
+        # one-shot transport. A contender must not rewrite the winner's subjects
+        # before discovering its exclusive intent/history. This is admission,
+        # not an early consumed intent: pre-effect failures reserve no model call.
+        RUNS.mkdir(parents=True, exist_ok=True)
+        with (RUNS / "run.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            history = Path(str(job["history_dir"])).resolve()
+            if history.exists() and any(history.iterdir()):
+                raise RuntimeError(f"receipt_exists:{history}")
+            return _run_admitted(job, apply, review_only_once=review_only_once)
+    return _run_admitted(job, apply, review_only_once=review_only_once)
+
+
+def _run_admitted(job: dict[str, Any], apply: bool, *, review_only_once: bool) -> dict[str, Any]:
     if job.get("schema") != "glp-opus-seo-review-job-v1":
         raise RuntimeError("review_job_contract_invalid")
     if job.get("bridge_extension") is not None:

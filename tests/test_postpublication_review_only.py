@@ -19,6 +19,49 @@ def isolated_controller_controls(tmp_path, monkeypatch):
     schema = tmp_path/'fixture-schema.json'; schema.write_text('{}\n')
     monkeypatch.setattr(loop, 'RUBRIC', rubric)
     monkeypatch.setattr(loop, 'REVIEW_SCHEMA', schema)
+    import glp_release_main
+    monkeypatch.setattr(glp_release_main, 'RUNS', tmp_path/'private-release-runs')
+
+
+def competing_cli_refused(job_path, packet, history, tmp_path, actual_run):
+    """Separate-process actual controller; real private run flock, no effects."""
+    import glp_release_main
+    controller = ROOT/'systems/seo-blog-machine/scripts/opus_review_loop.py'
+    marker = tmp_path/'contender-reached-effect'
+    before = {p: p.read_bytes() for d in (packet, history) for p in d.rglob('*') if p.is_file()}
+    code = '''import sys,pathlib,runpy,subprocess
+sys.dont_write_bytecode=True
+sys.path[:0]=%r
+import glp_release_main,review_transports
+glp_release_main.RUNS=pathlib.Path(%r)
+review_transports.AUTHORIZED_TRANSPORTS['hermes-openai-codex-sol61-independent']['wrapper']=pathlib.Path(%r)
+def trace(frame,event,arg):
+ if event=='call' and frame.f_code.co_name=='main':
+  frame.f_globals.update(RUBRIC=pathlib.Path(%r),REVIEW_SCHEMA=pathlib.Path(%r),validate_topic_authority=lambda job:{'fixture':True})
+ return trace
+sys.settrace(trace)
+def denied(*a,**kw):
+ pathlib.Path(%r).write_text('QA/transport was reached')
+ raise RuntimeError('CONTENDER_EFFECT_REACHED')
+subprocess.run=denied
+sys.argv=[%r,'--job',%r,'--review-only-once']
+runpy.run_path(%r,run_name='__main__')
+''' % ([str(ROOT/'scripts'), str(controller.parent)], str(glp_release_main.RUNS),
+       str(__import__('review_transports').transport('hermes-openai-codex-sol61-independent')['wrapper']),
+       str(loop.RUBRIC), str(loop.REVIEW_SCHEMA), str(marker), str(controller), str(job_path), str(controller))
+    proc = actual_run([sys.executable, '-c', code], capture_output=True, text=True, timeout=15,
+                      env={**__import__('os').environ, 'PYTHONDONTWRITEBYTECODE': '1'})
+    assert proc.returncode == 2 and 'Resource temporarily unavailable' in proc.stderr, proc.stderr
+    assert not marker.exists()
+    assert before == {p: p.read_bytes() for d in (packet, history) for p in d.rglob('*') if p.is_file()}
+
+
+def assert_private_run_lock_released():
+    import fcntl
+    import glp_release_main
+    with (glp_release_main.RUNS/'run.lock').open('a') as contender:
+        fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(contender, fcntl.LOCK_UN)
 
 
 def test_postpublication_job_requires_single_effect_free_mode(tmp_path):
@@ -287,6 +330,7 @@ def test_prepared_role_cli_reaches_offline_boundary_once(tmp_path, monkeypatch, 
         assert intent['job_id'] == job['job_id']
         assert intent['subject_manifest_sha256'] == loop.sha_file(history/'round-01-subject-manifest.json')
         assert intent['retry_allowed'] is False and intent['publication_authorized'] is False
+        competing_cli_refused(job_path, Path(job['packet_dir']), history, tmp_path, actual_run)
         calls.append(argv)
         return subprocess.CompletedProcess(argv, 73, '', 'OFFLINE_TRANSPORT_BLOCKED_NO_NATIVE_CALL')
 
@@ -297,6 +341,7 @@ def test_prepared_role_cli_reaches_offline_boundary_once(tmp_path, monkeypatch, 
     assert not history.exists() and not calls and not admitted
     assert cli(controller, ['--job', job_path, '--review-only-once']) == 2
     assert 'opus_review_failed:73' in capsys.readouterr().err
+    assert_private_run_lock_released()
     assert len(calls) == 1 and admitted == [job['job_id']]
     intent_bytes = (history/'native-review-intent.json').read_bytes()
     assert cli(controller, ['--job', job_path, '--review-only-once']) == 2
@@ -312,3 +357,106 @@ def test_prepared_role_cli_reaches_offline_boundary_once(tmp_path, monkeypatch, 
     assert all(p.read_bytes() == data for p, data in before.items())
     assert Path(recovery.__file__).resolve() == preparer
     assert Path(loop.__file__).resolve() == controller
+
+
+@pytest.mark.parametrize('consumed', [False, True])
+def test_actual_qa_retry_preserves_every_packet_history_and_intent_byte(tmp_path, monkeypatch, capsys, consumed):
+    """Actual pinned QA/compiler and controller CLI; deliberately BLOCKED inputs.
+
+    No QA PASS or clinical result is fabricated. The consumed variant adds only
+    explicit private sealed-input/intent history, never a native review receipt.
+    """
+    import contextlib
+    import io
+    import runpy
+    import subprocess
+    monkeypatch.syspath_prepend(str(ROOT/'systems/seo-blog-machine/tests'))
+    monkeypatch.syspath_prepend(str(ROOT/'systems/analytics-brain'))
+    from test_publication_date_binding import packet as fixture_packet
+    import validate_opus_article_packet as qa
+    # Earlier producer fixtures intentionally import their own compiler. Load
+    # this regression's compiler by exact candidate file, never that cached seam.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('actual_retry_compiler',
+        ROOT/'systems/seo-blog-machine/scripts/compile_review_packet_article.py')
+    compiler = importlib.util.module_from_spec(spec); spec.loader.exec_module(compiler)
+    import review_transports
+    root, entry, original, output, db = producer_fixture(tmp_path, monkeypatch)
+    packet = tmp_path/'real-qa-packet'; packet.mkdir(); fixture_packet(packet)
+    (packet/'03-editorial-brief.md').write_text('Explicit offline fixture brief')
+    draft = packet/'04-draft.md'
+    draft.write_text(draft.read_text().replace('---\n> **Quick',
+                     'schemaRequirements: [Article, FAQPage]\n---\n> **Quick'))
+    (packet/recovery.CANDIDATE).write_text('<html>private synthetic deployed candidate</html>')
+    sitemap = tmp_path/'sitemap.xml'; sitemap.write_text('<urlset/>')
+    selected = {'topic_id': 'date-fixture', 'target_query': 'fixture guide',
+                'target_route': '/guides/date-binding-fixture/'}
+    monkeypatch.setattr(qa, 'load_selection_receipt', lambda path: (
+        {'inputs': {'sitemap_readback': recovery.spec(sitemap)}}, selected))
+    monkeypatch.setattr(qa, 'validate_authority_selection_binding', lambda *a: None)
+    monkeypatch.setattr(qa, 'packet_research_valid', lambda *a: False)
+    monkeypatch.setattr(qa, 'current_article_catalog_routes', lambda *a: set())
+    controls = ROOT/'systems/seo-blog-machine/scripts'
+    argv = [sys.executable, str(controls/'validate_opus_article_packet.py'), '--packet', str(packet),
+            '--selection-receipt', str(root/'reports/selection.json')]
+    validator = {'argv': argv, 'executable': sys.executable,
+                 'executable_sha256': recovery.sha(sys.executable),
+                 'control_files': {str(controls/n): recovery.sha(controls/n) for n in (
+                     'validate_opus_article_packet.py', 'compile_review_packet_article.py',
+                     'selection_receipt.py', 'r2_update_carrier.py')}}
+    route = review_transports.transport('hermes-openai-codex-sol61-independent')
+    history = tmp_path/'real-qa-history'
+    job = recovery.review_only_job(recovery.read(original), packet, history, route,
+                                   validator=validator, binding={'fixture': 'not clinical acceptance'})
+    job_path = tmp_path/'real-qa-job.json'; job_path.write_text(json.dumps(job))
+    controller = controls/'opus_review_loop.py'
+    calls = []
+    actual_run = subprocess.run
+
+    def actual_validator(command, **kwargs):
+        assert command == loop.validate_executable(validator, 'validator') == argv
+        competing_cli_refused(job_path, packet, history, tmp_path, actual_run)
+        calls.append(command)
+        monkeypatch.setattr(sys, 'argv', command[1:])
+        out = io.StringIO(); err = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = qa.main()
+        return subprocess.CompletedProcess(command, rc, out.getvalue(), err.getvalue())
+
+    monkeypatch.setattr(subprocess, 'run', actual_validator)
+
+    def trace(frame, event, arg):
+        if event == 'call' and frame.f_code.co_name == 'main' and frame.f_code.co_filename == str(controller):
+            frame.f_globals.update(RUBRIC=loop.RUBRIC, REVIEW_SCHEMA=loop.REVIEW_SCHEMA,
+                                   validate_topic_authority=loop.validate_topic_authority)
+        return trace
+
+    def cli():
+        monkeypatch.setattr(sys, 'argv', [str(controller), '--job', str(job_path), '--review-only-once'])
+        prior = sys.gettrace(); sys.settrace(trace)
+        try:
+            with pytest.raises(SystemExit) as exc:
+                runpy.run_path(str(controller), run_name='__main__')
+            assert exc.value.code == 2
+        finally:
+            sys.settrace(prior)
+        return capsys.readouterr().err
+
+    assert 'deterministic_validator_failed' in cli()
+    assert_private_run_lock_released()
+    assert len(calls) == 1 and not (history/'native-review-intent.json').exists()
+    observed = recovery.read(packet/'07-qa-receipt.json')
+    assert observed['status'] == 'BLOCKED' and observed['failures']
+    assert (packet/'06-article.json').read_bytes() == (
+        json.dumps(compiler.compile_packet(packet), indent=2, sort_keys=True)+'\n').encode()
+    if consumed:
+        # A prior consumed one-shot is synthetic state, not a claimed model PASS.
+        _, manifest_path = loop.seal_subjects(job, 1, history)
+        loop.reserve_review_only_intent(history, job, loop.sha_file(manifest_path))
+    before = {p: p.read_bytes() for d in (packet, history) for p in d.rglob('*') if p.is_file()}
+    assert 'receipt_exists:' in cli()
+    after = {p: p.read_bytes() for d in (packet, history) for p in d.rglob('*') if p.is_file()}
+    assert after == before, 'refused retry mutated actual QA/compiled subjects or sealed history'
+    assert len(calls) == 1, 'refused retry executed mutating QA or transport'
+    assert not list(history.glob('*sol-raw*')) and not recovery.recovery_path(entry, root).exists()
+    assert all(Path(m.__file__).resolve().is_relative_to(ROOT) for m in (qa, compiler, loop, recovery))
