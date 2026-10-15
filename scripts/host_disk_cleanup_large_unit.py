@@ -43,11 +43,7 @@ def phase_result(result, report, rows, *, accepted_returncodes=(0,), partial_ret
             'report_present':present,'status_counts':dict(statuses),
             'partial_rows':partial,'gated_rows':gated,'failed_rows':failed}
 
-def main(argv=None):
-    parser=argparse.ArgumentParser()
-    parser.add_argument('--local-only',action='store_true',
-                        help='disable all R2 destination/control work; retain guarded local classes')
-    args=parser.parse_args(argv)
+def main(*,local_only=False):
     lock=open(HOME/'runstate/host-disk-cleanup.lock','a+')
     try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     except BlockingIOError:
@@ -57,11 +53,11 @@ def main(argv=None):
     before=disk();rows=[];phases={};pressure=free_space_pressure(before)
     state={'unit':UNIT,'pid':os.getpid(),'report_dir':str(report),'root_before':before,
            'status':'running','stage':'large_classes','pressure_trigger':pressure,
-           'local_only':args.local_only}
+           'local_only':local_only}
     atomic_json(STATE,state)
     command=['sudo','-n','/usr/bin/python3','-I',str(BUS/'scripts/host_disk_large_sweep.py'),
              '--report',str(report/'large'),'--budget','2700' if pressure else '900']
-    if args.local_only:
+    if local_only:
         command.append('--local-only')
     # Open PR / Linear / live release / R8 / worktree / PREPARED references need
     # the unprivileged gh/Linear identity; collected here, fail-closed in the sweep.
@@ -136,4 +132,9 @@ def main(argv=None):
     atomic_json(report/'delivery.json',delivery)
     return 0 if receipt['status']=='completed' else 1
 
-if __name__=='__main__':raise SystemExit(main())
+if __name__=='__main__':
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--local-only',action='store_true',
+                        help='disable all R2 destination/control work; retain guarded local classes')
+    args=parser.parse_args()
+    raise SystemExit(main(local_only=args.local_only))

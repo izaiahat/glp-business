@@ -1,4 +1,5 @@
 """Private registered-chain fixture. No live systemd, cleanup, R2 or sends."""
+import ast
 import json
 from pathlib import Path
 import runpy
@@ -17,7 +18,24 @@ import host_disk_r2 as r2
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def entrypoint(path, namespace, argv, monkeypatch):
+    """Execute the actual CLI tail against private fixture-bound globals."""
+    tail = ast.parse(path.read_text()).body[-1]
+    assert isinstance(tail, ast.If)
+    with monkeypatch.context() as scope:
+        scope.setattr(sys, 'argv', argv)
+        scope.setitem(namespace, '__name__', '__main__')
+        with pytest.raises(SystemExit) as terminal:
+            exec(compile(ast.Module(body=[tail], type_ignores=[]), str(path), 'exec'), namespace)
+    return terminal.value.code
+
+
 def fixture_sweep(tmp_path, monkeypatch):
+    # A neighboring legacy test reloads these names at collection time. Bind
+    # this fixture's imported candidate cohort for dynamic imports as well.
+    for module in (sweep, cold, dependencies, auto, r2):
+        assert Path(module.__file__).resolve().parent == ROOT / 'scripts'
+        monkeypatch.setitem(sys.modules, module.__name__, module)
     bus = tmp_path / 'business'
     (bus / 'ops').mkdir(parents=True)
     (bus / 'ops/disk-retention-policy.json').write_text('{"protected_roots":[]}')
@@ -103,13 +121,16 @@ def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path,
             unit = (ROOT / 'ops/systemd/host-disk-cleanup-local-only.conf.example').read_text()
             assert 'host_disk_cleanup_large_unit.py --local-only\n' in unit
             seen.append('existing_unit')
-            return SimpleNamespace(returncode=g['main'](['--local-only']))
+            rc = entrypoint(ROOT / 'scripts/host_disk_cleanup_large_unit.py', g,
+                            ['controller', '--local-only'], monkeypatch)
+            assert rc == 0
+            return SimpleNamespace(returncode=0)
         script = next(Path(arg).name for arg in command if str(arg).endswith('.py'))
         if script == 'host_disk_large_sweep.py':
             assert '--local-only' in command
-            report = Path(command[command.index('--report') + 1])
-            pins = command[command.index('--external-pins') + 1]
-            sweep.run(report, budget=10, external_pins=pins, local_only=True)
+            offset = next(i for i, arg in enumerate(command) if str(arg).endswith('.py'))
+            assert entrypoint(ROOT / 'scripts/host_disk_large_sweep.py', sweep.__dict__,
+                              command[offset:], monkeypatch) == 0
             seen.append('sweep')
         elif script == 'host_disk_pruner.py':
             seen.append('safe_rules')

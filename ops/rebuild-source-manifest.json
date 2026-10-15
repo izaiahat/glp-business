@@ -290,7 +290,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "25ecf0e3d319f47153ab39941adc88de1cc7d52be2aa35460589e4e8747905df"
+      "sha256": "34518964d3a1618722d2498be6f1326568703a8e28f30567507028ebf04101f2"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -452,7 +452,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7ae6d93742891b930a9f6be3dc5ba5e62cd73b9b0f6aa02d681d2c1bf34f1fa1"
+      "sha256": "cca92862e54b68468d04cb7ee71d9afa954c96afc73b6dfcbc9b5ac10b3be19a"
     },
     ".hermes.md": {
       "callers": [],
@@ -3544,7 +3544,7 @@
         "systemd:host-disk-cleanup.service.d/large-classes.conf"
       ],
       "kind": "script",
-      "sha256": "4c4a35ae39c14f69858167c044778deb71bc307a08aba24b0c59cf2e734acee8"
+      "sha256": "414cb536cd1fe79da7a661b46b21e3d4cf495ef4fde939c17f9afedabcff0d2b"
     },
     "scripts/host_disk_cold_classes.py": {
       "callers": [
@@ -6495,6 +6495,13 @@
       ],
       "kind": "test",
       "sha256": "7435aecd89777505fa97bf5b0d7d12d69f0bbadd6727d5e3bf0f3b1fda0ca04e"
+    },
+    "tests/test_host_disk_local_only.py": {
+      "callers": [
+        "business-source-ci"
+      ],
+      "kind": "test",
+      "sha256": "1e897ec4688824c47c7c1ea5d0a85f18f378e16f80c6893998e20070474d4f28"
     },
     "tests/test_host_health_audit.py": {
       "callers": [
