@@ -3912,7 +3912,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "025f7e2615eaa331b2339c2475c312b4bcbe20e1f3ed9893322add21c4d8d60a"
+      "sha256": "5c72103f2f7520dd42817a55147f6eac186cee577a107d5e28c7fd4b4cbdf3bf"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -7130,7 +7130,14 @@
         "scripts/fable_bridge.py"
       ],
       "kind": "script",
-      "sha256": "92c10111d9da550e97ec43f591e6263cadecc4bbde4b2b7c612a68319b15b091"
+      "sha256": "6c62d12feb59aaa4df85c42fa89722c7475110053ba8f5bba02c60860f9ef1d1"
+    },
+    "ventures/boring-ai/holistic-machine/tests/test_bridge_authority_guard.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "d67500ba664e4ea299560cdee6ef934f70363314563220c6033ae9db8ca354e1"
     },
     "tests/test_pro_unsent_nonchat.py": {
       "kind": "test",
