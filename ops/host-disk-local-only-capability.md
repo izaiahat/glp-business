@@ -1,0 +1,125 @@
+# GLP349 registered local-only capability (source only)
+
+## Capability and selection
+
+The existing two registered wrappers (`075ed81c6b43` safe-pruner and
+`47a453ceded2` low-free) launch **the same** `host-disk-cleanup.service` through
+`scripts/host_disk_pruner_trigger.py:trigger()`. Do not register another job or
+unit, submit a side request, set manager-wide environment, or call the raw pruner
+as a substitute. `--dry-run` on the cron wrapper remains legacy-only dry-run.
+
+New source capability: the controller's explicit `--local-only` propagates to the
+large sweep's explicit `--local-only`. Neither flag existed in PR531. The fixed
+unit ExecStart is the selection boundary, not credentials or a mutable request
+file. `ops/systemd/host-disk-cleanup-local-only.conf.example` is reviewed
+alternative content for the **existing** `large-classes.conf` drop-in; it is not
+installed or enabled by this PR. Without that explicit selection the old full
+mode remains the default. Both registered wrappers then enter the selected mode
+without scheduler arguments or a new dispatch path. A request made while an old
+full-mode invocation is active still skips the duplicate; it does not become a
+local-only invocation. No hot mode switch is supported.
+
+In local-only mode the sweep never constructs `host_disk_r2.Destination`, reads
+its credentials, calls `Control`, performs archive migration or requests a remote
+summary. Local archive calls get `archive_destination=None`, selecting the
+existing local-verified custody path; ordinary local node/scratch/duplicate,
+completed dependency, site/archive and legacy safe + D/A/B/C classes still run
+under their unchanged reference/age/receipt/financial/privacy/headroom guards.
+R2 migration is omitted, not relabeled as successful local work. Terminal sweep
+and controller receipts record `local_only`; R2 status is
+`DISABLED_LOCAL_ONLY`. Local-only is **not** a no-send mode: the unchanged
+controller's existing completion notification remains part of the chain.
+
+## Coupled source / receiving review cohort
+
+- `scripts/host_disk_cleanup_large_unit.py`: argument, sweep propagation, receipt
+  mode, candidate-relative imports (same installed origin when received).
+- `scripts/host_disk_large_sweep.py`: capability exclusion only; default path and
+  policy scopes unchanged. No R2 module or deletion-class changes.
+- `ops/systemd/host-disk-cleanup-local-only.conf.example`: opt-in fixed ExecStart
+  for the existing unit and unchanged proof hooks. Parent must authenticate the
+  effective loaded ExecStart, not just the example file.
+- `ops/hermes-cron-scripts/host_disk_pruner.py`: repair stale repository legacy
+  wrapper to the authentic already-installed registered trigger wrapper bytes
+  (installed/registered SHA256 `e9847e3fd7a3e9ae27bcf891b09e2219045d7b87ad39b57f703119b1cda76c72`).
+- `scripts/host_disk_pruner_trigger.py`: curate authentic installed source,
+  unchanged in behavior. Low-free wrapper unchanged, registered SHA256
+  `0fd59dad6dcf953f836e85a904a0406ef9216fb1749b4a40decd79dc2add2b8b`.
+- Source manifest leaf hashes, source drift wrapper expectation, explicit
+  allowlist, focused test and its existing exact-head CI step are reviewed
+  together. These are repository metadata, **not** installed sync baselines or
+  native job-pin writes. No global manifest adoption is authorized.
+
+Receiving/adoption is parent-owned and requires independent exact-head review,
+normal existing source/cleanup/native singleton custody and no active old
+controller/readers. Review source/wrapper/unit and native pin cohort together;
+never install a controller/sweep partially or change the drop-in while a full
+invocation is active. No install, daemon-reload, trigger, qualification, policy
+pointer, credential/environment manipulation, upload or reclaim is performed
+here. Historical qualification receipt `c1a21e627ae455e071fa32afcb08b051d1e8f1f78ae01f5519f52c5b5ea6d44b`
+and policy remain untouched. Parent's sole natural observer remains pending and
+is not read or duplicated by this source work.
+
+## Queue-reference churn: maintained-source trace, not PID attribution
+
+The actual refusal names `ops/gpt6pro-relay/route/queue`. This proves a directory
+identity changed during collection, **not** who wrote it. No live queue scan or
+collector rerun was used.
+
+Maintained writer definition: `scripts/pro_route.py:save()` calls
+`gpt6pro_relay._atomic_json(directory()/'queue'/(row['job']+'.json'), row)`.
+`_atomic_json` creates `<row>.json.<pid>.tmp`, flushes/fsyncs, then `os.replace`s
+and fsyncs the parent. Each save can change directory mtime/ctime and row inode,
+including logically unchanged complete/uncertain rows in a dispatch tick.
+
+All in-module queue-save paths hold the existing `pro_route.singleton()`:
+`enqueue`, `enqueue_replacement` (both successor and predecessor), `assign`,
+`requeue_unsent`, backlog indexing in `ingest_backlog`, `dispatch`, and CLI
+`follow-up`. `singleton()` opens `route/dispatcher.lock` in append mode and takes
+`flock(LOCK_EX|LOCK_NB)`, releases by closing at context exit. `save()` itself
+has no lock assertion; arbitrary external direct callers are noncooperative.
+`consume_outboxes` uses **consumer.lock** for delivery receipts/copies and reads
+queue rows; it is not the queue writer merely because it shares the directory.
+
+`dispatch` holds dispatcher.lock across `effect()` (heavy/account/transport
+admission), all saves and poll stagger sleeps. `effect` obtains the host heavy
+seat via `candidate_build_lock.py`, then relay account/transport locks. The
+collector walks every relay directory but reads JOB/ledger sources and their
+transitive proofs, then lane results and live Linear, then revalidates **all**
+identities. Queue row JSONs are not special-cased out; their directory identities
+remain bound. `ReferenceGuardAPI` and ordinary C consumers revalidate that
+admitted identity set again at effects. Locking only collection and releasing
+before effects may eliminate the initial race but cannot make later churn safe.
+
+### Bounded proposal; no lock change in this PR
+
+A one-shot nonblocking shared lock on the **existing** dispatcher lock, acquired
+before complete collection and retained through an exact reference-dependent
+commit, can coordinate cooperative queue writers. It must not create/replace a
+lock inode or accept changed directory/file metadata. Every noncooperative drift
+still refuses. But the current public singleton API is exclusive, append/creates,
+not bus-parameterized, and has no reader deadline or effect-scoped snapshot API.
+Holding it across this sweep's slow Linear inventory / compression and all
+legacy phases would freeze the dispatcher for minutes; acquiring it under the
+host heavy seat can invert dispatcher→heavy order. Releasing between collection
+and effect preserves safety but does not solve stale-identity refusals.
+
+Therefore a safe stable read/commit protocol needs the **Pro route owner** to
+review a bounded existing-lock reader/commit API and lock-order contract before
+cleanup integration. Proposed tests there: a real separate-process dispatcher
+holder causes bounded refusal; reader release on exception; dispatcher→heavy
+order cannot deadlock; queue writes after admission or from a nonparticipant
+still veto; all new namespace/file/proof discovery and exact protected-reference
+controls remain enforced. No new lockstore, writer freeze, mtime/ctime exception,
+queue-file omission or speculative retry is added here.
+
+## Focused acceptance
+
+`tests/test_host_disk_local_only.py` contains one registered-wrapper → actual
+trigger → fixture systemd selected-unit → actual controller → actual sweep
+check with all R2 boundaries counted/forbidden, a real private scratch archive
+compressed/verified/retired under unchanged local guards, and fixture-only
+legacy subprocess receipts/sends. It is **not** native scheduler/runtime proof.
+Two other checks preserve the default destination construction path (stubbed)
+and original fail-closed collector-drift exception/zero-effect receipt.
+No host source hash readers, live cleanup or live R2 contact run in these tests.

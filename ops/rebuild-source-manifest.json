@@ -1438,7 +1438,7 @@
         "hermes:075ed81c6b43"
       ],
       "kind": "script",
-      "sha256": "7d469fb2305cdb5bfc742b25e8681df73b3a7dbe4b385b18b54e10de8fd379d2"
+      "sha256": "e9847e3fd7a3e9ae27bcf891b09e2219045d7b87ad39b57f703119b1cda76c72"
     },
     "ops/hermes-cron-scripts/inbox_control_plane_cron.py": {
       "callers": [
@@ -3544,7 +3544,7 @@
         "systemd:host-disk-cleanup.service.d/large-classes.conf"
       ],
       "kind": "script",
-      "sha256": "ba9faaa3920e3aaaaff5e5eaa1e6c7dda3b2e494ee67b63d8af435a2fc0f4784"
+      "sha256": "4c4a35ae39c14f69858167c044778deb71bc307a08aba24b0c59cf2e734acee8"
     },
     "scripts/host_disk_cold_classes.py": {
       "callers": [
@@ -3565,7 +3565,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "078fc653fa93d7d4430fc97b4064ab885947854289a96fd810c22f901ec5e28a"
+      "sha256": "d172d1feead8156891a95fdc1927bc76ac93bc7bdabfaa07ce180f7b5970ffc6"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -3580,6 +3580,14 @@
       ],
       "kind": "script",
       "sha256": "caf579c2e3d6db145a7c55e7d65197308f74f89ca5b1435c3ef833d140d3870e"
+    },
+    "scripts/host_disk_pruner_trigger.py": {
+      "callers": [
+        "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py",
+        "wrapper:ops/hermes-cron-scripts/host_disk_low_free_trigger.py"
+      ],
+      "kind": "script",
+      "sha256": "3271a558558ff182e87165dce29fc0c70ac9a54f906b7349449e205cdfcbb85e"
     },
     "scripts/host_disk_reference_guard.py": {
       "callers": [

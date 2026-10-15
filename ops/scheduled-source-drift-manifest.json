@@ -1263,7 +1263,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/host_disk_pruner.py",
       "source": "ops/hermes-cron-scripts/host_disk_pruner.py",
-      "reviewed_sha256": "7d469fb2305cdb5bfc742b25e8681df73b3a7dbe4b385b18b54e10de8fd379d2",
+      "reviewed_sha256": "e9847e3fd7a3e9ae27bcf891b09e2219045d7b87ad39b57f703119b1cda76c72",
       "payloads": []
     },
     {

@@ -644,3 +644,9 @@
 !/tests/test_glp349_archive_source.py
 !/.github/workflows/glp349-archive-source.yml
 !/ops/linear/GLP-349-ARCHIVE-SOURCE.md
+
+# GLP349 registered local-only capability; source-only, no live adoption
+!/scripts/host_disk_pruner_trigger.py
+!/tests/test_host_disk_local_only.py
+!/ops/host-disk-local-only-capability.md
+!/ops/systemd/host-disk-cleanup-local-only.conf.example

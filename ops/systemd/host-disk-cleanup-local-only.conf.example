@@ -1,0 +1,11 @@
+# SOURCE ONLY: reviewed alternative bytes for the EXISTING
+# ~/.config/systemd/user/host-disk-cleanup.service.d/large-classes.conf.
+# Not a new unit. Do not install alongside the full-mode drop-in or hot-switch
+# an invocation. Receiving, daemon-reload and any trigger need separate authority.
+[Service]
+ExecStart=
+ExecStart=/usr/bin/python3 /home/ubuntu/business/scripts/host_disk_cleanup_large_unit.py --local-only
+
+[Unit]
+OnSuccess=host-disk-cleanup-entrypoint-proof.service
+OnFailure=host-disk-cleanup-entrypoint-proof.service

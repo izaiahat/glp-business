@@ -1,0 +1,161 @@
+"""Private registered-chain fixture. No live systemd, cleanup, R2 or sends."""
+import json
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+import time
+from types import SimpleNamespace
+
+import pytest
+import host_disk_large_sweep as sweep
+import host_disk_cold_classes as cold
+import host_disk_completed_dependencies as dependencies
+import host_disk_auto_classes as auto
+import host_disk_r2 as r2
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def fixture_sweep(tmp_path, monkeypatch):
+    bus = tmp_path / 'business'
+    (bus / 'ops').mkdir(parents=True)
+    (bus / 'ops/disk-retention-policy.json').write_text('{"protected_roots":[]}')
+    proof = bus / 'reports/ops/glp347-pallas-20261007/ACK.txt'
+    proof.parent.mkdir(parents=True)
+    proof.write_text('fixture retained proof')
+    monkeypatch.setattr(sweep, 'BUS', bus)
+    monkeypatch.setattr(sweep, 'api', SimpleNamespace(path_is_active_privileged=lambda p: False))
+    monkeypatch.setattr(cold, 'live_symlink_targets', lambda: set())
+    monkeypatch.setattr(__import__('host_disk_custody'), 'collect', lambda: set())
+    monkeypatch.setattr(dependencies, 'run', lambda *a, **k: [])
+    monkeypatch.setattr(sweep, 'auto_classes', lambda api, report, pins, external, **k: (pins, []))
+    monkeypatch.setattr(cold, 'cleanup_abandoned_archives', lambda *a, **k: [])
+    monkeypatch.setattr(sweep, 'discover', lambda *a, **k: [])
+    monkeypatch.setattr(sweep, 'idle_targets', lambda *a, **k: [])
+    monkeypatch.setattr(cold, 'node_modules', lambda *a, **k: [])
+    monkeypatch.setattr(cold, 'idle_scratch', lambda *a, **k: [])
+    monkeypatch.setattr(cold, 'verified_duplicates', lambda *a, **k: [])
+    monkeypatch.setattr(sweep, 'cold_report_roots', lambda *a, **k: [])
+    monkeypatch.setattr(sweep, 'rank_reports', lambda *a: ([], []))
+    return bus, proof
+
+
+def test_registered_local_only_chain_reaches_local_work_without_any_r2(tmp_path, monkeypatch):
+    bus, proof = fixture_sweep(tmp_path, monkeypatch)
+    # No credentials are hidden: every destination/control/credential boundary is
+    # forbidden instead. Even an attempted migration with an inert remote fails.
+    contacts = []
+    def forbidden(*a, **k):
+        contacts.append('R2')
+        raise AssertionError('local-only reached R2')
+    for name in ('from_environment', '__init__', 'store', 'upload', 'readback', 'summary'):
+        monkeypatch.setattr(r2.Destination, name, forbidden)
+    for name in ('__init__', 'ensure', 'request', 'check_private'):
+        monkeypatch.setattr(r2.Control, name, forbidden)
+    monkeypatch.setattr(r2, 'credentials', forbidden)
+    monkeypatch.setattr(r2, 'migrate_archives', forbidden)
+    seen = []
+    source = bus / 'reports/local-archive-fixture'
+    source.mkdir()
+    payload = source / 'ordinary.txt'
+    payload.write_bytes(b'private local-only fixture\n' * 4096)
+    future = time.time() + 40 * 86400
+    def local(api, m, report, **kwargs):
+        assert kwargs['dry_run'] is False
+        assert kwargs['archive_destination'] is None
+        assert not api.path_is_active_privileged(proof)
+        with monkeypatch.context() as clock:
+            clock.setattr(m.time, 'time', lambda: future)
+            row = m.cold_archive(api, source, report / 'fixture.tar.zst',
+                pins=kwargs['pins'], dry_run=False, deadline=time.monotonic()+30,
+                archive_destination=kwargs['archive_destination'])
+        assert row['status'] == 'ARCHIVED_VERIFIED_RETIRED'
+        assert not payload.exists()
+        assert Path(row['archive']).is_file()
+        seen.append('local_site_work')
+        return [row]
+    monkeypatch.setattr(auto, 'site_cold_archive', local)
+    # Import controller candidate-bound before substituting its runtime root.
+    controller = runpy.run_path(str(ROOT / 'scripts/host_disk_cleanup_large_unit.py'))
+    g = controller['main'].__globals__
+    home = tmp_path / 'hermes'; (home / 'runstate').mkdir(parents=True)
+    monkeypatch.setitem(g, 'BUS', bus)
+    monkeypatch.setitem(g, 'HOME', home)
+    monkeypatch.setitem(g, 'STATE', home / 'runstate/last.json')
+    monkeypatch.setattr(auto, 'external_pins', lambda: set())
+    monkeypatch.setitem(sys.modules, 'post_discord_message', SimpleNamespace(
+        send=lambda *a: {'id': 'fixture'}, readback=lambda *a: {}))
+    real_run_path = runpy.run_path
+    def candidate_run_path(path, **kwargs):
+        path = str(path)
+        if path in ('/home/ubuntu/business/scripts/host_disk_pruner.py',
+                    '/home/ubuntu/business/scripts/host_disk_pruner_trigger.py'):
+            path = str(ROOT / 'scripts' / Path(path).name)
+        return real_run_path(path, **kwargs)
+    monkeypatch.setattr(runpy, 'run_path', candidate_run_path)
+    def process(command, **kwargs):
+        if command[:3] == ['systemctl', '--user', 'is-active']:
+            return SimpleNamespace(returncode=3, stdout='inactive\n')
+        if command[:4] == ['systemctl', '--user', 'start', '--no-block']:
+            # Exact existing unit, configured by the reviewed local-only drop-in.
+            assert command[4:] == ['host-disk-cleanup.service']
+            unit = (ROOT / 'ops/systemd/host-disk-cleanup-local-only.conf.example').read_text()
+            assert 'host_disk_cleanup_large_unit.py --local-only\n' in unit
+            seen.append('existing_unit')
+            return SimpleNamespace(returncode=g['main'](['--local-only']))
+        script = next(Path(arg).name for arg in command if str(arg).endswith('.py'))
+        if script == 'host_disk_large_sweep.py':
+            assert '--local-only' in command
+            report = Path(command[command.index('--report') + 1])
+            pins = command[command.index('--external-pins') + 1]
+            sweep.run(report, budget=10, external_pins=pins, local_only=True)
+            seen.append('sweep')
+        elif script == 'host_disk_pruner.py':
+            seen.append('safe_rules')
+            report = Path(command[command.index('--report-dir') + 1])
+            report.mkdir(parents=True)
+            (report / 'receipt.json').write_text('{"reclaimed_bytes":0}')
+        elif script == 'evidence_preserving_pruner.py':
+            seen.append('D_A_B_C')
+            Path(command[command.index('--report') + 1]).write_text('{"rows":[]}')
+        else:
+            raise AssertionError(command)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(subprocess, 'run', process)
+    monkeypatch.setattr(sys, 'argv', ['host_disk_pruner.py'])
+    candidate_run_path(str(ROOT / 'ops/hermes-cron-scripts/host_disk_pruner.py'), run_name='__main__')
+    assert seen == ['existing_unit', 'local_site_work', 'sweep', 'safe_rules', 'D_A_B_C']
+    assert contacts == [], 'R2 attempted even if its exception was caught'
+    assert proof.read_text() == 'fixture retained proof'
+    receipts = list((bus / 'reports/host-disk-prune').glob('*/large/large-classes.json'))
+    assert len(receipts) == 1
+    data = json.loads(receipts[0].read_text())
+    assert data['r2']['status'] == 'DISABLED_LOCAL_ONLY'
+    assert data['local_only'] is True
+    assert data['rows'][0]['status'] == 'ARCHIVED_VERIFIED_RETIRED'
+
+
+def test_default_sweep_still_constructs_existing_destination(tmp_path, monkeypatch):
+    bus, _ = fixture_sweep(tmp_path, monkeypatch)
+    reached = []
+    monkeypatch.setattr(r2.Destination, 'from_environment', lambda: reached.append('default') or object())
+    monkeypatch.setattr(r2, 'migrate_archives', lambda *a, **k: [])
+    sweep.run(tmp_path / 'report', budget=10)
+    assert reached == ['default']
+
+
+def test_local_only_reference_drift_still_refuses_before_work(tmp_path, monkeypatch):
+    fixture_sweep(tmp_path, monkeypatch)
+    error = ValueError('relay/lane discovery changed during collection')
+    error.changed_source = 'fixture/route/queue'
+    def refuse(*a, **k):
+        raise error
+    monkeypatch.setattr(__import__('host_disk_relay_custody'), 'collect', refuse)
+    report = tmp_path / 'report'
+    with pytest.raises(ValueError) as caught:
+        sweep.run(report, budget=10, local_only=True)
+    assert caught.value is error
+    data = json.loads((report / 'large-classes.json').read_text())
+    assert data['attributable_bytes_freed'] == 0 and data['r2'] is None
+    assert data['reference_veto_source'] == 'fixture/route/queue'
