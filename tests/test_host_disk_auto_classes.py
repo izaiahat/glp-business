@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import pytest
 import subprocess
 import sys
 import time
@@ -113,6 +114,86 @@ def test_registry_clone_retention_retires_orphans_and_preserves_generated_diff(t
     assert (generated/'candidate.DIFF.patch').is_file()
     for kept in (unknown,unpushed,publication,pr,pinned,*newest): assert (kept/'candidate/a.html').is_file()
     assert sum(row['status']=='RETIRED' for row in rows)==3
+
+
+def test_main_registry_retention_keeps_policy_and_retires_candidate_and_prepared(tmp_path, monkeypatch):
+    """Real main-* Git clones with second/microsecond names; no host effects."""
+    monkeypatch.setattr(job, 'save', lambda p, v: Path(p).write_text(json.dumps(v)))
+    monkeypatch.setattr(job, 'ROOT', tmp_path)
+    root = tmp_path / 'registry-site-sync'
+    runs = []
+    for i in range(21):
+        stamp = f'20261001T{i:02}1701' + ('123456Z' if i % 2 else 'Z')
+        run = clone_run(root, 'main-' + stamp)
+        (run / 'prepared/release').mkdir(parents=True)
+        (run / 'prepared/release/page.html').write_text('rebuildable')
+        runs.append(run)
+    for i in range(4):
+        result = {'status': 'PASS_PRODUCTION_TERMINAL', 'deployment_id': f'past-{i}'}
+        (runs[i] / 'MAIN-RELEASE-RESULT.json').write_text(json.dumps(result))
+        (runs[i] / 'PUBLISH.json').write_text(json.dumps(result))
+    current = runs[4]
+    (current / 'MAIN-RELEASE-RESULT.json').write_text(json.dumps({'status': 'PASS_ALREADY_CURRENT', 'deployment_id': 'live'}))
+    pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(json.dumps({'deployment_id': 'live', 'release_root': str(current / 'prepared/release')}))
+    pinned, dirty, held, orphan, failed, uncertain = runs[5:11]
+    (dirty / 'candidate/new.txt').write_text('uncommitted evidence')
+    (uncertain / 'publish-intent.json').write_text('{}')
+    (orphan / 'FAILURE.json').unlink()
+    calls = []
+    def active(path):
+        calls.append(path)
+        return path == held or held in path.parents
+    rows = job.retire_disposable_clones(root, pins=[pinned / 'prepared/release'], active=active)
+    for retired in (orphan, failed):
+        assert not (retired / 'candidate').exists(), rows
+        assert not (retired / 'prepared').exists(), rows
+        assert (retired / 'candidate.RETIRED.json').is_file()
+        assert (retired / 'prepared.RETIRED.json').is_file()
+    assert (failed / 'FAILURE.json').is_file()
+    assert (dirty / 'candidate/new.txt').is_file()
+    for kept in (*runs[:6], held, uncertain, *runs[11:]):
+        assert (kept / 'candidate/a.html').is_file(), kept
+        assert (kept / 'prepared/release/page.html').is_file(), kept
+    assert calls, 'all-UID reference gate must be exercised before retirement'
+    assert sum(r['status'] == 'RETIRED' for r in rows) >= 4
+
+
+@pytest.mark.parametrize('hold', ['unpushed', 'database', 'nested_git', 'pointer_drift', 'new_process'])
+def test_main_retention_final_gates_preserve_held_payload(tmp_path, monkeypatch, hold):
+    monkeypatch.setattr(job, 'ROOT', tmp_path)
+    root = tmp_path / 'registry-site-sync'
+    run = clone_run(root, 'main-20261001T001701Z')
+    prepared = run / 'prepared'
+    prepared.mkdir()
+    (prepared / 'page.html').write_text('rebuildable')
+    pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(json.dumps({'deployment_id': 'live', 'release_root': str(tmp_path / 'live')}))
+    target = run / 'candidate' if hold == 'unpushed' else prepared
+    if hold == 'unpushed':
+        (target / 'new.txt').write_text('unpushed source')
+        git(target, 'config', 'user.email', 'fixture@example.invalid')
+        git(target, 'config', 'user.name', 'fixture')
+        git(target, 'add', 'new.txt')
+        git(target, 'commit', '-qm', 'unpublished')
+    elif hold == 'database':
+        (prepared / 'opaque').write_bytes(b'SQLite format 3\0' + b'fixture')
+    elif hold == 'nested_git':
+        (prepared / '.git').mkdir()
+    def save(path, value):
+        Path(path).write_text(json.dumps(value))
+        if hold == 'pointer_drift':
+            pointer.write_text(json.dumps({'deployment_id': 'new-live', 'release_root': str(prepared)}))
+    monkeypatch.setattr(job, 'save', save)
+    calls = []
+    def active(path):
+        calls.append(path)
+        return hold == 'new_process' and len(calls) % 2 == 0
+    rows = job.retire_main_payloads(root, pins=(), active=active, keep=0, pass_keep=0)
+    assert target.is_dir(), rows
+    assert any(r.get('status') == 'ERROR_PRESERVED_OR_PARTIAL' for r in rows)
 
 
 def test_rebuildable_report_node_modules_removed_even_when_checkout_dirty(tmp_path, monkeypatch):
