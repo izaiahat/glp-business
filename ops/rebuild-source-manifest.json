@@ -809,14 +809,14 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "runtime-pins",
-      "sha256": "0f31a04074f6ccc22967789639f0be4e4436cac33e58bf699c61bd15df6f26ea"
+      "sha256": "4b2e2be2dfa0112c04ecd6c39e01f092a98dd3b3938d83aaf764b098e10b93ed"
     },
     "ops/glp/reporting-v2/source-manifest-j6.json": {
       "callers": [
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "repository_control",
-      "sha256": "ca18d65bfffd38b1da76cb0a7f4fc4b14ac86bb1da971ff5cd3b200e365f81d2"
+      "sha256": "8ace674d8c95d31dbed5f92e7c148d59c318a84b9b35c3ba715d745d3dbaaedf"
     },
     "ops/glp/reporting-v2/source-manifest-j7.json": {
       "callers": [
@@ -824,7 +824,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "a57e75e22c6de26d111af292b91e1cdb9f159ad8db0e19a5481b4af80884f6f4"
+      "sha256": "9b9ffad7b0a2b5fcc167862fd4c6f0fdc2b0479ca9c84a8243a56b4ff1e7ccb9"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -1290,14 +1290,14 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "49bc2349ed508258ad5d1f04586206d276a99ac3d9971bb17ba4bf193380970b"
+      "sha256": "073cf68fc8c82c0ac1016bab4ecc7a4dcf9be84922adcb518e299e4fc38979ab"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh": {
       "callers": [
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "script",
-      "sha256": "64efba6607249b7761ad91ad5559afc7b440ccdfc034e84ba73f687959a363ae"
+      "sha256": "dc9261e6dfb0466a9841142a59c156aa3bed279a8aff4edce9b481f6f54e9f32"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh": {
       "callers": [
@@ -1305,7 +1305,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "43926fd713b3200ccbdbdca26ccd73a7d88f4ab182b56e9ee38a9aa7f9ae853e"
+      "sha256": "fbe3ee18c981886b32ce353c6246a8b4e888ff30d557e39b226cedc2e79275c7"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
