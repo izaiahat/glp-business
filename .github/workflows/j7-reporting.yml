@@ -22,4 +22,4 @@ jobs:
           PYTHONPATH: scripts
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -m pytest -q tests/test_j8_account_identity.py tests/test_j7_*.py tests/test_j6_affiliati_reporting.py tests/test_j6_digistore24_reporting.py tests/test_j5_maxbounty_reporting.py
+          .venv/bin/python -m pytest -q tests/test_glp334_pin_closure.py tests/test_glp334_conversion_reconciliation.py tests/test_glp334_live_reconciliation.py tests/test_glp334_native_financial_intake.py tests/test_j8_account_identity.py tests/test_j7_*.py tests/test_j6_affiliati_reporting.py tests/test_j6_digistore24_reporting.py tests/test_j5_maxbounty_reporting.py
