@@ -297,7 +297,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a3e0a8058590a92b395fd41321f99a40a6e89c1de19d509072331bb4feadfdb6"
+      "sha256": "5516761e09c09d596f6bf8b66c21b00d6d0c43cf0cee18c2c686adab98b4460d"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -2693,14 +2693,14 @@
         "fleet-output-ingestion"
       ],
       "kind": "documentation",
-      "sha256": "305c06ad86a3a15e619c93e687bcf7e59534063f62a236b8b706c972fb070847"
+      "sha256": "5c09a494b8a575bdd1c244e9970c3ec696ac2bc88a5e2e09bc4e0cdd0b1b253a"
     },
     "scripts/fleet_ingest.py": {
       "callers": [
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "3cfc4c4a0d3fc7f1bb25f2be6b916b197cc19e3f3fc5e23626ecd454238dbc91"
+      "sha256": "b783ff3e5c8a4485a44eada7362d21c0016c2544c8e0fe65526f06318d11e2e7"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -3650,7 +3650,7 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "2dc23434c48bbc5442d0768962614f2e76a527beaf52dfec472628dbf2c3fbf8"
+      "sha256": "4684b186d34b6dd6228319c0b359fa8faff44c36a7dd6f6a3e75e48e714ae361"
     },
     "scripts/linear_orchestrator.py": {
       "callers": [],
@@ -5915,13 +5915,6 @@
       "kind": "test",
       "sha256": "dbb6ee47aef79102c2a0979f57f71587cd042e433908afd51f826c545ef2be60"
     },
-    "tests/test_glp_evidence_refresh_entry_pins.py": {
-      "callers": [
-        ".github/workflows/glp80-k3-source.yml"
-      ],
-      "kind": "test",
-      "sha256": "f5d17bbedcff0edc4130173b9511b68aaa2c9a88a31ef74c431e19b73af1fe4c"
-    },
     "tests/test_glp80_k3_prepared_consumer.py": {
       "callers": [],
       "kind": "test",
@@ -6648,10 +6641,17 @@
       "kind": "test",
       "sha256": "899697bd07fc2afab8b30025b3c1868e080fc62680f9f0772f8531e4e293c03e"
     },
+    "tests/test_closure_preflight.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "195c85388a18fc0d40890ef8937611b6b958d908658312aa7a5a3c235cd23aba"
+    },
     "tests/test_linear_close.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "38a28cb59fd5feffb5e68c2534cd2cf3a0393f9d8aafcf7a95eaaf98c1e9547d"
+      "sha256": "ba36c08056a522f09c48bfc37f53d88bbb943aba9691dcd63140697ea9f88d7f"
     },
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
@@ -7131,13 +7131,6 @@
       ],
       "kind": "script",
       "sha256": "6c62d12feb59aaa4df85c42fa89722c7475110053ba8f5bba02c60860f9ef1d1"
-    },
-    "ventures/boring-ai/holistic-machine/tests/test_bridge_authority_guard.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "d67500ba664e4ea299560cdee6ef934f70363314563220c6033ae9db8ca354e1"
     },
     "tests/test_pro_unsent_nonchat.py": {
       "kind": "test",
@@ -7898,7 +7891,7 @@
       "callers": [
         "scripts/auto_coordinator_runner.py"
       ],
-      "sha256": "c7d18c13f417280706d58fde58b22354949a65a7699b3fe66b0e6ec2ecf54993"
+      "sha256": "48add377194433dc2f45b0d009b447ebb421451e14f04a389c84a9effcb108de"
     },
     "tests/test_auto_coordinator_adapter.py": {
       "kind": "test",
@@ -7963,6 +7956,20 @@
       ],
       "kind": "test",
       "sha256": "a9c0c84c727feacc1780f3d24cc7748d5e03df0e00d85ba31fd57908c1c27565"
+    },
+    "tests/test_glp_evidence_refresh_entry_pins.py": {
+      "callers": [
+        ".github/workflows/glp80-k3-source.yml"
+      ],
+      "kind": "test",
+      "sha256": "f5d17bbedcff0edc4130173b9511b68aaa2c9a88a31ef74c431e19b73af1fe4c"
+    },
+    "ventures/boring-ai/holistic-machine/tests/test_bridge_authority_guard.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "d67500ba664e4ea299560cdee6ef934f70363314563220c6033ae9db8ca354e1"
     }
   },
   "omitted_runtime_inputs": [
@@ -7973,5 +7980,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1166
+  "tracked_count": 1167
 }

@@ -303,15 +303,17 @@ class InstalledBackend:
 
     def preflight(self, action):
         self.current(action)
-        from fleet_ingest import proof_argv
+        from fleet_ingest import proof_argv, completion_preflight
         p, r = action['plan'], action['inbox']
         if p.get('proof_complete') is not True or not r.get('worker_result'):
             return False
         if self.call(proof_argv(p.get('proof_cmd'))).returncode:
             return False
-        cp = self.call([sys.executable, '-B', str(self.root / 'scripts/linear_close.py'),
-                        action['issue'], r['worker_result'], '--check-only'])
-        return cp.returncode == 0 and bool(re.search(r'^' + re.escape(action['issue']) + r' PASS(?:\s|$)', cp.stdout, re.M))
+        def runner(argv, cwd, timeout):
+            cp = self.call(argv)
+            return {'rc': cp.returncode, 'stdout': cp.stdout, 'stderr': cp.stderr}
+        return completion_preflight(self.root, action['issue'], r['worker_result'], p,
+                                    runner, 120)['rc'] == 0
 
     def effect(self, action):
         if action['kind'] == 'close':
@@ -354,6 +356,18 @@ def inputs(root):
     from auto_coordinator_receipt import binding
     root = Path(root)
     plan = binding(root, PLAN)
+    policies = plan['data']['issues']
+    # CONFIG is the same coordinator-owned override used by the ingester.
+    # Bind only contract selection here; PLAN's proof_complete gate is retained.
+    config_path = root / 'reports/ops/fleet-inbox/CONFIG.json'
+    if config_path.exists():
+        config = binding(root, config_path)
+        overrides = config['data'].get('issues', {})
+        policies = [dict(p, _completion_config_sha256=config['sha256']) for p in policies]
+        for p in policies:
+            override = overrides.get(p['issue'], {})
+            if 'completion_contract' in override:
+                p['completion_contract'] = override['completion_contract']
     inbox = []
     planned = {p['issue'] for p in plan['data']['issues']}
     for p in sorted((root / 'reports/ops/fleet-inbox').glob('*/*/INGEST.json')):
@@ -389,7 +403,7 @@ def inputs(root):
             if wref['data'].get('pid') and alive(wref['data']['pid']):
                 row['status'] = 'LIVE_OWNER'
         inbox.append(row)
-    return plan['data']['issues'], inbox
+    return policies, inbox
 
 
 def worker_command(plan, prompt):
