@@ -160,7 +160,7 @@ def test_main_registry_retention_keeps_policy_and_retires_candidate_and_prepared
     assert sum(r['status'] == 'RETIRED' for r in rows) >= 4
 
 
-@pytest.mark.parametrize('hold', ['unpushed', 'database', 'nested_git', 'pointer_drift', 'new_process'])
+@pytest.mark.parametrize('hold', ['unpushed', 'database', 'environment', 'browser_profile', 'nested_git', 'pointer_drift', 'new_process'])
 def test_main_retention_final_gates_preserve_held_payload(tmp_path, monkeypatch, hold):
     monkeypatch.setattr(job, 'ROOT', tmp_path)
     root = tmp_path / 'registry-site-sync'
@@ -180,6 +180,10 @@ def test_main_retention_final_gates_preserve_held_payload(tmp_path, monkeypatch,
         git(target, 'commit', '-qm', 'unpublished')
     elif hold == 'database':
         (prepared / 'opaque').write_bytes(b'SQLite format 3\0' + b'fixture')
+    elif hold == 'environment':
+        (prepared / '.env').write_text('fixture, not a credential')
+    elif hold == 'browser_profile':
+        (prepared / 'DevToolsActivePort').write_text('fixture profile marker')
     elif hold == 'nested_git':
         (prepared / '.git').mkdir()
     def save(path, value):

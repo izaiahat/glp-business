@@ -2930,7 +2930,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "642657e648f6fcf9ae90b1fa3d9a3490d08d7a7cbb221b5f4dea606c1a0f7050"
+      "sha256": "bb466894091a714aaf860983eccfb8afbbd1b92149088cf3ef81a0abfe4e4e4a"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -6550,7 +6550,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "18374284956895c9c2fb52a1bcd0cab0cb2ccc3c22f86250beb0a365915b11e0"
+      "sha256": "0171efde2a798c485bb331d899c54a1cedf6c0572977410f3ea30f7e8f67b05a"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [

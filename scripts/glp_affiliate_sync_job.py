@@ -424,6 +424,10 @@ def retire_main_payloads(root, *, pins, active, keep=10, pass_keep=4):
                 deadline=time.monotonic()+180
                 before,amount=snapshot(payload,deadline)
                 reject_database_payloads(payload,before)
+                if any(part.startswith('.env') and part not in {'.env.example','.env.sample','.env.template'}
+                       for r in before for part in Path(r[0]).parts):raise ValueError('protected_environment')
+                if any(part in {'SingletonLock','DevToolsActivePort','Cookies','Login Data','Local State'}
+                       for r in before for part in Path(r[0]).parts):raise ValueError('browser_profile_custody')
                 if any('.git' in Path(r[0]).parts and not (name=='candidate' and Path(r[0]).parts[0]=='.git')
                        for r in before):raise ValueError('nested_git_custody')
                 if any(part.lower() in {'archive','archives','backups','financial','financial-records','payments'}
