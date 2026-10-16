@@ -361,7 +361,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "51f748f9abf92ad80466bc768d5e5e96841f81340295ae25280b93832fc81c8c"
+      "sha256": "27a3fb5aee92e00fba5a544ea15317a97975211d7fdfc9c34b00b2180134cc2b"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -4783,7 +4783,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "a9716c2a0322c84437bbdcbd83be54b27e959282d11d680ed868ed2c1d19c4f5"
+      "sha256": "cf8f532fdf49561a204db6dbed8d7108b9356bdc71cb6dad06e0e6c4bda32b4c"
     },
     "tests/test_affiliate_discovery_resume.py": {
       "callers": [
@@ -7897,14 +7897,14 @@
         "scripts/host_disk_auto_classes.py"
       ],
       "kind": "script",
-      "sha256": "99c35ac4684421324165239808726cb6fd00912a80d00aff4fa1a64c29d9f3ce"
+      "sha256": "caa81d6795b6ed6a2be764634ec47b9546b6d6789ae8b982953ca096ae1775b0"
     },
     "tests/test_host_disk_tmp_custody.py": {
       "callers": [
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "d9a2fc1b32487e6131c844ed5ed8ead7d3cb37ebff9e30ae44b29901aa887639"
+      "sha256": "dc9b0243ef23c48c605bd0dc89027612621be90e845dd0c4b5031905099a42b3"
     },
     "tests/test_host_disk_reference_refresh.py": {
       "kind": "test",
@@ -8104,6 +8104,13 @@
         "GLP-93 independent review"
       ],
       "sha256": "11af2dbe4560880668f29cfd5cb5e18b18f0c89b292cbc7f1e586b912591d16f"
+    },
+    "tests/test_host_disk_systemd_custody.py": {
+      "callers": [
+        "business-source-ci"
+      ],
+      "kind": "test",
+      "sha256": "1c199ab0db9a73cb3e10775464e0116871975a669408a1364fdcf49eafd9eb85"
     }
   },
   "omitted_runtime_inputs": [
@@ -8114,5 +8121,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1186
+  "tracked_count": 1187
 }

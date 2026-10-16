@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import time
 
 PROC = Path('/proc')
@@ -33,6 +34,9 @@ SCHEDULE_ROOTS = CRON_ROOTS + SYSTEMD_ROOTS
 REQUIRED_FILES = (Path('/home/ubuntu/.hermes/cron/jobs.json'),)
 UNIT_SUFFIXES = {'.service', '.socket', '.device', '.mount', '.automount',
                  '.swap', '.target', '.path', '.timer', '.slice', '.scope'}
+SYSTEMD_GENERATOR_ROOTS = tuple(map(Path, (
+    '/run/systemd/generator', '/run/systemd/generator.early',
+    '/run/systemd/generator.late')))
 
 
 # One explicit rebuildable-payload entry, not a generic name/suffix heuristic.
@@ -51,6 +55,20 @@ DECLARED_REBUILD_DIRS = ('scripts', 'src', 'data', 'public')
 DECLARED_CONTENT_BASE = Path('/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-content-base.json')
 DECLARED_BUSINESS_ROOT = Path('/home/ubuntu/business')
 DECLARED_BASE_LOCK = Path('/home/ubuntu/.hermes/locks/glp-price-index-weekly.lock')
+
+
+def require_declared_retirement_authority():
+    """Contain the unaccepted class until both outstanding contracts exist.
+
+    Stable mutable files do not authenticate a compatible rebuilding producer.
+    The current leases also do not exclude systemd/crontab/symlink publishers
+    or dispatch readers throughout removal. Repeated snapshots cannot replace
+    either obligation. There is deliberately no CLI/environment bypass; a later
+    source change must establish both contracts before this class can retire.
+    Other registered scratch/cache classes keep their existing admission.
+    """
+    raise ValueError('declared tmp retirement unavailable: authenticated compatible '
+                     'producer and continuous reference/reader custody not established')
 
 
 def _predecessor_sources(candidate, deadline):
@@ -162,6 +180,7 @@ def _rebuild_sources(candidate, deadline):
     This stable content inventory is necessary but NOT sufficient authority to
     retire a target: neither it nor the cleanup singleton fences reference writers.
     """
+    require_declared_retirement_authority()
     root = DECLARED_REBUILD_ROOT
     identities = {}
     paths = [root] + [root / p for p in DECLARED_REBUILD_FILES]
@@ -290,6 +309,134 @@ def _masked_unit(source, target, linked):
             (os.major(linked.st_rdev), os.minor(linked.st_rdev)) == (1, 3))
 
 
+class _ReferenceIdentities(dict):
+    def __init__(self):
+        super().__init__()
+        self.systemd_units = {}
+        self.systemd_paths = set()
+
+
+def _systemd_show(properties, deadline, unit=None):
+    """Query only the local system manager; no user/remote bus environment."""
+    _budget(deadline)
+    command = ['/usr/bin/systemctl', '--system', '--no-pager', 'show', '--all']
+    command += ['--property=' + key for key in properties]
+    if unit is not None:
+        command += ['--', unit]
+    try:
+        result = subprocess.run(command, stdin=subprocess.DEVNULL,
+                                capture_output=True, text=True, check=False,
+                                timeout=min(5, max(0.001, deadline - time.monotonic())),
+                                env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C',
+                                     'SYSTEMD_COLORS': '0'})
+    except (OSError, UnicodeError, subprocess.SubprocessError) as error:
+        raise ValueError('systemd custody manager unavailable') from error
+    _budget(deadline)
+    if result.returncode or result.stderr or len(result.stdout) > 1024 * 1024:
+        raise ValueError('systemd custody manager query refused')
+    values = {}
+    for line in result.stdout.splitlines():
+        key, separator, value = line.partition('=')
+        if not separator or key not in properties or key in values:
+            raise ValueError('malformed systemd custody properties')
+        values[key] = value
+    if set(values) != set(properties):
+        raise ValueError('incomplete systemd custody properties')
+    return values
+
+
+def _systemd_paths(value, *, empty=False):
+    if not value and empty:
+        return ()
+    names = value.split(' ')
+    if not value or len(names) > 256 or len(names) != len(set(names)):
+        raise ValueError('invalid systemd custody paths')
+    paths = []
+    for name in names:
+        path = Path(name)
+        if (not name or not path.is_absolute() or str(path) != name
+                or '..' in path.parts or len(name) > 4096
+                or any(char.isspace() or ord(char) < 32 or char == '\\' for char in name)):
+            raise ValueError('invalid systemd custody path')
+        paths.append(path)
+    return tuple(paths)
+
+
+def _loaded_systemd_unit(unit, deadline):
+    roots = _systemd_paths(_systemd_show(('UnitPath',), deadline)['UnitPath'])
+    keys = ('Id', 'LoadState', 'FragmentPath', 'SourcePath', 'DropInPaths', 'NeedDaemonReload')
+    values = _systemd_show(keys, deadline, unit)
+    if (values['Id'] != unit or values['LoadState'] != 'loaded'
+            or values['NeedDaemonReload'] != 'no'):
+        raise ValueError('unresolved or stale systemd custody unit')
+    fragment = _systemd_paths(values['FragmentPath'])
+    source = _systemd_paths(values['SourcePath'], empty=True)
+    drops = _systemd_paths(values['DropInPaths'], empty=True)
+    if (len(fragment) != 1 or len(source) > 1 or fragment[0].name != unit
+            or fragment[0].parent not in roots or any(p.suffix != '.conf' for p in drops)):
+        raise ValueError('unsupported systemd custody selection')
+    return roots, tuple(values[key] for key in keys), tuple(dict.fromkeys(fragment + source + drops))
+
+
+def _bind_systemd_path(identities, path, *, optional=False, directory=False):
+    try:
+        identity = _identity(path)
+    except FileNotFoundError:
+        if not optional:
+            raise ValueError('missing loaded systemd custody source: ' + str(path))
+        identity = None
+    if identity is not None:
+        if (path.resolve(strict=True) != path or
+                not (stat.S_ISDIR(identity[2]) if directory else stat.S_ISREG(identity[2]))):
+            raise ValueError('aliased or invalid systemd custody source: ' + str(path))
+        identities.systemd_paths.add(path)
+    if path in identities and identities[path] != identity:
+        raise ValueError('systemd custody source changed: ' + str(path))
+    identities[path] = identity
+
+
+def _generated_systemd_dependency(source, target, identities, deadline):
+    """Resolve only generated ../unit wants/requires links in real UnitPath.
+
+    Their link name names a system-manager dependency, not an external file.
+    Other dangling links retain the ordinary missing-source refusal.
+    """
+    root = source.parent.parent
+    owner, separator, relationship = source.parent.name.rpartition('.')
+    valid_unit = lambda name: (re.fullmatch(r'[A-Za-z0-9_.:@-]+', name) is not None
+                               and Path(name).suffix in UNIT_SUFFIXES
+                               and len(name) > len(Path(name).suffix))
+    if (root not in SYSTEMD_GENERATOR_ROOTS or not separator
+            or relationship not in {'wants', 'requires'} or not valid_unit(owner)
+            or not valid_unit(source.name) or os.readlink(source) != '../' + source.name
+            or target != root / source.name):
+        return None
+    _bind_systemd_path(identities, root, directory=True)
+    _bind_systemd_path(identities, source.parent, directory=True)
+    _bind_systemd_path(identities, target, optional=True)
+    if identities[target] is not None:
+        raise ValueError('generated systemd lexical target appeared')
+    selection = _loaded_systemd_unit(source.name, deadline)
+    roots, _, selected = selection
+    if root not in roots:
+        raise ValueError('generated systemd source outside manager UnitPath')
+    if (source.name in identities.systemd_units
+            and identities.systemd_units[source.name] != selection):
+        raise ValueError('systemd custody selection changed')
+    identities.systemd_units[source.name] = selection
+    for directory in roots:
+        _bind_systemd_path(identities, directory, optional=True, directory=True)
+    for path in selected:
+        _bind_systemd_path(identities, path)
+    return selected
+
+
+def _validate_systemd_units(identities, deadline):
+    for unit, expected in getattr(identities, 'systemd_units', {}).items():
+        if _loaded_systemd_unit(unit, deadline) != expected:
+            raise ValueError('systemd custody selection changed: ' + unit)
+
+
 def _text_reference(text, path):
     # Include basename/relative and glob references; ambiguous mentions retain.
     if str(path) in text or path.name in text:
@@ -300,7 +447,7 @@ def _text_reference(text, path):
 
 
 def _reference_scan(path, deadline, inodes):
-    identities = {}
+    identities = _ReferenceIdentities()
     stack = [(root, False, True) for root in SYMLINK_ROOTS]
     # Some distributions omit these optional scheduler directories. Record
     # their absence and recheck it, rather than swallowing permission failures.
@@ -345,7 +492,15 @@ def _reference_scan(path, deadline, inodes):
                         raise ValueError('masked unit target identity changed')
                     identities[target] = null_identity
                 else:
-                    stack.append((target, True, True))
+                    selected = (_generated_systemd_dependency(source, target, identities, deadline)
+                                if linked is None else None)
+                    if selected is None:
+                        stack.append((target, True, True))
+                    else:
+                        for loaded in selected:
+                            if _overlaps(loaded, path) or identities[loaded][:2] in inodes:
+                                raise ValueError('loaded systemd tmp custody: ' + str(loaded))
+                            stack.append((loaded, True, True))
         elif stat.S_ISDIR(mode):
             if source == path:
                 continue  # Caller inventories the candidate without following links.
@@ -371,6 +526,7 @@ def _reference_scan(path, deadline, inodes):
 
 
 def _validate_references(identities, deadline):
+    _validate_systemd_units(identities, deadline)
     for source, expected in identities.items():
         _budget(deadline)
         try:
@@ -379,6 +535,11 @@ def _validate_references(identities, deadline):
             actual = None
         if actual != expected:
             raise ValueError('tmp custody inventory changed: ' + str(source))
+    for source in getattr(identities, 'systemd_paths', ()):
+        _budget(deadline)
+        if source.resolve(strict=True) != source:
+            raise ValueError('aliased systemd custody source: ' + str(source))
+    _validate_systemd_units(identities, deadline)
 
 
 def _process_stat(proc):
@@ -464,6 +625,7 @@ def declared_reference_lease():
     acquire_lock/atomic_pointer_cas are actual participants. This does not fence
     direct site-tree edits, crontab restoration, systemd or symlink publishers.
     """
+    require_declared_retirement_authority()
     from contextlib import ExitStack
     from sync_from_repo import source_lock
     with ExitStack() as handles:

@@ -131,6 +131,12 @@ class DeclaredTmpTests(unittest.TestCase):
             'final_receipt': {'path': str(self.base_receipt), 'sha256': hashlib.sha256(self.base_receipt.read_bytes()).hexdigest()}}))
         self.enterContext(patch.object(custody, 'DECLARED_CONTENT_BASE', self.base_pointer))
         self.enterContext(patch.object(custody, 'DECLARED_REBUILD_ROOT', self.rebuild_source, create=True))
+        # Lower-level custody/retirement fixtures explicitly supply private
+        # authority. They do not authorize the unaccepted production class.
+        self.synthetic_declared_authority = patch.object(
+            custody, 'require_declared_retirement_authority', return_value=None, create=True)
+        self.synthetic_declared_authority.start()
+        self.addCleanup(self.synthetic_declared_authority.stop)
         self.api = FixtureAPI(self.tmp)
         self.links = self.base / 'links'
         self.links.mkdir()
@@ -167,6 +173,55 @@ class DeclaredTmpTests(unittest.TestCase):
     def run_candidate(self, *, dry_run):
         return cold.idle_scratch(self.api, [self.candidate], pins=(),
                                  dry_run=dry_run, deadline=time.monotonic() + 10)[0]
+
+    def production_declared_authority(self):
+        # Disable the explicit private-fixture authority seam, when present.
+        seam = getattr(self, 'synthetic_declared_authority', None)
+        if seam is not None:
+            seam.stop()
+
+    def test_unaccepted_corrupt_producer_never_reaches_removal(self):
+        self.production_declared_authority()
+        (self.rebuild_source / 'tests/lastmod-declared-routes.test.mjs').write_text('corrupt nonempty producer')
+        (self.rebuild_source / 'scripts/postbuild-aeo-surface.mjs').write_text('corrupt nonempty stage')
+        with patch.object(self.api, 'remove_disposable', return_value={'status': 'REFUSED', 'bytes_freed': 0}) as sink:
+            row = self.run_candidate(dry_run=False)
+        sink.assert_not_called()
+        self.assertEqual(row['status'], 'REFUSED', row)
+        self.assertEqual(row['bytes_freed'], 0)
+        self.assertTrue((self.candidate / 'payload.txt').is_file())
+
+    def test_unaccepted_class_never_reaches_unfenced_systemd_unlink(self):
+        self.production_declared_authority()
+        unlink = os.unlink
+        reached = []
+        def late_writer(name, **kwargs):
+            if name == 'member':
+                (self.schedules / 'late.service').write_text('[Service]\nExecStart=' + str(self.candidate / 'payload.txt'))
+                reached.append(name)
+                raise OSError('nondeleting late-systemd-publication probe')
+            return unlink(name, **kwargs)
+        with patch.object(os, 'unlink', side_effect=late_writer):
+            row = self.run_candidate(dry_run=False)
+        self.assertEqual(reached, [], 'unaccepted retirement reached the unfenced unlink seam')
+        self.assertEqual(row['status'], 'REFUSED', row)
+        self.assertEqual(row['bytes_freed'], 0)
+        self.assertTrue((self.candidate / 'payload.txt').is_file())
+
+    def test_unaccepted_class_refuses_dry_run_and_automatic_entry(self):
+        import host_disk_auto_classes as auto
+        self.production_declared_authority()
+        for dry_run in (True, False):
+            with self.subTest(dry_run=dry_run):
+                row = self.run_candidate(dry_run=dry_run)
+                self.assertEqual(row['status'], 'REFUSED', row)
+                self.assertNotIn('eligible_bytes', row)
+                rows = auto.stale_tmp(self.api, cold, pins=(), deadline=time.monotonic() + 10,
+                                      dry_run=dry_run, root=self.tmp, min_bytes=0)
+                self.assertEqual(rows[0]['status'], 'REFUSED', rows)
+                self.assertNotIn('eligible_bytes', rows[0])
+                self.assertTrue((self.candidate / 'payload.txt').is_file())
+                self.assertFalse(self.api.removed)
 
     def test_idle_declared_directory_is_eligible_and_reclaimed(self):
         preview = self.run_candidate(dry_run=True)

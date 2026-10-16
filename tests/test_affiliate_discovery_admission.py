@@ -341,25 +341,28 @@ def test_budget_deferred_tail_is_reported(setup):
 
 @pytest.mark.parametrize('slow_step', ['classification', 'queue_read', 'insert'])
 def test_review_r3_no_new_queue_operation_after_admission_deadline(setup, monkeypatch, slow_step):
-    import time
+    # Advance only the injected slow boundary, independent of runner/fsync speed.
+    clock = [1000.0]
+    fake_time = SimpleNamespace(monotonic=lambda: clock[0])
+    monkeypatch.setattr(admission, 'time', fake_time)
     operations = []
-    deadline = time.monotonic() + .04
+    deadline = fake_time.monotonic() + .04
     original_rows, original_insert = setup.queue.rows, setup.queue.insert
     original_refusal = admission.candidate_gate
     def rows(*args, **kwargs):
-        operations.append(('read', time.monotonic()))
+        operations.append(('read', fake_time.monotonic()))
         if slow_step == 'queue_read':
-            time.sleep(.12)
+            clock[0] += .12
         return original_rows(*args, **kwargs)
     def insert(*args, **kwargs):
-        operations.append(('insert', time.monotonic()))
+        operations.append(('insert', fake_time.monotonic()))
         if slow_step == 'insert':
-            time.sleep(.12)  # Never interrupt an in-flight effect.
+            clock[0] += .12  # Never interrupt an in-flight effect.
         return original_insert(*args, **kwargs)
     def refusal(*args, **kwargs):
         result = original_refusal(*args, **kwargs)
         if slow_step == 'classification':
-            time.sleep(.12)
+            clock[0] += .12
         return result
     monkeypatch.setattr(setup.queue, 'rows', rows)
     monkeypatch.setattr(setup.queue, 'insert', insert)
