@@ -72,7 +72,26 @@ class DeclaredTmpTests(unittest.TestCase):
             source.parent.mkdir(parents=True, exist_ok=True)
             source.write_text('synthetic rebuild input\n')
         for relative in ('src', 'public'):
-            (self.rebuild_source / relative).mkdir()
+            directory = self.rebuild_source / relative
+            directory.mkdir()
+            (directory / ('required.mjs' if relative == 'src' else 'index.html')).write_text('synthetic rebuild content\n')
+        # A tiny explicit carrier closure, not a claim about real article bytes.
+        import hashlib
+        for slug in ('ezra-glp-1-reviews', 'top-rated-glp-1-providers'):
+            directory = self.rebuild_source / 'data/carrier-articles' / slug
+            directory.mkdir(parents=True)
+            snapshot = directory / 'index.html'
+            snapshot.write_text('synthetic retained carrier\n')
+            asset = self.rebuild_source / 'assets' / (slug + '.webp')
+            asset.parent.mkdir(exist_ok=True)
+            asset.write_bytes(b'synthetic asset bytes')
+            manifest = {'snapshot': str(snapshot.relative_to(self.rebuild_source)),
+                        'html_sha256': hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+                        'bindings': [{'path': 'data/llms-priority.json'}],
+                        'files': [{'path': str(asset.relative_to(self.rebuild_source)),
+                                   'bytes': asset.stat().st_size,
+                                   'sha256': hashlib.sha256(asset.read_bytes()).hexdigest()}]}
+            (directory / 'manifest.json').write_text(json.dumps(manifest))
         self.enterContext(patch.object(custody, 'DECLARED_REBUILD_ROOT', self.rebuild_source, create=True))
         self.api = FixtureAPI(self.tmp)
         self.links = self.base / 'links'
@@ -159,6 +178,70 @@ class DeclaredTmpTests(unittest.TestCase):
             (self.rebuild_source / 'data/llms-priority.json').write_text('changed input')
         with patch.object(custody, '_process_scan', changed):
             self.assertIn('inventory changed', self.assert_kept()['reason'])
+
+    def test_absence_after_final_snapshot_has_zero_reclaim_with_actual_helper(self):
+        helper = DisposableHelperTests('test_real_child_retires_present_fixture')
+        helper.setUp()
+        self.addCleanup(helper.doCleanups)
+        original = large.snapshot
+        calls = []
+        retained = self.base / 'retained-original'
+        inode = (self.candidate / 'payload.txt').stat().st_ino
+        def disappear(path, deadline):
+            value = original(path, deadline)
+            calls.append(path)
+            if len(calls) == 5:
+                path.rename(retained)
+            return value
+        with patch.object(large, 'snapshot', side_effect=disappear), \
+                patch.object(self.api, 'remove_disposable', side_effect=helper.remove):
+            row = self.run_candidate(dry_run=False)
+        self.assertEqual(len(calls), 5)
+        self.assertNotEqual(row['status'], 'REMOVED', row)
+        self.assertEqual(row['bytes_freed'], 0, row)
+        self.assertEqual((retained / 'payload.txt').stat().st_ino, inode)
+
+    def test_empty_named_rebuild_files_are_refused(self):
+        for relative in custody.DECLARED_REBUILD_FILES:
+            (self.rebuild_source / relative).write_bytes(b'')
+        self.assertIn('rebuild source', self.assert_kept()['reason'])
+
+    def test_empty_copy_tree_is_refused(self):
+        shutil.rmtree(self.rebuild_source / 'src')
+        (self.rebuild_source / 'src').mkdir()
+        self.assertIn('empty rebuild source directory', self.assert_kept()['reason'])
+
+    def test_nested_existing_source_content_drift_is_refused(self):
+        original = custody._process_scan
+        source = self.rebuild_source / 'src/required.mjs'
+        def changed(*args):
+            original(*args)
+            source.write_text('different existing file bytes\n')
+        with patch.object(custody, '_process_scan', changed):
+            self.assertIn('rebuild source inventory changed', self.assert_kept()['reason'])
+
+    def test_missing_carrier_dependency_is_refused(self):
+        (self.rebuild_source / 'assets/ezra-glp-1-reviews.webp').unlink()
+        self.assertIn('rebuild source', self.assert_kept()['reason'])
+
+    def test_corrupt_carrier_dependency_is_refused(self):
+        (self.rebuild_source / 'assets/ezra-glp-1-reviews.webp').write_bytes(b'corrupt asset')
+        self.assertIn('carrier asset digest', self.assert_kept()['reason'])
+
+    def test_carrier_dependency_drift_after_inventory_is_refused(self):
+        original = custody._process_scan
+        source = self.rebuild_source / 'assets/ezra-glp-1-reviews.webp'
+        def changed(*args):
+            original(*args)
+            source.write_bytes(b'changed carrier asset')
+        with patch.object(custody, '_process_scan', changed):
+            self.assertIn('rebuild source inventory changed', self.assert_kept()['reason'])
+
+    def test_nested_source_alias_is_refused(self):
+        source = self.rebuild_source / 'src/required.mjs'
+        source.unlink()
+        source.symlink_to(self.rebuild_source / 'scripts/postbuild-aeo-surface.mjs')
+        self.assertIn('aliased', self.assert_kept()['reason'])
 
     def test_source_lost_on_final_check_stays_protected(self):
         original = custody.require_unreferenced
@@ -485,6 +568,59 @@ class DeclaredTmpTests(unittest.TestCase):
         with patch.object(sweep, 'BUS', bus):
             pins = sweep.references(report)
         self.assertIn(Path(target), pins)
+
+
+class DisposableHelperTests(unittest.TestCase):
+    """Execute the maintained helper itself; every target belongs to scratch."""
+    def setUp(self):
+        import ast
+        import subprocess
+        self.subprocess = subprocess
+        source = CANDIDATE / 'scripts/host_disk_pruner.py'
+        node = next(n for n in ast.parse(source.read_bytes()).body
+                    if isinstance(n, ast.FunctionDef) and n.name == 'remove_disposable')
+        self.helper_globals = dict(Path=Path, time=time, sys=sys, subprocess=subprocess,
+                                   remaining_budget=lambda seconds: seconds)
+        exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), self.helper_globals)
+        self.remove = self.helper_globals['remove_disposable']
+        self.fixture = tempfile.TemporaryDirectory(prefix='glp354-real-helper-')
+        self.addCleanup(self.fixture.cleanup)
+        self.base = Path(self.fixture.name)
+        self.target = self.base / 'target'
+        self.target.mkdir()
+        (self.target / 'payload').write_text('owned disposable fixture\n' * 100)
+
+    def test_real_child_retires_present_fixture(self):
+        self.assertTrue(self.remove(self.target, deadline=time.monotonic() + 10))
+        self.assertFalse(self.target.exists())
+
+    def test_absent_name_never_dispatches_or_earns_credit(self):
+        retained = self.base / 'retained-original'
+        self.target.rename(retained)
+        with patch.object(self.subprocess, 'run') as transport:
+            self.assertFalse(self.remove(self.target, deadline=time.monotonic() + 10))
+        transport.assert_not_called()
+        self.assertTrue((retained / 'payload').is_file())
+
+    def test_disappearance_at_child_handoff_is_not_success(self):
+        transport = self.subprocess.run
+        retained = self.base / 'retained-original'
+        inode = (self.target / 'payload').stat().st_ino
+        def disappear(command, **kwargs):
+            self.target.rename(retained)
+            return transport(command, **kwargs)
+        with patch.object(self.subprocess, 'run', side_effect=disappear):
+            self.assertFalse(self.remove(self.target, deadline=time.monotonic() + 10))
+        self.assertEqual((retained / 'payload').stat().st_ino, inode)
+
+    def test_timeout_and_absence_cannot_prove_owned_retirement(self):
+        retained = self.base / 'retained-original'
+        def timeout(command, **kwargs):
+            self.target.rename(retained)
+            raise self.subprocess.TimeoutExpired(command, 0.01)
+        with patch.object(self.subprocess, 'run', side_effect=timeout):
+            self.assertFalse(self.remove(self.target, deadline=time.monotonic() + 10))
+        self.assertTrue((retained / 'payload').is_file())
 
 
 if __name__ == '__main__':

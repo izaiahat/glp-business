@@ -3622,7 +3622,7 @@
         "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py"
       ],
       "kind": "script",
-      "sha256": "caf579c2e3d6db145a7c55e7d65197308f74f89ca5b1435c3ef833d140d3870e"
+      "sha256": "4d41c66db16e37dda4660cd3f26cb5066a50a64ed636f9fa38ed1427f8b40c80"
     },
     "scripts/host_disk_reference_guard.py": {
       "callers": [
@@ -7855,14 +7855,14 @@
         "scripts/host_disk_auto_classes.py"
       ],
       "kind": "script",
-      "sha256": "4d55c52159841c166edbfd97471f267dc79819c3636172cf7d41ab7248d3a077"
+      "sha256": "31893edc6fb9ff002a5aadef9ee7b516c8c0ae327a26dc34bad9c019839a1af0"
     },
     "tests/test_host_disk_tmp_custody.py": {
       "callers": [
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "ad638454b8f8c0fb0ab35cc71022b1a0ff06a101e00ecf1aa588305298c080ad"
+      "sha256": "8d8578926203409a6ef78d5695938b15cc007e71d1d78bdf198bf523aa20ce8b"
     },
     "tests/test_host_disk_reference_refresh.py": {
       "kind": "test",

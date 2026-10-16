@@ -4,6 +4,7 @@ Run only inside the cleanup singleton. These checks authorize no deletion:
 callers retain their age, payload, policy, open-file and inode rechecks.
 """
 import fnmatch
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -44,7 +45,7 @@ DECLARED_REBUILD_FILES = (
     'data/page-content-provenance.json',
     'data/llms-priority.json',
 )
-DECLARED_REBUILD_DIRS = ('src', 'public')
+DECLARED_REBUILD_DIRS = ('scripts', 'src', 'data', 'public')
 
 
 def declared_directory(path, root):
@@ -52,24 +53,111 @@ def declared_directory(path, root):
             and path.is_dir() and not path.is_symlink())
 
 
+def _rebuild_content(source, deadline, *, retain_bytes=False):
+    """Bind actual bytes from a stable no-follow descriptor, not directory mtime."""
+    _budget(deadline)
+    fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_size == 0:
+            raise ValueError('empty or invalid rebuild source: ' + str(source))
+        digest = hashlib.sha256()
+        chunks = []
+        while True:
+            _budget(deadline)
+            block = os.read(fd, 1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+            if retain_bytes:
+                chunks.append(block)
+        after = os.fstat(fd)
+        identity = lambda s: (s.st_dev, s.st_ino, s.st_mode, s.st_size,
+                              s.st_mtime_ns, s.st_ctime_ns)
+        if identity(before) != identity(after) or _identity(source) != identity(after):
+            raise ValueError('rebuild source changed during read: ' + str(source))
+        result = identity(after), digest.hexdigest()
+        return (*result, b''.join(chunks)) if retain_bytes else result
+    finally:
+        os.close(fd)
+
+
 def _rebuild_sources(candidate, deadline):
-    """Require fixed external rebuild inputs and retain identities for recheck."""
+    """Bind all producer copy trees and the out-of-tree carrier dependencies.
+
+    This stable content inventory is necessary but NOT sufficient authority to
+    retire a target: neither it nor the cleanup singleton fences reference writers.
+    """
     root = DECLARED_REBUILD_ROOT
     identities = {}
-    paths = [(root, True)] + [(root / p, False) for p in DECLARED_REBUILD_FILES]
-    paths += [(root / p, True) for p in DECLARED_REBUILD_DIRS]
-    for source, directory in paths:
-        _budget(deadline)
-        try:
+    paths = [root] + [root / p for p in DECLARED_REBUILD_FILES]
+    paths += [root / p for p in DECLARED_REBUILD_DIRS]
+    try:
+        if root.resolve(strict=True) != root or _overlaps(root, candidate):
+            raise ValueError('aliased or overlapping rebuild source: ' + str(root))
+        for relative in DECLARED_REBUILD_FILES:
+            if not stat.S_ISREG(_identity(root / relative)[2]):
+                raise ValueError('invalid rebuild source entrypoint: ' + relative)
+        for relative in DECLARED_REBUILD_DIRS:
+            source = root / relative
+            if not stat.S_ISDIR(_identity(source)[2]):
+                raise ValueError('invalid rebuild source directory: ' + relative)
+            with os.scandir(source) as entries:
+                if next(entries, None) is None:
+                    raise ValueError('empty rebuild source directory: ' + relative)
+        for slug in ('ezra-glp-1-reviews', 'top-rated-glp-1-providers'):
+            source = root / 'data/carrier-articles' / slug / 'manifest.json'
+            manifest_identity, manifest_digest, manifest_bytes = _rebuild_content(source, deadline, retain_bytes=True)
+            manifest = json.loads(manifest_bytes)
+            if _rebuild_content(source, deadline) != (manifest_identity, manifest_digest):
+                raise ValueError('rebuild source carrier manifest changed')
+            relatives = [manifest['snapshot']]
+            relatives += [r['path'] for r in manifest['bindings']]
+            relatives += [r['path'] for r in manifest['files']]
+            for relative in relatives:
+                name = Path(relative)
+                if name.is_absolute() or '..' in name.parts or not name.parts:
+                    raise ValueError('invalid rebuild source carrier dependency')
+                paths.append(root / name)
+            for row in manifest['files']:
+                dependency = root / row['path']
+                identity, digest = _rebuild_content(dependency, deadline)
+                if identity[3] != row['bytes'] or digest != row['sha256']:
+                    raise ValueError('rebuild source carrier asset digest')
+            if _rebuild_content(root / manifest['snapshot'], deadline)[1] != manifest['html_sha256']:
+                raise ValueError('rebuild source carrier snapshot digest')
+        while paths:
+            _budget(deadline)
+            source = paths.pop()
+            if source in identities:
+                continue
             if source.resolve(strict=True) != source or _overlaps(source, candidate):
                 raise ValueError('aliased or overlapping rebuild source: ' + str(source))
             identity = _identity(source)
-            if not (stat.S_ISDIR(identity[2]) if directory else stat.S_ISREG(identity[2])):
+            if stat.S_ISDIR(identity[2]):
+                identities[source] = identity
+                # The root itself contains other, uncopied runtime/build output.
+                if source != root:
+                    with os.scandir(source) as entries:
+                        paths.extend(Path(e.path) for e in entries)
+                    if _identity(source) != identity:
+                        raise ValueError('rebuild source directory changed: ' + str(source))
+            elif stat.S_ISREG(identity[2]):
+                identities[source] = _rebuild_content(source, deadline)
+            else:
                 raise ValueError('invalid rebuild source: ' + str(source))
-            identities[source] = identity
-        except (OSError, RuntimeError) as error:
-            raise ValueError('rebuild source unavailable: ' + str(source)) from error
+    except (OSError, RuntimeError, KeyError, TypeError, UnicodeError) as error:
+        raise ValueError('rebuild source unavailable or incomplete') from error
     return identities
+
+
+def _validate_rebuild(identities, deadline):
+    for source, expected in identities.items():
+        _budget(deadline)
+        actual = (_rebuild_content(source, deadline) if len(expected) == 2
+                  else _identity(source))
+        if actual != expected:
+            raise ValueError('rebuild source inventory changed: ' + str(source))
 
 
 def _budget(deadline):
@@ -286,4 +374,4 @@ def require_unreferenced(path, deadline):
     identities = _reference_scan(path, deadline, inodes)
     _process_scan(path, deadline, inodes)
     _validate_references(identities, deadline)
-    _validate_references(rebuild, deadline)
+    _validate_rebuild(rebuild, deadline)

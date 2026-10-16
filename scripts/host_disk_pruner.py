@@ -496,13 +496,21 @@ def remove_worktree(record: WorktreeRecord, *, dry_run: bool) -> dict[str, Any]:
 def remove_disposable(path: Path, *, deadline=None, as_root=False) -> bool:
     """Delete one already-validated allowlisted object, bounded, no shell/globs.
 
-    A subprocess timeout leaves the exact candidate for a future revalidated pass;
-    no detached worker survives. The child only uses shutil's symlink-safe rmtree.
+    A subprocess timeout is unknown/partial and earns no removal credit; no
+    detached worker survives. This legacy pathname API does NOT provide the
+    expected-member/reference exclusion contract required for GLP-354 acceptance.
+    The child only uses shutil's symlink-safe rmtree.
     """
+    # Absence is not this invocation's retirement. In particular, an original
+    # renamed away between admission and this helper must never earn byte credit.
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
     timeout = remaining_budget(20 if deadline is None else min(20, max(0.01, deadline-time.monotonic())))
     command = [sys.executable, '-I', '-c',
                'import pathlib,shutil,sys; p=pathlib.Path(sys.argv[1]); '
-               'shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink(missing_ok=True)',
+               'shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()',
                str(path)]
     if as_root:
         if path.parent not in {Path('/var/log/atop'),Path('/var/log/nginx')} or not path.is_file() or path.is_symlink():
@@ -512,9 +520,9 @@ def remove_disposable(path: Path, *, deadline=None, as_root=False) -> bool:
         result = subprocess.run(command, capture_output=True, timeout=timeout)
         return result.returncode == 0 and not path.exists()
     except subprocess.TimeoutExpired:
-        # subprocess.run has killed/reaped the exact child. A completed deletion
-        # may precede its delayed exit; count that verified effect, not a false zero.
-        return not path.exists() and not path.is_symlink()
+        # Killed/reaped transport plus an absent pathname does not prove our
+        # child retired the admitted inodes. Preserve unknown accounting as zero.
+        return False
 
 
 def safe_remove_cache(path: Path, *, dry_run: bool, known_bytes=None, deadline=None) -> dict[str, Any]:
