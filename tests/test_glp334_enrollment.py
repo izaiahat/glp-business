@@ -347,7 +347,9 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
     monkeypatch.setattr(mw, 'require_active_window', active_window)
     class Window:
         def __init__(self, *a): pass
-        def enter(self): witness('window-enter', False)
+        def enter(self):
+            witness('window-enter', False)
+            if fault == 'entry': reg.write_text(json.dumps({'jobs': paused}))
         def exit(self):
             witness('window-exit', False)
             if fault == 'restoration': raise OSError('restoration')
@@ -382,6 +384,7 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
     source = {p: pair.read_regular(live / p) for p in GLP334_PATHS + (pair.syncer.STATE,)}
     def run(owner=None):
         if fault == 'entry':
+            reg.write_text(json.dumps({'jobs': old}))
             return ship.apply_generation(ROOT, live, home, spec, generation, review, tmp_path)
         return ship._apply_and_run(ROOT, live, home, spec, generation, review, tmp_path,
                                    journal, Backend(), scheduler, _cleanup_owner=owner)
