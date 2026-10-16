@@ -42,7 +42,7 @@
       "callers": [
         "business-source-ci:GLP109-protected-native-custody"
       ],
-      "sha256": "9676b4779c4499e63467226bd8d782242d1ab615e5ce02dd704f4d7e5388e9bf"
+      "sha256": "ceaf5f39fc34e4ce9f3833e00641b2d6df7c11347e548c416a065857b16ead1f"
     },
     "ops/glp/weekly_analytics_owner.py": {
       "kind": "script",
@@ -7670,7 +7670,7 @@
         "scripts/article_health_acceptance.py"
       ],
       "kind": "script",
-      "sha256": "3f2bde52cc4abfaac0434edabeddd3017f877cfe050b8c2a85cdece52bb214b0"
+      "sha256": "b70d4d82b02a846425e2b7cf5cdae0fde2810378bb326dad420c7cb892fcecea"
     },
     "scripts/glp_release_search_notify.py": {
       "callers": [
