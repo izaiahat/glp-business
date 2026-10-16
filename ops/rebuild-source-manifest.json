@@ -1,6 +1,41 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/auto_deployer.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-scripts/auto_deployer.sh"
+      ],
+      "sha256": "546e6d16145f250cb2a3a9f6caa22f29e410ed67cef7f00a7249ee4232bfe7a8"
+    },
+    "tests/test_auto_deployer.py": {
+      "kind": "test",
+      "callers": [
+        "auto-deployer:offline-exact-head"
+      ],
+      "sha256": "9fc7a0364925581bb1b7c21857140fdba917ce9836587e9071a7d9b9a31a6f36"
+    },
+    "ops/hermes-cron-scripts/auto_deployer.sh": {
+      "kind": "registered_launcher_source",
+      "callers": [
+        "Hermes glp-auto-deployer (registration held for independent review)"
+      ],
+      "sha256": "40572a1bce3e217ed51a7f48d5e3d8b35ff948f4e39a951dbdac1256ca0a0ada"
+    },
+    "ops/linear/AUTO-DEPLOYER.md": {
+      "kind": "documentation",
+      "callers": [
+        "GLP-358 independent receiving and parent activation"
+      ],
+      "sha256": "61d89ba582e10b42a23085163a37a86ecf37d0770d6fe0241bbe376c542358d7"
+    },
+    ".github/workflows/auto-deployer.yml": {
+      "kind": "workflow",
+      "callers": [
+        "GitHub exact-head CI"
+      ],
+      "sha256": "267381c2c280b6a0b84abc4775d7c8609e87047ae2e16deabd13cd6dc5580c36"
+    },
     "tests/test_glp_ship_preclaim.py": {
       "kind": "test",
       "callers": [
@@ -2764,7 +2799,7 @@
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "b783ff3e5c8a4485a44eada7362d21c0016c2544c8e0fe65526f06318d11e2e7"
+      "sha256": "caadd415864d33476fe1519b82c6d71df9c98fbf6b5718e1c085f04f9d371360"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -8121,5 +8156,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1187
+  "tracked_count": 1192
 }
