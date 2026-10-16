@@ -75,6 +75,10 @@ def test_tier_b_git_generation_applies_through_reporting_adopter(tmp_path, monke
     source = git(repo, 'rev-parse', 'HEAD')
     from glp_ship_registry import Job
     from glp_ship import prepare, zero_diff
+    # Adopter unit fixture has only its payload; executing-installer/full-census
+    # authentication is covered by test_glp_ship_preclaim's projected caller.
+    monkeypatch.setattr('glp_ship.authenticate_installer', lambda *a: None)
+    monkeypatch.setattr('glp_ship.preclaim_plan', lambda *a: None)
     spec = Job('GLP333', 'reporting', 'B', pair.PATHS, (pair.JOB,), (pair.WRAPPER,), True)
     document = json.loads(registry.read_text())
     paused = document['jobs'][0]
