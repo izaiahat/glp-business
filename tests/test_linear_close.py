@@ -152,12 +152,13 @@ DESCRIPTION = '## Acceptance\n\n- [ ] Installed shipper drain completes with a r
 SHIPPER = b'merged shipper bytes'
 
 
-def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch):
+@pytest.mark.parametrize('root_lane', [False, True])
+def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch, root_lane):
     reports = tmp_path / 'reports'
     (reports / 'ops/job-receipts').mkdir(parents=True)
     receipt = reports / 'ops/job-receipts/ship-1.json'
     receipt.write_text(json.dumps({'status': 'SKIP_ALREADY_INSTALLED', 'deployment_id': '8bb93c91'}))
-    worker = reports / 'ops/run/RESULT.json'
+    worker = tmp_path / 'lanes/OWNER/RESULT.json' if root_lane else reports / 'ops/run/RESULT.json'
     worker.parent.mkdir(parents=True)
     (tmp_path / 'scripts').mkdir()
     (tmp_path / 'scripts/glp_affiliati_postback_ship.py').write_bytes(SHIPPER)
@@ -207,7 +208,8 @@ def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch):
 
     state, typed = lc.close('GLP-335', worker)
     data = json.loads(typed.read_text())
-    assert state == 'In Progress' and typed == worker.parent / 'GLP-335' / 'RESULT.json'
+    assert state == 'In Progress' and typed == lc.typed_destination('GLP-335', worker)
+    assert typed.is_relative_to(reports)
     assert data['scope'] == 'ordinary-runtime' and data['pr']['merge_sha'] == MERGE
     assert data['pr']['checks'] == [{'name': 'python-tests', 'url': CI}]
     assert data['description_sha256'] == hashlib.sha256(DESCRIPTION.encode()).hexdigest()
@@ -222,12 +224,14 @@ def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('file_evidence', ['', ' Read dot ticket REPLY.md from the fleet inbox.'])
-def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path, monkeypatch, capsys, file_evidence):
+@pytest.mark.parametrize('root_lane', [False, True])
+def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path, monkeypatch, capsys, file_evidence, root_lane):
     reports = tmp_path / 'reports'
     receipt = reports / 'ops/collector/receipt.json'
     receipt.parent.mkdir(parents=True)
     receipt.write_text(json.dumps({'provider_rows': 58}))
-    worker = receipt.parent / 'RESULT.json'
+    worker = tmp_path / 'lanes/OWNER/RESULT.json' if root_lane else receipt.parent / 'RESULT.json'
+    worker.parent.mkdir(parents=True, exist_ok=True)
     worker.write_text(json.dumps({'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-44',
         'live_run': 'Read-only snapshot provider_rows=58',
         'receipt': 'reports/ops/collector/receipt.json'}))
@@ -253,6 +257,21 @@ def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path,
     monkeypatch.setattr(lc, 'write', forbidden)
     monkeypatch.setattr(lc, 'orchestrate', forbidden)
     before = {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    import fleet_ingest as fi
+    from contextlib import redirect_stdout
+    import io
+    def real_runner(argv, cwd, timeout):
+        assert argv[-1] == '--check-only' and Path(argv[1]).name == 'linear_close.py'
+        output = io.StringIO()
+        with redirect_stdout(output):
+            rc = lc.main(argv[2:])
+        return {'rc': rc, 'stdout': output.getvalue(), 'stderr': ''}
+    preflight = fi.completion_preflight(tmp_path, 'GLP-44', str(worker), {}, real_runner)
+    assert preflight['rc'] == 0, preflight
+    assert 'GLP-44 PASS' in preflight['stdout']
+    status, typed = lc.close('GLP-44', worker, check_only=True)
+    assert status == 'PASS' and typed == lc.typed_destination('GLP-44', worker)
+    assert typed.is_relative_to(reports) and not typed.exists()
     assert lc.main(['GLP-44', str(worker), '--check-only']) == 0
     assert 'GLP-44 PASS' in capsys.readouterr().out
     # Same gate must refuse missing current acceptance, rather than trusting status.
@@ -262,6 +281,40 @@ def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path,
     assert writes == []
     assert {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
     assert not (worker.parent / 'GLP-44').exists()
+
+
+def test_typed_destination_binds_worker_identity_and_checks_escaped_paths(tmp_path, monkeypatch):
+    reports = tmp_path / 'reports'
+    reports.mkdir()
+    monkeypatch.setattr(lc, 'ROOT', tmp_path)
+    monkeypatch.setattr(lc, 'REPORTS', reports)
+    a = tmp_path / 'lanes/OWNER/RESULT.json'
+    b = tmp_path / 'lanes/OTHER/RESULT.json'
+    a.parent.mkdir(parents=True); b.parent.mkdir(parents=True)
+    a.write_text('{}'); b.write_text('{}')
+    dest = lc.typed_destination('GLP-358', a)
+    assert dest == lc.typed_destination('GLP-358', a)
+    assert dest != lc.typed_destination('GLP-358', b)
+    a.write_text('{"changed": true}')
+    assert dest == lc.typed_destination('GLP-358', a), 'mutable bytes are not worker identity'
+    assert dest != lc.typed_destination('GLP-359', a)
+    assert dest.name == 'RESULT.json' and 'GLP-358' in dest.parts
+    assert dest.is_relative_to(reports) and not dest.exists()
+    for issue in ('GLP-358/../359', 'glp-358', 'GLP-358 --apply'):
+        with pytest.raises(lc.Refused): lc.typed_destination(issue, a)
+    dest.parent.parent.mkdir(parents=True)
+    # Even redirection within reports must not drop exact issue/worker identity.
+    monkeypatch.setattr(lo, 'issue', lambda *a: pytest.fail('invalid destination reached API'))
+    for outside in (tmp_path / 'outside', reports / 'other-issue'):
+        outside.mkdir()
+        dest.parent.symlink_to(outside, target_is_directory=True)
+        with pytest.raises(lc.Refused, match='reports'):
+            lc.typed_destination('GLP-358', a)
+        # Both modes refuse BEFORE any API call or write.
+        for kwargs in ({'check_only': True}, {'apply': True}, {}):
+            with pytest.raises(lc.Refused, match='reports'):
+                lc.close('GLP-358', a, **kwargs)
+        dest.parent.unlink()
 
 
 

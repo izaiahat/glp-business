@@ -247,8 +247,21 @@ def packet_binding(c, packet, config, *, require_installed_manifest=True):
 
 SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/S1/SOURCE-REVIEW.json'
 SUCCESSOR_SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/RV-S2/RECEIVER-SOURCE-REVIEW.json'
+READINESS_PATH = 'scripts/glp_sponsor_readiness.py'
+# PR513's exact budget-guard transition, not permission to renew arbitrary code.
+READINESS_RENEWAL = ('4f988082d932ffb1da57dce951827cfd7cfc7fd068c4964864f171583acf3284',
+                     '6fe29410f4e61dea28ec1af580461e07e8aba6f008022183a695e9b0c4c480bf')
 RENEWABLE_SOURCES = {'scripts/glp_sponsor_campaign.py', 'scripts/glp_sponsor_current_receiving.py',
                      'inbox_control_plane/sponsor_replies.py', 'inbox_control_plane/control_plane.py', 'scripts/firecrawl_client.py'}
+
+
+def readiness_renewal(before, after):
+    if before.get(READINESS_PATH) == after.get(READINESS_PATH):
+        return
+    pair = tuple(hashlib.sha256(members.get(READINESS_PATH, b'')).hexdigest()
+                 for members in (before, after))
+    if pair != READINESS_RENEWAL:
+        raise RuntimeError('source_packet_readiness_drift')
 
 
 def refresh_source_packet(c, predecessor_sha256, output):
@@ -276,7 +289,10 @@ def refresh_source_packet(c, predecessor_sha256, output):
         raise RuntimeError('current_packet_manifest_invalid')
     for name in SOURCE_PATHS:
         installed = (c.ROOT/name).read_bytes()
-        if name not in RENEWABLE_SOURCES and installed != members[name]:
+        if name == READINESS_PATH:
+            # Authenticate exactly the buffer archived below, never a path reread.
+            readiness_renewal(members, {READINESS_PATH:installed})
+        if name not in RENEWABLE_SOURCES|{READINESS_PATH} and installed != members[name]:
             raise RuntimeError('source_packet_nontechnical_drift:'+name)
         members[name] = installed
     members[MANIFEST] = (json.dumps({name:hashlib.sha256(blob).hexdigest()
@@ -293,7 +309,8 @@ def reviewed_source_head(c, *, recorded_operator=False):
     review = strict((c.ROOT/review_path).read_bytes())
     pins = {'campaign_sender_sha256':'scripts/glp_sponsor_campaign.py',
             'current_receiver_sha256':'scripts/glp_sponsor_current_receiving.py',
-            'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py'}
+            'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py',
+            'readiness_sha256':READINESS_PATH}
     if successor or recorded_operator:
         pins['sponsor_replies_sha256'] = 'inbox_control_plane/sponsor_replies.py'
     if recorded_operator:
@@ -387,8 +404,9 @@ def receive(c, packet_sha256, source_head, result, *, successor_packet=None, rep
             if (not recorded_operator and any(before.get(name)!=after.get(name)
                 for name in ('inbox_control_plane/control_plane.py','scripts/firecrawl_client.py'))):
                 raise RuntimeError('current_renewal_extended_source_requires_recorded_review')
+            readiness_renewal(before, after)
             if set(before)!=set(after) or any(before[name]!=after[name]
-                for name in before if name not in RENEWABLE_SOURCES|{MANIFEST}):
+                for name in before if name not in RENEWABLE_SOURCES|{MANIFEST,READINESS_PATH}):
                 raise RuntimeError('current_renewal_outward_bytes_changed')
         if recorded_operator:
             receipt = dict(schema=OPERATOR_SCHEMA, actor='Izaiah Tilton', operator_authority=recorded_operator_authority(c),

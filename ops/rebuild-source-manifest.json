@@ -121,7 +121,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "e4ef2fb18d546f8acd5ab715c4ba7adc2dd49830cde14f8f07c74a2854f70bf8"
+      "sha256": "51d72c648656fe4f012545f2317a2c23d01478bd29fb89d1c094837c1583b2c4"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -130,7 +130,7 @@
         "firecrawl-integration"
       ],
       "kind": "test",
-      "sha256": "eb0a7d7df66e551ef30c528c7d6c7fb035fdfffd2753c28ce5f82e4c0168effa"
+      "sha256": "c767794967c62b11a6fac3813157bb41385d30278cf9a42bd5f154e1d152841c"
     },
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
       "callers": [
@@ -333,7 +333,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2061915f205d91882c1a485a6649619a8d0abf21d857e068f33d9c5a05efec18"
+      "sha256": "51f748f9abf92ad80466bc768d5e5e96841f81340295ae25280b93832fc81c8c"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -2729,14 +2729,14 @@
         "fleet-output-ingestion"
       ],
       "kind": "documentation",
-      "sha256": "305c06ad86a3a15e619c93e687bcf7e59534063f62a236b8b706c972fb070847"
+      "sha256": "5c09a494b8a575bdd1c244e9970c3ec696ac2bc88a5e2e09bc4e0cdd0b1b253a"
     },
     "scripts/fleet_ingest.py": {
       "callers": [
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "3cfc4c4a0d3fc7f1bb25f2be6b916b197cc19e3f3fc5e23626ecd454238dbc91"
+      "sha256": "b783ff3e5c8a4485a44eada7362d21c0016c2544c8e0fe65526f06318d11e2e7"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -3429,7 +3429,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "9c16013724141268572fbd93a71be7ed72147a8bf05d4f0dd1a100e2e63371c4"
+      "sha256": "e418db999382d58423a7667ac51567b1f9d2594029d5ecc45344ad8318997413"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -3686,7 +3686,7 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "2dc23434c48bbc5442d0768962614f2e76a527beaf52dfec472628dbf2c3fbf8"
+      "sha256": "4684b186d34b6dd6228319c0b359fa8faff44c36a7dd6f6a3e75e48e714ae361"
     },
     "scripts/linear_orchestrator.py": {
       "callers": [],
@@ -6383,14 +6383,14 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "fbe723e06f3d25117e8f6cd10d3016ebbf20ef65ab4e0343e74c8201022234ea"
+      "sha256": "66cc965d5b3183a18d0505d4dee4911fce5eaea0e910b92069af312708d15005"
     },
     "tests/test_glp_sponsor_campaign.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "4e6c8b426b88b2e18d68a750f43993f0f986e5482a729059aefdd2795d299885"
+      "sha256": "ca2ec0410357147611912d4f08a6ebae50488151bf650e2a5f2e0dcac64bd9b3"
     },
     "tests/test_glp_sponsor_followup_notifications.py": {
       "callers": [
@@ -6680,7 +6680,7 @@
     "tests/test_linear_close.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "38a28cb59fd5feffb5e68c2534cd2cf3a0393f9d8aafcf7a95eaaf98c1e9547d"
+      "sha256": "ba36c08056a522f09c48bfc37f53d88bbb943aba9691dcd63140697ea9f88d7f"
     },
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
@@ -7202,7 +7202,7 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "e42591a9b78c32d0fceab8ca0aca0e33718e23a17962723776c122499618d72b"
+      "sha256": "ffb9593bab63743d5f5dc72c9b4b7562c7e2a7df1a5b08245d922d9316bcdc43"
     },
     "tests/test_glp_sponsor_unattended.py": {
       "kind": "test",
@@ -7216,7 +7216,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "5174fe5af6bd4d292b9a77d40f3b1c7c0ea6b5e7bab8efb2eb70180a6850cfc8"
+      "sha256": "7253c29ec9df6b9cde506472e21b01d7e309ced58633ade1b3ed5fa9d090731f"
     },
     "scripts/glp_surface_unification.py": {
       "kind": "script",
@@ -7920,7 +7920,7 @@
       "callers": [
         "scripts/auto_coordinator_runner.py"
       ],
-      "sha256": "c7d18c13f417280706d58fde58b22354949a65a7699b3fe66b0e6ec2ecf54993"
+      "sha256": "48add377194433dc2f45b0d009b447ebb421451e14f04a389c84a9effcb108de"
     },
     "tests/test_auto_coordinator_adapter.py": {
       "kind": "test",
@@ -7999,6 +7999,13 @@
       ],
       "kind": "test",
       "sha256": "d67500ba664e4ea299560cdee6ef934f70363314563220c6033ae9db8ca354e1"
+    },
+    "tests/test_closure_preflight.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "195c85388a18fc0d40890ef8937611b6b958d908658312aa7a5a3c235cd23aba"
     }
   },
   "omitted_runtime_inputs": [
@@ -8009,5 +8016,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1171
+  "tracked_count": 1172
 }

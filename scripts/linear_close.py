@@ -265,11 +265,29 @@ def orchestrate(ident, typed_path, *extra):
     return run.stdout
 
 
+def typed_destination(ident, worker_path):
+    """One stable reports-only destination per exact issue and physical worker.
+
+    Identity is the workspace-relative worker path, not mutable worker bytes.
+    Resolve and check even during preflight, without creating directories/files.
+    """
+    if not isinstance(ident, str) or not re.fullmatch(r'GLP-[0-9]+', ident):
+        raise Refused('exact GLP issue required')
+    worker = Path(worker_path).resolve()
+    if not worker.is_relative_to(ROOT.resolve()):
+        raise Refused('worker RESULT outside workspace')
+    identity = hashlib.sha256(str(worker.relative_to(ROOT.resolve())).encode()).hexdigest()
+    destination = REPORTS.resolve() / 'ops/linear-close' / ident / identity / 'RESULT.json'
+    if destination.resolve() != destination or destination == worker:
+        raise Refused('typed RESULT destination must stay under reports and not overwrite worker')
+    return destination
+
+
 def close(ident, worker_path, apply=False, check_only=False):
     if apply and check_only:
         raise Refused('--apply and --check-only are mutually exclusive')
     worker_path = Path(worker_path).resolve()
-    typed_path = worker_path.parent / ident / 'RESULT.json'
+    typed_path = typed_destination(ident, worker_path)
     iss = lo.issue(ident)
     if check_only and iss['state']['name'] == 'Done':
         raise Refused('issue is already Done; not an OPEN completion')
