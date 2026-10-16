@@ -96,7 +96,16 @@ def save(path, data):
             tmp.unlink()
 
 
-def collect_cj(transport, secret, account_id, start, end, *, deadline, max_requests=32, sink=None):
+def collect_cj(transport, secret, account_id, start, end, *, deadline, max_requests=32, sink=None, resume_path=None):
+    from affiliate_cj_checkpoint import checkpoint
+    context = {'schema':'cj-partition-continuation-v1', 'account_id':account_id,
+               'start':start, 'end':end, 'source_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+    with checkpoint(resume_path, context) as (state, save):
+        return _collect_cj(transport, secret, account_id, start, end, deadline=deadline,
+                           max_requests=max_requests, sink=sink, state=state, save=save)
+
+
+def _collect_cj(transport, secret, account_id, start, end, *, deadline, max_requests, sink, state, save):
     """Reuse S2 CJ read query; bounded time bisection handles payloadComplete=false.
 
     Splitting documented posting-date half-open intervals avoids guessing a
@@ -121,6 +130,19 @@ def collect_cj(transport, secret, account_id, start, end, *, deadline, max_reque
     accepted_partitions = 0
     all_complete = True
     authentication_blocked = False
+    if state is not None:
+        queue = [(datetime.fromisoformat(left), datetime.fromisoformat(right)) for left,right in state['queue']]
+        receipts = state['receipts']
+        incomplete_hashes = set(state['incomplete_hashes'])
+        accepted_count = state['accepted_count']
+        accepted_partitions = state['accepted_partitions']
+        all_complete = state['all_complete']
+        authentication_blocked = state['authentication_blocked']
+        # Rejected/error partitions require explicit operator refresh, never
+        # an automatic auth retry or certification of omitted intervals.
+        if not all_complete:
+            max_requests = 0
+    retained_count = len(receipts)
     calls = 0
     while queue and calls < max_requests and time.monotonic() < deadline:
         left, right = queue.pop(0)
@@ -194,11 +216,18 @@ def collect_cj(transport, secret, account_id, start, end, *, deadline, max_reque
                     rec['reason']='SUPERSEDED_BY_BOUNDED_TIME_PARTITIONS'
         except Exception as exc:
             rec.update(reason='SAFE_REPORT_ERROR', exception_class=type(exc).__name__)
+            if getattr(transport,'receipts',None):
+                rec['http_status']=transport.receipts[-1].get('http_status')
+                authentication_blocked=rec['http_status'] in (401,403)
             all_complete=False
         receipts.append(rec)
+        save({'queue':[(left.isoformat(),right.isoformat()) for left,right in queue],
+              'receipts':receipts, 'incomplete_hashes':sorted(incomplete_hashes),
+              'accepted_count':accepted_count, 'accepted_partitions':accepted_partitions,
+              'all_complete':all_complete, 'authentication_blocked':authentication_blocked})
         if sink:
             sink(rec)
-        if authentication_blocked:
+        if not all_complete:
             break
     complete=all_complete and not queue and accepted_partitions>0
     summary={'schema':'coverage_observation', 'network':'cj','account_id':account_id,
@@ -206,6 +235,7 @@ def collect_cj(transport, secret, account_id, start, end, *, deadline, max_reque
         'time_axis':'posting','reporting_timezone':'UTC','start_inclusive':start,'end_exclusive':end,
         'currency':'USD','record_count':accepted_count if complete else None,
         'observed_complete_partition_rows':accepted_count,'request_count':calls,
+        'retained_page_count':retained_count,
         'authentication_blocked':authentication_blocked,
         'unread_partition_count':len(queue),'payload_complete':complete,
         'period_closed':b <= datetime.now(timezone.utc),'boundary_verified':True,
@@ -593,7 +623,8 @@ def main(argv=None):
         from affiliate_network_access_j7 import weekly_collectors
         transport=RunReadTransport(max_requests=args.max_requests,deadline=time.monotonic()+args.budget_seconds)
         collectors=weekly_collectors(names,
-                                     transport, eden_intake=args.eden_intake, eden_sha256=args.eden_intake_sha256)
+                                     transport, eden_intake=args.eden_intake, eden_sha256=args.eden_intake_sha256,
+                                     cj_resume_root=args.output.parent/'cj-continuations')
     if args.live_network_readonly and args.xentraffic_intake:
         from affiliate_reporting_xentraffic_j7 import collector
         collectors['xentraffic']=collector(args.xentraffic_intake,args.xentraffic_sha256)
