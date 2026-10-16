@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare or install one registered Git generation. See ops/glp-ship.md."""
 import argparse
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, nullcontext
 import getpass
 import json
 import os
@@ -80,7 +80,7 @@ def committed_checkout(checkout, source):
 
 
 def preview(checkout, root, hermes, generation, window=None, *, _source_owner=None):
-    if generation.kind == 'reporting':
+    if generation.kind in ('reporting', 'reporting-enrollment'):
         import glp44_scoped_adoption as adopter
         return adopter.plan(checkout, root, hermes, window=window, generation=generation,
                             _source_owner=_source_owner)[0]
@@ -97,6 +97,9 @@ def prepare(checkout, root, hermes, spec, source, proof, prepared_by):
     if not str(prepared_by).strip():
         raise RuntimeError('preparer_identity_required')
     hashes = derive_pins(checkout, source, spec.paths)
+    if spec.kind == 'reporting-enrollment':
+        from glp_ship_registry import enrollment_hashes
+        hashes = enrollment_hashes(checkout)
     proposal = {'schema': 'glp-ship-proposal-v1', 'source': source,
                 'kind': spec.kind, 'job_id': spec.name, 'tier': spec.tier,
                 'paths': list(spec.paths), 'hashes': hashes, 'merge_proof': proof,
@@ -104,6 +107,9 @@ def prepare(checkout, root, hermes, spec, source, proof, prepared_by):
                 'maintenance_window_required': spec.window,
                 'run_policy': {'entry': 'manual_registered', 'job_ids': list(spec.jobs),
                                'on_success': 'enable', 'on_failure': 'pause'}}
+    if spec.kind == 'reporting-enrollment':
+        proposal['run_policy'] = {'entry': 'NONE_ENROLLMENT_ONLY', 'job_ids': list(spec.jobs),
+                                  'on_success': 'preserve', 'on_failure': 'reconcile_no_replay'}
     generation = GitGeneration(source, spec.kind, spec.paths, hashes, proof, proposal)
     plan = preview(checkout, root, hermes, generation)
     paths = {root / p for p in spec.paths} | {root / syncer.STATE, root / syncer.MANIFEST}
@@ -144,7 +150,10 @@ def prepare(checkout, root, hermes, spec, source, proof, prepared_by):
 
 def zero_diff(checkout, root, hermes, generation, spec, *, _source_owner=None):
     # sync's success alone means conflict-free, not zero differences.
-    if syncer.sync(root, checkout, False, only=generation.paths, _source_owner=_source_owner) != 0:
+    if spec.kind == 'reporting-enrollment':
+        from glp44_scoped_adoption import _enrollment_sources
+        _enrollment_sources(checkout, root, generation)
+    elif syncer.sync(root, checkout, False, only=generation.paths, _source_owner=_source_owner) != 0:
         raise RuntimeError('ship_zero_diff_refused')
     state = json.loads(read_regular(root / syncer.STATE)[0])['hashes']
     for rel, expected in generation.hashes.items():
@@ -167,32 +176,38 @@ def apply_generation(checkout, root, hermes, spec, generation, review, output):
     # Native fire fences are reentrant. Keep them through restoration and the
     # manual run so a due occurrence cannot slip into the restore/run gap.
     with ExitStack() as fences:
+        # Cleanup's producer acquires this singleton before its fire fences.
+        import glp44_scoped_adoption as pair
+        cleanup_owner = fences.enter_context(pair.cleanup_session(hermes)) if spec.kind == 'reporting-enrollment' else None
         for jid in sorted(spec.jobs):
             if not fences.enter_context(scheduler._fire_job_lock(jid)):
                 raise RuntimeError('ship_native_fire_fence_unavailable:' + jid)
         return _apply_and_run(checkout, root, hermes, spec, generation, review, output,
-                              journal, backend, scheduler)
+                              journal, backend, scheduler, _cleanup_owner=cleanup_owner)
 
 
-def _apply_and_run(checkout, root, hermes, spec, generation, review, output, journal, backend, scheduler):
+def _apply_and_run(checkout, root, hermes, spec, generation, review, output, journal, backend, scheduler, *, _cleanup_owner=None):
     from maintenance_window import MaintenanceWindow, default_locks, require_active_window
     from glp_ship_runtime import run_registered
     # One maintained root-inode writer lock spans installation, custody, native
     # commit, exact readback and restoration. Explicit live leases let nested
     # previews join it without releasing or reacquiring the non-reentrant flock.
-    with syncer.source_lock(root) as owner:
+    import glp44_scoped_adoption as pair
+    cleanup = pair.cleanup_session(hermes, _cleanup_owner) if spec.kind == 'reporting-enrollment' else nullcontext()
+    with cleanup as cleanup_owner, syncer.source_lock(root) as owner:
         if spec.window:
             window = MaintenanceWindow(backend, journal, default_locks(root, hermes))
             window.enter()
             try:
                 with require_active_window(journal, root, hermes) as active:
                     preview(checkout, root, hermes, generation, active, _source_owner=owner)
-                if spec.kind == 'reporting':
+                if spec.kind in ('reporting', 'reporting-enrollment'):
                     import glp44_scoped_adoption as adopter
                 else:
                     import glp73_paired_adoption as adopter
+                cleanup_args = {'_cleanup_owner': cleanup_owner} if spec.kind == 'reporting-enrollment' else {}
                 result = adopter.adopt(checkout, root, hermes, review, scheduler=scheduler,
-                                       window=journal, generation=generation, _source_owner=owner)
+                                       window=journal, generation=generation, _source_owner=owner, **cleanup_args)
                 zero_diff(checkout, root, hermes, generation, spec, _source_owner=owner)
             finally:
                 # The existing exit refuses uncertain commits; never override it.
@@ -208,6 +223,10 @@ def _apply_and_run(checkout, root, hermes, spec, generation, review, output, jou
     # its own source fence; native fire fences remain held throughout the run.
     # Consumer locks belong to the maintenance window until exact restoration.
     # Native registered wrappers can acquire them only after that exit.
+    if spec.kind == 'reporting-enrollment':
+        return {'schema': 'glp-ship-result-v1', 'source': generation.source,
+                'proposal_sha256': json_sha(generation.proposal), 'adoption': result,
+                'success': True, 'runs': [], 'policy': 'ENROLLMENT_ONLY_NO_EXECUTION'}
     if spec.name == 'GLP44':
         from glp_ship_collector import run_registered as run_collector
         runs = run_collector(root, hermes, generation.proposal['collector_registration'], output)

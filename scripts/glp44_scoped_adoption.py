@@ -6,7 +6,7 @@ active maintenance window. A preview is read-only, not an apply authorization.
 """
 import argparse
 import copy
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, nullcontext
 import fcntl
 import hashlib
 import json
@@ -15,6 +15,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import stat
 
 import sync_from_repo as syncer
 from maxbounty_pin_release import read_regular, preserve_custody
@@ -30,6 +32,50 @@ PATHS = (
 SNAPSHOT = 'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh'
 WRAPPER = 'glp_affiliate_weekly_reporting.sh'
 JOB = 'aadf6677c7f0'
+
+# Same singleton/inode and nonblocking flock as host_disk_cleanup_large_unit.
+_CLEANUP_OWNERS = {}
+
+
+@contextmanager
+def cleanup_session(hermes, owner=None):
+    """Acquire before source/fire/window locks; outer owner spans restoration.
+
+    Join only an opaque live same-process/thread/home lease, never a raw fd or
+    claimed PID. Joining never unlocks/closes the outer descriptor. Cooperative
+    custody, not exclusion of hostile namespace replacement or hostile code.
+    """
+    home = Path(hermes).resolve(strict=True)
+    path = home / 'runstate/host-disk-cleanup.lock'
+    if owner is not None:
+        held = _CLEANUP_OWNERS.get(owner)
+        if held is None or held[0] != home or held[2:] != (os.getpid(), threading.get_ident()):
+            raise RuntimeError('cleanup_owner_invalid')
+        previous, current = os.fstat(held[1]), path.lstat()
+        if not stat.S_ISREG(current.st_mode) or (previous.st_dev, previous.st_ino) != (current.st_dev, current.st_ino):
+            raise RuntimeError('cleanup_lock_inode_changed')
+        yield owner
+        return
+    path.parent.mkdir(exist_ok=True)
+    if path.parent.is_symlink():
+        raise RuntimeError('cleanup_lock_parent_symlink')
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise RuntimeError('cleanup_lock_not_regular')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError('cleanup_busy') from exc
+        lease = object()
+        _CLEANUP_OWNERS[lease] = (home, fd, os.getpid(), threading.get_ident())
+        try:
+            with cleanup_session(home, lease):
+                yield lease
+        finally:
+            del _CLEANUP_OWNERS[lease]
+    finally:
+        os.close(fd)
 
 # One named successor, not a caller-supplied path/hash set or force migration.
 PR119_GENERATION = 'pr119-reporting-20261001'
@@ -181,6 +227,16 @@ GLP337_CONTEXT = (
 
 def generation_contract(generation):
     if _git_generation(generation):
+        if _enrollment(generation):
+            from glp_ship_registry import GLP334_PATHS, GLP334_JOBS, GLP334_SOURCE
+            if (generation.paths != GLP334_PATHS or set(generation.hashes) != set(GLP334_PATHS)
+                    or generation.proposal.get('job_id') != 'GLP334'
+                    or generation.proposal.get('tier') != 'A'
+                    or generation.proposal.get('run_policy') != {
+                        'entry': 'NONE_ENROLLMENT_ONLY', 'job_ids': [r[0] for r in GLP334_JOBS],
+                        'on_success': 'preserve', 'on_failure': 'reconcile_no_replay'}):
+                raise RuntimeError('wrong_glp334_enrollment_cohort')
+            return GLP334_SOURCE, generation.paths
         from glp_ship_registry import REPORTING_PATHS
         if (generation.kind != 'reporting' or generation.paths != REPORTING_PATHS
                 or set(generation.hashes) != set(REPORTING_PATHS)):
@@ -212,6 +268,96 @@ def _successor(generation):
     return _git_generation(generation) or generation in SUCCESSORS
 
 
+def _enrollment(generation):
+    return _git_generation(generation) and generation.kind == 'reporting-enrollment'
+
+
+def _targets(generation):
+    if _enrollment(generation):
+        from glp_ship_registry import GLP334_JOBS
+        return tuple((jid, name, 'ops/hermes-cron-scripts/' + name)
+                     for jid, name, *_ in GLP334_JOBS)
+    return ((JOB, WRAPPER, SNAPSHOT),)
+
+
+def _enrollment_sources(checkout, root, generation):
+    """Require the accepted source receiving FIRST; never heal its baselines.
+
+    Old external bytes are authenticated separately against their genuine Git
+    predecessor. The source cohort and all retained dependencies are bound into
+    the existing review/CAS/custody, not an additional approval store.
+    """
+    import re
+    from glp_ship_registry import GLP334_SOURCE, GLP334_PATHS, receiving_cohort
+    import glp334_pin_closure as closure
+    cohort = receiving_cohort(checkout)
+    controls = ('ops/glp/reporting-v2/glp334-install-cohort.json', 'scripts/glp334_pin_closure.py')
+    baselines = json.loads(read_regular(root / syncer.STATE)[0])['hashes']
+    retained = {}
+    for rel in GLP334_PATHS + controls:
+        expected = subprocess.check_output(['git', '-C', str(checkout), 'show', GLP334_SOURCE + ':' + rel])
+        mode = subprocess.check_output(['git', '-C', str(checkout), 'ls-tree', GLP334_SOURCE, '--', rel]).split()[0]
+        if rel in GLP334_PATHS:
+            destination_mode = cohort['preserved_destination_modes'].get(rel, int(mode, 8) & 0o777)
+            if read_regular(root / rel) != (expected, destination_mode) or baselines.get(rel) != digest(expected):
+                raise RuntimeError('glp334_source_receiving_required:' + rel)
+    checker = subprocess.check_output(['git', '-C', str(checkout), 'show', GLP334_SOURCE + ':' + controls[1]])
+    if Path(closure.__file__).read_bytes() != checker:
+        raise RuntimeError('glp334_checker_not_accepted_source')
+    if set(cohort['selected_paths']) != set(GLP334_PATHS):
+        raise RuntimeError('glp334_declared_cohort_moved')
+    result = closure.project(root, root, cohort)
+    if result['drifts']:
+        raise RuntimeError('glp334_projected_closure_refused')
+    dependencies = set()
+    for rel in closure.MANIFESTS:
+        dependencies.update(str(Path(p).relative_to(syncer.DEFAULT_ROOT))
+                            for p in json.loads(read_regular(root / rel)[0])['files'])
+    for rel in closure.REPORTING_WRAPPERS + [closure.CONSUMER_WRAPPER]:
+        text = read_regular(root / rel)[0].decode()
+        dependencies.update(re.findall(r'^check_source (\S+) ', text, re.M))
+        dependencies.update(str(Path(p).relative_to(syncer.DEFAULT_ROOT)) for p in
+                            re.findall(r'--(?:xentraffic-intake|eden-intake|statement-intake) (\S+)', text))
+    # The consumer's remaining pinned modules are already members of the base
+    # reporting manifest; projection validates its explicit DEPENDENCIES too.
+    import ast
+    consumer = ast.parse(read_regular(root / closure.CONSUMER)[0])
+    for node in consumer.body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'DEPENDENCIES' for t in node.targets):
+            dependencies.update('scripts/' + name + '.py' for name in ast.literal_eval(node.value))
+    for rel in dependencies - set(GLP334_PATHS):
+        retained[rel] = read_regular(root / rel)
+    return retained
+
+
+def _target_preimage(root, hermes, registry, window, jid, name, snapshot, enrollment):
+    wrapper = hermes / 'scripts' / name
+    before = read_regular(wrapper)
+    current, _ = job_record(registry, jid)
+    job = window.original_job(jid) if window is not None else current
+    if window is not None and (current != window.current_job(jid)
+            or current.get('enabled') is not False or current.get('state') != 'paused'):
+        raise RuntimeError('maintenance_reporting_job_moved_or_not_drained')
+    if (job.get('enabled') is not True or job.get('state') != 'scheduled'
+            or job.get('id') != jid or job.get('script') not in (name, str(wrapper))
+            or job.get('script_sha256') != digest(before[0])
+            or any(current.get(k) for k in ('fire_claim', 'run_claim', 'running'))):
+        raise RuntimeError('reporting_job_not_idle_or_preimage_moved')
+    if enrollment:
+        from glp_ship_registry import GLP334_JOBS, GLP334_PREDECESSOR
+        _, _, old_hash, timeout, cron = next(r for r in GLP334_JOBS if r[0] == jid)
+        prior = subprocess.check_output(['git', '-C', str(enrollment), 'show', GLP334_PREDECESSOR + ':' + snapshot])
+        if (digest(prior) != old_hash or before != (prior, 0o755)
+                or job.get('workdir') != str(syncer.DEFAULT_ROOT) or job.get('no_agent') is not True
+                or job.get('script_timeout_seconds') != timeout
+                or job.get('schedule') != {'kind': 'cron', 'expr': cron, 'display': cron}):
+            raise RuntimeError('glp334_genuine_target_predecessor_required:' + jid)
+    elif before[0] != read_regular(root / snapshot)[0]:
+        raise RuntimeError('installed_wrapper_not_curated_predecessor')
+    return {'job_before': job, 'job_window_before': current,
+            'wrapper_before_sha256': digest(before[0]), 'wrapper_before_mode': before[1]}, before
+
+
 def digest(body):
     return hashlib.sha256(body).hexdigest()
 
@@ -220,9 +366,9 @@ def observed(path):
     return read_regular(path) if path.exists() else (None, None)
 
 
-def job_record(registry):
+def job_record(registry, jid=JOB):
     document = json.loads(registry.read_bytes())
-    hits = [j for j in document['jobs'] if j.get('id') == JOB]
+    hits = [j for j in document['jobs'] if j.get('id') == jid]
     if len(hits) != 1:
         raise RuntimeError('reporting_job_count_changed')
     return hits[0], document['jobs']
@@ -416,6 +562,9 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
         return _plan_dependencies(checkout, root, hermes, review, window, generation)
     approved, paths = generation_contract(generation)
     derived = _git_generation(generation)
+    enrollment = _enrollment(generation)
+    targets = _targets(generation)
+    jid, wrapper_name, snapshot_name = targets[0]
     successor = _successor(generation)
     successor_hashes, runtime_schema = ((generation.hashes, None) if derived
                                        else SUCCESSORS.get(generation, (None, None)))
@@ -427,7 +576,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     subprocess.run(['git', '-C', str(checkout), 'merge-base', '--is-ancestor', approved, 'HEAD'], check=True)
     for rel in paths:
         committed = subprocess.check_output(['git', '-C', str(checkout), 'show', f'{approved}:{rel}'])
-        if (checkout / rel).read_bytes() != committed or (successor and digest(committed) != successor_hashes[rel]):
+        if (not enrollment and (checkout / rel).read_bytes() != committed) or (successor and digest(committed) != successor_hashes[rel]):
             raise RuntimeError('approved_source_moved:' + rel)
     if successor:
         producer_head = subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).decode().strip()
@@ -448,31 +597,26 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     # is only for preexisting, untracked-baseline files.
     adopted = tuple(p for p in adopted if (root / p).exists())
     source_args = {} if _source_owner is None else {'_source_owner': _source_owner}
-    if syncer.sync(root, checkout, False, adopted, paths, **source_args) != 0:
+    if not enrollment and syncer.sync(root, checkout, False, adopted, paths, **source_args) != 0:
         raise RuntimeError('scoped_source_preflight_refused')
+    enrollment_retained = _enrollment_sources(checkout, root, generation) if enrollment else {}
     before = {p: observed(root / p) for p in paths}
     state = observed(root / syncer.STATE)
-    snapshot = (checkout / SNAPSHOT).read_bytes()
-    wrapper = hermes / 'scripts' / WRAPPER
-    wrapper_before = read_regular(wrapper)
-    if wrapper_before[0] != before[SNAPSHOT][0]:
-        raise RuntimeError('installed_wrapper_not_curated_predecessor')
+    source = root if enrollment else checkout
+    snapshot = (source / snapshot_name).read_bytes()
     registry = hermes / 'cron' / 'jobs.json'
-    current_job, _ = job_record(registry)
-    job = window.original_job(JOB) if window is not None else current_job
-    if window is not None:
-        if (current_job != window.current_job(JOB)
-                or current_job.get('enabled') is not False or current_job.get('state') != 'paused'
-                or current_job.get('fire_claim') or current_job.get('run_claim') or current_job.get('running')):
-            raise RuntimeError('maintenance_reporting_job_moved_or_not_drained')
-    if (job.get('enabled') is not True or job.get('state') != 'scheduled'
-            or job.get('script') not in (WRAPPER, str(wrapper))
-            or job.get('script_sha256') != digest(wrapper_before[0])
-            or current_job.get('fire_claim') or current_job.get('run_claim') or current_job.get('running')):
-        raise RuntimeError('reporting_job_not_idle_or_preimage_moved')
-    pins = json.loads((checkout / 'ops/glp/reporting-v2/source-manifest.json').read_text())['files']
+    target_plans = {}
+    for target_id, name, snap in targets:
+        target, value = _target_preimage(root, hermes, registry, window, target_id, name, snap,
+                                         checkout if enrollment else None)
+        target['wrapper_sha256'] = digest(read_regular(source / snap)[0])
+        target_plans[target_id] = target
+        if target_id == jid:
+            wrapper_before = value
+    job, current_job = target_plans[jid]['job_before'], target_plans[jid]['job_window_before']
+    pins = json.loads((source / 'ops/glp/reporting-v2/source-manifest.json').read_text())['files']
     retained = ({rel: read_regular(root / rel) for rel in PR119_PREREQUISITES}
-                if generation == PR119_GENERATION else {})
+                if generation == PR119_GENERATION else enrollment_retained)
     for absolute, expected in pins.items():
         path = Path(absolute)
         try:
@@ -480,7 +624,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
         except ValueError:
             raise RuntimeError('unexpected_reporting_pin_path:' + absolute)
         if successor:
-            value = read_regular((checkout if rel.as_posix() in paths else root) / rel)
+            value = read_regular((source if rel.as_posix() in paths else root) / rel)
             actual = value[0]
             if rel.as_posix() not in paths:
                 retained[rel.as_posix()] = value
@@ -490,12 +634,14 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
             actual = (root / rel).read_bytes()  # host-only leaves must already match
         if digest(actual) != expected:
             raise RuntimeError('reporting_pin_closure_refused:' + str(path))
-    proposal = {'source_sha256': {p: digest((checkout / p).read_bytes()) for p in paths},
-                'wrapper_sha256': digest(snapshot), 'job_id': JOB,
+    proposal = {'source_sha256': {p: digest((source / p).read_bytes()) for p in paths},
+                'wrapper_sha256': digest(snapshot), 'job_id': jid,
                 'job_before': job, 'job_window_before': current_job, 'source_before_sha256': {
                     p: digest(value[0]) if value[0] is not None else None for p, value in before.items()},
                 'wrapper_before_sha256': digest(wrapper_before[0]),
                 'state_before_sha256': digest(state[0]) if state[0] is not None else None}
+    if enrollment:
+        proposal['enrollment_targets'] = target_plans
     if successor:
         registry_body, registry_mode = read_regular(registry)
         proposal.update({
@@ -506,7 +652,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
                        'registry': str(registry.resolve()),
                        'journal': str(Path(window.journal).resolve()) if window is not None else None},
             'source_before_modes': {p: value[1] for p, value in before.items()},
-            'source_candidate_modes': {p: read_regular(checkout / p)[1] for p in paths},
+            'source_candidate_modes': {p: read_regular(source / p)[1] for p in paths},
             'state_before_mode': state[1], 'wrapper_before_mode': wrapper_before[1],
             'registry_before_sha256': digest(registry_body), 'registry_before_mode': registry_mode,
             'retained_source': {p: {'sha256': digest(value[0]), 'mode': value[1]}
@@ -535,14 +681,15 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     return proposal, adopted, before, state, wrapper_before, registry
 
 
-def adopt(checkout, root, hermes, review, *, scheduler, window=None, generation='pr71', _source_owner=None):
+def adopt(checkout, root, hermes, review, *, scheduler, window=None, generation='pr71', _source_owner=None, _cleanup_owner=None):
     if window is None:
         raise RuntimeError('active_maintenance_window_required')
     from maintenance_window import require_active_window
     if _git_generation(generation):
         # Retain one kernel source-writer exclusion through every preflight,
         # custody, switch, native save and active-window acknowledgement.
-        with syncer.source_session(root, _source_owner) as owner:
+        cleanup = cleanup_session(hermes, _cleanup_owner) if _enrollment(generation) else nullcontext()
+        with cleanup, syncer.source_session(root, _source_owner) as owner:
             with require_active_window(window, root, hermes) as active:
                 return _adopt_in_window(checkout, root, hermes, review, scheduler=scheduler,
                                         window=active, generation=generation, _source_owner=owner)
@@ -566,13 +713,22 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
     proposal, adopted, before, state, wrapper_before, registry = _plan(checkout, root, hermes, review, window=window, generation=generation, _source_owner=_source_owner)
     if scheduler._current_cron_store().jobs_file != registry or scheduler._jobs_lock_file() != registry.parent / '.jobs.lock':
         raise RuntimeError('wrong_scheduler_store')
-    wrapper = hermes / 'scripts' / WRAPPER
+    enrollment = _enrollment(generation)
+    targets = _targets(generation)
+    jid, name, snapshot_name = targets[0]
+    wrapper = hermes / 'scripts' / name
     original = {root / p: value for p, value in before.items()}
     original[root / syncer.STATE] = state
-    original[wrapper] = wrapper_before
-    with scheduler._fire_job_lock(JOB) as fenced:
-        if not fenced:
-            raise RuntimeError('reporting_fire_fence_unavailable')
+    source_retained = dict(original) if enrollment else {}
+    if enrollment:
+        original = {}
+    for target_id, name, _ in targets:
+        original[hermes / 'scripts' / name] = read_regular(hermes / 'scripts' / name)
+    target_plans = proposal.get('enrollment_targets', {jid: proposal})
+    with ExitStack() as fire_fences:
+        for target_id, _, _ in targets:
+            if not fire_fences.enter_context(scheduler._fire_job_lock(target_id)):
+                raise RuntimeError('reporting_fire_fence_unavailable')
         # The native saver requires its thread-local cross-process lease, not
         # merely an equivalent manual flock. Refuse degradation before sealing.
         with scheduler._jobs_lock(require_cross_process=True):
@@ -585,13 +741,16 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
             registry_before = registry.read_bytes()
             if any(body is None for body, _ in original.values()):
                 raise RuntimeError('missing_predecessor_requires_separate_custody')
-            stage = {root / p: (checkout / p).read_bytes() for p in paths}
-            state_data = json.loads(state[0])
-            state_data['hashes'].update(proposal['source_sha256'])
-            stage[root / syncer.STATE] = (json.dumps(state_data, indent=2, sort_keys=True) + '\n').encode()
-            stage[wrapper] = (checkout / SNAPSHOT).read_bytes()
-            if (any(digest(stage[root / p]) != proposal['source_sha256'][p] for p in paths)
-                    or digest(stage[wrapper]) != proposal['wrapper_sha256']):
+            stage = {} if enrollment else {root / p: (checkout / p).read_bytes() for p in paths}
+            if not enrollment:
+                state_data = json.loads(state[0])
+                state_data['hashes'].update(proposal['source_sha256'])
+                stage[root / syncer.STATE] = (json.dumps(state_data, indent=2, sort_keys=True) + '\n').encode()
+            for target_id, name, snap in targets:
+                stage[hermes / 'scripts' / name] = ((root if enrollment else checkout) / snap).read_bytes()
+            if ((not enrollment and any(digest(stage[root / p]) != proposal['source_sha256'][p] for p in paths))
+                    or any(digest(stage[hermes / 'scripts' / name]) != target_plans[target_id]['wrapper_sha256']
+                           for target_id, name, _ in targets)):
                 raise RuntimeError('reviewed_candidate_moved_before_switch')
             # Historical review-addressed receipts are immutable. Derived
             # publications bind the complete exact generation and adopter plan,
@@ -602,6 +761,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
                                 if _git_generation(generation) else review)
             custody = root / 'reports/ops/pin-archive/glp44' / digest(json.dumps(custody_identity, sort_keys=True).encode())
             retained = {root / p: read_regular(root / p) for p in proposal.get('retained_source', {})} if successor else {}
+            retained.update(source_retained)
             preserve_custody(custody, {**original, **retained, registry: read_regular(registry)}, stage)
             # Custody is not an exclusion lock; reject late edits before first source write.
             if any(observed(path) != value for path, value in original.items()) or registry.read_bytes() != registry_before:
@@ -613,29 +773,32 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
                 {str(path.resolve()): digest(body) for path, body in stage.items()},
             )
             if successor:
-                job_after = copy.deepcopy(proposal['job_window_before'])
-                job_after['script_sha256'] = proposal['wrapper_sha256']
                 # Journal the hash intent before the maintained switch captures
                 # its receipt; the commit callback only saves/readbacks registry.
-                window.accept_job_update(JOB, proposal['job_window_before'], job_after)
+                for target_id, target in target_plans.items():
+                    job_after = copy.deepcopy(target['job_window_before'])
+                    job_after['script_sha256'] = target['wrapper_sha256']
+                    window.accept_job_update(target_id, target['job_window_before'], job_after)
             source_written = False
             commit_entered = False
             def commit():
                 nonlocal commit_entered
                 commit_entered = True
-                current, jobs = job_record(registry)
-                if current != proposal['job_window_before']:
-                    raise RuntimeError('job_moved_before_hash_update')
+                current, jobs = job_record(registry, jid)
+                for target_id, target in target_plans.items():
+                    if job_record(registry, target_id)[0] != target['job_window_before']:
+                        raise RuntimeError('job_moved_before_hash_update')
                 if successor and (read_regular(registry) != (registry_before, proposal['registry_before_mode'])
                                   or any(observed(path) != value for path, value in retained.items())):
                     raise RuntimeError('reporting_generation_cas_moved_before_native_save')
                 next_jobs = copy.deepcopy(jobs)
-                next(j for j in next_jobs if j['id'] == JOB)['script_sha256'] = proposal['wrapper_sha256']
+                for target_id, target in target_plans.items():
+                    next(j for j in next_jobs if j['id'] == target_id)['script_sha256'] = target['wrapper_sha256']
                 if not successor:
-                    window.accept_job_update(JOB, current, next(j for j in next_jobs if j['id'] == JOB))
+                    window.accept_job_update(jid, current, next(j for j in next_jobs if j['id'] == jid))
                 scheduler._record_load_stamp(None)
                 scheduler._save_jobs_unlocked(next_jobs)
-                actual, actual_jobs = job_record(registry)
+                actual, actual_jobs = job_record(registry, jid)
                 if actual_jobs != next_jobs or actual['script_sha256'] != proposal['wrapper_sha256']:
                     raise RuntimeError('scheduler_readback_mismatch_no_retry')
             try:
@@ -654,7 +817,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
                     raise
                 # A possibly landed scheduler write is held for reconciliation, never
                 # blindly reversed or replayed. Only restore files while registry is unchanged.
-                current, _ = job_record(registry)
+                current, _ = job_record(registry, jid)
                 if registry.read_bytes() == registry_before and source_written:
                     current_files = {path: observed(path) for path in stage}
                     staged_files = {path: (body, original[path][1]) for path, body in stage.items()}
