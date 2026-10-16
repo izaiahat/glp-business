@@ -13,7 +13,7 @@
       "callers": [
         "GLP334 paired enrollment regression"
       ],
-      "sha256": "7d46598d82a0f37147a61537acb3c14b61a384f5661e40644dfc9f8129c94450"
+      "sha256": "2f91367b419fcfcb25b7b2d159c63b1471ec17cf34303ec8a7bb51cd2b90631c"
     },
     "tests/test_glp_release_review543.py": {
       "kind": "test",
@@ -2840,7 +2840,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2b11bb0bf33dee953e99e340d4305d18e480721b2f78b6a5adc3632fea3c5ebb"
+      "sha256": "b2cad38afa29e47ac42d8a95a89b9bd4692d08e88ece383fbd00c4a047377c66"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
