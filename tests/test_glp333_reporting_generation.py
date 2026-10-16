@@ -388,8 +388,11 @@ def test_literal_inventory_adds_only_registered_paths_and_old_guard_counterexamp
         'scripts/affiliate_reporting_everflow.py', 'scripts/affiliate_reporting_healthtrader.py',
         'scripts/affiliate_reporting_partnerstack.py', 'scripts/affiliate_reporting_refersion.py',
     )
+    from glp_ship_registry import GLP334_PATHS, GLP334_JOBS
     assert supported - previous == ({root / p for p in (*EXTRA, *dependencies, *shared_bridge, *reporting_leaves)}
-                                    | ({root / p for p in SHIP_REPORTING_PATHS} - previous))
+                                    | ({root / p for p in SHIP_REPORTING_PATHS} - previous)
+                                    | ({root / p for p in GLP334_PATHS} - previous)
+                                    | ({hermes / 'scripts' / row[1] for row in GLP334_JOBS} - previous))
     journal = tmp_path / 'journal.json'
     put(journal, json.dumps({'schema': window_module.SCHEMA}).encode())
     active = window_module.ActiveWindow(journal, SimpleNamespace(root=root, hermes=hermes))

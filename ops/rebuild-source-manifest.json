@@ -1,12 +1,19 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "ops/glp/reporting-v2/glp334-receiving-union.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP334 finite coherent source receiving and exact enrollment"
+      ],
+      "sha256": "9f51839cef90eb1f8731cabaa491ed71f1fef9f3017410deca54d72eaff6b586"
+    },
     "tests/test_glp334_enrollment.py": {
       "kind": "test",
       "callers": [
         "GLP334 paired enrollment regression"
       ],
-      "sha256": "448a2c9f4140e1b7b4f2fef6e34d66b45f0a2db28b33dbc61a620ce0c25621f0"
+      "sha256": "5ee90c0be7119961d1f70eb41dd4138013b9eaee08ff8854211e12ea587d1a5c"
     },
     "tests/test_glp_release_review543.py": {
       "kind": "test",
@@ -717,7 +724,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source_control",
-      "sha256": "1341518bcc036c679b34ae92a72729d9e530f2512aa78acdab475f5fca0ecf61"
+      "sha256": "babb9ccd0a105aa9d463353030ba09a0ac6e9bb60aae92e45806bd259d9b7a2c"
     },
     "ops/glp/analytics-brain-control.json": {
       "callers": [
@@ -2833,7 +2840,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "efe411b5efd47dcc23fa9d92f1fdf0feaa967bb5cd0bec441026126f1053e64a"
+      "sha256": "d78e0aae986b82ad7203a35f148799a1b6f5ea00f962fef4667d5a513334efa2"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -3408,7 +3415,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source",
-      "sha256": "d4f614bc18dfe019546fea3b6f25b49ef313dbc12d1c28fcdee42bfd48baae82"
+      "sha256": "522d44cec904c73b12b1e4e8c27a5f0f85c536507b6e7a42d4f5693db5d3d6af"
     },
     "scripts/glp_ship_runtime.py": {
       "callers": [
@@ -5535,7 +5542,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "6c4ae233d481c35b039cd519c72ed3aa85bbd7bfc80181e1023e4239e97f6541"
+      "sha256": "f65502f99857efca2aebf4f7a0b924ac5e4a21e4690f9eebe8a961da39985b86"
     },
     "tests/test_glp334_conversion_reconciliation.py": {
       "callers": [
@@ -8086,5 +8093,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1182
+  "tracked_count": 1183
 }

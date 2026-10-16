@@ -108,14 +108,25 @@ The wrapper/native predecessor bytes are authenticated against immutable
 J7/consumer script identities, workdir, no-agent mode, timeouts and schedules.
 The entire current record is then review-bound and CAS checked, not reconstructed.
 
-The 14 paths accepted in PR554 at
-`b34c5de8fddcbd0bb8b9ecf1ebc04959064b4f4f` must **already** be installed with
-matching modes and genuine sync baselines under separate receiving authority.
-This route does not install/heal source, create baselines, use later-main payloads
-or broaden the cohort. Projection verifies the retained inputs and unchanged
-leaves. A later main commit, including PR550, is not a substitute 14-path payload.
-The reviewed producer itself is authenticated against the new merged installer
-head; its immutable payload source remains PR554. Missing/drifted data refuses.
+The finite union declared in `ops/glp/reporting-v2/glp334-receiving-union.json`
+is **14 PR554 owned leaves + 11 PR550 owned leaves - 8 overlaps = 17**. Both
+accepted heads and merge identities remain independently authenticated. The
+eight shared leaves use PR550's accepted source; the six F12-only leaves retain
+PR554 bytes. Every selected blob/mode/type is bound to current combined merge
+`064a9c433c6f473d746aa62aac2a01fbfbcaa388`, not arbitrary later main. The maintained
+`receiving_cohort(checkout)` derives/dedupes the authentic owned lists, verifies
+each source identity and refuses any extra/missing leaf. Analytics and financial
+behavior are unmodified. Literal GLP44 remains Done, not reopened or reclosed.
+
+All17 must **already** be coherently received under separate authority, matching
+genuine sync baselines and the importer-preserved destination modes. The base
+manifest's authenticated 0600 mode is retained, not normalized to Git 0644.
+Enrollment does not install/heal source or create baselines. Projection checks
+all retained dependencies. The new merged installer is authenticated separately
+from the immutable accepted union payload; missing/drifted custody refuses.
+This coherent receiving must precede any separate analytics, measured census or
+fresh producer run. No analytics-only or F12-only partial installation is a
+substitute. Existing no-replay and retained-consumer holds remain unchanged.
 
 After separate source review, merge, receiving authorization and normal custody,
 prepare via the existing `glp_ship.py <literal-ID> --merge-sha <installer-merge>`

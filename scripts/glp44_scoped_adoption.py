@@ -242,8 +242,9 @@ def _enrollment_sources(checkout, root, generation):
     the existing review/CAS/custody, not an additional approval store.
     """
     import re
-    from glp_ship_registry import GLP334_SOURCE, GLP334_PATHS
+    from glp_ship_registry import GLP334_SOURCE, GLP334_PATHS, receiving_cohort
     import glp334_pin_closure as closure
+    cohort = receiving_cohort(checkout)
     controls = ('ops/glp/reporting-v2/glp334-install-cohort.json', 'scripts/glp334_pin_closure.py')
     baselines = json.loads(read_regular(root / syncer.STATE)[0])['hashes']
     retained = {}
@@ -251,13 +252,13 @@ def _enrollment_sources(checkout, root, generation):
         expected = subprocess.check_output(['git', '-C', str(checkout), 'show', GLP334_SOURCE + ':' + rel])
         mode = subprocess.check_output(['git', '-C', str(checkout), 'ls-tree', GLP334_SOURCE, '--', rel]).split()[0]
         if rel in GLP334_PATHS:
-            if read_regular(root / rel) != (expected, int(mode, 8) & 0o777) or baselines.get(rel) != digest(expected):
+            destination_mode = cohort['preserved_destination_modes'].get(rel, int(mode, 8) & 0o777)
+            if read_regular(root / rel) != (expected, destination_mode) or baselines.get(rel) != digest(expected):
                 raise RuntimeError('glp334_source_receiving_required:' + rel)
     checker = subprocess.check_output(['git', '-C', str(checkout), 'show', GLP334_SOURCE + ':' + controls[1]])
     if Path(closure.__file__).read_bytes() != checker:
         raise RuntimeError('glp334_checker_not_accepted_source')
-    cohort = json.loads(subprocess.check_output(['git', '-C', str(checkout), 'show', GLP334_SOURCE + ':' + controls[0]]))
-    if tuple(cohort['selected_paths']) != GLP334_PATHS:
+    if set(cohort['selected_paths']) != set(GLP334_PATHS):
         raise RuntimeError('glp334_declared_cohort_moved')
     result = closure.project(root, root, cohort)
     if result['drifts']:

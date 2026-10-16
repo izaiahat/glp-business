@@ -34,8 +34,11 @@ REPORTING_PATHS = (
 )
 
 
-# Accepted PR554 payload; enrollment requires prior source receiving.
-GLP334_SOURCE = 'b34c5de8fddcbd0bb8b9ecf1ebc04959064b4f4f'
+# Finite coherent union of separately accepted PR554 and PR550 owned leaves.
+# Source receiving must precede enrollment; this route does not install it.
+GLP334_F12_SOURCE = 'b34c5de8fddcbd0bb8b9ecf1ebc04959064b4f4f'
+GLP334_SOURCE = '064a9c433c6f473d746aa62aac2a01fbfbcaa388'
+GLP334_UNION = 'ops/glp/reporting-v2/glp334-receiving-union.json'
 GLP334_PREDECESSOR = 'ebd64f331d3ae825f1fc10de19d260321688accb'
 GLP334_PATHS = (
     'scripts/affiliate_cj_checkpoint.py',
@@ -52,6 +55,9 @@ GLP334_PATHS = (
     'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh',
     'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh',
     'ops/hermes-cron-scripts/glp334_live_reconciliation.sh',
+    'systems/analytics-brain/analytics_brain.py',
+    'systems/analytics-brain/collector.py',
+    'tests/test_glp44_collector_release.py',
 )
 GLP334_JOBS = (
     ('aadf6677c7f0', 'glp_affiliate_weekly_reporting_j7.sh',
@@ -72,10 +78,54 @@ class Job:
     window: bool
 
 
+def receiving_cohort(checkout):
+    """Authenticate/dedupe only the two accepted owned lists; never scan main."""
+    import json
+    import subprocess
+    from pathlib import Path
+    def git(*args):
+        return subprocess.check_output(['git', '-C', str(checkout), *args])
+    declaration = json.loads((Path(checkout) / GLP334_UNION).read_bytes())
+    f12_head = '2b6f431893db9c86c78d358dab6b907d30cbe4fe'
+    analytics_head = '25f9fb7c235e53e4fc31cdee7b0379f28e08f039'
+    original = json.loads(git('show', GLP334_F12_SOURCE + ':ops/glp/reporting-v2/glp334-install-cohort.json'))
+    f12 = original['selected_paths']
+    analytics = git('diff', '--name-only', GLP334_F12_SOURCE, GLP334_SOURCE).decode().splitlines()
+    analytics.remove('ops/rebuild-source-manifest.json')
+    expected_sources = {
+        'PR554': {'merge': GLP334_F12_SOURCE, 'accepted_head': f12_head, 'owned_paths': f12},
+        'PR550': {'merge': GLP334_SOURCE, 'accepted_head': analytics_head, 'owned_paths': analytics}}
+    selected = sorted(set(f12) | set(analytics))
+    if (declaration.get('schema') != 'glp334-receiving-union-v1'
+            or declaration.get('payload_merge') != GLP334_SOURCE
+            or declaration.get('authority') != 'SOURCE_ONLY_REQUIRES_SEPARATE_REVIEW_AND_RECEIVING_GRANT'
+            or declaration.get('maintained_successor') != original['maintained_successor']
+            or declaration.get('sources') != expected_sources
+            or declaration.get('selected_paths') != selected or set(selected) != set(GLP334_PATHS)
+            or len(f12) != 14 or len(analytics) != 11 or len(selected) != 17
+            or declaration.get('preserved_destination_modes') != {'ops/glp/reporting-v2/source-manifest.json': 0o600}):
+        raise RuntimeError('glp334_finite_receiving_union_moved')
+    for merge, head, owned in ((GLP334_F12_SOURCE, f12_head, f12),
+                               (GLP334_SOURCE, analytics_head, analytics)):
+        for rel in owned:
+            if git('ls-tree', merge, '--', rel) != git('ls-tree', head, '--', rel):
+                raise RuntimeError('glp334_accepted_owned_identity_moved:' + rel)
+    for rel in selected:
+        owner = GLP334_SOURCE if rel in analytics else GLP334_F12_SOURCE
+        if git('ls-tree', GLP334_SOURCE, '--', rel) != git('ls-tree', owner, '--', rel):
+            raise RuntimeError('glp334_union_payload_moved:' + rel)
+    original.update(selected_paths=selected,
+                    preserved_destination_modes=declaration['preserved_destination_modes'],
+                    payload_merge=GLP334_SOURCE, sources=expected_sources,
+                    dependency_order=declaration['dependency_order'])
+    return original
+
+
 def enrollment_hashes(checkout):
     """Only the immutable reviewed payload, not newer main or caller hashes."""
     import hashlib
     import subprocess
+    receiving_cohort(checkout)
     return {rel: hashlib.sha256(subprocess.check_output(
         ['git', '-C', str(checkout), 'show', GLP334_SOURCE + ':' + rel])).hexdigest()
             for rel in GLP334_PATHS}

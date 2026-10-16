@@ -1,0 +1,77 @@
+{
+  "schema": "glp334-receiving-union-v1",
+  "authority": "SOURCE_ONLY_REQUIRES_SEPARATE_REVIEW_AND_RECEIVING_GRANT",
+  "payload_merge": "064a9c433c6f473d746aa62aac2a01fbfbcaa388",
+  "maintained_successor": {
+    "commit": "a5149c0c3023ff459ed29212ae64373d4bb51b7a",
+    "merged_pr": 523,
+    "path": "scripts/glp_affiliate_weekly_reporting.py",
+    "sha256": "060bc4e747bcaa2cc4047c8a1e77cfec184814de19561e732679c8c5051a5352"
+  },
+  "sources": {
+    "PR554": {
+      "merge": "b34c5de8fddcbd0bb8b9ecf1ebc04959064b4f4f",
+      "accepted_head": "2b6f431893db9c86c78d358dab6b907d30cbe4fe",
+      "owned_paths": [
+        "scripts/affiliate_cj_checkpoint.py",
+        "scripts/affiliate_network_access_j7.py",
+        "scripts/glp_affiliate_weekly_reporting_j7.py",
+        "scripts/glp_affiliate_weekly_reporting.py",
+        "scripts/glp334_live_reconciliation.py",
+        "ops/glp/reporting-v2/source-manifest.json",
+        "ops/glp/reporting-v2/source-manifest-j5.json",
+        "ops/glp/reporting-v2/source-manifest-j6.json",
+        "ops/glp/reporting-v2/source-manifest-j7.json",
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh",
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh",
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh",
+        "ops/hermes-cron-scripts/glp334_live_reconciliation.sh"
+      ]
+    },
+    "PR550": {
+      "merge": "064a9c433c6f473d746aa62aac2a01fbfbcaa388",
+      "accepted_head": "25f9fb7c235e53e4fc31cdee7b0379f28e08f039",
+      "owned_paths": [
+        "ops/glp/reporting-v2/source-manifest-j5.json",
+        "ops/glp/reporting-v2/source-manifest-j6.json",
+        "ops/glp/reporting-v2/source-manifest-j7.json",
+        "ops/glp/reporting-v2/source-manifest.json",
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh",
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh",
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh",
+        "systems/analytics-brain/analytics_brain.py",
+        "systems/analytics-brain/collector.py",
+        "tests/test_glp44_collector_release.py"
+      ]
+    }
+  },
+  "selected_paths": [
+    "ops/glp/reporting-v2/source-manifest-j5.json",
+    "ops/glp/reporting-v2/source-manifest-j6.json",
+    "ops/glp/reporting-v2/source-manifest-j7.json",
+    "ops/glp/reporting-v2/source-manifest.json",
+    "ops/hermes-cron-scripts/glp334_live_reconciliation.sh",
+    "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+    "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh",
+    "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh",
+    "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh",
+    "scripts/affiliate_cj_checkpoint.py",
+    "scripts/affiliate_network_access_j7.py",
+    "scripts/glp334_live_reconciliation.py",
+    "scripts/glp_affiliate_weekly_reporting.py",
+    "scripts/glp_affiliate_weekly_reporting_j7.py",
+    "systems/analytics-brain/analytics_brain.py",
+    "systems/analytics-brain/collector.py",
+    "tests/test_glp44_collector_release.py"
+  ],
+  "preserved_destination_modes": {"ops/glp/reporting-v2/source-manifest.json": 384},
+  "dependency_order": [
+    "Independent exact-head Astra source review of this finite union and enrollment repair",
+    "Separate authorized coherent scoped receiving of all17 accepted current-merge leaves under normal custody; no partial analytics-only or F12-only installation",
+    "Separate authorized paired J7 and retained-consumer enrollment using existing authenticated proposal and supported editor; no execution",
+    "Only afterwards separately authorize any required registered analytics, measured census or fresh producer run; preserve no-replay and retained-consumer holds"
+  ],
+  "excluded": ["ops/rebuild-source-manifest.json", "arbitrary current-main leaves", "identity or financial behavior changes", "live install or job calls", "GLP44 reopening or new closure"]
+}

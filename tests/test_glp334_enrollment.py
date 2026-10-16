@@ -25,6 +25,20 @@ from glp_ship_registry import (registered_job, enrollment_hashes, GLP334_JOBS,
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def effects_denied(monkeypatch):
+    if not os.environ.get('GLP334_EFFECT_DENIAL'):
+        return
+    import socket
+    monkeypatch.setattr(socket, 'socket', lambda *a, **k: pytest.fail('network effect denied'))
+    popen = subprocess.Popen
+    def read_only_git(argv, *args, **kwargs):
+        assert isinstance(argv, (list, tuple)) and argv[:2] == ['git', '-C']
+        assert argv[3] in {'show', 'diff', 'ls-tree', 'merge-base', 'rev-parse', 'ls-files'}
+        return popen(argv, *args, **kwargs)
+    monkeypatch.setattr(subprocess, 'Popen', read_only_git)
+
+
 def blob(commit, path):
     return subprocess.check_output(['git', '-C', str(ROOT), 'show', commit + ':' + path])
 
@@ -60,8 +74,37 @@ def test_real_registered_target_selects_paired_j7_and_retained_consumer(job_id):
     assert spec.tier == 'A'
     assert spec.jobs == ('aadf6677c7f0', '2ca359464bfa')
     assert spec.wrappers == ('glp_affiliate_weekly_reporting_j7.sh', 'glp334_live_reconciliation.sh')
-    assert spec.paths == GLP334_PATHS and len(spec.paths) == 14
+    assert spec.paths == GLP334_PATHS and len(spec.paths) == 17
     assert spec.window
+
+
+def test_finite_union_of_both_authenticated_owned_path_lists():
+    analytics = json.loads(blob(GLP334_SOURCE, 'ops/glp/reporting-v2/glp334-install-cohort.json'))['selected_paths']
+    # The PR550 owned source diff excludes only its packaging manifest.
+    owned = subprocess.check_output(['git', '-C', str(ROOT), 'diff', '--name-only',
+        'b34c5de8fddcbd0bb8b9ecf1ebc04959064b4f4f',
+        '064a9c433c6f473d746aa62aac2a01fbfbcaa388'], text=True).splitlines()
+    owned.remove('ops/rebuild-source-manifest.json')
+    assert len(owned) == 11
+    assert len(set(analytics) & set(owned)) == 8
+    assert set(GLP334_PATHS) == set(analytics) | set(owned)
+    assert len(GLP334_PATHS) == 17
+
+
+@pytest.mark.parametrize('fault', ['extra', 'missing', 'wrong_source', 'normalize_mode', 'financial_guard'])
+def test_union_refuses_unrelated_missing_or_unaccepted_declaration(monkeypatch, fault):
+    from glp_ship_registry import receiving_cohort, GLP334_UNION
+    path = ROOT / GLP334_UNION
+    declaration = json.loads(path.read_bytes())
+    if fault == 'extra': declaration['selected_paths'].append('scripts/unrelated.py')
+    elif fault == 'missing': declaration['selected_paths'].pop()
+    elif fault == 'wrong_source': declaration['sources']['PR550']['accepted_head'] = GLP334_PREDECESSOR
+    elif fault == 'normalize_mode': declaration['preserved_destination_modes'] = {}
+    else: declaration['maintained_successor']['sha256'] = '0' * 64
+    original = Path.read_bytes
+    monkeypatch.setattr(Path, 'read_bytes', lambda self: json.dumps(declaration).encode() if self == path else original(self))
+    with pytest.raises(RuntimeError, match='glp334_finite_receiving_union_moved'):
+        receiving_cohort(ROOT)
 
 
 def test_genuine_old_external_native_identities_and_reviewed_successors(tmp_path):
@@ -73,7 +116,7 @@ def test_genuine_old_external_native_identities_and_reviewed_successors(tmp_path
         assert before[0] == blob(GLP334_PREDECESSOR, snap)
         assert plan['job_before']['script_sha256'] == old
         assert hashes[snap] == pair.digest(blob(GLP334_SOURCE, snap)) != old
-    assert hashes['ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh'] == 'debdfe9fc7bb3591b76d3e3891869cedf6f24c65cbc37132aa11178c71818087'
+    assert hashes['ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh'] == '9caf9e6ddec18de5dcec393377dda87bc5b27e4fed30abea736f804c8c53f602'
     assert hashes['ops/hermes-cron-scripts/glp334_live_reconciliation.sh'] == 'a9c71fbd7afa4971eca21436facad2a09eb20ff91de96a15ce4866a1b23194f8'
 
 
@@ -146,6 +189,21 @@ def test_enrollment_route_never_calls_registered_runtime(tmp_path, monkeypatch):
     assert result['runs'] == [] and result['policy'] == 'ENROLLMENT_ONLY_NO_EXECUTION'
 
 
+def test_genuine_union_projection_closes_installed_dependencies_without_receiving():
+    origin = os.environ.get('GLP334_RETAINED_FIXTURE_ROOT')
+    if not origin:
+        pytest.skip('explicit local retained fixture root required')
+    from glp_ship_registry import receiving_cohort
+    import glp334_pin_closure as closure
+    cohort = receiving_cohort(ROOT)
+    for rel in cohort['selected_paths']:
+        assert (ROOT / rel).read_bytes() == blob(GLP334_SOURCE, rel)
+    result = closure.project(ROOT, Path(origin), cohort)
+    assert result['status'] == 'READY_SOURCE_ONLY' and result['drifts'] == []
+    assert len(result['selected_paths']) == 17
+    assert result['effects'] == 'NONE_READ_ONLY_PROJECTION_NOT_INSTALLATION'
+
+
 def retained_fixture(tmp_path):
     origin = os.environ.get('GLP334_RETAINED_FIXTURE_ROOT')
     if not origin:
@@ -153,7 +211,8 @@ def retained_fixture(tmp_path):
     origin = Path(origin)
     live = tmp_path / 'live'
     live.mkdir()
-    co = json.loads(blob(GLP334_SOURCE, 'ops/glp/reporting-v2/glp334-install-cohort.json'))
+    from glp_ship_registry import receiving_cohort
+    co = receiving_cohort(ROOT)
     paths = set(GLP334_PATHS)
     for name in ('', '-j5', '-j6', '-j7'):
         rel = 'ops/glp/reporting-v2/source-manifest' + name + '.json'
@@ -168,8 +227,9 @@ def retained_fixture(tmp_path):
         target = live / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(blob(GLP334_SOURCE, rel) if rel in GLP334_PATHS else (origin / rel).read_bytes())
-        target.chmod(int(subprocess.check_output(['git', '-C', str(ROOT), 'ls-tree', GLP334_SOURCE, '--', rel]).split()[0], 8) & 0o777
-                     if rel in GLP334_PATHS else (origin / rel).stat().st_mode & 0o777)
+        target.chmod(co['preserved_destination_modes'].get(rel,
+            int(subprocess.check_output(['git', '-C', str(ROOT), 'ls-tree', GLP334_SOURCE, '--', rel]).split()[0], 8) & 0o777)
+            if rel in GLP334_PATHS else (origin / rel).stat().st_mode & 0o777)
     # Disposable post-receiving state, never the installed source baseline.
     hashes = {rel: pair.digest((live / rel).read_bytes()) for rel in GLP334_PATHS}
     (live / pair.syncer.STATE).write_text(json.dumps({'hashes': hashes}))
