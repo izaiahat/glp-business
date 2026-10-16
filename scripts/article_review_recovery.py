@@ -632,9 +632,8 @@ def validate_review_only_binding(job, route, *, root=ROOT, session_db=None, for_
     if successor:
         validate_review_only_successor(checked(binding['entry']), original, packet, successor,
                                       root=Path(root), clock=datetime.now(timezone.utc).isoformat())
-        changed = sorted(set(CORE[:6]) - set(successor['original_aliases']))
         successor_authors = packet_authors(session_db or SESSION_DB,
-            [checked(successor['sources'][n]) for n in changed], proposed, clock)
+            [checked(successor['sources'][n]) for n in CORE[:6]], proposed, clock)
         require(successor_authors == successor['source_authors'], 'review_only_native_successor_author_drift')
         for sid in {row['session_id'] for row in successor_authors}:
             author_session(session_db or SESSION_DB, sid, proposed, clock)
@@ -707,8 +706,11 @@ def prepare_review_only(entry_path, original_job, output, transport_id, *, root=
         successor = review_only_successor_inputs(origin, *supplied, root=root)
         changed = sorted(set(CORE[:6]) - set(successor['original_aliases']))
         require(changed, 'review_only_successor_source_repair_required')
-        successor['source_authors'] = packet_authors(session_db or SESSION_DB,
+        packet_authors(session_db or SESSION_DB,
             [checked(successor['sources'][n]) for n in changed], proposed, clock)
+        # A byte-identical alias does not erase genuine edits at its successor path.
+        successor['source_authors'] = packet_authors(session_db or SESSION_DB,
+            [checked(successor['sources'][n]) for n in CORE[:6]], proposed, clock)
         for sid in {row['session_id'] for row in successor['source_authors']}:
             author_session(session_db or SESSION_DB, sid, proposed, clock)
     _, strategy = load_strategy(root/'reports/glp-clinic-scout/weekly-strategy/current-strategy.json')

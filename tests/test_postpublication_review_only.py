@@ -273,7 +273,7 @@ def test_preparation_binds_corrected_successor_not_deployed_subject(tmp_path, mo
     ('partial', 'successor_inputs'), ('original_author', 'same model'),
     ('successor_model', 'same model'), ('successor_session', 'same model or session'),
     ('incomplete_author', 'not completed'), ('unauthenticated_author', 'writer edits missing'),
-    ('identity', 'identity_subject_changed')])
+    ('identity', 'identity_subject_changed'), ('alias_writer', 'same model')])
 def test_successor_fail_closed_before_preparation(tmp_path, monkeypatch, fault, reason):
     import sqlite3
     import review_transports
@@ -288,6 +288,10 @@ def test_successor_fail_closed_before_preparation(tmp_path, monkeypatch, fault, 
             c.execute('update sessions set model=? where id=?', (route['model'], 'writer'))
         if fault == 'successor_model':
             c.execute('update sessions set model=? where id=?', (route['model'], 'successor-writer'))
+        if fault == 'alias_writer':
+            c.execute('insert into sessions values(?,?,?,?)', ('alias-editor', route['model'], 4, 6))
+            c.execute('insert into messages values(3,?,?,?,?,?)', ('alias-editor','tool','patch',
+                json.dumps({'verified': True, 'files_modified': [str(options['successor_packet']/'03-editorial-brief.md')]}),5))
         if fault == 'successor_session':
             c.execute('update sessions set id=? where id=?', ('NOT_YET_INVOKED', 'successor-writer'))
             c.execute('update messages set session_id=? where session_id=?', ('NOT_YET_INVOKED', 'successor-writer'))
