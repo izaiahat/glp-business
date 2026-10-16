@@ -306,8 +306,14 @@ def evidence(host, url, markup, sha, at, page_hits, business_locals, same_org, s
     for hit in hits:
         address = hit['address']
         local, _, domain = address.partition('@')
-        if address.count('@') != 1 or not business_locals.fullmatch(local) or not same_org(domain, host):
+        if address.count('@') != 1 or not same_org(domain, host):
             continue
+        if not business_locals.fullmatch(local):
+            # Named contacts require parser-owned same-address structural proof,
+            # plus literal first-party provenance; no title/enrichment fallback.
+            from glp_sponsor_campaign import named_role_source_on_provider
+            if not hit.get('structural_business_role') or not named_role_source_on_provider(url, host):
+                continue
         if not PARTNER_CTX.search(hit['excerpt']) or BAD_CTX.search(hit['excerpt']):
             continue
         contacts.append({'address': address, 'how': hit['how'], 'tier': 'partnerships', 'found_on': url, 'page_sha256': sha, 'captured_at_utc': at})

@@ -1,0 +1,3251 @@
+{
+  "schema": "glp93.reconciliation-dispositions.v1",
+  "issue": "GLP-93",
+  "status": "INVENTORY_INCOMPLETE",
+  "acceptance_met": false,
+  "captured_at_utc": "2026-10-16T02:02:56.687837+00:00",
+  "original_cohort": {
+    "expected_count": 48,
+    "identified_members": null,
+    "dispositions": null,
+    "reason": "UNKNOWN_ORIGINAL_COHORT",
+    "owner": "operator",
+    "detail": "Original48 member IDs are absent from supplied advisory and examined Oct9-15 backruns; user asked asynchronously for frozen inventory. Current69 is separate and is not a replacement denominator."
+  },
+  "current_inventory": {
+    "count": 69,
+    "selection": "Current Sheet GLP-tagged two approved statuses with Wired Live false, not original48",
+    "source_sheet": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+    "source_sha256": "ee36148d1a78bd7a5cb3073a89a2ca798ed91c5d97263253df598e4d3d42a274",
+    "counts_per_code": {
+      "EXCLUDED_FELLA": 1,
+      "EXCLUDED_NETWORK_ACCOUNT": 1,
+      "HELD_PROVIDER": 1,
+      "IDENTITY_UNRESOLVED": 1,
+      "RAIL_CHOICE_REQUIRED": 1,
+      "SOURCE_ACCESS_UNAVAILABLE": 56,
+      "UNKNOWN_DESTINATION_SCOPE": 1,
+      "UNKNOWN_LINK_STATUS": 4,
+      "UNKNOWN_PRODUCT_SCOPE": 2,
+      "UNKNOWN_US_SCOPE": 1
+    }
+  },
+  "eligible_counts": {
+    "registered_baseline_gate": 0,
+    "successor_gate": 3,
+    "full_adoption_eligible": null,
+    "original48_eligible": null,
+    "note": "Gate-ready is not adoption eligible. Existing production scanner with both roots also returns3; successor fixes dry-run input parity."
+  },
+  "runtime": {
+    "registered_job": "f0c6a95a371c",
+    "registration_unchanged": true,
+    "paused": true,
+    "baseline_rc": 2,
+    "successor_rc": 2,
+    "baseline_status": "BLOCKED_STUCK_ROWS",
+    "successor_status": "BLOCKED_STUCK_ROWS",
+    "native_planner_before": "B2Error:exact_paid_event_policy_evidence_missing:trackdesk",
+    "native_planner_after": "OSError:[Errno 30] Read-only file system: reports/ops/n8n-mcp-rate-limit-state.json temporary file",
+    "routing_only_after": {
+      "ROUTED": 58,
+      "FEED_BLOCKED": 3,
+      "FAIL_CLOSED": 1
+    },
+    "routing_only_is_adoption_proof": false
+  },
+  "defects_fixed": [
+    {
+      "defect": "Registered dry-run dropped explicitly supplied approval-chain capture root",
+      "red": "test_registered_dry_run_consumes_explicit_fixture_approval_chain ValueError missing --additional-captures",
+      "green": "PASS; authentic successor dry-run eligible3, exit2 preserves unrelated refusals"
+    },
+    {
+      "defect": "Missing Trackdesk policy evidence aborted independent rails",
+      "red": "test_missing_other_rail_evidence_does_not_abort_current_rail B2Error evidence_missing:trackdesk",
+      "green": "PASS; real snapshot yields62 individual routing outcomes; selected missing evidence still BLOCK"
+    }
+  ],
+  "policy_findings": {
+    "blanket_approval_expiry": "No blanket age-based approval expiry established in inspected scanner/payout rules; no stale-date rule removed. Contradiction recheck48h is not approval expiry.",
+    "rail_rule": "Existing affiliate_payout_policy.py and best-terms-selection.json retained; no rail selected by this change.",
+    "route_contract": "ROUTE_STATUS_CONTRACT_UNRESOLVED: deployed provider /go/ uses307. /go/_manifest is200 but cannot count as a program route.",
+    "no_forwarding": "Inspected current release source+bundle: HEAD returns before token/rate/attribution writes; no affiliate-target fetch in handleGoRequest. No live requests made."
+  },
+  "effects": {
+    "queue_rows_enqueued": 0,
+    "sheet_rows_written": 0,
+    "registry_rows_adopted": 0,
+    "routes_generated": 0,
+    "deployments": 0,
+    "applications": 0,
+    "sends": 0,
+    "tracking_requests": 0
+  },
+  "verification": [
+    {
+      "advisory_command": 1,
+      "entrypoint": "bash /home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_current_base.sh --dry-run --fixture-root /tmp/glp93-private/registered-input --output-dir /tmp/glp93-private/registered-baseline",
+      "result": "Executed baseline: assessed1027 eligible0 rc2; source wrapper ignores additional-captures. Original48 coverage INCOMPLETE."
+    },
+    {
+      "advisory_command": 2,
+      "entrypoint": "bash ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh --dry-run --fixture-root /tmp/glp93-private/registered-input --output-dir /tmp/glp93-private/registered-successor",
+      "result": "Executed successor: assessed1027 eligible3 rc2. Full adoption eligibility UNKNOWN; 3 candidates retain listed blockers."
+    },
+    {
+      "advisory_command": 3,
+      "entrypoint": "scripts/glp_sheet_sync_drain.py --queue-file <accepted-intents> --apply false --output <receipt>",
+      "result": "NOT_RUN: no accepted full-eligibility intents; native planner shared-state EROFS. Sole-writer kind wire_in_ready retained; no direct Sheet writes."
+    },
+    {
+      "advisory_command": 4,
+      "entrypoint": "Current release src/worker.mjs handleGoRequest; bundled public/_worker.js",
+      "result": "Source inspection establishes307 contract and no forwarding; no tracking requests."
+    },
+    {
+      "advisory_command": 5,
+      "entrypoint": "Safe first-party HEAD without redirect following (handleGoRequest non-navigational branch)",
+      "result": "NOT_RUN: expected200 conflicts with deployed307; no original48 eligible/live join. ROUTE_STATUS_CONTRACT_UNRESOLVED."
+    },
+    {
+      "advisory_command": 6,
+      "entrypoint": "scripts/glp_affiliate_wire_backlog_worker.py verify_first_party_go_route_runtime(candidate_root, accepted_request); scripts/glp_sheet_vs_site_reconciler.py --offline",
+      "result": "NOT_RUN: no accepted committed adoption/release join for frozen48; current registry membership not counted as live."
+    },
+    {
+      "advisory_command": 7,
+      "entrypoint": "python3 -m pytest -q tests/test_reconciliation_b2_worker_pin.py tests/test_glp93_current_base_binding.py tests/test_glp93_capture_roots.py",
+      "result": "28 passed. Two observed RED\u2192GREEN regressions plus current/historical co-pin, tamper and zero-effect fixture coverage; not live business acceptance."
+    }
+  ],
+  "rows": [
+    {
+      "sheet_row": 117,
+      "name": "Willow",
+      "network": "Katalys",
+      "program_key": "Katalys:1325",
+      "immutable_identity_status": "RECORDED_EXACT_ID_NOT_FRESHLY_REVALIDATED",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": false,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Tracking Link / Deep Link cell is empty; approval status is not evidence a deployable link exists upstream. Upstream issued-link availability not established.",
+      "routing_outcome": "NOT_IN_STAGED_ROUTING",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/116",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "UNKNOWN_LINK_STATUS",
+      "blocker_owner": "network",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": null
+    },
+    {
+      "sheet_row": 194,
+      "name": "ShedRX",
+      "network": "Awin",
+      "program_key": "Awin:80963",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": true,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/193",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/194"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/main-20261016T004733Z/prepared/release/data/approved-program-registry.json",
+          "program_key": "Awin:80963"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "07c8fa949f3ca2bce118b4225bb6ceddf36b419d217fc7d0ef8f927feb52eed2"
+    },
+    {
+      "sheet_row": 240,
+      "name": "Measured",
+      "network": "Awin",
+      "program_key": "Awin:126727",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/239",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/240"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "f23198d07b0c0196dbb9b0bfbed1e43ed028ea02eab5fef40f98d490366809f2"
+    },
+    {
+      "sheet_row": 407,
+      "name": "XenTraffic",
+      "network": "Network signup",
+      "program_key": null,
+      "immutable_identity_status": "UNKNOWN_OR_IN_NOTE_EVIDENCE",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": false,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Canonical network-signup account row, not a provider program (affiliate_provider_row_scope).",
+      "routing_outcome": "NOT_IN_STAGED_ROUTING",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/406",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "recorded_identity": {
+        "kind": "network_account",
+        "network": "xentraffic",
+        "provider_program": "UNKNOWN"
+      },
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "EXCLUDED_NETWORK_ACCOUNT",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": null
+    },
+    {
+      "sheet_row": 650,
+      "name": "Curex (US)",
+      "network": "Awin",
+      "program_key": "Awin:121970",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/649",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/650"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "05f7ca8eb3c14ed36a11a4da9733dce3f958c57fa41e7e50386f193210ecf6f0"
+    },
+    {
+      "sheet_row": 660,
+      "name": "SnagRX",
+      "network": "Katalys",
+      "program_key": "Katalys:1645",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/659",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/660"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "1566fde7dfaa617d4c8a31f746fadbc7175240e7194c36946a50a0a27a2ce10f"
+    },
+    {
+      "sheet_row": 661,
+      "name": "HumeCare+ data-driven GLP-1 weight loss system",
+      "network": "Katalys",
+      "program_key": "Katalys:1588",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/660",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/661"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "419c0945dd315864738214ca7e1338c7a208283cf0d3c0fa898c0e46172df6dc"
+    },
+    {
+      "sheet_row": 663,
+      "name": "Enhance.MD GLP-1/NAD+",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3137",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/662",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/663"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "7bd052fbd615c8f80d788b600c1df13e09fcfb30d0ccae3d242eef50541e8b7e"
+    },
+    {
+      "sheet_row": 664,
+      "name": "altRx - GLP1 - US - CPS",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3162",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/663",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/664"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "7d4855dad7886fb1ec711f9a169956e5d320bdcd3382eaf0e9fb3f8b82324742"
+    },
+    {
+      "sheet_row": 666,
+      "name": "Novi Weight Loss GLP-1",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3140",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/665",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/666"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "6d2d931a43429a9daf498a3d877a1cb763b9c1e8b4244b60916b451c4cef716a"
+    },
+    {
+      "sheet_row": 667,
+      "name": "Curex GLP-1",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3159",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/666",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/667"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "9c60883f89e35d35cc20318cbfacfe4128aeaa3f0c044c7fa844cad069b34a23"
+    },
+    {
+      "sheet_row": 669,
+      "name": "Futurhealth Wegovy Pillform",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3176",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/668",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/669"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "0488f9550b6d4cb4577aa60e8df6ec7ec241439ca78e80904b80589da303397e"
+    },
+    {
+      "sheet_row": 673,
+      "name": "altRx - GLP1 - Low CTC - US - CPS",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3163",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/672",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/673"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "f7b95b480b1a1c9530b8010f387cc982635708ca80d57f1e84e660865ddd3098"
+    },
+    {
+      "sheet_row": 675,
+      "name": "RO | Wegovy GLP1 Quiz - US - CPL",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3164",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/674",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/675"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "a56ddeca6f458d985011687ac645829000e8338fa377a5cdc7cfb13fb9dfa191"
+    },
+    {
+      "sheet_row": 677,
+      "name": "Tonum (US)",
+      "network": "Awin",
+      "program_key": "Awin:122076",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/676",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/677"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "6096245bbc9024922000829833098c8ecf7078291426812ae4f412e66fffedff"
+    },
+    {
+      "sheet_row": 683,
+      "name": "DEFI Snacks (US)",
+      "network": "Awin",
+      "program_key": "Awin:109874",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/682",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/683"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "601b810ee529bb29f4f8952568217bf2f4abf4115e5d9b5b04b55f1ce723fbb5"
+    },
+    {
+      "sheet_row": 689,
+      "name": "Lttl GLP Landing Page 2",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3252",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/688",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/689"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "37fc9f1b5b2d1c731a49ee5841b8f605f61070758e655b75eed80ca4a077d7f2"
+    },
+    {
+      "sheet_row": 690,
+      "name": "Enhanced Tirzepatide Funnel B",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3253",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/689",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/690"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "77c10f4589244ea36ed891c01966a29cf8d46f773edfd22c97c9e8e6cf31634d"
+    },
+    {
+      "sheet_row": 691,
+      "name": "Sunlight GLP1",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3254",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/690",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/691"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "0761c9c45c08579bda23166290238a4309af58cdab0fbdd7431a9c19ef2048bf"
+    },
+    {
+      "sheet_row": 692,
+      "name": "JoinSkinny Semaglutide GLP-1 (US)",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3255",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/691",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/692"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "45a1d898e93491fce5232feee88b8c59eb8ce7434991766ef5a5c22dcc05b56c"
+    },
+    {
+      "sheet_row": 693,
+      "name": "Joi + Blokes - Compounded GLP-1s",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3153",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/692",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/693"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "e21a458273864e7ceee4ae517d881d6fc40b74adb0aa6337e255483f68d4a45f"
+    },
+    {
+      "sheet_row": 694,
+      "name": "FuturHealth - Wegovy",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3049",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/693",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/694"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "36ecb3f638f9211c697f190229155cc640209fb8368423d890f48c534242317b"
+    },
+    {
+      "sheet_row": 703,
+      "name": "Clinic Secret - GLP-1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:30587",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/702",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/703"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "480f9ab72ef2dfc0729639909d2df84605bf52c40e45cf5501e0be9f2944348f"
+    },
+    {
+      "sheet_row": 704,
+      "name": "ColonBroom - GLP 1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:29970",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/703",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/704"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "16443cb767f77dae2b9df33746c5c9ef43894912154517ed01d7618cc09dd984"
+    },
+    {
+      "sheet_row": 705,
+      "name": "DocSearch - GLP-1 Semaglutide & Tirzepatide - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:32619",
+      "immutable_identity_status": "RECORDED_EXACT_ID_NOT_FRESHLY_REVALIDATED",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": false,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Fresh authenticated MaxBounty GET campaign/32619 returned HTTP404. Existing issued-link lookup is unavailable; this does not prove rejection, closure, or zero links.",
+      "routing_outcome": "NOT_IN_STAGED_ROUTING",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/704",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/maxbounty/run-wiring-final-r12-20260822/bookmarked-enumeration.json",
+          "sha256": "a8adc3454690d0769469ed9b3b59d912d70c5af9df0d6f603ebfae78dae53adf"
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/scoped-readbacks/32619.json"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "network",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": null
+    },
+    {
+      "sheet_row": 708,
+      "name": "FeelGood - GLP-1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:32854",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/707",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/708"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "62e0cbc65704e3833009c5fe598de8c0252f3a3a769daa883eb5564b079e8b3e"
+    },
+    {
+      "sheet_row": 709,
+      "name": "Found - GLP+1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:31472",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/708",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/709"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "4ae235cee17160cd7d418132255e3e7bd702ca96dd209ca2590de6f974e87122"
+    },
+    {
+      "sheet_row": 710,
+      "name": "Gala - GLP-1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:32072",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/709",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/710"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "8bd500919770549d421f8fc0e163bb14200a3b5892eda962cdbfd5c8cccf4c53"
+    },
+    {
+      "sheet_row": 711,
+      "name": "Hello100 - GLP-1 Booster Capsules - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:31411",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/710",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/711"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "1d0a95422d2b494a3922b77416d83e411fde81b659bed592cf287f3a79a80e5c"
+    },
+    {
+      "sheet_row": 712,
+      "name": "InstaRx - Lose Weight with GLP-1 Meds - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:32662",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/711",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/712"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "f72736173d15a25caac44b0ada1e5610b4ae70c06eb530ef93a75765f2d07e5c"
+    },
+    {
+      "sheet_row": 713,
+      "name": "Ivim Health - GLP+1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:31359",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/712",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/713"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "cc204b9eaced77f02712c02f3d8e1f8efc37c7a227296ba0634d09099788bd04"
+    },
+    {
+      "sheet_row": 716,
+      "name": "Marek Health - Guided Optimization & Telehealth - CPA (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:31083",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/715",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/716"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "1fac56dff9bc8bce294f98a21d9a2ca2b6b3aa3129c4237d59f399504c8188c4"
+    },
+    {
+      "sheet_row": 717,
+      "name": "Neolise - Tesamorelin GLP-1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:32967",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/716",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/717"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "d1490b490f4fc74eaa631438eee0a4af787b6e23185227992a3228a6cb981474"
+    },
+    {
+      "sheet_row": 718,
+      "name": "NewSelf - Medical Weight Loss - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:32359",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/717",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/718"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "8ad8ae6911c2a2eac75d928dc1f71ad3633ec702a515ef01f139648db319a9aa"
+    },
+    {
+      "sheet_row": 723,
+      "name": "RightWell - GLP-1 Weight Loss - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:32122",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/722",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/723"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "e278591f33e78693c5c9f6681215a183bd3fd0c10eaa58c5d384b09cc2a788a0"
+    },
+    {
+      "sheet_row": 725,
+      "name": "Sesame Care - Telehealth for Weight Loss - Ozempic, Wegovy + Other GLP1s - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:27300",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/724",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/725"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "256c2045f7479e3b24d97c80d6e69ff1861cd13bcab47434b2594c1b3c3dafdc"
+    },
+    {
+      "sheet_row": 726,
+      "name": "ShedRX - GLP-1 Microdosing - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:31720",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/725",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/726"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "43cf56bf4c02229310c656f691d2fd3ec3e8ff9acff189b82c676fb75306b52f"
+    },
+    {
+      "sheet_row": 730,
+      "name": "Wellorithm - GLP-1 Medications - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:31958",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/729",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/730"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "70e52ee1830ecbf530814bc34245518733b9e29958647031093f133c81bdbc38"
+    },
+    {
+      "sheet_row": 731,
+      "name": "Willow - Weightloss GLP-1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:29207",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/730",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/731"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "9c7ef5b6bc5f30cca5785ca39026c0f88b867e4a3e25eab2fb2c05b9175e164f"
+    },
+    {
+      "sheet_row": 733,
+      "name": "AbundRX - US - index",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3290",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/732",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/733"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "9dcabedbab2ef6f48cdfcabb0c199068589c2b3ba9cf836b4fce090b3d76e5da"
+    },
+    {
+      "sheet_row": 734,
+      "name": "LevelsRx Extra CPA - Home Page",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3245",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/733",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/734"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "98949e0cc6663ac54a6ad20f5587f37ada2d12aaaa3187a2380e7679055cd197"
+    },
+    {
+      "sheet_row": 735,
+      "name": "OMZO - Quiz V2 - Scott Disick",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3185",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/734",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/735"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "363705c744066ff82383c13f3480cb9c95cc312eac51c9ced4d1c67c6793f802"
+    },
+    {
+      "sheet_row": 736,
+      "name": "Gatlan",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3179",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/735",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/736"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "e90ae2d14d5b2d8724d16b6c00ba679f0b4ab6d600f9c4b3df0bb343d5cfe2f7"
+    },
+    {
+      "sheet_row": 737,
+      "name": "Refills",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3109",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/736",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/737"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "1dfb5156d149de3229a7f033bcb557bd999e0559aa64a4a7af98a9669b802d51"
+    },
+    {
+      "sheet_row": 738,
+      "name": "G-Plan",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3048",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/737",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/738"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "f79152bf377f07457851ccc68dfd68cde9176f81a90f1e56cda8862c0e9a8d66"
+    },
+    {
+      "sheet_row": 740,
+      "name": "Sesame Care",
+      "network": "Impact.com",
+      "program_key": "Impact.com:13292",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/739",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/740"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "74a5a8c4a348afca95c1b34684f6cd544b1fb9998e0d47bc1fde9271b80e79d0"
+    },
+    {
+      "sheet_row": 747,
+      "name": "Eden | XenTraffic offer 3051",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3051",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/746",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/747"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "3f409eb789e18029f0bde2d12b10d1264596c42288ab0303551c335f0267f065"
+    },
+    {
+      "sheet_row": 750,
+      "name": "Maximus | XenTraffic offer 3256",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3256",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/749",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/750"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "4772d1d20510e4f75c8e7129c5f664820e11e45232d6ca72a9e1b0ededbe1e0a"
+    },
+    {
+      "sheet_row": 753,
+      "name": "TMates | XenTraffic offer 3154",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3154",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/752",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/753"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "295d37ffc0f6c11c6957664482f013e4d7fb94b1e5d0f50b5b4f47bcd103a8a4"
+    },
+    {
+      "sheet_row": 754,
+      "name": "TrimRX | XenTraffic offer 3014",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3014",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/753",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/754"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "46f35c368a84c1c5b642a442bf8c8d306f91097d24dc6b7eef00d7fa94c59f1c"
+    },
+    {
+      "sheet_row": 755,
+      "name": "Yucca Health | XenTraffic offer 3117",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3117",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/754",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/755"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "be204902f36261f1913fc5befd351d1948ae851b3e8ecb233e818bcffa4a261b"
+    },
+    {
+      "sheet_row": 756,
+      "name": "Breeze Meds | XenTraffic offer 3151",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3151",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/755",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/756"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "b014b67d68a596ae4c17db898397070234d397f33c9213ea159ec616bc4a8a8a"
+    },
+    {
+      "sheet_row": 757,
+      "name": "Care Bare Rx | XenTraffic offer 3152",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3152",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/756",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/757"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "7c0429b05aae5d519af70709274ba42900f38bbaf73f20f448cbcafcb4db98d0"
+    },
+    {
+      "sheet_row": 760,
+      "name": "Gala Health",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3178",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/759",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/760"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "4dc100835d8cb695f79f7799ed51f518c25502ea4fc3fdcdc0f024578ed92b78"
+    },
+    {
+      "sheet_row": 761,
+      "name": "JRNYS | Affiliati",
+      "network": "Affiliati",
+      "program_key": null,
+      "immutable_identity_status": "UNKNOWN_OR_IN_NOTE_EVIDENCE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "affiliati_prerequisite_evidence_invalid:per_offer_tracking_link_obtained",
+      "routing_outcome": "FEED_BLOCKED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/760",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/761"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "recorded_identity": {
+        "sheet_link_identity": "177612",
+        "immutable_offer_binding": "PREREQUISITE_EVIDENCE_INVALID; do not treat tracking creative identifier as offer id"
+      },
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "UNKNOWN_LINK_STATUS",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "4d65ae7716adf027db89f08091213d0b56c837abe1b268871aac9e85d6974e34"
+    },
+    {
+      "sheet_row": 779,
+      "name": "Fella Health \u2014 XenTraffic 3050",
+      "network": "XenTraffic",
+      "program_key": "XenTraffic:3050",
+      "immutable_identity_status": "RECORDED_EXACT_ID_NOT_FRESHLY_REVALIDATED",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Permanent provider exclusion applies to XenTraffic3050.",
+      "routing_outcome": "NOT_IN_STAGED_ROUTING",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/778",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_worker.py",
+          "sha256": "16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "EXCLUDED_FELLA",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "e85cc00d0da86b4a993a03bfe5ae168a2c20b8aed38a18ac439b1b7218771438"
+    },
+    {
+      "sheet_row": 781,
+      "name": "Eden | Everflow-Eden offer 10 | GLP-1 new pricing",
+      "network": "Everflow-Eden",
+      "program_key": null,
+      "immutable_identity_status": "UNKNOWN_OR_IN_NOTE_EVIDENCE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Current route resolver lacks exact Everflow-Eden identity; Sheet also records lower-paying sibling hold.",
+      "routing_outcome": "FAIL_CLOSED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/780",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/781"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "recorded_identity": {
+        "offer_id": "10",
+        "link_id": "GTSC3",
+        "tenant": "eden",
+        "binding": "UNRESOLVED_BY_CURRENT_ROUTER"
+      },
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "IDENTITY_UNRESOLVED",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "4bbee39347406b0648046719b0806c3097981b82849c046b899dba2d1b73ed61"
+    },
+    {
+      "sheet_row": 783,
+      "name": "MEDVI | Affiliati",
+      "network": "Affiliati",
+      "program_key": null,
+      "immutable_identity_status": "UNKNOWN_OR_IN_NOTE_EVIDENCE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "affiliati_prerequisite_evidence_invalid:per_offer_tracking_link_obtained",
+      "routing_outcome": "FEED_BLOCKED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/782",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/783"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "recorded_identity": {
+        "sheet_link_identity": "178786",
+        "immutable_offer_binding": "PREREQUISITE_EVIDENCE_INVALID; do not treat tracking creative identifier as offer id"
+      },
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "UNKNOWN_LINK_STATUS",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "216f16c4f1491840a763a0647464968c14209d036bc13fc9f704ef634ad1553c"
+    },
+    {
+      "sheet_row": 784,
+      "name": "Direct Meds | Affiliati",
+      "network": "Affiliati",
+      "program_key": "Affiliati:100131",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/783",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/784"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "1139718b6e33a73c0d51d95e77413b24b5fe2201e59f024bd7afc4fc4247a7cc"
+    },
+    {
+      "sheet_row": 785,
+      "name": "Direct Meds - GLP-1 Weight Loss CPA $500",
+      "network": "Affiliati",
+      "program_key": "Affiliati:100131",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/784",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/785"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "1139718b6e33a73c0d51d95e77413b24b5fe2201e59f024bd7afc4fc4247a7cc"
+    },
+    {
+      "sheet_row": 788,
+      "name": "Weight Watchers - 3 Months Free - CPS (US) {Content}",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:24169",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/787",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/788"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "c0164f905b64b10f9c348e314e8a8d8bdc60bfd04c99beb3e12a1b5449a8ed79"
+    },
+    {
+      "sheet_row": 791,
+      "name": "OakLovesYou - GLP-1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:33024",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Historical KEEP_INCUMBENT_HIGHER_EFFECTIVE_VALUE keeps Katalys1581 over MaxBounty33024; current selected-rail readback still required.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/790",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/791"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "historical_selected_rail": "Katalys:1581",
+      "disposition": "RAIL_CHOICE_REQUIRED",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "d701d18f728ecd45d54f334f902d557234ebf3ef9cfb1ff2545959bd3c324549"
+    },
+    {
+      "sheet_row": 792,
+      "name": "RetaClinic - GLP-1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:33066",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Prescription editorial eligibility separate from campaign33066 destination hold: Rx-only destination or binding RUO exclusion required. Not RUO_ONLY.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/791",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/fable-plan-2-20261009/lanes/API1/RETACLINIC.json",
+          "sha256": "ba36e71b57df78eb0855e1fb605149c826890db0377aeae11d160e14546231ca"
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/792"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "HELD_PROVIDER",
+      "blocker_owner": "provider",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "3f80efa087e65ea587412ed543fcdc3ebed2225be6b04684d53f435322df1ba2"
+    },
+    {
+      "sheet_row": 801,
+      "name": "MyFastingChallenge - Intermittent Fasting Guide - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:24682",
+      "immutable_identity_status": "RECORDED_EXACT_ID_NOT_FRESHLY_REVALIDATED",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": false,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Fresh authenticated MaxBounty campaign24682 is Approved; product is a US intermittent-fasting guide converting on subscription. Prescription-care/adjacent-placement permission remains unresolved; Sheet has no link.",
+      "routing_outcome": "NOT_IN_STAGED_ROUTING",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/800",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/S33/API-24682.json",
+          "sha256": "d82779f8e52022794bf7b119df5a5e711e3a97a82b5538f4c1f4fd82710a42d6"
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/scoped-readbacks/24682.json"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "UNKNOWN_PRODUCT_SCOPE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": null
+    },
+    {
+      "sheet_row": 803,
+      "name": "GLP-1 Weight Loss - MEDGm Program",
+      "network": "Katalys",
+      "program_key": "Katalys:1656",
+      "immutable_identity_status": "RECORDED_EXACT_ID_NOT_FRESHLY_REVALIDATED",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": false,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Historical gate region_unverified; no existing link. Current Sheet fit claims US, so unresolved evidence conflict cannot become NON_US.",
+      "routing_outcome": "NOT_IN_STAGED_ROUTING",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/802",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/business/reports/glp-affiliate-auto-reconciler/20260910T145218Z-evt_52704e850d840bac1c0c5420315b.json",
+          "sha256": "19dcdc0dea8e0b1d00fead330c94fc6267eaea91e2f2cf3786dea5d53c5358b7"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "UNKNOWN_US_SCOPE",
+      "blocker_owner": "provider",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": null
+    },
+    {
+      "sheet_row": 804,
+      "name": "GoodLife Health Cardiometabolic Optimization Membership",
+      "network": "Katalys",
+      "program_key": "Katalys:1648",
+      "immutable_identity_status": "RECORDED_EXACT_ID_NOT_FRESHLY_REVALIDATED",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": false,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Tracking Link / Deep Link cell is empty; approval status is not evidence a deployable link exists upstream. Upstream issued-link availability not established.",
+      "routing_outcome": "NOT_IN_STAGED_ROUTING",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/803",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "UNKNOWN_LINK_STATUS",
+      "blocker_owner": "network",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": null
+    },
+    {
+      "sheet_row": 815,
+      "name": "Tyde Wellness - GLP-1 - CPS (US)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:32639",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": true,
+      "sheet_wired_live": false,
+      "reason": "Native planner cannot finish current queue/selected-rail readback: OSError EROFS writing reports/ops/n8n-mcp-rate-limit-state.json. Routing and Sheet flags alone do not establish full eligibility.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/814",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/815"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "SOURCE_ACCESS_UNAVAILABLE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "676571f9ca82dd5d780b10a7904b9983e69037bcf130a0c9c75dc4710fef0f06"
+    },
+    {
+      "sheet_row": 820,
+      "name": "Hume Health - Metabolic Health Tracker - CPS (US,CA,UK + more)",
+      "network": "MaxBounty",
+      "program_key": "MaxBounty:31362",
+      "immutable_identity_status": "RESOLVED_BY_RETAINED_ROUTE",
+      "sheet_status": "approved_active_tracking_ready",
+      "tracking_link_present": true,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "MaxBounty31362 is metabolic tracker; no proof this is a commissionable prescription-care service. Do not equate HumeCare1588.",
+      "routing_outcome": "ROUTED",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/819",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/routing-outcomes.json",
+          "pointer": "/outcomes/820"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "UNKNOWN_PRODUCT_SCOPE",
+      "blocker_owner": "operator",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": "539d31241200622e4fbb9452903e6f1ef7342db818ecee1d38811eb508c22be3"
+    },
+    {
+      "sheet_row": 822,
+      "name": "Roman Health Ventures Inc.",
+      "network": "Ro Everflow whitelabel (tenant 4131)",
+      "program_key": "Everflow tenant4131 affiliate14:1",
+      "immutable_identity_status": "RECORDED_EXACT_ID_NOT_FRESHLY_REVALIDATED",
+      "sheet_status": "approved_active_not_wired",
+      "tracking_link_present": false,
+      "sheet_wire_ready": false,
+      "sheet_wired_live": false,
+      "reason": "Sheet notes required Shared ID and placement approval unverified; no link supplied.",
+      "routing_outcome": "NOT_IN_STAGED_ROUTING",
+      "registry_exact_key_match": false,
+      "registry_snapshot_membership_is_live_proof": false,
+      "evidence": [
+        {
+          "path": "/home/ubuntu/.hermes/cache/scratch/glp93-private-20261015/sheet-values.json",
+          "pointer": "/821",
+          "columns": [
+            "C",
+            "E",
+            "K",
+            "O",
+            "T",
+            "U",
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/sheet-sync/inbox-mirror/2026-09-14/1a0a1dd20d25d110.json",
+          "sha256": "3bff8ae67e0cd4cc00a9c4af83dc41a259071371d581ca529c4d29ea38912c01"
+        }
+      ],
+      "eligibility": "NOT_ESTABLISHED",
+      "live_status": "NOT_VERIFIED",
+      "selected_economic_rail": "UNKNOWN_NOT_REVALIDATED",
+      "disposition": "UNKNOWN_DESTINATION_SCOPE",
+      "blocker_owner": "provider",
+      "additional_blockers": [
+        "SOURCE_ACCESS_UNAVAILABLE: native planner queue read cannot persist its shared rate-limit state in this sandbox"
+      ],
+      "tracking_link_sha256": null
+    }
+  ]
+}

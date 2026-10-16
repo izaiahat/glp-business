@@ -13,7 +13,7 @@ import glp44_scoped_adoption as pair
 import maintenance_inventory as inventory
 import maintenance_window as mw
 import sync_from_repo as syncer
-from glp_ship_registry import REPORTING_PATHS as SHIP_REPORTING_PATHS
+from glp_ship_registry import REPORTING_PATHS as SHIP_REPORTING_PATHS, GLP334_PATHS, GLP334_JOBS
 
 GENERATION = 'glp331-dependencies-20261001'
 SOURCE = '0b61c25a7177896369f4fa76b4e84192de6bee70'
@@ -75,7 +75,9 @@ def test_dependency_generation_journals_exact_cohort_and_restores_window(tmp_pat
         )
         assert inventory.affected_paths(f.root, f.hermes) - old_paths == (
             {f.root / rel for rel in (*PATHS, *shared_bridge, *reporting_leaves)}
-            | ({f.root / rel for rel in SHIP_REPORTING_PATHS} - old_paths))
+            | ({f.root / rel for rel in SHIP_REPORTING_PATHS} - old_paths)
+            | ({f.root / rel for rel in GLP334_PATHS} - old_paths)
+            | ({f.hermes / 'scripts' / row[1] for row in GLP334_JOBS} - old_paths))
         assert proposal['source_sha256'] == AFTER
         assert proposal['source_before_sha256'] == BEFORE
         assert proposal['state_delta'] == AFTER

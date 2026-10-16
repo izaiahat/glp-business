@@ -38,8 +38,8 @@ def run(argv,*,cwd=ROOT,log=None):
 
 
 def namespace(config,source,report):
-    from glp_release_inputs import path_digest
-    argv=list(config['base_argv']); ns=config['namespace']
+    from glp_release_inputs import path_digest, build_environment_argv
+    argv=build_environment_argv(config); ns=config['namespace']
     for i,t in enumerate(argv):
         if t=='--bind':
             destination=argv[i+2]

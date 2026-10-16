@@ -109,6 +109,85 @@ def source_on_provider(url,host):
  except (TypeError,ValueError):return False
 
 
+def named_role_source_on_provider(url,host):
+ """Fail closed on browser-ambiguous authority syntax for the named path."""
+ from urllib.parse import urlsplit
+ if not isinstance(url,str) or re.search(r'[\\\s]',url) or not source_on_provider(url,host):return False
+ u=urlsplit(url)
+ return not u.fragment and bool(re.fullmatch(r'[a-z0-9.-]+(?::(?:80|443))?',u.netloc,re.I|re.ASCII))
+
+
+def _named_business_role_hits(markup):
+ """Conservative retained role-card proof, not a named-mailbox allowlist.
+
+ Use only the nearest closed structural block. Never borrow a role from a
+ sibling/ancestor card, script, image alt, or a fixed page-text window. The
+ person's sole heading must bind to the literal mailbox; every qualifying
+ role paragraph must affirm that person's current role, not another person's.
+ Anchor text/mailto must agree. Ambiguity means no named-contact proof.
+ """
+ from html.parser import HTMLParser
+ email=re.compile(r'[a-z0-9][a-z0-9._%+-]*@[a-z0-9.-]+\.[a-z]{2,}',re.I)
+ role=re.compile(r'\b(?:marketing(?:\s+(?:and|&|/)\s+sales)?|sales\s+(?:and|&|/)\s+marketing)\s+manager\b',re.I)
+ adverse=re.compile(r'patient|\bsupport\b|\bcare\b|\brecords?\b|billing|creator recruitment|personal journey|infrastructure|privacy|data[- ]protection|\blegal\b|compliance',re.I)
+ qualified=re.compile(r"\b(?:no|not|never|former|formerly|previous|previously|ex)\b|\b\w+n['’]t\b",re.I)
+ blocks={'div','article','li','td'}
+ void={'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}
+ class Cards(HTMLParser):
+  def __init__(self):super().__init__(convert_charrefs=True);self.stack=[];self.nodes=[]
+  def handle_starttag(self,tag,attrs):
+   # Inspect every style before dict normalization can erase a hiding value.
+   styles=[value or '' for name,value in attrs if name=='style']
+   attrs=dict(attrs);parent=self.stack[-1] if self.stack else None
+   hidden=(parent and parent['hidden']) or tag in ('script','style','template','noscript') or 'hidden' in attrs or attrs.get('aria-hidden')=='true' or any(re.search(r'display\s*:\s*none|visibility\s*:\s*hidden',style,re.I) for style in styles)
+   node={'tag':tag,'attrs':attrs,'parent':parent,'hidden':hidden,'text':[],'closed':tag in void}
+   self.nodes.append(node)
+   if tag not in void:self.stack.append(node)
+  def handle_endtag(self,tag):
+   for i in range(len(self.stack)-1,-1,-1):
+    if self.stack[i]['tag']==tag:
+     # Do not repair malformed/unclosed child blocks into contact evidence.
+     self.stack[i]['closed']=(i==len(self.stack)-1);del self.stack[i:];break
+  def handle_data(self,data):
+   if self.stack and not self.stack[-1]['hidden']:
+    for node in self.stack:node['text'].append(data)
+ page=Cards();page.feed(markup)
+ def text(node):return ' '.join(' '.join(node['text']).split())
+ hits=[]
+ for anchor in page.nodes:
+  href=anchor['attrs'].get('href','')
+  if anchor['tag']!='a' or anchor['hidden'] or not anchor['closed'] or not href.lower().startswith('mailto:'):continue
+  address=href[7:].lower() # No query, encoded alias, or multi-recipient repair.
+  if not email.fullmatch(address) or text(anchor).lower()!=address:continue
+  block=anchor['parent']
+  while block and block['tag'] not in blocks:block=block['parent']
+  if not block or not block['closed']:continue
+  context=text(block)
+  if len(context)>2000 or not role.search(context) or adverse.search(context) or qualified.search(context):continue
+  descendants=[]
+  for node in page.nodes:
+   parent=node['parent']
+   while parent and parent is not block:parent=parent['parent']
+   if parent is block and not node['hidden']:descendants.append(node)
+  if any(n['tag'] in blocks|{'section','aside','header','footer','nav','main'} for n in descendants):continue
+  mailtos=[n['attrs'].get('href','')[7:].lower() for n in descendants if n['tag']=='a' and n['attrs'].get('href','').lower().startswith('mailto:')]
+  if set(mailtos)!={address} or {m.lower() for m in email.findall(context)}!={address}:continue
+  identity=re.sub('[^a-z]','',address.split('@')[0])
+  headings=[n for n in descendants if re.fullmatch('h[1-6]',n['tag'])]
+  if len(headings)!=1 or not headings[0]['closed']:continue
+  owner=text(headings[0])
+  if not re.fullmatch(r'[A-Za-z]+(?:[ -][A-Za-z]+){1,3}',owner) or re.sub('[^a-z]','',owner.lower())!=identity:continue
+  # A flat card is not itself role ownership. Require an explicit
+  # "<mailbox owner> is [our/the] <role>" assertion in each role paragraph. All role
+  # occurrences must be covered, so a second person's role cannot lend proof.
+  paragraphs=[n for n in descendants if n['tag']=='p' and role.search(text(n))]
+  if sum(len(role.findall(text(n))) for n in paragraphs)!=len(role.findall(context)):continue
+  affirmative=re.compile(re.escape(owner)+r'\s+is\s+(?:(?:our|the)\s+)?'+role.pattern+r'(?:[.!]|$|\s+and\s+(?:services|serves|covers|manages)\b)',re.I)
+  if not paragraphs or any(not n['closed'] or len(role.findall(text(n)))!=1 or not affirmative.match(text(n)) for n in paragraphs):continue
+  hits.append({'address':address,'how':'mailto','excerpt':context,'structural_business_role':True})
+ return hits
+
+
 def public_page_hits(markup):
  """Visible text/mailto/Cloudflare publication, not strings hidden in scripts."""
  from html.parser import HTMLParser
@@ -137,7 +216,10 @@ def public_page_hits(markup):
   if offset<0:offset=page.positions.get(address,-1)
   context=text[max(0,offset-180):offset+len(address)+180] if offset>=0 else ''
   hits.append({'address':address,'how':how,'excerpt':context})
- return hits,text
+ # Replace only non-alias hits with independently parsed, address-bound cards.
+ # Existing public alias policy remains unchanged.
+ cards={h['address']:h for h in _named_business_role_hits(markup) if not BUSINESS_LOCALS.fullmatch(h['address'].split('@')[0])}
+ return [cards.get(h['address'],h) for h in hits],text
 
 
 def public_business_contact(host,organization,at,exact_email=None):
@@ -152,7 +234,7 @@ def public_business_contact(host,organization,at,exact_email=None):
  for ev in rows:
   address=str(ev.get('address') or '').lower()
   if (not address or (exact_email and address!=exact_email) or address.count('@')!=1
-      or not BUSINESS_LOCALS.fullmatch(address.split('@')[0]) or not same(address.split('@')[1],host)
+      or not same(address.split('@')[1],host)
       or ev.get('tier',d.get('contact_tier')) not in ('partnerships','named_on_partnerships_page')
       or not source_on_provider(ev.get('found_on'),host)
       or not readiness.current_evidence({'captured_at_utc':ev.get('captured_at_utc'),'evidence_sha256':ev.get('page_sha256')},at)):continue
@@ -171,6 +253,8 @@ def public_business_contact(host,organization,at,exact_email=None):
    for hit in hits:
     method='published_text' if ev.get('how')=='visible_text' else ev.get('how')
     if hit['address']!=address or hit['how']!=method:continue
+    if not BUSINESS_LOCALS.fullmatch(address.split('@')[0]):
+     if not hit.get('structural_business_role') or not all(named_role_source_on_provider(u,host) for u in (ev['found_on'],page.get('url'),page.get('final_url',page.get('url')))):continue
     context=hit['excerpt']
     if (not re.search(r'partnership|affiliat|business development|marketing|sponsor',context,re.I)
         or re.search(r'patient|billing|customer support|affiliate support|creator recruitment|personal journey|infrastructure',context,re.I)):continue

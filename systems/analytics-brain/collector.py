@@ -20,6 +20,7 @@ import sqlite3
 import subprocess
 import sys
 import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -1693,11 +1694,51 @@ console.log(JSON.stringify(result));
     return contracts
 
 
+def _released_sitemap_inventory(release: Path, control: dict[str, Any]) -> dict[str, Any]:
+    """Bind the route denominator to the same accepted release as commercial duties.
+
+    No crawl or provider call: stale measured rows must fail closed until the
+    existing route-census refreshes them, not silently omit newly released pages.
+    """
+    pointer = read_json(BUSINESS / control['affiliate_obligations']['release_pointer'])
+    if pointer.get('status') != 'PASS' or Path(pointer['release_root']).resolve() != release:
+        raise RuntimeError('affiliate_release_changed_during_route_inventory')
+    seal = pointer['manifest']
+    raw = Path(seal['path']).read_bytes()
+    if hashlib.sha256(raw).hexdigest() != seal['sha256']:
+        raise RuntimeError('affiliate_release_manifest_drift')
+    rows = json.loads(raw)['release_rows']
+    expected = [row['sha256'] for row in rows if row.get('path') == 'public/sitemap.xml']
+    body = (release / 'public/sitemap.xml').read_bytes()
+    actual = hashlib.sha256(body).hexdigest()
+    if expected != [actual]:
+        raise RuntimeError('affiliate_release_sitemap_drift')
+    root = ET.fromstring(body)
+    if root.tag.rsplit('}', 1)[-1] != 'urlset':
+        raise RuntimeError('affiliate_release_sitemap_schema_invalid')
+    routes = []
+    for node in root:
+        locs = [child.text for child in node if child.tag.rsplit('}', 1)[-1] == 'loc']
+        if node.tag.rsplit('}', 1)[-1] != 'url' or len(locs) != 1:
+            raise RuntimeError('affiliate_release_sitemap_schema_invalid')
+        parsed = urlsplit(locs[0] or '')
+        if (parsed.scheme != 'https' or parsed.netloc != PRODUCTION_HOST or parsed.query
+                or parsed.fragment or parsed.path == '/go' or parsed.path.startswith('/go/')):
+            raise RuntimeError('affiliate_release_sitemap_route_invalid')
+        routes.append('/' + parsed.path.strip('/') + '/' if parsed.path.strip('/') else '/')
+    if not routes or len(routes) != len(set(routes)):
+        raise RuntimeError('affiliate_release_sitemap_inventory_invalid')
+    return {'released_sitemap_routes': sorted(routes), 'released_sitemap_sha256': actual}
+
+
 def derive_affiliate_obligations(control: dict[str, Any],
                                  observed_routes: set[str] | None = None,
-                                 static_routes: list[dict[str, Any]] | None = None) -> dict[str, str]:
+                                 static_routes: list[dict[str, Any]] | None = None,
+                                 *, route_inventory: dict[str, Any] | None = None) -> dict[str, str]:
     """Keep covered routes and bind duties to effective sealed commercial authority."""
     release, runtime_programs = _bound_affiliate_release(control)
+    if route_inventory is not None:
+        route_inventory.update(_released_sitemap_inventory(release, control))
     public_ids = set(runtime_programs)
     registry = read_json(release / "data/program-registry.json")
     authority = read_json(release / "data/go-runtime-promotion-authority.json")
@@ -1884,7 +1925,7 @@ def collect_live(control: dict[str, Any], phase: str, cache_path: Path | None = 
     observed = set(data.get("sitemap_routes") or []) | {
         row["path"] for row in data.get("static_routes") or []}
     data["affiliate_route_obligations"] = derive_affiliate_obligations(
-        control, observed_routes=observed, static_routes=data.get("static_routes"))
+        control, observed_routes=observed, static_routes=data.get("static_routes"), route_inventory=data)
 
     rails = _rail_module()
     high_frequency = phase in {"deploy", "hourly", "daily"}
@@ -2022,6 +2063,17 @@ def main(argv: list[str] | None = None) -> int:
         "outputs": [str(args.output_dir / name) for name in outputs],
         "source_count": len(outputs["analytics-source-health.json"]["sources"]),
         "route_count": outputs["route-instrumentation-matrix.json"]["sitemap_route_count"],
+        # Preserve aggregate/path-only coverage diagnostics in the cadence receipt;
+        # current/ outputs are overwritten on the next phase.
+        "route_coverage": {
+            "released_sitemap_sha256": data.get("released_sitemap_sha256"),
+            "observed_sitemap_route_count": outputs["route-instrumentation-matrix.json"]["observed_sitemap_route_count"],
+            "released_only_routes": outputs["route-instrumentation-matrix.json"]["released_only_routes"],
+            "census_only_routes": outputs["route-instrumentation-matrix.json"]["census_only_routes"],
+            "missing_obligated_routes": outputs["route-instrumentation-matrix.json"]["missing_obligated_routes"],
+            "failed_routes": [row["path"] for row in outputs["route-instrumentation-matrix.json"]["routes"]
+                              if not row["static_instrumentation_pass"] or not row["probe_pass"]],
+        },
         "reconciled_clicks": outputs["affiliate-reconciliation.json"]["counts"]["browser"],
         "fact_model_sinks": {
             "local": "written",

@@ -9,7 +9,7 @@ check_source() {
   [[ "${actual%% *}" == "$2" ]] || { printf 'K3_REPORTING_SOURCE_DRIFT\n' >&2; exit 66; }
 }
 check_source scripts/glp_affiliate_weekly_reporting_j7_job.py 482a447e94b43a73f538e33e17e57c4f42b079607bb23e6b6625394d44af2538
-check_source ops/glp/reporting-v2/source-manifest-j7.json a57e75e22c6de26d111af292b91e1cdb9f159ad8db0e19a5481b4af80884f6f4
+check_source ops/glp/reporting-v2/source-manifest-j7.json cecd78e7c8ed34a0f84693c6fbf9a283386a8dceb4b49e4d79c2359e11c5d5f1
 check_source ops/glp/reporting-v2/identity-registry.json 0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513
 check_source reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json 9e0bc9ba3f1910e1f5e540bcbfcaa1c344a27366fbc0209ee55972ef4628a799
 args=(--live-network-readonly --xentraffic-intake /home/ubuntu/business/reports/ops/fable-plan-2-20261009/lanes/J7/XENTRAFFIC-FINANCIAL-INTAKE.json --xentraffic-sha256 786b3b08e7357bd64e7adb7f58f302e395aafeac14d61ac4e2b8fb30b1cb206e)
@@ -37,7 +37,7 @@ export PYTHONDONTWRITEBYTECODE=1
 exec /home/ubuntu/.hermes/hermes-agent/venv/bin/python -B \
   /home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_j7_job.py \
   --source-manifest /home/ubuntu/business/ops/glp/reporting-v2/source-manifest-j7.json \
-  --manifest-sha256 a57e75e22c6de26d111af292b91e1cdb9f159ad8db0e19a5481b4af80884f6f4 \
+  --manifest-sha256 cecd78e7c8ed34a0f84693c6fbf9a283386a8dceb4b49e4d79c2359e11c5d5f1 \
   --roster /home/ubuntu/business/reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json \
   --identity-registry /home/ubuntu/business/ops/glp/reporting-v2/identity-registry.json \
   --report-root /home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/weekly-reporting \

@@ -8,6 +8,188 @@ import glp_sponsor_campaign as c
 AT=dt.datetime(2026,10,8,16,tzinfo=dt.timezone.utc)
 
 
+def retained_sales_page():
+ # Literal retained Firecrawl page; no fetch, guessed contact or enrichment join.
+ fixture=json.loads((Path(__file__).parent/'fixtures/sponsor-procompounding-about.json').read_text())
+ markup=fixture['html']
+ assert hashlib.sha256(markup.encode()).hexdigest()=='dd328508df88938da61993ccf2d6335dca6a6c6f7d63968daaa7475c9aff0ae8'
+ start=markup.index('<div class="bg-card border border-border rounded-lg p-6 text-center"><img src="https://irp.cdn-website.com/d5a35c4c/dms3rep/multi/Pro+compounding+KateKincaid.webp"')
+ card=markup[start:markup.index('</div>',start)+6]
+ assert hashlib.sha256(card.encode()).hexdigest()=='bf23252e2c60f1ccb07a3049465eea74cc83b8704a684635473482e43338f2f5'
+ return markup,card
+
+
+def extract_and_validate(markup,url='https://procompounding.com/about',address='kate.kincaid@procompounding.com',host='procompounding.com'):
+ import glp_sponsor_firecrawl_supply as s
+ at=dt.datetime(2026,10,16,1,tzinfo=dt.timezone.utc)
+ sha=hashlib.sha256(markup.encode()).hexdigest()
+ _,contacts=s.evidence(host,url,markup,sha,at.isoformat(),c.public_page_hits,c.BUSINESS_LOCALS,c.same,sponsor=True)
+ # Also submit a correctly hash-bound inert projection to test the final gate
+ # independently of whether the producer admitted the contact.
+ ev={'address':address,'how':'mailto','tier':'named_on_partnerships_page','found_on':url,'page_sha256':sha,'captured_at_utc':at.isoformat()}
+ org={'discovery':{'candidates':[ev],'_markup':[{'url':url,'final_url':url,'html':markup,'sha256':sha}]}}
+ return contacts,c.public_business_contact(host,org,at,exact_email=address)
+
+
+def test_valueless_style_is_empty_css_not_missing_role_evidence():
+ assert c.public_page_hits('<div style>Published business card</div>')==([], 'Published business card')
+ _,card=retained_sales_page()
+ styled=card.replace('<div ', '<div style ',1)
+ assert c.public_page_hits(styled)==c.public_page_hits(card)
+ contacts,validated=extract_and_validate(styled)
+ assert [row['address'] for row in contacts]==['kate.kincaid@procompounding.com']
+ assert validated and validated['address']=='kate.kincaid@procompounding.com'
+ for hidden in ('hidden style', 'aria-hidden="true" style', 'style="display:none"', 'style="visibility:hidden"'):
+  contacts,validated=extract_and_validate(card.replace('<div ', '<div '+hidden+' ',1))
+  assert contacts==[] and validated is None
+
+
+@pytest.mark.parametrize('css',['display:none','visibility:hidden'])
+@pytest.mark.parametrize('duplicate',['style','style=""','style="display:block;visibility:visible"'])
+@pytest.mark.parametrize('reverse',[False,True])
+def test_duplicate_style_cannot_erase_hidden_role_card(css,duplicate,reverse):
+ _,card=retained_sales_page()
+ attributes=[f'style="{css}"',duplicate]
+ if reverse:attributes.reverse()
+ markup=card.replace('<div ', '<div '+' '.join(attributes)+' ',1)
+ contacts,validated=extract_and_validate(markup)
+ assert (contacts,validated)==([],None)
+ assert not any(hit.get('structural_business_role') for hit in c.public_page_hits(markup)[0])
+
+
+@pytest.mark.parametrize('fragment',[False,True])
+def test_retained_named_marketing_sales_manager_recall(fragment,monkeypatch):
+ import socket
+ monkeypatch.setattr(socket.socket,'connect',lambda *a,**k:pytest.fail('network forbidden'))
+ page,card=retained_sales_page()
+ contacts,validated=extract_and_validate(card if fragment else page)
+ assert [row['address'] for row in contacts]==['kate.kincaid@procompounding.com']
+ assert validated and validated['address']=='kate.kincaid@procompounding.com'
+ assert 'Marketing and Sales Manager' in validated['excerpt']
+ assert 'patients' not in validated['excerpt'].lower()
+
+
+
+@pytest.mark.parametrize('case',[
+ 'mismatched_mailto','mismatched_text','second_mailbox','nearby_role',
+ 'sibling_role','nested_unrelated_role','wrong_identity','support','patient','care','records',
+ 'hidden_role','script_role','unclosed_block','off_property','ambiguous_authority',
+ 'wrong_email_domain','text_only','mailto_only',
+])
+def test_named_business_card_refuses_ambiguous_or_adverse_evidence(case):
+ _,card=retained_sales_page();address='kate.kincaid@procompounding.com'
+ url='https://procompounding.com/about'
+ if case=='mismatched_mailto':card=card.replace('mailto:'+address,'mailto:other@procompounding.com')
+ elif case=='mismatched_text':card=card.replace('>'+address+'<','>other@procompounding.com<')
+ elif case=='second_mailbox':card=card.replace('</div>','<p>other@procompounding.com</p></div>')
+ elif case in ('nearby_role','sibling_role'):
+  title='<p>Marketing and Sales Manager</p>'
+  card=card.replace('Marketing and Sales Manager','Staff Member')
+  card=(title+card) if case=='nearby_role' else '<div>'+title+'<div>'+card+'</div></div>'
+ elif case=='nested_unrelated_role':card=card.replace('Marketing and Sales Manager','Staff Member').replace('</div>','<div><h3>Other Person</h3>Marketing and Sales Manager</div></div>')
+ elif case=='wrong_identity':card=card.replace('Kate Kincaid','Other Person')
+ elif case in ('support','patient','care','records'):card=card.replace('</div>',f'<p>For {case} inquiries.</p></div>')
+ elif case in ('hidden_role','script_role'):
+  tag='<span hidden>Marketing and Sales Manager</span>' if case=='hidden_role' else '<script>Marketing and Sales Manager</script>'
+  card=card.replace('Marketing and Sales Manager',tag)
+ elif case=='unclosed_block':card=card.removesuffix('</div>')
+ elif case=='off_property':url='https://thirdparty.invalid/about'
+ elif case=='ambiguous_authority':url='https://outside.invalid\\sub.procompounding.com/about'
+ elif case=='wrong_email_domain':card=card.replace('@procompounding.com','@thirdparty.invalid');address=address.replace('@procompounding.com','@thirdparty.invalid')
+ elif case=='text_only':card=card.replace('href="mailto:'+address+'"','href="/contact"')
+ elif case=='mailto_only':card=card.replace('>'+address+'<','>Email Kate<')
+ contacts,validated=extract_and_validate(card,url,address)
+ assert contacts==[]
+ assert validated is None
+
+
+# RV548 retained reviewer counterexamples; identical mutations/assertions.
+@pytest.mark.parametrize('role',[
+ 'Former Marketing and Sales Manager',
+ 'Not the Marketing and Sales Manager',
+ 'Works with our Marketing and Sales Manager',
+ 'Staff member. Jane Doe is our Marketing and Sales Manager',
+])
+def test_requires_role_to_describe_mailbox_owner(role):
+ _,card=retained_sales_page()
+ card=card.replace('Marketing and Sales Manager',role)
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None, {'producer_admitted':bool(contacts),'final_admitted':bool(validated),'role':role}
+
+@pytest.mark.parametrize('purpose',['privacy','data protection'])
+def test_adverse_privacy_purpose_refused(purpose):
+ _,card=retained_sales_page()
+ card=card.replace('</div>',f'<p>Contact this address only for {purpose} inquiries.</p></div>')
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None, {'producer_admitted':bool(contacts),'final_admitted':bool(validated),'purpose':purpose}
+
+@pytest.mark.parametrize('purpose',['patient','support','care','records'])
+def test_existing_adverse_refusals(purpose):
+ _,card=retained_sales_page()
+ card=card.replace('</div>',f'<p>Contact this address only for {purpose} inquiries.</p></div>')
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None
+
+def test_flat_second_person_cannot_lend_role():
+ _,card=retained_sales_page()
+ card=card.replace('Marketing and Sales Manager','Staff Member').replace('</div>','<h3>Jane Doe</h3><p>Marketing and Sales Manager</p></div>')
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None, {'producer_admitted':bool(contacts),'final_admitted':bool(validated)}
+
+
+@pytest.mark.parametrize('role',[
+ 'Ex-Marketing and Sales Manager', 'Previous Marketing and Sales Manager',
+ 'Marketing and Sales Manager (former)', 'Marketing and Sales Manager, previously',
+ 'no longer Marketing and Sales Manager', 'not our sales contact; Marketing and Sales Manager',
+ 'Staff member; John Smith, Marketing and Sales Manager',
+ 'Marketing and Sales Manager. Jane Doe is our Marketing and Sales Manager',
+ 'Marketing and Sales Manager assistant',
+])
+def test_qualified_or_other_person_role_is_not_affirmative(role):
+ _,card=retained_sales_page()
+ contacts,validated=extract_and_validate(card.replace('Marketing and Sales Manager',role))
+ assert contacts==[] and validated is None
+
+
+@pytest.mark.parametrize('purpose',['legal','compliance','privacy requests only','data-protection'])
+def test_restricted_contact_purpose_is_not_business_stock(purpose):
+ _,card=retained_sales_page()
+ card=card.replace('</div>',f'<p>For {purpose} inquiries only.</p></div>')
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None
+
+
+@pytest.mark.parametrize('purpose',['privacy','legal','compliance'])
+def test_restricted_named_mailbox_is_not_business_stock(purpose):
+ _,card=retained_sales_page()
+ card=card.replace('Kate Kincaid',purpose.title()+' Officer').replace('kate.kincaid',purpose+'.officer')
+ contacts,validated=extract_and_validate(card,address=purpose+'.officer@procompounding.com')
+ assert contacts==[] and validated is None
+
+
+def test_unrelated_privacy_footer_does_not_contaminate_role_card():
+ _,card=retained_sales_page()
+ contacts,validated=extract_and_validate(card+'<footer>For privacy requests only: privacy@procompounding.com</footer>')
+ assert [row['address'] for row in contacts]==['kate.kincaid@procompounding.com']
+ assert validated and validated['address']=='kate.kincaid@procompounding.com'
+
+
+def test_retained_patientcare_is_not_business_stock():
+ page,_=retained_sales_page()
+ contacts,validated=extract_and_validate(page,address='patientcare@procompounding.com')
+ assert 'patientcare@procompounding.com' in page
+ assert all(row['address']!='patientcare@procompounding.com' for row in contacts)
+ assert validated is None
+
+
+def test_retained_membersupport_remains_refused():
+ fixture=json.loads((Path(__file__).parent/'fixtures/sponsor-retained-membersupport.json').read_text())
+ markup=fixture['fragment']
+ assert hashlib.sha256(markup.encode()).hexdigest()==fixture['fragment_sha256']
+ contacts,validated=extract_and_validate(markup,url=fixture['source_url'],address='membersupport@1stoptimal.com',host='1stoptimal.com')
+ assert contacts==[] and validated is None
+
+
 def organization(address='partners@example.com',wording='Commercial partnerships:'):
  html=f'<p>{wording} <a href="mailto:{address}">{address}</a></p>'
  sha=hashlib.sha256(html.encode()).hexdigest();url='https://example.com/partnerships'

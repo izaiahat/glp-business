@@ -1523,7 +1523,7 @@ class ActiveWindow:
                                       'adopter': identity(), 'job_ids': []}
         atomic_json(self.journal, data)
 
-    def switch_files(self, stage, before, *, commit=None):
+    def switch_files(self, stage, before, *, commit=None, expected_owners=None):
         from maintenance_cohort import switch_files
         data = read_journal(self.journal)
         transaction = data.get('source_transaction')
@@ -1538,7 +1538,7 @@ class ActiveWindow:
             require(all(self.backend.paused(row['entry'], row['prior']) for row in current['entries']),
                     'cohort_pause_ownership_changed')
             return self.backend.inflight([row['entry'] for row in current['entries']])
-        receipt = switch_files(self.journal, stage, before, drain, commit=commit)
+        receipt = switch_files(self.journal, stage, before, drain, commit=commit, expected_owners=expected_owners)
         data = read_journal(self.journal)
         data['source_transaction']['switch_verified'] = True
         atomic_json(self.journal, data)
