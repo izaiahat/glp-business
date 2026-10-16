@@ -233,6 +233,32 @@ class ArchiveSourceTests(unittest.TestCase):
             self.assertEqual(journal.read_bytes(), before)
             self.assertEqual(db.read_bytes(), b'not SQLite')
 
+    def test_archive_candidate_pin_producer_is_scoped_and_idempotent(self):
+        producer = load('glp354_pin_producer', 'scripts/wrapper_pin_sync.py')
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / '.git').touch()
+            names = ['scripts/host_disk_pruner.py', 'scripts/hermes_state_archive/weekly-pins.json',
+                     'ops/hermes-cron-scripts/hermes_state_archive_weekly.py', 'ops/rebuild-source-manifest.json']
+            for name in names:
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / name).read_bytes())
+            pins = json.loads((root / names[1]).read_text())
+            (root / names[0]).write_text('# private changed source\n')
+            producer.sync_archive_candidate(root, [names[0]])
+            after = json.loads((root / names[1]).read_text())
+            key = '/home/ubuntu/business/' + names[0]
+            self.assertEqual(after['files'][key], producer.sha256_of(root / names[0]))
+            after['files'][key] = pins['files'][key]
+            self.assertEqual(after, pins)
+            once = [(root / name).read_bytes() for name in names]
+            producer.sync_archive_candidate(root, [names[0]])
+            self.assertEqual(once, [(root / name).read_bytes() for name in names])
+            with self.assertRaises(ValueError):
+                producer.sync_archive_candidate(root, ['../outside'])
+            self.assertEqual(once, [(root / name).read_bytes() for name in names])
+
     def test_candidate_pin_closure_and_real_launcher_drift_refusal(self):
         pin = ROOT / 'scripts/hermes_state_archive/weekly-pins.json'
         data = json.loads(pin.read_text())

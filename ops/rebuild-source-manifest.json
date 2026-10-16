@@ -361,7 +361,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "51f748f9abf92ad80466bc768d5e5e96841f81340295ae25280b93832fc81c8c"
+      "sha256": "27a3fb5aee92e00fba5a544ea15317a97975211d7fdfc9c34b00b2180134cc2b"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -1488,7 +1488,7 @@
         "hermes:a0d5cb0609b9"
       ],
       "kind": "script",
-      "sha256": "f460253c7f86153c9b0c319dd823e287b58f4a2add4071906ad5af8776d30d09"
+      "sha256": "9c9221f10af5e92f808cd8a3130b46ea464156fac8207123b164a4afd0ad36e9"
     },
     "ops/hermes-cron-scripts/higgsfield_auth_keepalive.py": {
       "callers": [
@@ -3608,7 +3608,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "5883c985fb79db6113bb7169895577c71360afa9dee4d9e1ffe019d787d0aad0"
+      "sha256": "f50756b7e474048fe8a331899e2ba73802f91d9280a6482a6a6e39737754a2cf"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3622,7 +3622,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "e090b44ec0512db2b3a917445b116e52aaf0c0984dcb251f77b6579ea19ea54f"
+      "sha256": "50dddb5240902a35d2d3ec6e298351258a9ce7c9dfd2b7bc54429c3ea3df2c6c"
     },
     "scripts/host_disk_large_classes.py": {
       "callers": [
@@ -3650,7 +3650,7 @@
         "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py"
       ],
       "kind": "script",
-      "sha256": "caf579c2e3d6db145a7c55e7d65197308f74f89ca5b1435c3ef833d140d3870e"
+      "sha256": "8f47018564d1e7b9cbc08683a675fab6ac61c57e74b7c244eebff649c52ce30c"
     },
     "scripts/host_disk_reference_guard.py": {
       "callers": [
@@ -4070,7 +4070,7 @@
         "GLP331 all enforcement occurrences"
       ],
       "kind": "script",
-      "sha256": "6cea7d1781edbe31ad19ba40ac44070cef1041732563a6ec0d57ea4e3a029f6f"
+      "sha256": "8ebd971a8b7b799a8bb9b729cacbf20327da2ca7dc5bde1460eafee73602fc82"
     },
     "scripts/xentraffic_fresh_catalog.py": {
       "callers": [
@@ -4783,7 +4783,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "a9716c2a0322c84437bbdcbd83be54b27e959282d11d680ed868ed2c1d19c4f5"
+      "sha256": "cf8f532fdf49561a204db6dbed8d7108b9356bdc71cb6dad06e0e6c4bda32b4c"
     },
     "tests/test_affiliate_discovery_resume.py": {
       "callers": [
@@ -7817,7 +7817,7 @@
       "callers": [
         "GLP349 authenticated archive source cohort"
       ],
-      "sha256": "3685ba1acac0916e7c53cabae6fe710b52fd4d46d8b2a054be9f97ad5d6a4757"
+      "sha256": "8fc8dc4d37f4fa3dae5f0e63a0ec2ce829e71c6994e736aad6a58ff051f41737"
     },
     "ops/systemd/hermes-state-archive-weekly.service": {
       "kind": "repository_control",
@@ -7831,7 +7831,7 @@
       "callers": [
         "GLP349 effects-denied source review"
       ],
-      "sha256": "2114bb9956da1ac62c0245812059e51375224de29f20391eb9cc3d912c3fd101"
+      "sha256": "9f8eb10492c2ef7221637e1c650a93fd28e75e53153bb429ff4b3aaae8f8a7a9"
     },
     ".github/workflows/glp349-archive-source.yml": {
       "kind": "repository_control",
@@ -7897,14 +7897,14 @@
         "scripts/host_disk_auto_classes.py"
       ],
       "kind": "script",
-      "sha256": "4b901ec7a6c0013c420ec02b92ec5544f0491f22ad625a9812656d1d74edd471"
+      "sha256": "caa81d6795b6ed6a2be764634ec47b9546b6d6789ae8b982953ca096ae1775b0"
     },
     "tests/test_host_disk_tmp_custody.py": {
       "callers": [
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "86dcbbef6323b8390fd048cf7ad63886767898617911757e4d87a383903b8058"
+      "sha256": "dc9b0243ef23c48c605bd0dc89027612621be90e845dd0c4b5031905099a42b3"
     },
     "tests/test_host_disk_reference_refresh.py": {
       "kind": "test",
@@ -8104,6 +8104,13 @@
         "GLP-93 independent review"
       ],
       "sha256": "11af2dbe4560880668f29cfd5cb5e18b18f0c89b292cbc7f1e586b912591d16f"
+    },
+    "tests/test_host_disk_systemd_custody.py": {
+      "callers": [
+        "business-source-ci"
+      ],
+      "kind": "test",
+      "sha256": "1c199ab0db9a73cb3e10775464e0116871975a669408a1364fdcf49eafd9eb85"
     }
   },
   "omitted_runtime_inputs": [
@@ -8114,5 +8121,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1186
+  "tracked_count": 1187
 }
