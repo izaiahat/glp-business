@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_glp_ship_preclaim.py": {
+      "kind": "test",
+      "callers": [
+        "GLP334 projected installed caller and real bounded full preclaim planning"
+      ],
+      "sha256": "50ec7fd92c55308f9e281a5edad1740f33a466545f90e37b109af6f84137c2a4"
+    },
+    "tests/test_glp_ship_refusal_inspection.py": {
+      "kind": "test",
+      "callers": [
+        "GLP334 immutable legacy started-attempt inspection"
+      ],
+      "sha256": "c38028bb707fe8ddd52287596938feecf8b694f068f5aebd00f10ae3155cce7f"
+    },
     "ops/glp/reporting-v2/glp334-receiving-union.json": {
       "kind": "operations",
       "callers": [
@@ -13,7 +27,7 @@
       "callers": [
         "GLP334 paired enrollment regression"
       ],
-      "sha256": "d620acba363a0e3d28819aeedf6d867830ebff8aadae8f8e5bfe6b9431308cac"
+      "sha256": "bb31f8e266f253f879548bf343093a7db02eef15bd8b5c5a5e03f98cbe61ae87"
     },
     "tests/test_glp_release_review543.py": {
       "kind": "test",
@@ -401,7 +415,7 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3895b869228c7e47358a64d6362ce56e8d134044d639657efb6a4c5b28e30537"
+      "sha256": "41ecd8025e85fc12c0cd2aa2d20efc3b074572c151fa7801b6ed17e4f632bf15"
     },
     ".github/workflows/glp336-host-completion.yml": {
       "callers": [],
@@ -724,7 +738,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source_control",
-      "sha256": "4fb888e5c35bbb0615a43a55d766fb1338b90cae6cb59f021501a3d69db67cd1"
+      "sha256": "e866f6738d8270150e23de42459d478ff1cd5b73abbb5e715ce4fe8291d6247b"
     },
     "ops/glp/analytics-brain-control.json": {
       "callers": [
@@ -3380,7 +3394,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source",
-      "sha256": "3a0ffabad56a4e2138bfebb3065d643cf78298f44934db8f4e21575295ef5828"
+      "sha256": "afd9a51d3f278136f09abd0e877bb28bdc40a5152da96c7b7052fbb8cb7c94bd"
     },
     "scripts/glp_ship_collector.py": {
       "callers": [
@@ -3401,7 +3415,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source",
-      "sha256": "ab90304c08e9bf760f2e488138103100770c9251895b7d426c367bfc409944a5"
+      "sha256": "a83a92292ae7b3269279d187da522fcd6dea206b1e1bc65319b36f87ba8e1ee8"
     },
     "scripts/glp_ship_provenance.py": {
       "callers": [
@@ -6324,7 +6338,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "968001a90e50fffec9ec086885df591a0f51f0143aecad9ed6295693aba9d60d"
+      "sha256": "64f85e7d5acfdf15ae0dad109770c026d3f8bcb0aba2955fb219c890222b2e65"
     },
     "tests/test_glp_ship_collector.py": {
       "callers": [
@@ -6355,7 +6369,7 @@
       "sha256": "e472ac18702d9bf50c63c540cba2b312e1fc5a336d6f261a6b0bc726948f78b9"
     },
     "tests/test_glp_ship_publication.py": {
-      "sha256": "024ead95c627b281fc84bb954050d2f6423100602946c4299f1bc5c25cf7f390"
+      "sha256": "841c6160740b6dd75b522bc8908c4ab85bc519e71819b7b9ed40aceed3e7b745"
     },
     "tests/test_glp_ship_retention.py": {
       "callers": [
@@ -8100,5 +8114,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1184
+  "tracked_count": 1186
 }

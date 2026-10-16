@@ -13,6 +13,10 @@ def reporting_fixture(tmp_path, monkeypatch):
     import glp_ship_registry
     from glp_ship_registry import Job
     from glp_ship import prepare
+    # This unit fixture isolates publication after preflight. Real projected
+    # closure and all-four-surface planning run in test_glp_ship_preclaim.
+    monkeypatch.setattr('glp_ship.authenticate_installer', lambda *a: None)
+    monkeypatch.setattr('glp_ship.preclaim_plan', lambda *a: None)
     from maintenance_cohort import switch_files
     monkeypatch.setattr(glp_ship_registry, 'REPORTING_PATHS', pair.PATHS)
     repo, root, home, registry, scheduler = fixture(tmp_path, monkeypatch)

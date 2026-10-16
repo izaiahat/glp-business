@@ -43,6 +43,7 @@ on:
       - "scripts/glp_network_revenue_v2.py"
       - "scripts/glp_price_index_weekly.py"
       - "scripts/glp_ship_generation.py"
+      - "scripts/glp_ship.py"
       - "scripts/glp_ship_provenance.py"
       - "scripts/glp_ship_registry.py"
       - "scripts/impact_api_credentials.py"
@@ -70,6 +71,8 @@ on:
       - "tests/test_glp333_reporting_generation.py"
       - "tests/test_glp44_scoped_adoption.py"
       - "tests/test_glp334_enrollment.py"
+      - "tests/test_glp_ship_preclaim.py"
+      - "tests/test_glp_ship_refusal_inspection.py"
       - "tests/test_maintenance_cohort_recovery.py"
       - "tests/test_maintenance_inventory.py"
       - "tests/test_maintenance_native_admission.py"
@@ -101,5 +104,5 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pr148_reporting_followups.py tests/test_api_collectors_partnerstack_admitad.py tests/test_api_collectors_refersion.py tests/test_api_collectors_clickbank_healthtrader.py tests/test_api_collectors_wiring.py tests/test_api_collectors_smoke.py tests/test_api_collectors_everflow.py
-          .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp334_enrollment.py tests/test_glp_ship.py tests/test_glp_ship_publication.py
+          .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp334_enrollment.py tests/test_glp_ship.py tests/test_glp_ship_publication.py tests/test_glp_ship_preclaim.py tests/test_glp_ship_refusal_inspection.py
           .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_f07_registered_weekly_entry.py tests/test_glp333_reporting_generation.py tests/test_glp333_glp44_current_generation.py tests/test_glp44_scoped_adoption.py tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py

@@ -1,5 +1,58 @@
 # Ship a registered GLP job
 
+## GLP334 preclaim closure and immutable refused attempts
+
+Preparation and the immediate durable-claim boundary authenticate the bounded
+executing installer closure and run the real read-only `MaintenanceWindow.plan`
+with all four scheduler surfaces and existing unknown/incomplete inventory
+refusals. This does not replace `enter()`'s later inventory/guard checks.
+The coherent additional declaration/import members are
+`glp331_carrier_adoption.py`, `glp345_a4_adoption.py` and
+`glp44_safe_bridge_activation.py`; the already-required enrollment checker
+`glp334_pin_closure.py` is authenticated too. This does **not** adopt or import
+historical `fleet_pin_release`, `wrapper_pin_sync` or `glp73_sync_rebaseline`.
+A direct maintenance `claim_attempt` caller must supply its authenticated
+committed `checkout=`; missing closure/planning errors create no intent.
+
+Legacy `started` intents remain exclusive: no deletion, reset, old proposal/apply
+replay, inferred terminal success, or new approval store. The supported diagnostic
+is read-only and prints to stdout, without preparation, fetching, locks, window
+entry, scheduler calls or original evidence writes. The CLI disables Python
+bytecode generation before imports, so a cold invocation needs no caller `-B`
+or bytecode environment setting:
+
+```sh
+python3 scripts/glp_ship.py aadf6677c7f0 --merge-sha ORIGINAL_SOURCE \
+  --inspect-attempt --proposal ORIGINAL_READY_JSON --checkout SOURCE_REPOSITORY
+```
+
+Without independently reviewed refusal evidence it returns
+`UNRESOLVED_NO_REVIEWED_BOUNDARY_EVIDENCE`. Optional `--refusal-evidence` and
+`--refusal-review` are diagnostic inputs, not enrollment approvals. Evidence
+schema `glp-ship-pre-window-refusal-v1` binds the raw original attempt SHA256,
+canonical proposal SHA256, source, root, Hermes root, original absolute
+`window_journal`, recorder (`recorded_by`) and `traceback_sha256`; it requires
+`stage=MaintenanceWindow.plan`, `exception=FileNotFoundError`, one of the two
+proven missing import/declaration paths (`missing_path`), and literal-false
+`snapshot_started`, `pause_started`, `adoption_started`. Review schema
+`glp-ship-refusal-review-v1` binds source/attempt/proposal/evidence SHA256,
+`decision=ACCEPT_EXACT_PRE_WINDOW_REFUSAL` and an identified reviewer distinct
+from recorder and preparer. Current source provenance, every proposal preimage,
+both full target records and absence of the reviewed original window/receipt
+must still agree. Ambiguous, post-window, drifted or misbound inputs refuse.
+
+Even a consistent reviewed diagnosis returns `state=started`,
+`transition_performed=false`, `replay_permitted=false`: the old intent did not
+record an authenticated contemporaneous boundary or bind the original custom
+output path. Absent journals and current equality do not establish that history.
+For the retained `151594547d7a` / proposal `55038b429b93` attempt, the raw
+`started` evidence remains immutable; no retrospective transition is supported.
+Independent Astra review and separate exact receiving authority remain necessary
+for any future baseline change, followed by a **new** proposal and independent
+review, never the original reviewed proposal reused against changed baselines.
+
+## Registered shipping
+
 Run from a clean checkout of the merged commit, as the workspace owner:
 
 ```sh

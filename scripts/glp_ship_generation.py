@@ -64,6 +64,10 @@ class GitGeneration:
                 or self.proposal.get('kind') != self.kind
                 or self.proposal.get('merge_proof') != self.proof):
             raise RuntimeError('ship_generation_proposal_moved')
+        self.verify_target(root, hermes, window)
+
+    def verify_target(self, root, hermes, window=None):
+        """Read-only target consistency, NOT review or apply authorization."""
         if (str(root.resolve()) != self.proposal['root']
                 or str(hermes.resolve()) != self.proposal['hermes']):
             raise RuntimeError('ship_target_moved')

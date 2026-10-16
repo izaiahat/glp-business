@@ -266,7 +266,7 @@ def test_genuine_union_projection_closes_installed_dependencies_without_receivin
     assert result['effects'] == 'NONE_READ_ONLY_PROJECTION_NOT_INSTALLATION'
 
 
-def retained_fixture(tmp_path):
+def retained_fixture(tmp_path, monkeypatch):
     origin = os.environ.get('GLP334_RETAINED_FIXTURE_ROOT')
     if not origin:
         pytest.skip('full genuine retained-input fixture requires explicit local read-only root')
@@ -297,6 +297,19 @@ def retained_fixture(tmp_path):
     (live / pair.syncer.STATE).write_text(json.dumps({'hashes': hashes}))
     (live / pair.syncer.MANIFEST).write_bytes(blob(GLP334_SOURCE, pair.syncer.MANIFEST))
     home, registry = native_fixture(tmp_path)
+    # Real full planning over this disposable root; no host scheduler commands.
+    actions = live / 'ops/n8n-bridge/actions.json'
+    actions.parent.mkdir(parents=True, exist_ok=True)
+    actions.write_text('{}')
+    import maintenance_window as mw
+    def scheduler_probe(self, argv, payload=None):
+        assert payload is None
+        if argv == ['/usr/bin/crontab', '-l'] or any(k in argv for k in ('list-units', 'list-unit-files')):
+            return ''
+        if 'show' in argv and argv[3] == 'n8n-bridge.service':
+            return 'Id=n8n-bridge.service\nLoadState=loaded\nActiveState=inactive\nExecStart={ path=/usr/bin/true ; argv[]=/usr/bin/true ; }\n'
+        raise AssertionError(argv)
+    monkeypatch.setattr(mw.LinuxBackend, 'command', scheduler_probe)
     spec = registered_job(GLP334_JOBS[0][0])
     generation = ship.prepare(ROOT, live, home, spec,
         subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(), {}, 'offline-preparer')
@@ -314,7 +327,7 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
     from contextlib import ExitStack
     import maintenance_window as mw
     import maintenance_cohort as cohort
-    live, home, reg, spec, generation = retained_fixture(tmp_path)
+    live, home, reg, spec, generation = retained_fixture(tmp_path, monkeypatch)
     # bwrap maps only one GID. Model a preservable supplementary-group drift at
     # the exact stat/fstat/fchown seam; all bytes/modes/locks/saves remain real.
     foreign_gid = os.getegid() + 1
@@ -563,7 +576,7 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
 def test_genuine_complete_offline_enrollment_and_source_unchanged(tmp_path, monkeypatch):
     from maintenance_cohort import switch_files
     import maintenance_window as mw
-    live, home, registry, spec, generation = retained_fixture(tmp_path)
+    live, home, registry, spec, generation = retained_fixture(tmp_path, monkeypatch)
     original = copy.deepcopy(json.loads(registry.read_text())['jobs'])
     current = copy.deepcopy(original)
     for row in current[:2]: row.update(enabled=False, state='paused')
