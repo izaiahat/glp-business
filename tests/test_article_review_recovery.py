@@ -306,7 +306,7 @@ def test_ten_subject_publication_context_is_bound_to_original_and_candidate(tmp_
         check_context(context)
 
 
-def _retained_successor_adoption_fixture(tmp_path, monkeypatch, fault):
+def _retained_successor_adoption_fixture(tmp_path, monkeypatch, fault, *, corrected=False):
     """Source IO regression with explicit authentication doubles, never model evidence."""
     import hashlib, subprocess
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'systems/analytics-brain'))
@@ -380,6 +380,24 @@ def _retained_successor_adoption_fixture(tmp_path, monkeypatch, fault):
             assert git('status', '--porcelain')
         return {'document': document, 'manifest': {'subject_files': subject_files}}
     monkeypatch.setattr(recovery, 'validate_successor_documents', authenticate)
+    if corrected:
+        # No invented tenth subject: this mode has the genuine nine-subject shape.
+        (packet / recovery.PUBLICATION_CONTEXT).unlink()
+        subject_files = [r for r in subject_files if r['path'] != recovery.PUBLICATION_CONTEXT]
+        manifest_path.unlink()
+        manifest_path = base.parent / 'manifest.json'
+        manifest_path.write_text(json.dumps({'schema': 'glp-accepted-guides-source-v1', 'entries': [other, row]}))
+        git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'savings cohort')
+        head = git('rev-parse', 'HEAD')
+        monkeypatch.setattr(updater, 'ACCEPTED_SAVINGS_SOURCE_HEAD', head, raising=False)
+        monkeypatch.setattr(updater, 'ACCEPTED_SAVINGS_MANIFEST_SHA256', recovery.sha(manifest_path), raising=False)
+        monkeypatch.setattr(updater, 'ACCEPTED_SAVINGS_SOURCE_ROW_SHA256',
+            hashlib.sha256(json.dumps(row, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest(), raising=False)
+        def corrected_auth(*args, **kwargs):
+            result = authenticate(*args, **kwargs)
+            result.update(job={'postpublication_binding': {'deployed_source': row}}, authenticated_inputs=[])
+            return result
+        monkeypatch.setattr(recovery, 'corrected_successor_documents', corrected_auth)
     if fault in ('wrong_article', 'wrong_qa', 'wrong_review'):
         key = fault.removeprefix('wrong_')
         (workspace / row[key]['path']).write_text('{}')
@@ -391,7 +409,7 @@ def _retained_successor_adoption_fixture(tmp_path, monkeypatch, fault):
         value = json.loads(file.read_text()); value['unaccepted'] = key
         file.write_text(json.dumps(value))
         row[key]['sha256'] = recovery.sha(file)
-        manifest_path.write_text(json.dumps({'schema': 'glp-accepted-guide-updates-v1', 'entries': [other, row]}))
+        manifest_path.write_text(json.dumps({'schema': ('glp-accepted-guides-source-v1' if corrected else 'glp-accepted-guide-updates-v1'), 'entries': [other, row]}))
         git('add', '.'); git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'coherent unaccepted preimage')
         head = git('rev-parse', 'HEAD')
         assert not git('status', '--porcelain')
@@ -403,7 +421,8 @@ def _retained_successor_adoption_fixture(tmp_path, monkeypatch, fault):
     if fault == 'wrong_head':
         head = '0' * 40
     before = {p.relative_to(workspace): p.read_bytes() for p in workspace.rglob('*') if p.is_file() and '.git' not in p.parts}
-    call = lambda: updater.adopt_successor(workspace, entry_path, packet, history, expected_head=head)
+    call = lambda: updater.adopt_successor(workspace, entry_path, packet, history, expected_head=head,
+        **({'review_only_job': tmp_path/'job.json'} if corrected else {}))
     if fault:
         error = ('successor_source_accepted_preimage_drift' if fault.startswith('rehashed_')
                  else 'successor_source_authenticated_input_drift' if fault == 'postauth_context_and_source_drift'
@@ -444,6 +463,16 @@ def test_retained_successor_refuses_coherent_committed_preimage(tmp_path, monkey
 def test_retained_successor_refuses_postauth_context_source_handoff(tmp_path, monkeypatch):
     """RV506 P1: sealed context and original clean preimage survive handoff."""
     _retained_successor_adoption_fixture(tmp_path, monkeypatch, 'postauth_context_and_source_drift')
+
+
+def test_savings_manifest_adoption_without_tenth_subject(tmp_path, monkeypatch):
+    _retained_successor_adoption_fixture(tmp_path, monkeypatch, None, corrected=True)
+
+
+@pytest.mark.parametrize('fault', ['wrong_article', 'wrong_qa', 'wrong_review', 'native_refusal',
+    'dirty_source', 'successor_drift', 'wrong_head', 'rehashed_article', 'rehashed_qa', 'rehashed_review'])
+def test_savings_manifest_retains_adversarial_controls(tmp_path, monkeypatch, fault):
+    _retained_successor_adoption_fixture(tmp_path, monkeypatch, fault, corrected=True)
 
 
 def test_natural_cannot_be_recovered(tmp_path):

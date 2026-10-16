@@ -220,18 +220,27 @@ ACCEPTED_SUCCESSOR_SOURCE_HEAD = 'ea07aa33ea6167081b854de3372722988d9c3569'
 ACCEPTED_SUCCESSOR_SOURCE_ROW_SHA256 = '089cdb8108b0706fde1d60a3cd15350fd5c455c5cb114b9346d6b4f2c3842c5d'
 
 
+# Savings predecessor present at independently accepted RV116 source head
+# (review5536530872). Pin its immutable manifest AND complete row, never caller
+# history/rehashes. Other current manifest rows may legitimately have advanced.
+ACCEPTED_SAVINGS_SOURCE_HEAD = '34703bc33b19dd625d5dcc8293f01b243e3b3d64'
+ACCEPTED_SAVINGS_MANIFEST_SHA256 = '51aa0559ab8d22cd75c711d32f4fb6d99c4d5b3fe28341f6220a74c90d320900'
+ACCEPTED_SAVINGS_SOURCE_ROW_SHA256 = '5a3ed72b028fc2952046dd754781145e81ea2ea6219a6d48293a85bd654fcd2f'
+
+
 def adopt_successor(workspace, entry_path, packet, history, *, expected_head,
-                    root=ROOT, source_author_packet=None, source_author_review=None):
+                    root=ROOT, source_author_packet=None, source_author_review=None,
+                    review_only_job=None):
     # Same serialization as ordinary stage and every content-base mutation;
     # admission covers reads, native authentication, final recheck and writes.
     with carrier_lock():
         return _adopt_successor_locked(workspace, entry_path, packet, history,
             expected_head=expected_head, root=root, source_author_packet=source_author_packet,
-            source_author_review=source_author_review)
+            source_author_review=source_author_review, review_only_job=review_only_job)
 
 
 def _adopt_successor_locked(workspace, entry_path, packet, history, *, expected_head,
-                            root, source_author_packet, source_author_review):
+                            root, source_author_packet, source_author_review, review_only_job=None):
     """Stage retained authenticated successor inputs in private Git source only.
 
     No review invocation, commit/PR/merge, build, live read or recovery seal.
@@ -248,27 +257,44 @@ def _adopt_successor_locked(workspace, entry_path, packet, history, *, expected_
     # Do not reread mutable entry/context to derive the adoption after handoff.
     entry_bytes = entry_path.read_bytes()
     context_path = packet / recovery.PUBLICATION_CONTEXT
-    context_bytes = context_path.read_bytes()
-    manifest_path = workspace / 'data/blog/accepted-guides/updates.json'
+    context_bytes = None if review_only_job else context_path.read_bytes()
+    manifest_path = workspace / 'data/blog/accepted-guides' / ('manifest.json' if review_only_job else 'updates.json')
     manifest_bytes = manifest_path.read_bytes()
     manifest = json.loads(manifest_bytes)
-    doc = recovery.successor_documents(entry_path, history, packet, root=root,
-        source_author_packet=source_author_packet, source_author_review=source_author_review)
-    validated = recovery.validate_successor_documents(entry_path, doc, root=root)
+    if review_only_job:
+        recovery.require(not source_author_packet and not source_author_review,
+                         'corrected_successor_job_is_sole_author_binding')
+        validated = recovery.corrected_successor_documents(entry_path, history, packet, review_only_job, root=root)
+        doc = validated['document']
+    else:
+        doc = recovery.successor_documents(entry_path, history, packet, root=root,
+            source_author_packet=source_author_packet, source_author_review=source_author_review)
+        validated = recovery.validate_successor_documents(entry_path, doc, root=root)
     pins = {r['path']: r['sha256'] for r in validated['manifest']['subject_files']}
     recovery.require(hashlib.sha256(entry_bytes).hexdigest() == doc['entry']['sha256']
-                     and hashlib.sha256(context_bytes).hexdigest() == pins[recovery.PUBLICATION_CONTEXT],
+                     and (review_only_job or hashlib.sha256(context_bytes).hexdigest() == pins[recovery.PUBLICATION_CONTEXT]),
                      'successor_source_authenticated_input_drift')
-    entry, context = json.loads(entry_bytes), json.loads(context_bytes)
+    entry = json.loads(entry_bytes)
+    context = None if review_only_job else json.loads(context_bytes)
     rows = [r for r in manifest['entries'] if r['route'] == entry['target_route']]
-    recovery.require(manifest['schema'] == 'glp-accepted-guide-updates-v1' and len(rows) == 1,
+    schema = 'glp-accepted-guides-source-v1' if review_only_job else 'glp-accepted-guide-updates-v1'
+    recovery.require(manifest['schema'] == schema and len(rows) == 1,
                      'successor_source_row_invalid')
     row = rows[0]
     row_digest = hashlib.sha256(json.dumps(row, sort_keys=True, separators=(',', ':'),
                                          ensure_ascii=False).encode()).hexdigest()
-    recovery.require(context['source_head'] == ACCEPTED_SUCCESSOR_SOURCE_HEAD
-                     and row_digest == ACCEPTED_SUCCESSOR_SOURCE_ROW_SHA256,
-                     'successor_source_accepted_preimage_drift')
+    if review_only_job:
+        accepted_bytes = source.run(['git', 'show', f'{ACCEPTED_SAVINGS_SOURCE_HEAD}:data/blog/accepted-guides/manifest.json'], cwd=workspace).encode()
+        recovery.require(hashlib.sha256(accepted_bytes).hexdigest() == ACCEPTED_SAVINGS_MANIFEST_SHA256
+                         and row_digest == ACCEPTED_SAVINGS_SOURCE_ROW_SHA256
+                         and row in json.loads(accepted_bytes)['entries'],
+                         'successor_source_accepted_preimage_drift')
+        recovery.require(validated['job']['postpublication_binding']['deployed_source'] == row,
+                         'successor_source_deployed_binding_drift')
+    else:
+        recovery.require(context['source_head'] == ACCEPTED_SUCCESSOR_SOURCE_HEAD
+                         and row_digest == ACCEPTED_SUCCESSOR_SOURCE_ROW_SHA256,
+                         'successor_source_accepted_preimage_drift')
     preimages = {manifest_path: manifest_bytes}
     for key in ('article', 'qa', 'review'):
         relative = row[key]['path']
@@ -286,8 +312,9 @@ def _adopt_successor_locked(workspace, entry_path, packet, history, *, expected_
     recovery.require(before['article_id'] == article['article_id'] == entry['article_id']
                      and before['canonical_path'] == article['canonical_path'] == row['route'],
                      'successor_source_identity_invalid')
-    recovery.require(row.get('first_publication') == context['first_publication'],
-                     'successor_source_publication_context_drift')
+    if not review_only_job:
+        recovery.require(row.get('first_publication') == context['first_publication'],
+                         'successor_source_publication_context_drift')
     originals = {'article': packet / '06-article.json', 'qa': packet / '07-qa-receipt.json',
                  'review': recovery.checked(doc['review'])}
     expected = {'article': pins['06-article.json'], 'qa': pins['07-qa-receipt.json'],
@@ -305,8 +332,10 @@ def _adopt_successor_locked(workspace, entry_path, packet, history, *, expected_
                          'successor_source_destination_drift')
     # Final pre-effect validation while the genuine carrier owner is held.
     recovery.require(entry_path.read_bytes() == entry_bytes
-                     and context_path.read_bytes() == context_bytes,
+                     and (review_only_job or context_path.read_bytes() == context_bytes),
                      'successor_source_authenticated_input_drift')
+    for value in validated.get('authenticated_inputs', []):
+        recovery.checked(value)
     if (source.run(['git', 'rev-parse', 'HEAD'], cwd=workspace).strip() != expected_head
         or source.run(['git', 'status', '--porcelain'], cwd=workspace).strip()):
         raise RuntimeError('successor_source_checkout_drift')
@@ -335,6 +364,8 @@ def main():
     parser.add_argument('--expected-source-head')
     parser.add_argument('--source-author-packet', type=Path)
     parser.add_argument('--source-author-review', type=Path)
+    parser.add_argument('--review-only-job', type=Path,
+                        help='Existing consumed nine-subject corrected-successor job; no new review')
     args = parser.parse_args()
     if args.mode == 'stage' and (not args.packet or not args.route):
         parser.error('stage requires --packet and --route')
@@ -344,7 +375,7 @@ def main():
         result = adopt_successor(args.workspace, args.entry.resolve(strict=True),
             args.packet.resolve(strict=True), args.history.resolve(strict=True),
             expected_head=args.expected_source_head, source_author_packet=args.source_author_packet,
-            source_author_review=args.source_author_review)
+            source_author_review=args.source_author_review, review_only_job=args.review_only_job)
     else:
         result = plan() if args.mode == 'plan' else stage(args.packet.resolve(), args.route)
     if args.mode == 'plan':
