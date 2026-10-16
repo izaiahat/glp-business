@@ -14,15 +14,57 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import hermes_sol_article_review as review
 
 
-def fixture(tmp_path, monkeypatch):
+@pytest.mark.parametrize('text', ['Actual native line.\nSecond line.\n',
+                                '{"quote":"before\u2028after\u0085end\u2029"}\n', ''])
+def test_fixture_matches_native_registered_context_builder(tmp_path, text):
+    import ast, os
+    source = ROOT / 'systems/seo-blog-machine/scripts/opus_review_loop.py'
+    tree = ast.parse(source.read_text())
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef)
+             and n.name in {'physical_source_lines', 'build_context_bundle'}]
+    namespace = {'Path': Path, 'os': os, 'Any': object,
+                 'physical_lines': review.physical_lines,
+                 'subject_paths': lambda job: [Path(job['packet_dir'])/'04-draft.md']}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source), 'exec'), namespace)
+    subject = tmp_path/'04-draft.md'
+    subject.write_bytes(text if isinstance(text, bytes) else text.encode())
+    manifest = {'manifest_sha256': 'a'*64}
+    result = namespace['build_context_bundle']({'packet_dir':str(tmp_path)}, manifest, 1, tmp_path)
+    assert result.read_text() == native_context(subject, manifest)
+
+
+
+def native_context(subject, manifest):
+    # Retain the current registered physical-line envelope, not PR441's older
+    # transport spelling. Independent legacy reviews require their original code.
+    chunks = ['SEALED ARTICLE SUBJECTS — READ ONLY',
+              f"manifest_sha256={manifest['manifest_sha256']}", '',
+              f'===== {subject.name} =====']
+    text = subject.read_bytes().decode('utf-8').replace('\r\n', '\n')
+    lines = text.split('\n') if text else []
+    if lines and lines[-1] == '':
+        lines.pop()
+    chunks.extend(f'{n:04d}|{s}' for n, s in enumerate(lines, 1))
+    chunks.append('')
+    return '\n'.join(chunks) + '\n'
+
+
+def fixture(tmp_path, monkeypatch, text='Source-backed draft.\n', envelope='current'):
     packet = tmp_path / 'packet'
     packet.mkdir()
     subject = packet / '04-draft.md'
-    subject.write_text('Source-backed draft.\n')
+    subject.write_bytes(text if isinstance(text, bytes) else text.encode())
     manifest = {'manifest_sha256': 'a' * 64, 'subject_files': [{'path': subject.name}]}
     context = tmp_path / 'context.txt'
-    context.write_text('SEALED ARTICLE SUBJECTS — READ ONLY\nmanifest_sha256=' + 'a' * 64 +
-                       '\n\n===== 04-draft.md =====\n0001|Source-backed draft.\n\n')
+    content = native_context(subject, manifest)
+    if envelope == 'pr441':
+        parts = ['# SEALED PACKET CONTENT — ALREADY IN BAND', '',
+                 f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
+                 'Every source line is prefixed with its original 1-based line number.',
+                 '', f'## FILE: {subject.name}', '']
+        parts.extend(f'{i}|{line}' for i, line in enumerate(review.physical_lines(subject.read_bytes()), 1))
+        content = '\n'.join(parts) + '\n'
+    context.write_text(content)
     prompt = tmp_path / 'prompt.txt'
     prompt.write_text('Review all five gates against manifest ' + 'a' * 64)
     args = SimpleNamespace(context_file=[str(context)], prompt_file=str(prompt), prompt=None,
@@ -57,6 +99,7 @@ def fixture(tmp_path, monkeypatch):
 
     class Agent:
         def __init__(self, **kwargs):
+            assert kwargs['session_db'] is handle, 'reviewer_must_use_native_sessiondb'
             self.kwargs = kwargs
             self.session_id = 'reviewer'
             self.provider, self.model = args.provider, args.model
@@ -90,8 +133,48 @@ def fixture(tmp_path, monkeypatch):
     return args, inputs, db, packet, manifest, handle, closed
 
 
-def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch):
-    args, inputs, db, packet, manifest, handle, closed = fixture(tmp_path, monkeypatch)
+@pytest.mark.parametrize('source,lines', [
+    ('a\u2028b\u2029c\x85d\x0be\x0cf\n'.encode(), ['a\u2028b\u2029c\x85d\x0be\x0cf']),
+    (b'{\r"quote": "valid JSON whitespace"}\r', ['{\r"quote": "valid JSON whitespace"}\r']),
+    (b'a\r\nb\nc\r', ['a', 'b', 'c\r']),
+    (b'', []),
+])
+def test_custodian_replays_physical_lines_without_backfilling(tmp_path, monkeypatch, source, lines):
+    args, _, db, packet, manifest, _, _ = fixture(tmp_path, monkeypatch)
+    (packet / '04-draft.md').write_bytes(source)
+    context = ('SEALED ARTICLE SUBJECTS — READ ONLY\nmanifest_sha256=' + 'a' * 64 +
+               '\n\n===== 04-draft.md =====\n' +
+               ''.join(f'{n:04d}|{line}\n' for n, line in enumerate(lines, 1)) + '\n')
+    Path(args.context_file[0]).write_bytes(context.encode())
+    captured = {}
+    payload = review.build_payload(args, captured)
+    with sqlite3.connect(db) as c:
+        c.execute('update messages set content=? where id=1', (payload,))
+        response = c.execute('select content from messages where id=2').fetchone()[0]
+    custody = review.authenticate_result('reviewer', payload, response, model=args.model,
+                                         provider=args.provider, effort=args.effort, session_db=db)
+    runtime = {'session_id': 'reviewer', 'model': args.model, 'provider': args.provider,
+               'transport_id': review.target_route(args.provider, args.model, args.effort)['transport_id'],
+               'effort': args.effort, 'result_custody': custody}
+    raw = {'session_id': 'reviewer', 'result': response, 'hermes_runtime': runtime,
+           'review_input': review.review_input(args, payload, captured, runtime)}
+    before = db.read_bytes()
+    assert review.validate_result_custody(raw, manifest=manifest, packet=packet, session_db=db) == custody
+    historical = copy.deepcopy(raw)
+    historical['hermes_runtime'].pop('result_custody')
+    with pytest.raises(RuntimeError, match='custody'):
+        review.validate_result_custody(historical, manifest=manifest, packet=packet, session_db=db)
+    assert 'result_custody' not in historical['hermes_runtime']
+    assert db.read_bytes() == before
+
+
+@pytest.mark.parametrize('text', ['Source-backed draft.\n', '{"quote":"a\u2028b\u0085c\u2029d"}\n',
+                                b'{\r"a":1}\n', b'first\rsecond\nthird\r\nfourth\r',
+                                b'', b'\n', b'first\nsecond', b'first\nsecond\n',
+                                b'first\r\nsecond\r\n', b'\r'])
+@pytest.mark.parametrize('envelope', ['current', 'pr441'])
+def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch, text, envelope):
+    args, inputs, db, packet, manifest, handle, closed = fixture(tmp_path, monkeypatch, text, envelope)
     captured = {}
     payload = review.build_payload(args, captured)
     response, usage, execution = review.run_hermes(payload, args)
@@ -130,3 +213,170 @@ def test_producer_retains_runtime_result_custody(tmp_path, monkeypatch):
             review.validate_result_custody(forged, manifest=expected_manifest, packet=packet)
         if tamper == 'input':
             Path(args.prompt_file).write_text('Review all five gates against manifest ' + 'a' * 64)
+
+
+def test_registered_sol61_route_preserves_author_exclusions(tmp_path, monkeypatch, capsys):
+    """Registered caller → wrapper → fixture native DB; NOT health acceptance."""
+    import article_health_acceptance as health
+    import socket
+    sys.path.insert(0, str(ROOT / 'systems/seo-blog-machine/scripts'))
+    import opus_review_loop as loop
+    transports = loop.review_transports
+    route_id = 'hermes-openai-codex-sol61-independent'
+    route = transports.transport(route_id)
+    assert (route['provider'], route['model'], route['effort'], route['speed'], route['service_tier']) == (
+        'openai-codex', 'gpt-6.1-sol', 'high', 'fast', 'priority')
+    assert transports.DEFAULT_TRANSPORT_ID == transports.ASTRA_TRANSPORT['transport_id']
+    assert transports.transport(None) == transports.SOL_TRANSPORT  # historical identity unchanged
+    monkeypatch.setitem(route, 'wrapper', ROOT / 'scripts/hermes_sol_article_review.py')
+    args, _, db, packet, _, handle, closed = fixture(tmp_path, monkeypatch)
+    for name in ('00-source.md', '01-brief.md', '02-evidence.md', '03-plan.md'):
+        (packet / name).write_text('Synthetic sealed subject, no clinical claim.\n')
+    with sqlite3.connect(db) as c:
+        c.execute('alter table messages add column tool_name text')
+        for sid, model in [('original', 'gpt-6-astra-900k'), ('successor', 'claude-opus-5-5')]:
+            c.execute('insert into sessions values(?,?,?,?,?,?,?,?,?)',
+                      (sid, model, '{}', '', 1, 8, 'fixture', 0, 0))
+        for mid, sid, name in [(3, 'original', '00-source.md'), (4, 'successor', '04-draft.md')]:
+            c.execute('insert into messages values(?,?,?,?,?,?,?)',
+                      (mid, sid, 'tool', json.dumps({'verified': True, 'files_modified': [str(packet / name)]}),
+                       None, 7, 'write_file'))
+    calls = []
+
+    class NativeFixtureAgent:
+        # Only this isolated fixture represents native runtime-owned writes.
+        def __init__(self, **kwargs):
+            assert kwargs['session_db'] is handle
+            assert kwargs['model'] == route['model']
+            assert kwargs['request_overrides']['service_tier'] == 'priority'
+            assert kwargs['reasoning_config']['effort'] == 'high'
+            assert kwargs['enabled_toolsets'] == [] and kwargs['fallback_model'] is None
+            assert kwargs['skip_context_files'] and kwargs['skip_memory']
+            self.tools, self.valid_tool_names = [], []
+        def _build_system_prompt(self, brief):
+            return brief
+        def _ensure_db_session(self):
+            self.started = True
+        def run_conversation(self, payload, **kw):
+            assert self.started and kw['system_message'] == review.SYSTEM_BRIEF
+            manifest = json.loads((tmp_path / 'history/round-01-subject-manifest.json').read_text())
+            response = json.dumps({'summary': 'Synthetic offline route fixture; no health acceptance.',
+                                  'verdict': 'PASS_OPUS_SEO_DRAFT', 'round': 1,
+                                  'subject_manifest_sha256': manifest['manifest_sha256'],
+                                  'gates': [{'gate': gate, 'status': 'PASS', 'findings': []} for gate in 'ABCDE'],
+                                  'findings': []})
+            with sqlite3.connect(db) as c:
+                c.execute('update sessions set model=? where id="reviewer"', (route['model'],))
+                c.execute('update messages set content=? where id=1', (payload,))
+                c.execute('update messages set content=? where id=2', (response,))
+            return {'final_response': response, 'api_calls': 1, 'completed': True,
+                    'provider': route['provider'], 'model': route['model'], 'session_id': 'reviewer',
+                    'output_tokens': 50, 'messages': [{'role': 'assistant', 'content': response}]}
+        def close(self):
+            closed.append(handle)
+
+    monkeypatch.setitem(sys.modules, 'run_agent', SimpleNamespace(AIAgent=NativeFixtureAgent))
+    monkeypatch.setattr(socket, 'socket', lambda *a, **k: pytest.fail('network forbidden'))
+    monkeypatch.setattr(loop, 'RUBRIC', tmp_path / 'rubric.md')
+    loop.RUBRIC.write_text('Synthetic rubric: all five gates, zero findings required.\n')
+    schema_path = tmp_path / 'offline-schema.json'
+    schema_path.write_text(json.dumps({'type': 'object', 'required': ['verdict', 'round', 'subject_manifest_sha256', 'gates', 'findings']}))
+    monkeypatch.setattr(loop, 'REVIEW_SCHEMA', schema_path)
+    monkeypatch.setattr(loop, 'validate_topic_authority', lambda job: {'type': 'synthetic fixture'})
+    monkeypatch.setattr(loop, 'run_validator', lambda *a: None)  # no unrelated compiler/QA effects
+    monkeypatch.setattr(loop, 'run_publish', lambda *a: pytest.fail('publication forbidden'))
+    monkeypatch.setattr(loop, 'run_repair', lambda *a: pytest.fail('repair forbidden'))
+
+    def registered_wrapper(argv, **kw):
+        assert Path(argv[1]).name == 'hermes_sol_article_review.py'
+        calls.append(argv)
+        monkeypatch.setattr(sys, 'argv', argv[1:])
+        rc = review.main()  # real parser, route, emission and fixed-DB authentication
+        captured = capsys.readouterr()
+        return SimpleNamespace(returncode=rc, stdout=captured.out, stderr=captured.err)
+
+    monkeypatch.setattr(loop.subprocess, 'run', registered_wrapper)
+    job = {'schema': 'glp-opus-seo-review-job-v1', 'max_rounds': 5,
+           'job_id': 'offline-fresh-sol61', 'topic_id': 'offline-fixture',
+           'packet_dir': str(packet), 'history_dir': str(tmp_path / 'history'),
+           'subject_files': sorted(p.name for p in packet.iterdir()), 'review_transport': route_id,
+           'review_wrapper_sha256': review.sha_file(ROOT / 'scripts/hermes_sol_article_review.py'),
+           'rubric_sha256': review.sha_file(loop.RUBRIC), 'review_schema_sha256': review.sha_file(loop.REVIEW_SCHEMA)}
+    jobpath = tmp_path / 'job.json'
+    jobpath.write_text(json.dumps(job))
+    result = loop.run(jobpath, False, review_only_once=True)
+    assert len(calls) == 1 and handle in closed
+    assert result['status'] == 'PASS_OPUS_SEO_DRAFT' and result['publication_invoked'] is False
+    raw = json.loads((tmp_path / 'history/round-01-sol-raw.json').read_text())
+    manifest = json.loads((tmp_path / 'history/round-01-subject-manifest.json').read_text())
+    custody = raw['hermes_runtime']['result_custody']
+    assert list(raw['modelUsage']) == [route['model']]
+    assert transports.validate_raw_review_runtime(raw) == route
+    before = db.read_bytes()
+    assert review.validate_result_custody(raw, manifest=manifest, packet=packet) == custody
+    reviewer = {'model': route['model'], 'runtime': {'native_session_id': custody['session_id']}}
+    paths = [packet / name for name in job['subject_files']]
+    assert {r['session_id'] for r in health.packet_authors(db, paths, reviewer, 30)} == {'original', 'successor'}
+    for sid in ('original', 'successor'):
+        assert health.author_session(db, sid, reviewer, 30)['session_id'] == sid
+    # Every original AND successor author retains both exclusions independently.
+    for sid, model in [('original', 'gpt-6-astra-900k'), ('successor', 'claude-opus-5-5')]:
+        for excluded in ({**reviewer, 'model': model},
+                         {**reviewer, 'runtime': {'native_session_id': sid}}):
+            with pytest.raises(ValueError, match='same model or session'):
+                health.packet_authors(db, paths, excluded, 30)
+            with pytest.raises(ValueError, match='same model or session'):
+                health.author_session(db, sid, excluded, 30)
+    for tamper in ('model', 'response', 'custody', 'session', 'route', 'tier', 'usage'):
+        forged = copy.deepcopy(raw)
+        if tamper == 'model':
+            for block in ('review_input', 'hermes_runtime'):
+                forged[block].update(model='gpt-6-astra-900k', transport_id=transports.DEFAULT_TRANSPORT_ID,
+                                     speed='normal', service_tier='default')
+            forged['modelUsage'] = {'gpt-6-astra-900k': {'canonicalModel': 'gpt-6-astra-900k', 'outputTokens': 50}}
+        elif tamper == 'response':
+            forged['result'] = review.advisory_output('{"summary":"forged PASS"}')
+            forged['hermes_runtime']['result_custody']['response_sha256'] = review.sha_bytes(forged['result'].encode())
+        elif tamper == 'custody':
+            forged['hermes_runtime'].pop('result_custody')
+        elif tamper == 'session':
+            forged['session_id'] = forged['hermes_runtime']['session_id'] = 'NEVER_RAN'
+        elif tamper == 'route':
+            forged['review_input']['transport_id'] = transports.DEFAULT_TRANSPORT_ID
+        elif tamper == 'tier':
+            forged['hermes_runtime']['service_tier'] = 'default'
+        else:
+            forged['modelUsage'] = {'gpt-6-astra-900k': {'canonicalModel': 'gpt-6-astra-900k', 'outputTokens': 50}}
+        forged.pop('record_sha256', None)
+        forged['record_sha256'] = review.sha_bytes(json.dumps(forged, sort_keys=True, separators=(',', ':'),
+                                                            ensure_ascii=False).encode())
+        with pytest.raises((RuntimeError, transports.TransportError)):
+            transports.validate_raw_review_runtime(forged)
+            review.validate_result_custody(forged, manifest=manifest, packet=packet)
+    # Runtime IDs must bind independently, not merely inherit input/model pins.
+    # Rehash only the forged receipt; native DB/model/input stay genuine Sol61.
+    for runtime_id in (transports.DEFAULT_TRANSPORT_ID, 'UNREGISTERED-RV489', None):
+        forged = copy.deepcopy(raw)
+        if runtime_id is None:
+            forged['hermes_runtime'].pop('transport_id')
+        else:
+            forged['hermes_runtime']['transport_id'] = runtime_id
+        forged.pop('record_sha256', None)
+        forged['record_sha256'] = review.sha_bytes(json.dumps(forged, sort_keys=True, separators=(',', ':'),
+                                                            ensure_ascii=False).encode())
+        # Test each consumer separately so an earlier refusal cannot mask a gap.
+        with pytest.raises(RuntimeError, match='current_route_pin_invalid'):
+            transports.validate_raw_review_runtime(forged)
+        with pytest.raises(RuntimeError, match='custody'):
+            review.validate_result_custody(forged, manifest=manifest, packet=packet)
+        with pytest.raises(RuntimeError, match='current_route_pin_invalid'):
+            loop.validate_review(loop.parse_result(forged), forged, manifest, 1)
+    assert db.read_bytes() == before  # consumers never backfill native custody
+    assert 'priority' in (tmp_path / 'history/round-01-review-prompt.md').read_text()
+    for legacy in (None, *[r['transport_id'] for r in (transports.SOL_TRANSPORT, transports.OPUS_TRANSPORT,
+                                                    transports.POLICY_OPUS_TRANSPORT, transports.POLICY_OPUS55_TRANSPORT)]):
+        job['review_transport'] = legacy
+        jobpath.write_text(json.dumps(job))
+        with pytest.raises(RuntimeError, match='astra_only|current_article_review'):
+            loop.run(jobpath, False, review_only_once=True)
+    assert len(calls) == 1

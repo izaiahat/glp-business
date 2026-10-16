@@ -47,6 +47,12 @@ def test_negative_duplicate_spend_is_not_a_financial_write():
     ('avoid duplicate finding/publication/spend; spend $50 on ads.', 'financial-write'),
     ('Spend $50; avoid duplicate finding/publication/spend.', 'financial-write'),
     ('avoid duplicate finding/publication/spend and charge the invoice.', 'financial-write'),
+    ('Preserve no-charge boundaries; charge $50.', 'financial-write'),
+    ('Charge $50; preserve no-charge boundaries.', 'financial-write'),
+    ('Preserve no-charge boundaries; refund the payment and raise the budget.', 'financial-write'),
+    ('Read-only no-charge review; paid invoice.', 'financial-write'),
+    ('Do not preserve no-charge boundaries.', 'financial-write'),
+    ('Preserve no-charge boundaries; send REPLY.md to jane@example.com.', 'third-party-send'),
     ('Make the payout to the network.', 'financial-write'),
     ('Record REAL earnings.', 'financial-write'),
     ('Publish the new health claims page; retain REPLY.md.', 'health-claim-publish'),
@@ -54,6 +60,55 @@ def test_negative_duplicate_spend_is_not_a_financial_write():
 ])
 def test_real_protected_effects_survive_artifacts_and_negative_guard(text, effect):
     assert lo.protected_effect(text) == effect
+
+
+def test_retention_no_charge_boundary_passes_readonly_closer(tmp_path, monkeypatch):
+    # Exact live GLP-360 title/description read 2026-10-15; retain the full scope.
+    target = {'id': '9636731c-e436-44c4-b3c8-f1a1ed1d5801', 'identifier': 'GLP-360',
+        'title': 'Review retained Google Cloud account-retention notice without authorizing an upgrade',
+        'description': (
+            'Kind: blocker\n\nCanonical inbox classified this retained infrastructure notice as actionable '
+            'for active GLP, but it has no owning machine. Review whether retention remediation remains '
+            'needed. This is a review blocker only: no paid upgrade, charge, account change or third-party '
+            'send is authorized. Verify current account state through authorized read-only access before '
+            'proposing action.\n\nNot admitted to planned work.\n\nSource: '
+            'inbox:evt_f6baa0d8f6e7576d7a4115750b7a\n\nOperation: '
+            'd328a46a-ef49-40a8-b380-7c1d36eeff52\n\n## Acceptance\n\n- [ ] Review whether retention '
+            'remediation remains needed using authorized read-only current account state; record supported '
+            'account/resource findings, remaining unknowns, and whether operator action is indicated. '
+            'Preserve the original no-upgrade, no-charge, no-account-change and no-third-party-send '
+            'boundaries of this review.\n\nCoordinator clarification 2026-10-15: this acceptance restates '
+            'the review objective above; it does not require proof of unrecorded historical deletion/upgrade '
+            'timing, authorize remediation, or accept the separately approved access setup as a substitute '
+            'for the retention review. The original description and notice identifiers remain unchanged.'),
+        'team': {'id': lo.TEAM, 'key': 'GLP'}, 'state': {'name': 'In Progress'}}
+    reports = tmp_path / 'reports'
+    reports.mkdir()
+    receipt = reports / 'retention.json'
+    receipt.write_text(json.dumps({'asset_counts': [50, 47, 29], 'review_id': 'retention-360'}))
+    worker = reports / 'RESULT.json'
+    worker.write_text(json.dumps({'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-360',
+        'live_run': 'Read-only retention-360', 'receipt': 'reports/retention.json'}))
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError('check-only attempted an external effect')
+
+    def gql(query, variables=None):
+        assert query == 'query{viewer{id}}'
+        return {'viewer': {'id': lo.OPERATOR_USER_ID}}
+
+    monkeypatch.setattr(lc, 'ROOT', tmp_path)
+    monkeypatch.setattr(lc, 'REPORTS', reports)
+    monkeypatch.setattr(lo, '__file__', str(tmp_path / 'scripts/linear_orchestrator.py'))
+    monkeypatch.setattr(lo, 'issue', lambda ident: target)
+    monkeypatch.setattr(lo, 'gql', gql)
+    monkeypatch.setattr(lo, 'comment', forbidden)
+    monkeypatch.setattr(lc, 'write', forbidden)
+    monkeypatch.setattr(lc, 'orchestrate', forbidden)
+    monkeypatch.setattr(subprocess, 'check_output', forbidden)
+    before = {p: p.read_bytes() for p in reports.iterdir()}
+    assert lc.close('GLP-360', worker, check_only=True)[0] == 'PASS'
+    assert {p: p.read_bytes() for p in reports.iterdir()} == before
 
 
 def test_genuine_send_refused_by_linear_close_even_with_reply_artifact(tmp_path):
@@ -97,12 +152,13 @@ DESCRIPTION = '## Acceptance\n\n- [ ] Installed shipper drain completes with a r
 SHIPPER = b'merged shipper bytes'
 
 
-def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch):
+@pytest.mark.parametrize('root_lane', [False, True])
+def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch, root_lane):
     reports = tmp_path / 'reports'
     (reports / 'ops/job-receipts').mkdir(parents=True)
     receipt = reports / 'ops/job-receipts/ship-1.json'
     receipt.write_text(json.dumps({'status': 'SKIP_ALREADY_INSTALLED', 'deployment_id': '8bb93c91'}))
-    worker = reports / 'ops/run/RESULT.json'
+    worker = tmp_path / 'lanes/OWNER/RESULT.json' if root_lane else reports / 'ops/run/RESULT.json'
     worker.parent.mkdir(parents=True)
     (tmp_path / 'scripts').mkdir()
     (tmp_path / 'scripts/glp_affiliati_postback_ship.py').write_bytes(SHIPPER)
@@ -152,7 +208,8 @@ def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch):
 
     state, typed = lc.close('GLP-335', worker)
     data = json.loads(typed.read_text())
-    assert state == 'In Progress' and typed == worker.parent / 'GLP-335' / 'RESULT.json'
+    assert state == 'In Progress' and typed == lc.typed_destination('GLP-335', worker)
+    assert typed.is_relative_to(reports)
     assert data['scope'] == 'ordinary-runtime' and data['pr']['merge_sha'] == MERGE
     assert data['pr']['checks'] == [{'name': 'python-tests', 'url': CI}]
     assert data['description_sha256'] == hashlib.sha256(DESCRIPTION.encode()).hexdigest()
@@ -167,12 +224,14 @@ def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('file_evidence', ['', ' Read dot ticket REPLY.md from the fleet inbox.'])
-def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path, monkeypatch, capsys, file_evidence):
+@pytest.mark.parametrize('root_lane', [False, True])
+def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path, monkeypatch, capsys, file_evidence, root_lane):
     reports = tmp_path / 'reports'
     receipt = reports / 'ops/collector/receipt.json'
     receipt.parent.mkdir(parents=True)
     receipt.write_text(json.dumps({'provider_rows': 58}))
-    worker = receipt.parent / 'RESULT.json'
+    worker = tmp_path / 'lanes/OWNER/RESULT.json' if root_lane else receipt.parent / 'RESULT.json'
+    worker.parent.mkdir(parents=True, exist_ok=True)
     worker.write_text(json.dumps({'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-44',
         'live_run': 'Read-only snapshot provider_rows=58',
         'receipt': 'reports/ops/collector/receipt.json'}))
@@ -198,6 +257,21 @@ def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path,
     monkeypatch.setattr(lc, 'write', forbidden)
     monkeypatch.setattr(lc, 'orchestrate', forbidden)
     before = {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    import fleet_ingest as fi
+    from contextlib import redirect_stdout
+    import io
+    def real_runner(argv, cwd, timeout):
+        assert argv[-1] == '--check-only' and Path(argv[1]).name == 'linear_close.py'
+        output = io.StringIO()
+        with redirect_stdout(output):
+            rc = lc.main(argv[2:])
+        return {'rc': rc, 'stdout': output.getvalue(), 'stderr': ''}
+    preflight = fi.completion_preflight(tmp_path, 'GLP-44', str(worker), {}, real_runner)
+    assert preflight['rc'] == 0, preflight
+    assert 'GLP-44 PASS' in preflight['stdout']
+    status, typed = lc.close('GLP-44', worker, check_only=True)
+    assert status == 'PASS' and typed == lc.typed_destination('GLP-44', worker)
+    assert typed.is_relative_to(reports) and not typed.exists()
     assert lc.main(['GLP-44', str(worker), '--check-only']) == 0
     assert 'GLP-44 PASS' in capsys.readouterr().out
     # Same gate must refuse missing current acceptance, rather than trusting status.
@@ -207,6 +281,40 @@ def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path,
     assert writes == []
     assert {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
     assert not (worker.parent / 'GLP-44').exists()
+
+
+def test_typed_destination_binds_worker_identity_and_checks_escaped_paths(tmp_path, monkeypatch):
+    reports = tmp_path / 'reports'
+    reports.mkdir()
+    monkeypatch.setattr(lc, 'ROOT', tmp_path)
+    monkeypatch.setattr(lc, 'REPORTS', reports)
+    a = tmp_path / 'lanes/OWNER/RESULT.json'
+    b = tmp_path / 'lanes/OTHER/RESULT.json'
+    a.parent.mkdir(parents=True); b.parent.mkdir(parents=True)
+    a.write_text('{}'); b.write_text('{}')
+    dest = lc.typed_destination('GLP-358', a)
+    assert dest == lc.typed_destination('GLP-358', a)
+    assert dest != lc.typed_destination('GLP-358', b)
+    a.write_text('{"changed": true}')
+    assert dest == lc.typed_destination('GLP-358', a), 'mutable bytes are not worker identity'
+    assert dest != lc.typed_destination('GLP-359', a)
+    assert dest.name == 'RESULT.json' and 'GLP-358' in dest.parts
+    assert dest.is_relative_to(reports) and not dest.exists()
+    for issue in ('GLP-358/../359', 'glp-358', 'GLP-358 --apply'):
+        with pytest.raises(lc.Refused): lc.typed_destination(issue, a)
+    dest.parent.parent.mkdir(parents=True)
+    # Even redirection within reports must not drop exact issue/worker identity.
+    monkeypatch.setattr(lo, 'issue', lambda *a: pytest.fail('invalid destination reached API'))
+    for outside in (tmp_path / 'outside', reports / 'other-issue'):
+        outside.mkdir()
+        dest.parent.symlink_to(outside, target_is_directory=True)
+        with pytest.raises(lc.Refused, match='reports'):
+            lc.typed_destination('GLP-358', a)
+        # Both modes refuse BEFORE any API call or write.
+        for kwargs in ({'check_only': True}, {'apply': True}, {}):
+            with pytest.raises(lc.Refused, match='reports'):
+                lc.close('GLP-358', a, **kwargs)
+        dest.parent.unlink()
 
 
 
@@ -232,3 +340,78 @@ def test_evidence_business_counts_are_observed(tmp_path, monkeypatch):
     observed = evidence[0]['observed']
     assert '"provider_rows": 58' in observed and not any('stale_20260908_rows' in v for v in observed)
     assert lc.first_output({'evidence': evidence})
+
+
+@pytest.mark.parametrize('fault', [None, 'installed_bytes', 'unrelated_ancestry', 'ci_head_blob',
+                                  'unreviewed_path', 'failed_ci'])
+def test_zero_diff_source_carry_check_only(tmp_path, monkeypatch, capsys, fault):
+    # GLP-350: PR478 changes no files, but carries merged PR460's installed source.
+    # Its merge tree may also contain later main changes; the selected blobs must
+    # still equal the original source and the exact head tested by hosted CI.
+    rel = 'scripts/glp_price_freshness.py'
+    original = 'https://github.com/izaiahat/glp-business/pull/460'
+    carry = 'https://github.com/izaiahat/glp-business/pull/478'
+    source_head, source_merge = 'c' * 40, 'd' * 40
+    raw = b'reviewed price producer\n'
+    blob = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+    source = tmp_path / rel
+    source.parent.mkdir()
+    source.write_bytes(b'tampered' if fault == 'installed_bytes' else raw)
+    reports = tmp_path / 'reports'
+    reports.mkdir()
+    receipt = reports / 'receipt.json'
+    receipt.write_text(json.dumps({'provider_rows': 54, 'cost': None}))
+    worker = reports / 'RESULT.json'
+    worker.write_text(json.dumps({'issue': 'GLP-350', 'status': 'DONE_READY_TO_CLOSE',
+        'pr': carry, 'install': {'source_pr': original, 'paths': [rel]},
+        'live_run': 'provider_rows=54', 'receipt': 'reports/receipt.json'}))
+    target = {'id': ISSUE_ID, 'identifier': 'GLP-350', 'title': 'Price source receiving',
+        'description': '## Acceptance\nInstalled price producer has a registered receipt.',
+        'team': {'id': lo.TEAM, 'key': 'GLP'}, 'state': {'name': 'In Progress'}}
+    remote = {'state': 'MERGED', 'headRefOid': HEAD, 'mergeCommit': {'oid': MERGE},
+        'files': [], 'statusCheckRollup': [{'name': 'python-tests', 'detailsUrl': CI,
+        'status': 'COMPLETED', 'conclusion': 'FAILURE' if fault == 'failed_ci' else 'SUCCESS'}]}
+    original_remote = {'state': 'MERGED', 'headRefOid': source_head,
+        'mergeCommit': {'oid': source_merge},
+        'files': [{'path': 'scripts/other.py' if fault == 'unreviewed_path' else rel}]}
+    def gh(url):
+        return {carry: remote, original: original_remote}[url]
+    def check_output(argv, **kwargs):
+        if argv[:3] == ['gh', 'pr', 'view']:
+            return json.dumps(gh(argv[3]))
+        assert argv[:2] == ['gh', 'api']
+        endpoint = argv[2]
+        prefix = 'repos/izaiahat/glp-business/'
+        if endpoint.startswith(prefix + 'compare/'):
+            base, head = endpoint.split('/')[-1].split('...')
+            assert (base, head) in ((source_merge, HEAD), (HEAD, MERGE))
+            return json.dumps({'merge_base_commit': {'sha': 'e' * 40
+                if fault == 'unrelated_ancestry' else base}})
+        assert endpoint.startswith(prefix + 'contents/' + rel + '?ref=')
+        ref = endpoint.split('=')[-1]
+        assert ref in (source_head, HEAD, MERGE)
+        return json.dumps({'type': 'file', 'sha': 'f' * 40
+            if fault == 'ci_head_blob' and ref == HEAD else blob,
+            'encoding': 'base64', 'content': base64.b64encode(raw).decode()})
+    def gql(query, variables=None):
+        assert query == 'query{viewer{id}}'
+        return {'viewer': {'id': lo.OPERATOR_USER_ID}}
+    def forbidden(*args, **kwargs):
+        raise AssertionError('check-only attempted a write')
+    monkeypatch.setattr(lc, 'ROOT', tmp_path)
+    monkeypatch.setattr(lc, 'REPORTS', reports)
+    monkeypatch.setattr(lo, '__file__', str(tmp_path / 'scripts/linear_orchestrator.py'))
+    monkeypatch.setattr(lo, 'issue', lambda ident: target)
+    monkeypatch.setattr(lo, 'gql', gql)
+    monkeypatch.setattr(lo, 'comment', forbidden)
+    monkeypatch.setattr(lc, 'write', forbidden)
+    monkeypatch.setattr(lc, 'orchestrate', forbidden)
+    monkeypatch.setattr(subprocess, 'check_output', check_output)
+    before = {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    assert lc.main(['GLP-350', str(worker), '--check-only']) == (3 if fault else 0)
+    output = capsys.readouterr().out
+    expected = {None: 'GLP-350 PASS', 'installed_bytes': 'installed Git blob',
+        'unrelated_ancestry': 'merged source ancestry', 'ci_head_blob': 'installed Git blob',
+        'unreviewed_path': 'source PR did not change', 'failed_ci': 'exact-head CI'}
+    assert expected[fault] in output
+    assert {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before

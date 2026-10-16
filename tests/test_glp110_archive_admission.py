@@ -440,6 +440,48 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
     assert ast.unparse(branch.test) == "p == self.business / 'ops/email_flows/scheduler-heartbeat.json'"
     lines = source.splitlines(keepends=True)
     source = ''.join(lines[:branch.lineno-1] + lines[branch.end_lineno:])
+    # D's subclass defers initial collection. The default constructor still
+    # calls the exact same collector; project only this additive seam out.
+    initial_seam = """    def initial_bindings(self,collector):
+        return collector(bus=self.business)
+
+"""
+    assert source.count(initial_seam) == 1
+    assert source.count('        bindings=self.initial_bindings(relay_custody)') == 1
+    source = source.replace(initial_seam, '').replace(
+        '        bindings=self.initial_bindings(relay_custody)',
+        '        bindings=relay_custody(bus=self.business)')
+    # Project ONLY the newly tested additive relay binding branch out of the
+    # authenticated predecessor comparison; do not rebaseline any old oracle.
+    added_init = """        from host_disk_relay_custody import collect as relay_custody
+        bindings=relay_custody(bus=self.business)
+        self.relay_source_identities=bindings.identities
+        self.ancestor_pins=list(bindings)
+"""
+    added_check = """        from host_disk_relay_custody import collect as relay_custody, matches as binding_matches
+        for source,expected in self.relay_source_identities.items():
+            if not binding_matches(source,expected):
+                self.last_changed_source=source;return True
+        # Never cache live issue descriptions or lane/JOB discovery across gates.
+        # Preserve the admitted pins; a fresh complete generation can only add
+        # protection here, not erase an earlier hold or replay a refused effect.
+        try:
+            fresh=relay_custody(bus=self.business)
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+            self.last_changed_source='relay_lane_linear_refresh_incomplete';return True
+        for source,expected in self.relay_source_identities.items():
+            if not binding_matches(source,expected):
+                self.last_changed_source=source;return True
+        live_pins=tuple(fresh)
+        if any(pin==p or pin in p.parents or p in pin.parents for pin in live_pins): return True
+"""
+    added_commit_check = """        # Hashing a large verified archive can outlive the preceding reference
+        # check. Re-read live custody at the actual namespace-commit boundary.
+        if pins.references(root):
+            return dict(row,status='GATED_REFERENCE_BEFORE_COMMIT')
+"""
+    assert source.count(added_init) == source.count(added_check) == source.count(added_commit_check) == 1
+    source = source.replace(added_init, '        self.ancestor_pins=[]\n').replace(added_check, '').replace(added_commit_check, '')
     names = {'ReferenceIndex', 'archive_candidates', 'archive_tree', 'dedupe',
              'git_veto', 'inventory', 'protected', 'recover_retirements',
              'reference_files', 'regenerable', 'sig', 'verify_archive'}
@@ -452,6 +494,93 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
     assert set(nodes) == names
     digest = hashlib.sha256('\n'.join(nodes[n] for n in sorted(nodes)).encode()).hexdigest()
     assert digest == 'fa3ed2ae517e6bd327cfd24ce6d809e5e1bfd8615b9fa3437655d0c0e773313f'
+
+
+def test_state_backup_successful_steps_are_paced(tmp_path):
+    """A WAL-readable snapshot must not treat backup(sleep=...) as a rate limit.
+
+    That argument only sleeps on SQLITE_BUSY/LOCKED. Exercise the registered
+    producer with successful SQLite page copies and highly compressible data
+    so wall time is governed by source copying rather than zstd/host disk.
+    """
+    import os
+    import sqlite3
+    import time
+    home = tmp_path / 'hermes'
+    home.mkdir()
+    (home / 'config.yaml').write_text('fixture: true\n')
+    with sqlite3.connect(home / 'state.db') as db:
+        db.execute('pragma journal_mode=wal')
+        db.execute('create table payload(data blob)')
+        for _ in range(40):
+            db.execute('insert into payload values (zeroblob(?))', (1024**2,))
+        db.commit()
+    producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
+    begin = time.monotonic()
+    run = subprocess.run(['bash', str(producer)], env={**os.environ,
+        'HERMES_HOME': str(home), 'HERMES_BACKUP_ROOT': str(tmp_path / 'backups'),
+        'TMPDIR': str(tmp_path)}, capture_output=True, text=True, timeout=90)
+    elapsed = time.monotonic() - begin
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert elapsed >= 3.8, ('successful page copies bypassed 10MiB/s pacing', elapsed)
+
+
+def test_daily_backup_large_synthetic_page_stream_fits_pacing_budget():
+    """19.35 GB synthetic SQLite page stream, virtual clock, exact producer block.
+
+    No 19 GB allocation or 31-minute sleep: drive the actual progress callback
+    with SQLite's 1 MiB successful-step shape. The old 1800s cap fails here.
+    Real SQLite backup/quick_check/archive/retention are covered below.
+    """
+    import ast
+    producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
+    body = producer.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    tree = ast.parse(body)
+    statements = next(n.body for n in ast.walk(tree) if isinstance(n, ast.Try)
+                      and any(isinstance(s, ast.Assign) and any(
+                          isinstance(t, ast.Name) and t.id == 'copy_started'
+                          for t in s.targets) for s in n.body))
+    first = next(i for i, n in enumerate(statements) if isinstance(n, ast.Assign)
+                 and any(isinstance(t, ast.Name) and t.id == 'copy_started' for t in n.targets))
+    last = next(i for i, n in enumerate(statements) if isinstance(n, ast.Expr)
+                and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Attribute)
+                and n.value.func.attr == 'backup')
+    code = compile(ast.Module(body=statements[first:last+1], type_ignores=[]), str(producer), 'exec')
+    clock = [0.0]
+    def sleep(delay):
+        clock[0] += delay
+    logical_bytes = 19_385_290_752
+    page_size = 4096
+    pages_total = logical_bytes // page_size
+    def backup(dst, *, pages, progress, sleep):
+        for copied in range(pages, pages_total + pages, pages):
+            remaining = max(0, pages_total - copied)
+            progress(0 if remaining else 101, remaining, pages_total)
+    logs = []
+    scope = dict(time=SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep),
+                 src=SimpleNamespace(backup=backup), dst=None, is_state=True,
+                 logical_bytes=logical_bytes, page_size=page_size,
+                 limit=logical_bytes + 1024**3, rel='state.db',
+                 free_bytes=lambda: 100 * 1024**3, MIN_FREE_BYTES=2 * 1024**3,
+                 wal=SimpleNamespace(exists=lambda: False), wal_before=0,
+                 sqlite3=SimpleNamespace(SQLITE_OK=0, SQLITE_DONE=101), log=logs.append)
+    exec(code, scope)
+    assert clock[0] == pytest.approx(logical_bytes / (10 * 1024**2))
+    assert scope['deadline'] >= clock[0] + 900
+    assert len(logs) >= 30, 'long snapshot must publish progress heartbeats'
+    # Size-scaled time must not relax growth/headroom/WAL refusal guards.
+    for reason, change in (
+            ('SIZE', {'limit': logical_bytes - 1}),
+            ('HEADROOM', {'free_bytes': lambda: 0}),
+            ('WAL_GROWTH', {'wal': SimpleNamespace(exists=lambda: True, stat=lambda:
+                SimpleNamespace(st_size=2 * 1024**3))})):
+        guarded = dict(scope, **change)
+        clock[0] = 0.0
+        with pytest.raises(TimeoutError, match='reason='+reason):
+            exec(code, guarded)
+    clock[0] = scope['deadline'] + 1
+    with pytest.raises(TimeoutError, match='reason=DEADLINE'):
+        scope['progress'](0, pages_total - 256, pages_total)
 
 
 def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(tmp_path):
@@ -594,3 +723,207 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
     finally:
         for conn in connections:
             conn.close()
+
+
+@pytest.mark.parametrize('full_pass', [False, True])
+def test_glp349_d_cannot_starve_later_classes(owner, monkeypatch, full_pass):
+    """Retained D=1049.947/1050 timing shape, synthetic clock; no effects.
+
+    C's authentic reference-walk refusal remains a refusal, not eligible work.
+    Images-only qualification must retain its entire original deadline.
+    """
+    clock = [0.0]
+    deadlines = {}
+    original_done = copy.deepcopy(owner.state['C_done'])
+    owner.state.update(A_cursor=['fixture unfinished'], A_pending=['fixture held'])
+    owner.state['B_scan'] = {'cursors': {'fixture': ['unfinished']}}
+    monkeypatch.setattr(ep.time, 'monotonic', lambda: clock[0])
+    def images(*args, deadline, **kwargs):
+        deadlines['D'] = deadline
+        clock[0] = deadline - 0.053
+        return [{'rule': 'D_cold_run_images_summary', 'ok': True,
+                 'status': 'TIME_BUDGET_PARTIAL', 'partial': True, 'bytes_freed': 0}]
+    def regenerable(*args, deadline, **kwargs):
+        deadlines['A'] = deadlines.get('A', 0) + deadline - clock[0]
+        clock[0] = deadline
+        return [{'rule': 'A_regenerable', 'ok': True,
+                 'status': 'TIME_BUDGET_PARTIAL', 'bytes_freed': 0}]
+    def dedupe(*args, deadline, **kwargs):
+        deadlines['B'] = deadlines.get('B', 0) + deadline - clock[0]
+        clock[0] = deadline
+        return {'rule': 'B_readonly_evidence_dedupe', 'ok': True,
+                'status': 'TIME_BUDGET_PARTIAL', 'bytes_freed': 0}
+    def references(config, deadline):
+        deadlines['C'] = deadline - clock[0]
+        raise ep.ScanBudget('reference_walk:/home/ubuntu/business/ops selected=0')
+    monkeypatch.setitem(sys.modules, 'screenshot_pruner', SimpleNamespace(run_rules=images))
+    monkeypatch.setattr(ep, 'regenerable', regenerable)
+    monkeypatch.setattr(ep, 'dedupe', dedupe)
+    monkeypatch.setattr(ep, 'reference_files', references)
+    rows = ep.run(owner.api, owner.config, owner.state, dry_run=False,
+                  deadline=1050, full_pass=full_pass)
+    assert deadlines['D'] == pytest.approx(262.5), deadlines
+    assert deadlines['A'] >= 180 and deadlines['B'] >= 150, deadlines
+    assert deadlines['C'] > 0 and clock[0] <= 1050
+    assert rows[-1]['status'] == 'GATED_REFERENCE_INVENTORY_INCOMPLETE'
+    assert owner.state['C_done'] == original_done
+    assert owner.state['A_cursor'] == ['fixture unfinished']
+    assert owner.state['B_scan']['cursors'] == {'fixture': ['unfinished']}
+    assert (owner.root / 'evidence.txt').read_text() == 'fixture evidence must stay intact'
+    clock[0] = 0
+    deadlines.clear()
+    ep.run(owner.api, owner.config, owner.state, dry_run=True, deadline=1050, images_only=True)
+    assert deadlines == {'D': 1050}, 'qualification-only scope lost its original cap'
+
+
+@pytest.mark.parametrize('large_rc,safe_rc,evidence_rc,safe_present,evidence_partial', [
+    (0, 0, 2, True, True), (0, 1, 0, False, False),
+    (1, 0, 0, True, False), (0, 2, 0, True, False),
+    (0, 0, 0, False, False), (0, 0, 0, True, True)])
+def test_glp349_controller_preserves_each_phase_result(tmp_path, monkeypatch,
+        large_rc, safe_rc, evidence_rc, safe_present, evidence_partial):
+    """Exact maintained controller AST; scratch reports and captured sink only.
+
+    Dependencies are inert fixtures: no installed import, sudo, cleanup, native
+    state, network or send. The retained coarse-error shape is evidence rc2 with
+    only ok=true partial/gated rows. A missing safe receipt must not hide rc1.
+    """
+    import ast
+    import collections
+    import datetime
+    import os
+    from typing import Any
+    scripts_root = Path(__file__).resolve().parents[1] / 'scripts'
+    assert ep.__file__ and Path(ep.__file__).resolve() == scripts_root / 'evidence_preserving_pruner.py'
+    source = (scripts_root / 'host_disk_cleanup_large_unit.py').read_text()
+    functions: list[ast.stmt] = [n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef)]
+    home = tmp_path / 'hermes'
+    (home / 'runstate').mkdir(parents=True)
+    capture = []
+    phases = []
+    evidence_rows = [
+        {'rule': 'D_cold_run_images_summary', 'ok': True, 'partial': True,
+         'status': 'TIME_BUDGET_PARTIAL', 'bytes_freed': 0},
+        {'rule': 'C_cold_evidence_archive', 'ok': True,
+         'status': 'GATED_REFERENCE_INVENTORY_INCOMPLETE', 'bytes_freed': 0}]
+    def run(command, **kwargs):
+        if '--budget' in command:
+            report = Path(command[command.index('--report') + 1])
+            ep.atomic_json(report / 'large-classes.json', {'rows': []})
+            phases.append('large_classes')
+            return SimpleNamespace(returncode=large_rc)
+        if '--safe-rules-only' in command:
+            report = Path(command[command.index('--report-dir') + 1])
+            if safe_present:
+                ep.atomic_json(report / 'receipt.json', {'reclaimed_bytes': 0})
+            phases.append('legacy_safe_rules')
+            return SimpleNamespace(returncode=safe_rc)
+        assert '--max-seconds' in command and command[command.index('--max-seconds')+1] == '1050'
+        report = Path(command[command.index('--report') + 1])
+        ep.atomic_json(report, {'rows': evidence_rows if evidence_partial else []})
+        phases.append('D_A_B_C')
+        return SimpleNamespace(returncode=evidence_rc)
+    monkeypatch.setitem(sys.modules, 'host_disk_auto_classes',
+                        SimpleNamespace(external_pins=lambda: []))
+    monkeypatch.setitem(sys.modules, 'post_discord_message', SimpleNamespace(
+        send=lambda channel, line: capture.append(line) or {'id': 'fixture'},
+        readback=lambda channel, mid: {'content': capture[-1], 'channel_id': channel}))
+    namespace: dict[str, Any] = dict(Path=Path, collections=collections, datetime=datetime, os=os,
+                     sys=sys, time=time, json=json, atomic_json=ep.atomic_json,
+                     fcntl=SimpleNamespace(LOCK_EX=1, LOCK_NB=2, flock=lambda *a: None),
+                     subprocess=SimpleNamespace(run=run), BUS=tmp_path, HOME=home,
+                     STATE=home/'runstate/host-disk-cleanup-last.json', UNIT='fixture.service')
+    exec(compile(ast.Module(body=functions, type_ignores=[]), '<candidate-controller-AST>', 'exec'), namespace)
+    namespace['disk'] = lambda: {'free_bytes': 100, 'total_bytes': 100}
+    rc = namespace['main']()
+    receipts = list((tmp_path / 'reports/host-disk-prune').glob('*/completion.json'))
+    assert len(receipts) == 1 and phases == ['large_classes', 'legacy_safe_rules', 'D_A_B_C']
+    receipt = json.loads(receipts[0].read_text())
+    actual = receipt['phase_results']
+    assert {key: result['returncode'] for key, result in actual.items()} == dict(
+        large_classes=large_rc, legacy_safe_rules=safe_rc, D_A_B_C=evidence_rc)
+    assert actual['legacy_safe_rules']['report_present'] is safe_present
+    if evidence_partial:
+        assert actual['D_A_B_C']['status'] == 'partial_or_gated'
+        assert actual['D_A_B_C']['status_counts'] == dict(
+            TIME_BUDGET_PARTIAL=1, GATED_REFERENCE_INVENTORY_INCOMPLETE=1)
+        assert actual['D_A_B_C']['partial_rows'] == 1
+        assert actual['D_A_B_C']['gated_rows'] == 1
+    assert rc == (0 if (large_rc == 0 and safe_rc in (0, 2) and evidence_rc == 0
+                       and safe_present and not evidence_partial) else 1)
+    assert receipt['status'] == ('completed' if rc == 0 else 'completed_with_errors')
+    assert receipt['reclaimed_bytes'] == 0 and len(capture) == 1
+
+
+def test_glp349_native_ranking_incomplete_is_not_controller_completion(tmp_path, monkeypatch):
+    """Real expired ranker branch -> controller main; private reports, no effects.
+
+    UNKNOWN is an explicit fixture; COMPLETE/REMOVED and status-less summaries
+    remain complete, including the safe phase's accepted rc2. No live imports.
+    """
+    import ast
+    import collections
+    import datetime
+    import os
+    from typing import Any
+    scripts = Path(__file__).resolve().parents[1] / 'scripts'
+    def functions(name, selected=None) -> list[ast.stmt]:
+        return [n for n in ast.parse((scripts / name).read_text()).body
+                if isinstance(n, ast.FunctionDef) and (selected is None or n.name in selected)]
+    def denied(*args, **kwargs):
+        raise AssertionError('ranker subprocess/effect boundary denied')
+    ranker: dict[str, Any] = dict(time=SimpleNamespace(monotonic=lambda: 2),
+                  subprocess=SimpleNamespace(run=denied, TimeoutExpired=TimeoutError))
+    exec(compile(ast.Module(body=functions('host_disk_large_sweep.py', {'rank_reports'}),
+                           type_ignores=[]), '<native-ranker-AST>', 'exec'), ranker)
+    ranking, incomplete = ranker['rank_reports']([tmp_path / 'unranked-report'], 1)
+    assert ranking == [] and incomplete == [dict(rule='cold_report_ranking',
+        path=str(tmp_path / 'unranked-report'), bytes_freed=0, status='INCOMPLETE', reason='budget')]
+    assert not any(not r.get('ok', True) for r in incomplete), 'native large-sweep rc0 shape'
+    complete = [dict(rule='D_cold_run_images_summary', status='COMPLETE', ok=True, bytes_freed=0),
+                dict(rule='A_regenerable', status='REMOVED', ok=True, bytes_freed=0),
+                dict(rule='B_readonly_evidence_dedupe', ok=True, bytes_freed=0)]
+    cases = [('native-INCOMPLETE', incomplete, [], 1, 'large_classes', {'INCOMPLETE': 1}),
+             ('explicit-UNKNOWN', [], [dict(rule='evidence_preserving_summary',
+                 status='UNKNOWN', ok=True, bytes_freed=0)], 1, 'D_A_B_C', {'UNKNOWN': 1}),
+             ('complete', [], complete, 0, 'D_A_B_C', {'COMPLETE': 1, 'REMOVED': 1, 'UNSPECIFIED': 1})]
+    for name, large_rows, evidence_rows, expected_rc, phase, counts in cases:
+        root = tmp_path / name
+        home = root / 'hermes'
+        (home / 'runstate').mkdir(parents=True)
+        capture = []
+        def run(argv, **kwargs):
+            if '--budget' in argv:
+                report = Path(argv[argv.index('--report') + 1]) / 'large-classes.json'
+                ep.atomic_json(report, {'rows': large_rows})
+                return SimpleNamespace(returncode=0)
+            if '--safe-rules-only' in argv:
+                report = Path(argv[argv.index('--report-dir') + 1]) / 'receipt.json'
+                ep.atomic_json(report, {'reclaimed_bytes': 0})
+                return SimpleNamespace(returncode=2)
+            assert argv[argv.index('--max-seconds') + 1] == '1050'
+            ep.atomic_json(Path(argv[argv.index('--report') + 1]), {'rows': evidence_rows})
+            return SimpleNamespace(returncode=0)
+        monkeypatch.setitem(sys.modules, 'host_disk_auto_classes', SimpleNamespace(external_pins=lambda: []))
+        monkeypatch.setitem(sys.modules, 'post_discord_message', SimpleNamespace(
+            send=lambda channel, line: capture.append(line) or {'id': 'fixture'},
+            readback=lambda channel, mid: {'content': capture[-1], 'channel_id': channel}))
+        ns: dict[str, Any] = dict(Path=Path, collections=collections, datetime=datetime, os=os, sys=sys,
+                  time=time, json=json, atomic_json=ep.atomic_json,
+                  fcntl=SimpleNamespace(LOCK_EX=1, LOCK_NB=2, flock=lambda *a: None),
+                  subprocess=SimpleNamespace(run=run), BUS=root, HOME=home,
+                  STATE=home/'runstate/state.json', UNIT='fixture.service')
+        exec(compile(ast.Module(body=functions('host_disk_cleanup_large_unit.py'),
+                               type_ignores=[]), '<candidate-controller-AST>', 'exec'), ns)
+        ns['disk'] = lambda: {'free_bytes': 100, 'total_bytes': 100}
+        rc = ns['main']()
+        receipt, = (root / 'reports/host-disk-prune').glob('*/completion.json')
+        receipt = json.loads(receipt.read_text())
+        assert rc == expected_rc, (name, receipt['phase_results'])
+        assert receipt['status'] == ('completed' if rc == 0 else 'completed_with_errors')
+        actual = receipt['phase_results'][phase]
+        assert actual['status'] == ('completed' if rc == 0 else 'partial_or_gated')
+        assert actual['partial_rows'] == expected_rc and actual['status_counts'] == counts
+        assert receipt['rows'] == large_rows + [dict(rule='legacy_safe_rules', bytes_freed=0, ok=True)] + evidence_rows
+        assert receipt['phase_results']['legacy_safe_rules']['status'] == 'completed'
+        assert actual['returncode'] == 0 and len(capture) == 1

@@ -26,7 +26,7 @@ D1_SECRET = Path('/home/ubuntu/.hermes/secrets/cloudflare/glp-observability-d1.e
 # Execute the exact verified bytes, not a second import-time read.
 DEPENDENCIES = {
     'glp_network_revenue_v2': 'cbb68056ffe1988ebd3fb6ae2b158f027d1cbdfffdb4b0e79e80ddd1581763e1',
-    'glp_affiliate_weekly_reporting': '547f31d3543f72833ea470eee909b36ebb56a32283f5e3011c72a24d13256b7c',
+    'glp_affiliate_weekly_reporting': '060bc4e747bcaa2cc4047c8a1e77cfec184814de19561e732679c8c5051a5352',
 }
 MAX_ROWS = 10000
 COUNT_SQL = 'SELECT count(*) AS n FROM analytics_revenue_ledger_v1'
@@ -228,6 +228,138 @@ def network_rows(names, observations, snapshot, reconciled, reporter):
     return rows
 
 
+# Fixed retained capture only; no arbitrary JSON import or caller-supplied hash.
+# Independent evidence review + parent release grant precede installation.
+NATIVE_FINANCIAL_SOURCE = (ROOT / 'lanes/FINANCE-OWNER/NATIVE-SOURCE.json',
+    '90e28dc5b89b2252aa2f49fdda9c283a014700a015c1dad4d083eb6875bdce2c')
+NATIVE_FINANCIAL_OWNERS = (ROOT / 'reports/ops/fable-plan-2-20261009/lanes/J9/OWNED-UNMATCHED.json',
+    '7df3a53b0c3439f1bddc3fff131610cc7ecd2ca710500d22a3fc13e70fd6f06e')
+_NATIVE_ORIGINAL_DIR = ROOT / 'lanes/FINANCE-OWNER/native-responses'
+NATIVE_FINANCIAL_ORIGINALS = {
+    'conversion-detail-native': (_NATIVE_ORIGINAL_DIR / 'event-detail-financial.json',
+        '4914782c15045d5b0b1e7d0e707d73b8960b2cebb1a88bd5abc29a450c23731b'),
+    'invoice-expanded-native': (_NATIVE_ORIGINAL_DIR / 'invoice-expanded.json',
+        '7265980745a258beb0eed873253184a9939380012d2adb98fb5d4e87222168fe'),
+    'august-native-financial': (_NATIVE_ORIGINAL_DIR / 'august-native-financial.json',
+        '90a4b4745f77d867beee69ded535a0067cff1233f290bb1f9202db93f0760e96'),
+    'native-payments-lifecycle-cutoff': (_NATIVE_ORIGINAL_DIR / 'native-payments-lifecycle-cutoff.json',
+        '4961e5546845f9d36b3fc3fcf93045b62b6cbfc913a62360237286fc9d1ecfc2'),
+}
+
+
+def retained_native_financial_input():
+    """Response/account/request-bound native observations, not reconciled money.
+
+    Separate from conversion records: payout-definition revenue, Paid invoices
+    and an empty single-rail stream establish no approval, REAL, join or cash.
+    """
+    def require(condition):
+        if not condition:
+            raise InputError('NATIVE_FINANCIAL_CONTRACT_REFUSED')
+
+    def pinned(binding):
+        path, expected = binding
+        try:
+            raw = path.read_bytes()
+            require(sha(raw) == expected)
+            return json.loads(raw)
+        except (OSError, ValueError) as exc:
+            raise InputError('NATIVE_FINANCIAL_BYTES_UNAVAILABLE_OR_INVALID') from exc
+
+    def parse_time(value):
+        return datetime.fromisoformat(value.replace('Z', '+00:00')).astimezone(timezone.utc)
+
+    def receipt(row, endpoint):
+        require(row.get('http_status') == 200 and row.get('endpoint') == endpoint)
+        require(re.fullmatch(r'[0-9a-f]{64}', row.get('response_sha256', '')) is not None)
+        parse_time(row['captured_at'])
+        return {k: row[k] for k in ('endpoint', 'http_status', 'response_sha256', 'captured_at')}
+
+    native, owners = pinned(NATIVE_FINANCIAL_SOURCE), pinned(NATIVE_FINANCIAL_OWNERS)
+    for key, binding in NATIVE_FINANCIAL_ORIGINALS.items():
+        require(native.get(key) == pinned(binding))
+    owned = {o['fresh_statement_identity']['network_affiliate_invoice_id']: o
+             for o in owners['objects'] if o.get('network') == 'everflow'}
+    invoices = []
+    for source in native['invoice-expanded-native']:
+        fields = source['fields']
+        owner = owned.get(fields.get('network_affiliate_invoice_id'))
+        require(owner is not None)
+        expected = owner['fresh_statement_identity']
+        require(fields.get('network_affiliate_id') == owner['partner_id'])
+        for key in ('network_id', 'currency_id', 'timezone_id', 'start_time', 'end_time'):
+            require(fields.get(key) == expected.get(key))
+        invoice_id = fields['network_affiliate_invoice_id']
+        reference = receipt(source, f'/api/affiliates/billings/affiliates/invoices/{invoice_id}'
+            '?relationship=details&relationship=payments&relationship=extra_periods')
+        relationships = {}
+        for key in ('details', 'payments', 'extra_periods'):
+            value = source['relationships'][key]
+            present, rows, count = value['presence'], value['rows'], value['returned_count']
+            require((present is False and rows is None and count is None) or
+                    (present is True and isinstance(rows, list) and count == len(rows)))
+            relationships[key] = dict(presence=present, rows=rows, returned_count=count)
+        invoices.append(dict(source=reference, native_fields=fields, relationships=relationships,
+                             owner=owner['owner'], tenant=owner['tenant']))
+    require(len(invoices) == len(owned) and len({i['native_fields']['network_affiliate_invoice_id']
+                                              for i in invoices}) == len(owned))
+    latest = max(invoices, key=lambda i: i['native_fields']['end_time'])['native_fields']
+    request_bounds = {'from': latest['start_time'][:10], 'to': latest['end_time'][:10],
+                      'timezone_id': latest['timezone_id'], 'query': {'filters': [], 'search_terms': []}}
+    financial, onhold = native['august-native-financial']
+    require(financial['request'] == {**request_bounds, 'currency_id': latest['currency_id'],
+        'columns': [{'column': 'offer'}, {'column': 'event_name'}]})
+    financial_ref = receipt(financial, '/api/affiliates/reporting/entity/table')
+    require(financial['table_present'] is True and isinstance(financial['rows'], list))
+    financial_rows = []
+    for index, row in enumerate(financial['rows']):
+        reporting = row['reporting']
+        financial_rows.append(dict(source_pointer=f'/august-native-financial/0/rows/{index}',
+            columns=row['columns'], native_revenue=reporting.get('revenue'),
+            native_revenue_definition='Total revenue (affiliate payout amount).',
+            base_conversion_count=reporting.get('cv'), event_count=reporting.get('event'),
+            on_hold_conversion_count=reporting.get('on_hold_conversion_count'),
+            on_hold_potential_revenue=reporting.get('on_hold_potential_revenue')))
+    require(onhold['request'] == {**request_bounds, 'show_conversions': True, 'show_events': True})
+    onhold_ref = receipt(onhold, '/api/affiliates/reporting/onhold?page=1&page_size=100')
+    require(onhold['conversions_present'] is True and isinstance(onhold['conversions'], list))
+    require(onhold['paging']['page'] == 1 and
+            onhold['paging']['total_count'] == len(onhold['conversions']))
+    payment = native['native-payments-lifecycle-cutoff']
+    payment_ref = receipt(payment, '/api/affiliates/integrations/pay/payments?page=1&page_size=100')
+    require(payment['account'] == latest['network_affiliate_id'] and payment['network'] == latest['network_id'])
+    earliest = min(i['native_fields']['start_time'] for i in invoices)
+    require(latest['timezone_id'] == 80)
+    from zoneinfo import ZoneInfo
+    start = int(datetime.fromisoformat(earliest).replace(tzinfo=ZoneInfo('America/New_York')).timestamp())
+    cutoff = parse_time(payment['cutoff_UTC'])
+    require(payment['request'] == {'from_timestamp': start, 'to_timestamp': int(cutoff.timestamp())})
+    require(cutoff <= parse_time(payment['captured_at']))
+    require(payment['payments_present'] is True and isinstance(payment['payments'], list))
+    require(payment['returned_count'] == len(payment['payments']) == payment['paging']['total_count'] and
+            payment['paging']['page'] == 1)
+    detail = native['conversion-detail-native']
+    detail_fields = detail['fields']
+    detail_ref = receipt(detail, '/api/affiliates/reporting/conversions/' + detail_fields['conversion_id'])
+    detail_projection = {key: detail_fields.get(key) for key in
+        ('conversion_id', 'transaction_id', 'conversion_unix_timestamp', 'currency_id',
+         'event', 'is_event', 'revenue', 'payout', 'status', 'is_test', 'invoice_member_id')}
+    return dict(network='everflow', source_path=str(NATIVE_FINANCIAL_SOURCE[0]),
+        native_event_detail=dict(source=detail_ref, fields=detail_projection,
+                                 classification='UNKNOWN', invoice_membership=None),
+        source_sha256=NATIVE_FINANCIAL_SOURCE[1], owner_contract_sha256=NATIVE_FINANCIAL_OWNERS[1],
+        status='RETAINED_NATIVE_OBSERVATIONS_NOT_RECONCILED', invoices=invoices,
+        financial_source=financial_ref, financial_request=financial['request'], financial_rows=financial_rows,
+        on_hold=dict(source=onhold_ref, request=onhold['request'], rows=onhold['conversions'],
+                     total_count=onhold['paging']['total_count']),
+        payment_stream=dict(source=payment_ref, rail='Everflow Pay', time_filter='time_created',
+            request=payment['request'], cutoff_UTC=payment['cutoff_UTC'], rows=payment['payments'],
+            total_count=payment['paging']['total_count'], all_rails_complete=False, invoice_applications=None),
+        atomic_financial_snapshot=False, closed_financial_population_complete=False,
+        classification='UNKNOWN', invoice_membership=None, reversals=None,
+        commission_minor=None, cash_minor=None)
+
+
 def main():
     os.umask(0o077)
     reporter, test_id = load_reconciler()
@@ -259,6 +391,13 @@ def main():
             reporter.save(out / 'network-input.json', weekly)
         except Exception as exc:
             gaps.append({'source': 'network_report', 'state': 'UNKNOWN', 'error_class': type(exc).__name__, 'reason': str(exc) if isinstance(exc, InputError) else 'SAFE_INPUT_ERROR'})
+        native_financial = None
+        try:
+            native_financial = retained_native_financial_input()
+        except Exception as exc:
+            gaps.append({'source': 'retained_native_financial', 'state': 'UNKNOWN',
+                'error_class': type(exc).__name__,
+                'reason': str(exc) if isinstance(exc, InputError) else 'SAFE_INPUT_ERROR'})
         reconciliation = reporter.reconcile_conversions(snapshot, observations, registry.get('identities', []))
         # Include unexpected observed namespaces rather than silently dropping them.
         names |= {o['network'] for o in observations}
@@ -272,6 +411,7 @@ def main():
                   'roster_sha256': reporter.digest(roster), 'identity_registry_sha256': reporter.digest(registry),
                   'weekly_report': weekly_ref, 'source_pins': DEPENDENCIES,
                   'coverage_complete': False, 'commission_minor': None, 'cash_minor': None,
+                  'retained_native_financial': native_financial,
                   'gaps': gaps, 'conversion_reconciliation': reconciliation, 'networks': rows,
                   'effects': {'provider_writes': 0, 'sheet_writes': 0, 'tracking_requests': 0, 'callback_replays': 0}}
         reporter.save(out / 'RESULT.json', result)

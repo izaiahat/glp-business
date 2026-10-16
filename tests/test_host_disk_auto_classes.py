@@ -87,6 +87,34 @@ def test_registry_clone_retention_bounds_hourly_regrowth(tmp_path, monkeypatch):
     assert sum(r['status'] == 'RETIRED' for r in rows) == 2
 
 
+def test_registry_clone_retention_retires_orphans_and_preserves_generated_diff(tmp_path,monkeypatch):
+    """Real disposable local Git clones/remotes; no host cleanup or network."""
+    monkeypatch.setattr(job,'save',lambda p,v:Path(p).write_text(json.dumps(v)))
+    root=tmp_path/'registry-site-sync'
+    orphan=clone_run(root,'20261001T001701Z');(orphan/'FAILURE.json').unlink()
+    noop=clone_run(root,'20261001T011701Z','PASS_SOURCE_NO_CHANGE')
+    generated=clone_run(root,'20261001T021701Z');(generated/'FAILURE.json').unlink()
+    source=generated/'candidate';(source/'data').mkdir();(source/'data/program-registry.json').write_text('{}\n')
+    git(source,'add','.');git(source,'commit','-qm','base registry');git(source,'push','-q','origin','HEAD')
+    (source/'data/program-registry.json').write_text('{"generated":true}\n')
+    expected=subprocess.check_output(['git','-C',str(source),'diff','--no-ext-diff','--binary','HEAD'])
+    unknown=clone_run(root,'20261001T031701Z');(unknown/'candidate/a.html').write_text('unknown source change')
+    unpushed=clone_run(root,'20261001T041701Z');(unpushed/'candidate/a.html').write_text('unique commit')
+    git(unpushed/'candidate','commit','-qam','unpushed')
+    publication=clone_run(root,'20261001T051701Z',extra=('publish-intent.json',))
+    pr=clone_run(root,'20261001T061701Z',extra=('PR.json',))
+    pinned=clone_run(root,'20261001T071701Z')
+    newest=[clone_run(root,f'20261009T0{i}1701Z') for i in range(3)]
+    rows=job.retire_disposable_clones(root,pins=[pinned/'prepared/release'])
+    for retired in (orphan,noop,generated): assert not (retired/'candidate').exists()
+    assert (generated/'candidate.DIFF.patch').read_bytes()==expected
+    receipt=json.loads((generated/'candidate.RETIRED.json').read_text())
+    assert receipt['generated_diff']['sha256']==__import__('hashlib').sha256(expected).hexdigest()
+    assert (generated/'candidate.DIFF.patch').is_file()
+    for kept in (unknown,unpushed,publication,pr,pinned,*newest): assert (kept/'candidate/a.html').is_file()
+    assert sum(row['status']=='RETIRED' for row in rows)==3
+
+
 def test_rebuildable_report_node_modules_removed_even_when_checkout_dirty(tmp_path, monkeypatch):
     reports = tmp_path / 'reports'; co = reports / 'ops/x-20260901/checkout'; co.mkdir(parents=True)
     git(co, 'init', '-q'); (co / '.gitignore').write_text('node_modules/\n'); (co / 'package-lock.json').write_text('{}')
@@ -322,6 +350,47 @@ def test_disk_monitor_triggers_cleanup_even_when_alert_is_unchanged(tmp_path, mo
     ns['run_low_disk_trigger'] = main
     assert ns['main']() == 0
     assert calls == ['cleanup'] and posts == []
+
+
+def test_disk_monitor_supplies_user_runtime_for_minimal_cron(tmp_path, monkeypatch):
+    import runpy
+    source = (Path(__file__).resolve().parents[1] / 'ops/hermes-cron-scripts/disk_monitor.sh').read_text()
+    body = source.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    body = body.replace("Path('/home/ubuntu/.hermes')", f"Path({str(tmp_path / 'hermes')!r})")
+    ns = {'__name__': 'fixture'}
+    exec(compile(body, 'disk_monitor.sh', 'exec'), ns)
+    monkeypatch.delenv('XDG_RUNTIME_DIR', raising=False)
+    monkeypatch.setattr(os, 'getuid', lambda: 4242)
+    calls = []
+    def trigger_main():
+        runtime = os.environ.get('XDG_RUNTIME_DIR')
+        assert runtime == '/run/user/4242'
+        calls.append('registered-main')
+        return ''
+    def run_path(path):
+        assert path == str(tmp_path / 'hermes/scripts/host_disk_low_free_trigger.py')
+        return {'main': trigger_main}
+    monkeypatch.setattr(runpy, 'run_path', run_path)
+    assert ns['run_low_disk_trigger']() == ''
+    assert calls == ['registered-main']
+
+
+def test_disk_monitor_preserves_explicit_runtime_and_trigger_failure(tmp_path, monkeypatch):
+    import runpy
+    import pytest
+    source = (Path(__file__).resolve().parents[1] / 'ops/hermes-cron-scripts/disk_monitor.sh').read_text()
+    body = source.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    body = body.replace("Path('/home/ubuntu/.hermes')", f"Path({str(tmp_path / 'hermes')!r})")
+    ns = {'__name__': 'fixture'}
+    exec(compile(body, 'disk_monitor.sh', 'exec'), ns)
+    monkeypatch.setenv('XDG_RUNTIME_DIR', '/fixture/explicit-runtime')
+    def run_path(path):
+        runtime = os.environ.get('XDG_RUNTIME_DIR')
+        assert runtime == '/fixture/explicit-runtime'
+        raise RuntimeError('registered trigger refusal')
+    monkeypatch.setattr(runpy, 'run_path', run_path)
+    with pytest.raises(RuntimeError, match='registered trigger refusal'):
+        ns['run_low_disk_trigger']()
 
 
 def test_compressor_failure_rolls_back_all_uncommitted_outputs(tmp_path, monkeypatch):

@@ -15,14 +15,21 @@
 !/scripts/
 /scripts/*
 !/scripts/article_source_carrier.py
+!/scripts/article_review_physical_lines.py
+!/scripts/review_source_lines.py
 !/scripts/agent_exec.py
+!/scripts/glp_affiliate_postback_n8n_sync.py
+!/scripts/glp_postback_authority.py
 !/scripts/glp_go_runtime_manifest_refresh.mjs
 !/scripts/glp_review_editorial_projection.py
 !/scripts/glp_surface_unification.py
 !/tests/
 /tests/*
+!/tests/test_glp_affiliate_postback_n8n_sync.py
 !/tests/test_glp93_review_projection.py
 !/tests/test_glp93_surface_inputs.py
+!/tests/test_pro_current_dom.py
+!/tests/test_pro_research_supersession.py
 !/tests/test_pro_root_home.py
 !/tests/test_pro_terminal_hydration.py
 !/tests/test_article_source_carrier.py
@@ -30,6 +37,8 @@
 !/tests/test_cgroup_headroom_guardian.py
 !/tests/test_agent_exec_routing.py
 !/scripts/fable_parent_handoff.py
+!/scripts/fable_deferred_handoff.py
+!/tests/test_fable_deferred_handoff.py
 !/tests/test_fable_parent_handoff.py
 # GLP337 fixed shared-bridge custody (source only)
 !/scripts/shared_bridge_predecessor_migration.py
@@ -75,6 +84,7 @@
 !/ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md
 !/ops/glp/evidence-refresh-k3/SOURCE-CUSTODY.md
 !/tests/test_glp80_k3_prepared_consumer.py
+!/tests/test_glp_evidence_refresh_entry_pins.py
 !/ops/glp/reporting-v2/
 /ops/glp/reporting-v2/*
 !/ops/glp/reporting-v2/identity-registry.json
@@ -442,6 +452,8 @@
 !/tests/test_glp76_carrier_calendar.py
 !/tests/fixtures/
 /tests/fixtures/*
+!/tests/fixtures/pro_current_dom/
+!/tests/fixtures/pro_current_dom/*.json
 !/tests/fixtures/glp76-carrier-material/
 /tests/fixtures/glp76-carrier-material/*
 !/tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs
@@ -618,3 +630,24 @@
 !/scripts/glp_review_tracking_rebind.py
 !/tests/test_review_tracking_successor.py
 !/.github/workflows/review-tracking-successor.yml
+# S4 bounded canonical inbox poll admission
+!/tests/test_glp_sponsor_poll_lock.py
+
+# GLP349 history-preserving archive source cohort (no runtime receipts)
+!/scripts/disk_retention.py
+!/scripts/hermes_state_archive/archive.py
+!/scripts/hermes_state_archive/weekly.py
+!/scripts/hermes_state_archive/weekly-pins.json
+!/ops/systemd/hermes-state-archive-weekly.service
+!/ops/systemd/
+/ops/systemd/*
+!/ops/systemd/hermes-state-archive-weekly.service
+!/tests/test_glp349_archive_source.py
+!/.github/workflows/glp349-archive-source.yml
+!/ops/linear/GLP-349-ARCHIVE-SOURCE.md
+
+# GLP349 registered local-only capability; source-only, no live adoption
+!/scripts/host_disk_pruner_trigger.py
+!/tests/test_host_disk_local_only.py
+!/ops/host-disk-local-only-capability.md
+!/ops/systemd/host-disk-cleanup-local-only.conf.example

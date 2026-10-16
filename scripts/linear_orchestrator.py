@@ -427,6 +427,20 @@ def acceptance_section(description):
     return '\n'.join(parts)
 
 
+def _preserved_no_effect_boundary(text, match):
+    """Recognize only charge/send tokens in an explicit preserved no-* boundary list."""
+    import re
+    prefix = {'charge': 'no-', 'send': 'no-third-party-'}.get(match[0].lower())
+    return bool(prefix and re.search(
+        r'(?:^|[.!?\n])[ \t]*Preserve[ \t]+(?:the[ \t]+)?(?:original[ \t]+)?'
+        r'(?:no-[a-z]+(?:-[a-z]+)*,[ \t]+)*'
+        r'(?:no-[a-z]+(?:-[a-z]+)*[ \t]+and[ \t]+)?' + prefix + r'$',
+        text[:match.start()], re.I)
+        and re.match(r'(?:,[ \t]+no-[a-z]+(?:-[a-z]+)*)*'
+                     r'(?:[ \t]+and[ \t]+no-[a-z]+(?:-[a-z]+)*)?'
+                     r'[ \t]+boundaries\b', text[match.end():], re.I))
+
+
 def protected_effect(text):
     """Classify effect semantics, not internal reply artifacts or a negative guard.
 
@@ -447,6 +461,12 @@ def protected_effect(text):
             if (name == 'financial-write' and match[0].lower() == 'spend'
                     and re.search(r'\bavoid\s+duplicate\s+finding\s*/\s*publication\s*/\s*$',
                                   text[:match.start()], re.I)):
+                continue
+            # An explicit preserved no-charge boundary is a prohibition, not a
+            # charge. Exempt that token only in a sentence-start Preserve list
+            # of no-* boundaries; bare/ambiguous negations still fail closed.
+            # Never mask the clause or stop checking later financial matches.
+            if name == 'financial-write' and _preserved_no_effect_boundary(text, match):
                 continue
             return name
     return None
@@ -556,8 +576,13 @@ def _lint_ordinary_result(path, iss, *, result_data=None):
                 r'Skills:[ \t]*' + skill_name + r'(?:,[ \t]*' + skill_name + r')*\.?[ \t]*', line))
             require(re.search(r'\bread[- ]only\b', acceptance, re.I),
                     'explicit read-only acceptance required for non-code runtime')
-            require(not re.search(r'\b(send\w*|deliver\w*|submit\w*|appl(?:y|ies|ied|ying))\b',
-                                  (iss.get('title') or '') + '\n' + acceptance, re.I),
+            readonly_scope = (iss.get('title') or '') + '\n' + acceptance
+            # A preserved no-third-party-send boundary is not an instruction to
+            # send. Check every other token; do not discard its clause or scope.
+            require(not any(not _preserved_no_effect_boundary(readonly_scope, match)
+                            for match in re.finditer(
+                                r'\b(send\w*|deliver\w*|submit\w*|appl(?:y|ies|ied|ying))\b',
+                                readonly_scope, re.I)),
                     'protected send/application scope is not read-only')
             require(not re.search(r'\b(release|deploy\w*|publish(?!ers?\b)\w*|publicat\w*|production|design|'
                                   r'Fable|commission\w*|earning\w*|settlement|cash)\b',

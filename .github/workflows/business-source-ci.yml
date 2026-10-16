@@ -40,7 +40,8 @@ jobs:
           python3 -m unittest tests.test_glp43_current_release.CurrentReleaseTests.test_existing_promotion_uses_exact_cohort_predecessor_without_global_adoption tests.test_glp43_current_release.CurrentReleaseTests.test_r8_existing_promotion_native_selection_rollback_and_no_replay -v
   python-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Retain every gate: measured serial steps exceeded the old 15m cap.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -69,6 +70,8 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+      - name: Measured full-gate CI budget regression (offline, exact head)
+        run: .venv/bin/python -m pytest -q tests/test_business_source_ci_budget.py
       - name: Q11 GLP93 capture-root regression (synthetic offline, exact head; no runtime effects)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -81,26 +84,27 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pro_root_home.py tests/test_pro_terminal_hydration.py tests/test_pro_unsent_nonchat.py tests/test_pro_route.py tests/test_pro_route_refill.py tests/test_gpt6pro_relay_binding.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pro_current_dom.py tests/test_pro_root_home.py tests/test_pro_terminal_hydration.py tests/test_pro_native_receive.py tests/test_pro_unsent_nonchat.py tests/test_pro_route.py tests/test_pro_route_refill.py tests/test_gpt6pro_relay_binding.py tests/test_pro_research_supersession.py
       - name: S4 weekly strategy updater adoption (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_weekly_strategy_updater_adoption.py tests/test_glp44_strategy_sync.py systems/seo-blog-machine/tests/test_learning_loop_actions.py
-      - name: GLP354 declared tmp custody (disposable fixtures, exact head; no host cleanup)
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          python3 -B -m unittest discover -s tests -p test_host_disk_tmp_custody.py -v
-      - name: Host disk automatic pruner classes and large custody guards (offline, exact head)
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_weekly_strategy_updater_adoption.py tests/test_glp44_strategy_sync.py tests/test_glp44_weekly_keyword_budget.py systems/seo-blog-machine/tests/test_learning_loop_actions.py
+      - name: Host disk automatic pruner classes and registry clone retention (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git config --global user.email ci@example.invalid && git config --global user.name ci
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B tests/test_host_disk_tmp_custody.py --pytest-guards
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_host_disk_auto_classes.py tests/test_host_disk_pin_protocol.py tests/test_host_disk_linear_inventory.py tests/test_host_disk_large_guards.py tests/test_host_disk_custody.py tests/test_host_disk_report_caches.py tests/test_host_disk_r2.py tests/test_host_disk_completed_dependencies.py tests/test_host_disk_screenshot_receipt.py tests/test_host_disk_local_only.py
+      - name: Host storage stale-reference and declared-tmp custody (offline)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B tests/test_host_disk_tmp_custody.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_disk_reference_refresh.py tests/test_host_disk_archive_order.py tests/test_host_disk_relay_custody.py tests/test_glp110_archive_admission.py
       - name: GLP335 registered current-contract reconciliation (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -113,19 +117,25 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_digital_pr_weekly.py -k 'not cron_wrapper and not canonical_packet'  # those two read live host files
+      - name: GLP358 closure preflight routing (offline, exact head; no live writes)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_closure_preflight.py tests/test_fleet_ingest.py tests/test_auto_coordinator_adapter.py tests/test_auto_coordinator_loop.py
       - name: GLP109 protected two-account native custody (offline, exact head; no live writes)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_linear_ordinary_completion.py tests/test_linear_close.py tests/test_article_health_acceptance.py tests/test_article_reviewer_custody.py tests/test_native_review_prompt_binding.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_linear_ordinary_completion.py tests/test_linear_close.py tests/test_article_health_acceptance.py tests/test_article_reviewer_custody.py tests/test_native_review_prompt_binding.py tests/test_article_review_recovery.py tests/test_recovery_copied_authorship.py tests/test_postpublication_review_only.py
       - name: Sponsor persistent continuation (offline fixtures, exact head; no activation)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_sponsor_campaign.py tests/test_glp_sponsor_continuation.py tests/test_glp_sponsor_boundary_repairs.py tests/test_glp_sponsor_postal_address.py tests/test_glp_sponsor_followup_notifications.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_sponsor_campaign.py tests/test_glp_sponsor_continuation.py tests/test_glp_sponsor_boundary_repairs.py tests/test_glp_sponsor_postal_address.py tests/test_glp_sponsor_followup_notifications.py tests/test_glp_sponsor_unattended.py tests/test_glp_sponsor_poll_lock.py tests/test_glp_sponsor_nuimage_reply.py tests/test_glp_sponsor_firecrawl_supply.py tests/test_glp_sponsor_sender_budget.py tests/test_glp_sponsor_current_receiving.py tests/test_glp_sponsor_public_custody.py
       - name: GLP337 fixed shared-bridge custody (offline, exact head; no adoption)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -134,6 +144,7 @@ jobs:
           export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp337_shared_bridge_migration.py tests/test_glp337_shared_bridge_generation.py tests/test_glp44_reader_exclusion.py
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_host_transport.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_fable_deferred_handoff.py tests/test_fable_parent_handoff.py tests/test_fable_mention_recovery.py tests/test_fable_bridge_quota_resume.py tests/test_fable_bridge_native_review.py tests/test_fable_bridge_identity.py tests/test_fable_bridge_reviewer_routing.py tests/test_fable_bridge_oversize.py
       - name: GLP338 durable error intake action contract (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -164,13 +175,16 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -m pytest -q tests/test_pallas_relationship_ending.py tests/test_glp_affiliate_registry_sync.py tests/test_glp_paused_program_monitor.py tests/test_glp_release_main.py
+          .venv/bin/python -m pytest -q tests/test_pallas_relationship_ending.py tests/test_glp_affiliate_registry_sync.py tests/test_glp_paused_program_monitor.py tests/test_glp_release_main.py tests/test_glp_release_inputs.py tests/test_glp_release_boundaries.py tests/test_glp_single_publisher.py tests/test_glp_release_search_notify.py tests/test_cf_editorial_share.py
+          # Preserve the retained reviewer module unchanged and isolate it from
+          # source-contract tests that replace modules via importlib at collection.
+          PYTHONPATH=scripts:ops:. .venv/bin/python -m pytest -q tests/test_glp_release_review543.py
       - name: MaxBounty live artifact exact-head capture regressions (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONPATH=ops:scripts:. .venv/bin/python -m pytest -q tests/test_cleanup_maxbounty_capture.py tests/test_maxbounty_identity_capture_transport.py tests/test_affiliate_cancellation_intake.py tests/test_katalys_contract_terms_notice.py
+          PYTHONPATH=ops:scripts:. .venv/bin/python -m pytest -q tests/test_cleanup_maxbounty_capture.py tests/test_maxbounty_identity_capture_transport.py tests/test_affiliate_cancellation_intake.py tests/test_katalys_contract_terms_notice.py tests/test_affiliate_approval_discord_render.py
       - name: Daily source drift exact-head fixtures (no job execution)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -190,7 +204,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_glp73_sensor_hook_source.py
       - name: GLP-73 guide capture compiler contract (offline, no refill)
-        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py systems/seo-blog-machine/tests/test_on_page_guide_capture.py tests/test_w11_uncertain_refill_owner.py
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py systems/seo-blog-machine/tests/test_on_page_guide_capture.py systems/seo-blog-machine/tests/test_guide_render_contract.py tests/test_w11_uncertain_refill_owner.py
       - name: GLP-73 exact-head image fallback (offline synthetic pixels, no generation or publication)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -229,11 +243,11 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cleanup_inbox_reader.py tests/test_cleanup_affiliate_decisions.py tests/test_glp113_imap_sent_classification.py
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cleanup_inbox_reader.py tests/test_cleanup_affiliate_decisions.py tests/test_glp113_imap_sent_classification.py tests/test_glp125_external_sent.py
       - name: Host intent and continuation custody (offline)
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_custody.py
       - name: GLP334 fresh receiver and retained network input contracts (offline)
-        run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp334_live_reconciliation.py
+        run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp334_live_reconciliation.py tests/test_glp334_conversion_reconciliation.py tests/test_glp334_native_financial_intake.py
       - name: GLP-320 portable cron runner test group (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -263,6 +277,8 @@ jobs:
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py
       - name: Article-buffer exact-entry hold regression (isolated fixtures)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_article_buffer.py -k registered_exact_entry_hold_states
+      - name: Article review physical records, evidence dates and inactive quarantine (isolated fixtures)
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_native_review_context_contract.py systems/seo-blog-machine/tests/test_evidence_review_timestamp.py systems/seo-blog-machine/tests/test_successor_inactive_quarantine.py
       - name: Registered held-predecessor successor admission (isolated fixtures)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_article_successor.py
       - name: Repair rollback and no-replay regressions (isolated fixtures)

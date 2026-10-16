@@ -47,6 +47,10 @@ def references(report):
     pins.update(Path(p) for p in policy['protected_roots'])
     pins.update([root,BUS/'site-system/flagship-v2/releases',BUS/'reports/disk-reclaim-20261008-r2',report])
     pins.update(m.live_symlink_targets())
+    from host_disk_relay_custody import collect as relay_custody
+    bindings=relay_custody(bus=BUS)
+    pins.update(bindings)
+    source_identities.update(bindings.identities)
     m.write_json(report/'references.json',{'pins':sorted(map(str,pins)),
         'reference_source_sha256':source_hashes,'reference_source_identity':source_identities,
         'generic_layout_roots_retained_not_retired':sorted(map(str,layout))})
@@ -151,22 +155,51 @@ def idle_targets(scratch, tmp=Path('/tmp'), *, include_declared=True):
     return targets
 
 
-def run(report,*,dry_run=False,budget=1800,external_pins=None):
+def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=False,local_only=False):
+    if completed_ci_only and not dry_run:raise ValueError('scoped completed-CI entry is dry-run only')
     report=Path(report);report.mkdir(parents=True,exist_ok=True)
     deadline=time.monotonic()+budget
     d=os.statvfs('/');before=d.f_bavail*d.f_frsize
     pressure=before/(d.f_blocks*d.f_frsize)<0.15
-    rows=[];pins=references(report);r2info=None
+    rows=[];r2info=None
+    try:
+        pins=references(report)
+    except (OSError,ValueError,RuntimeError,KeyError,subprocess.SubprocessError) as error:
+        # Reference refusal is terminal and precedes every effect. Preserve the
+        # original exception/exit status while exposing its actual source to the
+        # registered controller, rather than leaving an absent report/empty rows.
+        source=getattr(error,'changed_source',None)
+        row={'rule':'reference_inventory','status':'GATED_REFERENCE_INVENTORY',
+             'ok':False,'partial':True,'bytes_freed':0,'reason':str(error),
+             'error_type':type(error).__name__,'changed_source':source}
+        d=os.statvfs('/')
+        m.write_json(report/'large-classes.json',{'stage':'reference_inventory_refused','local_only':local_only,
+            'pressure_trigger':pressure,'threshold_free_fraction':0.15,
+            'before_free_bytes':before,'after_free_bytes':d.f_bavail*d.f_frsize,
+            'df_delta_bytes':d.f_bavail*d.f_frsize-before,'rows':[row],'r2':None,
+            'reference_veto_source':source,'attributable_bytes_freed':0})
+        raise
     from host_disk_reference_guard import ReferenceGuardAPI
     reference_data=json.loads((report/'references.json').read_text())
     guarded=ReferenceGuardAPI(api,reference_data['reference_source_identity'])
     def save(stage):
         d=os.statvfs('/')
-        m.write_json(report/'large-classes.json',{'stage':stage,'pressure_trigger':pressure,
+        m.write_json(report/'large-classes.json',{'stage':stage,'pressure_trigger':pressure,'local_only':local_only,
             'threshold_free_fraction':0.15,'before_free_bytes':before,
             'after_free_bytes':d.f_bavail*d.f_frsize,'df_delta_bytes':d.f_bavail*d.f_frsize-before,
             'rows':rows,'r2':r2info,'reference_veto_source':guarded.last_reference_veto,
             'attributable_bytes_freed':sum(r.get('bytes_freed',0) for r in rows)})
+    from host_disk_completed_dependencies import run as completed_dependencies
+    # Candidate-source qualification has a dry-only finite-class selector; the
+    # natural registered unit retains normal singleton/source-install custody.
+    dependency_policy=(Path(__file__).resolve().parent.parent/'ops/disk-retention-policy.json'
+                       if completed_ci_only else BUS/'ops/disk-retention-policy.json')
+    save('completed_ci_dependencies')
+    rows.extend(completed_dependencies(guarded,dependency_policy,pins=pins,
+                                      dry_run=dry_run,deadline=deadline))
+    if completed_ci_only:
+        save('terminal_completed_ci_dry_run')
+        return rows
     external_ok=not external_pins
     if external_pins:
         save('auto_classes')
@@ -191,13 +224,18 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
     targets=idle_targets(scratch,include_declared=bool(external_pins) and external_ok)
     rows.extend(m.idle_scratch(guarded,targets,pins=pins,dry_run=dry_run,deadline=deadline))
     save('cold_evidence')
-    roots=cold_report_roots(pins,pressure=pressure)
-    estimates,ranking_refusals=rank_reports(roots,deadline)
-    rows.extend(ranking_refusals)
     class Unavailable:
         def store(self,*args):raise RuntimeError('R2 destination unavailable')
-    remote=Unavailable();r2info={'bucket':'glp-cold-evidence','status':'DRY_RUN_NO_CONTACT'}
-    if external_ok and not dry_run:
+    remote=None
+    if local_only:
+        # None selects the already supported local-verified archive path. Do not
+        # construct an R2 destination, call its control plane, migrate an
+        # existing archive, or request a summary.
+        r2info={'status':'DISABLED_LOCAL_ONLY'}
+    else:
+        remote=Unavailable()
+        r2info={'bucket':'glp-cold-evidence','status':'DRY_RUN_NO_CONTACT'}
+    if external_ok and not dry_run and not local_only:
         try:
             from host_disk_r2 import Destination
             remote=Destination.from_environment()
@@ -205,7 +243,17 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
         except Exception as error:
             r2info.update(status='UNAVAILABLE_LOCAL_FALLBACK',error_type=type(error).__name__)
 
-    if external_ok and time.monotonic()<deadline:
+    # Reserve site archive time before the unbounded report backlog.
+    # Custody/age/net-savings gates and the overall scheduled cap are unchanged.
+    if external_pins and external_ok and time.monotonic()<deadline:
+        import host_disk_auto_classes as auto
+        save('site_cold_archive')
+        site_deadline=min(deadline,time.monotonic()+budget/3)
+        rows.extend(auto.site_cold_archive(guarded,m,report,pins=pins,deadline=site_deadline,dry_run=dry_run,archive_destination=remote))
+    roots=cold_report_roots(pins,pressure=pressure)
+    estimates,ranking_refusals=rank_reports(roots,deadline)
+    rows.extend(ranking_refusals)
+    if external_ok and not local_only and time.monotonic()<deadline:
         from host_disk_r2 import migrate_archives
         save('r2_existing_archives')
         rows.extend(migrate_archives(guarded,m,BUS/'reports/host-disk-prune',remote,
@@ -214,7 +262,8 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
         if not external_ok:break
         if amount<1024**2 or time.monotonic()+60>deadline:continue
         name=p.relative_to(BUS/'reports').as_posix().replace('/','--')
-        for cold_days,destination in [(30,remote),(7,None)]:
+        phases=[(7,None)] if local_only else [(30,remote),(7,None)]
+        for cold_days,destination in phases:
             index=0
             while time.monotonic()+60<deadline:
                 index+=1
@@ -243,17 +292,16 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
             members,_=m.inventory(root,pins,time.time()-7*86400,deadline,hashes=False)
             duplicate_targets.extend(root/r['name'] for r in members if not r['signature'][2]&0o222)
         except (OSError,ValueError,TimeoutError):continue
-    if time.monotonic()<deadline:
-        rows.extend(m.verified_duplicates(guarded,duplicate_targets,report/'duplicate-manifest.json',
-            pins=pins,dry_run=dry_run,deadline=deadline))
-    if external_pins and external_ok and time.monotonic()<deadline:
-        import host_disk_auto_classes as auto
-        save('site_cold_archive')
-        rows.extend(auto.site_cold_archive(guarded,m,report,pins=pins,deadline=deadline,dry_run=dry_run,archive_destination=remote))
-    if external_ok and not dry_run and hasattr(remote,'summary'):
+    # The worker owns cooperative expiry, including already-expired admission.
+    # Checkpoint before custody so an unrelated exception retains its real stage.
+    save('verified_duplicates')
+    rows.extend(m.verified_duplicates(guarded,duplicate_targets,report/'duplicate-manifest.json',
+        pins=pins,dry_run=dry_run,deadline=deadline))
+    if external_ok and not dry_run and not local_only and hasattr(remote,'summary'):
         try:r2info=remote.summary()
         except Exception as error:r2info.update(status='OBJECT_COUNTS_UNKNOWN',error_type=type(error).__name__)
-    save('complete');return rows
+    save('partial' if any(r.get('partial') or not r.get('ok',True) for r in rows) else 'complete')
+    return rows
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser()
@@ -261,6 +309,9 @@ if __name__=='__main__':
     parser.add_argument('--dry-run',action='store_true')
     parser.add_argument('--budget',type=int,default=1800)
     parser.add_argument('--external-pins')
+    parser.add_argument('--completed-ci-only',action='store_true',help='finite completed dependencies; requires --dry-run')
+    parser.add_argument('--local-only',action='store_true',help='guarded local work only; no R2 construction/contact/upload')
     args=parser.parse_args()
-    result=run(args.report,dry_run=args.dry_run,budget=args.budget,external_pins=args.external_pins)
+    result=run(args.report,dry_run=args.dry_run,budget=args.budget,external_pins=args.external_pins,
+               completed_ci_only=args.completed_ci_only,local_only=args.local_only)
     raise SystemExit(1 if any(not r.get('ok',True) for r in result) else 0)

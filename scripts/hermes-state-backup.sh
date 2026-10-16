@@ -8,7 +8,7 @@
 # only the newest 2 such copies are kept (older pruned before a new snapshot).
 set -Eeuo pipefail
 umask 077
-exec python3 - "${HERMES_HOME:-$HOME/.hermes}" \
+exec nice -n 19 ionice -c 3 python3 - "${HERMES_HOME:-$HOME/.hermes}" \
   "${HERMES_BACKUP_ROOT:-/home/ubuntu/business/backups/hermes-state}" \
   "${HERMES_BACKUP_RETENTION_DAYS:-14}" "$0" <<'PY'
 import datetime as dt
@@ -26,6 +26,7 @@ import tempfile
 import time
 
 home, root = (Path(p).absolute() for p in sys.argv[1:3])
+run_started = time.monotonic()
 retention = int(sys.argv[3])
 if retention < 0:
     raise ValueError('negative retention')
@@ -158,14 +159,45 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             if logical_bytes > limit:
                 raise ValueError('logical ledger exceeds staging bound: '+rel)
             dst = sqlite3.connect(snapshot)
-            deadline = time.monotonic()+(1800 if is_state else 15)
+            copy_started = time.monotonic()
+            # A 19.35 GB store needs >1800s at the unchanged 10 MiB/s pace.
+            # Size the finite budget from the pinned live generation, reserving
+            # 900s for BUSY/I/O stalls; small stores retain the prior 1800s floor.
+            pace_bytes_per_second = 10 * 1024**2
+            copy_budget_seconds = max(1800, logical_bytes / pace_bytes_per_second + 900) if is_state else 15
+            deadline = copy_started + copy_budget_seconds
+            heartbeat_at = copy_started
             def progress(status, remaining, total):
-                if (time.monotonic() >= deadline or total * page_size > limit
-                        or (is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size)
-                        or (is_state and wal.exists() and wal.stat().st_size > wal_before + 1024**3)):
-                    raise TimeoutError('bounded ledger snapshot refused: '+rel)
-            # 13G state.db: 256-page steps would sleep past the 30-min deadline.
-            src.backup(dst, pages=8192 if is_state else 256, progress=progress, sleep=0.1)
+                global heartbeat_at
+                elapsed = time.monotonic() - copy_started
+                if is_state and (time.monotonic() - heartbeat_at >= 30 or status == sqlite3.SQLITE_DONE):
+                    log('snapshot progress '+rel+': copied_bytes='+str((total-remaining)*page_size)
+                        +' total_bytes='+str(total*page_size)+' wall_seconds='+str(round(elapsed, 3))
+                        +' budget_seconds='+str(round(copy_budget_seconds, 3)))
+                    heartbeat_at = time.monotonic()
+                reason = None
+                if time.monotonic() >= deadline:
+                    reason = 'DEADLINE'
+                elif total * page_size > limit:
+                    reason = 'SIZE'
+                elif is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size:
+                    reason = 'HEADROOM'
+                elif is_state and wal.exists() and wal.stat().st_size > wal_before + 1024**3:
+                    reason = 'WAL_GROWTH'
+                if reason:
+                    raise TimeoutError('bounded ledger snapshot refused: '+rel+' reason='+reason
+                        +' elapsed_seconds='+str(round(elapsed, 3))+' remaining_pages='+str(remaining)
+                        +' total_pages='+str(total))
+                if is_state and status in (sqlite3.SQLITE_OK, sqlite3.SQLITE_DONE):
+                    # backup(sleep=...) sleeps ONLY on BUSY/LOCKED, not after
+                    # successful copies. Pace real copied pages at 10 MiB/s;
+                    # bounded 1 MiB steps also prevent a 32 MiB read burst.
+                    expected = (total-remaining) * page_size / pace_bytes_per_second
+                    delay = expected - (time.monotonic()-copy_started)
+                    if delay > 0:
+                        time.sleep(delay)
+            src.backup(dst, pages=max(1, 1024**2 // page_size) if is_state else 256,
+                       progress=progress, sleep=0.1)
             # Release the private source read generation before validation and
             # compression, minimizing checkpoint delay without signalling holders.
             src.close()
@@ -186,6 +218,8 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             'sha256': digest(snapshot)}
         if is_state:
             manifest['session_store'] = {'path': rel, **record}
+            manifest['session_store'].update({'snapshot_seconds': round(time.monotonic()-copy_started, 3),
+                'snapshot_budget_seconds': round(copy_budget_seconds, 3)})
             manifest['session_store']['headroom_before_archive_bytes'] = free_bytes()
             if free_bytes() < snapshot.stat().st_size // 2 + MIN_FREE_BYTES:
                 raise ValueError('insufficient state archive publication headroom')
@@ -194,7 +228,7 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             with os.fdopen(os.open(zpartial, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), 'wb') as target:
                 os.fchmod(target.fileno(), 0o600)
                 writer = HeadroomWriter(target)
-                proc = subprocess.Popen(['zstd', '-q', '-3', '-T0', '-c', str(snapshot)], stdout=subprocess.PIPE)
+                proc = subprocess.Popen(['zstd', '-q', '-3', '-T1', '-c', str(snapshot)], stdout=subprocess.PIPE)
                 try:
                     for chunk in iter(lambda: proc.stdout.read(1024**2), b''):
                         writer.write(chunk)
@@ -216,7 +250,9 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             manifest['session_store'].update({'artifact': state_out.name,
                 'compression': 'zstd -3', 'artifact_bytes': state_out.stat().st_size,
                 'artifact_sha256': zhash.hexdigest()})
-            log('wrote '+str(state_out)+' ('+str(state_out.stat().st_size)+' bytes)')
+            log('wrote '+str(state_out)+' ('+str(state_out.stat().st_size)+' bytes); sha256='
+                +zhash.hexdigest()+' quick_check=ok snapshot_seconds='
+                +str(manifest['session_store']['snapshot_seconds']))
         else:
             manifest['ledgers'][rel] = record
     coverage = stage / 'backup-coverage.json'
@@ -262,5 +298,6 @@ for partial in root.glob('hermes-state-*.tar.gz.partial.*'):
     if partial.is_file() and not partial.is_symlink() and int((time.time()-partial.stat().st_mtime)/86400) > 1:
         partial.unlink()
 log('hermes-state-backup done (retention='+str(retention)+'d, pruned='+str(deleted)
-    +', state copies='+','.join(p.name for p in state_copies())+')')
+    +', state copies='+','.join(p.name for p in state_copies())
+    +', wall_seconds='+str(round(time.monotonic()-run_started, 3))+')')
 PY

@@ -202,7 +202,10 @@ class ReferenceIndex:
                 raise ValueError('reference_source_unreadable:'+str(p))
             self.sources.append((p,hashlib.sha256(self.consumer_text(p).encode()).hexdigest(),sig(p.stat())))
         self.texts=[self.consumer_text(p) for p,_,_ in self.sources]
-        self.ancestor_pins=[]
+        from host_disk_relay_custody import collect as relay_custody
+        bindings=self.initial_bindings(relay_custody)
+        self.relay_source_identities=bindings.identities
+        self.ancestor_pins=list(bindings)
         def pins(value,source):
             if isinstance(value,dict):
                 for key,item in value.items():
@@ -221,11 +224,30 @@ class ReferenceIndex:
         for (source,_,_),text in zip(self.sources,self.texts):
             try: pins(json.loads(text),source)
             except ValueError: pass
+    def initial_bindings(self,collector):
+        return collector(bus=self.business)
+
     def references(self,p):
         # Refuse both ancestor/descendant pins and literal basenames. False
         # positives preserve evidence; unknown/mutated reference input gates all.
         p=Path(p)
         if hasattr(self,'last_changed_source'): del self.last_changed_source
+        from host_disk_relay_custody import collect as relay_custody, matches as binding_matches
+        for source,expected in self.relay_source_identities.items():
+            if not binding_matches(source,expected):
+                self.last_changed_source=source;return True
+        # Never cache live issue descriptions or lane/JOB discovery across gates.
+        # Preserve the admitted pins; a fresh complete generation can only add
+        # protection here, not erase an earlier hold or replay a refused effect.
+        try:
+            fresh=relay_custody(bus=self.business)
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError):
+            self.last_changed_source='relay_lane_linear_refresh_incomplete';return True
+        for source,expected in self.relay_source_identities.items():
+            if not binding_matches(source,expected):
+                self.last_changed_source=source;return True
+        live_pins=tuple(fresh)
+        if any(pin==p or pin in p.parents or p in pin.parents for pin in live_pins): return True
         for source,digest,signature in self.sources:
             if p in source.parents: return True
             if not source.exists() or source.is_symlink():
@@ -247,6 +269,116 @@ class ReferenceIndex:
         for text in self.texts:
             if any(x in text for x in forms): return True
         return any(pin==p or pin in p.parents or p in pin.parents for pin in self.ancestor_pins)
+
+
+class QualificationReferenceIndex(ReferenceIndex):
+    """One complete, validated deny snapshot per Rule-D dry-run invocation.
+
+    Positive admission always recollects. Mutation uses ReferenceIndex, whose
+    fresh per-effect gates are unchanged. Invalid snapshots cannot recover within
+    this invocation and cannot certify a COMPLETE receipt.
+    """
+    def __init__(self,files,business,*,rule_D_qa_root):
+        self.timings={}; self.cache_hits=0
+        self.cache_valid=False; self.invalid_source=None; self.live_pins=()
+        self.measure('consumer_inventory',super().__init__,files,business,
+                     rule_D_qa_root=rule_D_qa_root)
+
+    def initial_bindings(self,collector):
+        # Defer collection until the first qualification gate, after discovery.
+        # Even an all-static-held (or empty) cohort requires a complete refresh.
+        from host_disk_relay_custody import BindingPins
+        return BindingPins()
+
+    def measure(self,name,call,*args,**kwargs):
+        counter=self.timings.setdefault(name,{'calls':0,'seconds':0.0,'failures':0})
+        counter['calls']+=1
+        started=time.monotonic()
+        try: return call(*args,**kwargs)
+        except BaseException:
+            counter['failures']+=1
+            raise
+        finally: counter['seconds']+=time.monotonic()-started
+
+    def collect_bindings(self):
+        from host_disk_relay_custody import collect
+        return collect(bus=self.business,timings=self.timings)
+
+    def invalidate(self,source):
+        self.last_changed_source=str(source)
+        self.cache_valid=False
+        self.invalid_source=str(source)
+        return True
+
+    def generation_changed(self,identities):
+        from host_disk_relay_custody import matches
+        for source,expected in identities.items():
+            if not matches(source,expected): return self.invalidate(source)
+        return False
+
+    def consumers_changed(self):
+        for source,digest,signature in self.sources:
+            try:
+                if not source.exists() or source.is_symlink():
+                    return self.invalidate(source)
+                if sig(source.stat()) != signature:
+                    current_digest=hashlib.sha256(self.consumer_text(source).encode()).hexdigest()
+                    if current_digest != digest: return self.invalidate(source)
+            except OSError:
+                return self.invalidate(source)
+        return False
+
+    def refresh(self):
+        # A fresh generation can add protection but cannot replace an admitted
+        # identity changed during refresh, or erase an earlier hold.
+        try:
+            fresh=self.measure('collection',self.collect_bindings)
+        except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as exc:
+            return self.invalidate(getattr(exc,'changed_source','relay_lane_linear_refresh_incomplete'))
+        if self.measure('identity_after',self.generation_changed,self.relay_source_identities): return True
+        if self.measure('identity_collected',self.generation_changed,fresh.identities): return True
+        self.live_pins=tuple(fresh)
+        self.relay_source_identities.update(fresh.identities)
+        self.ancestor_pins.extend(fresh-set(self.ancestor_pins))
+        self.cache_valid=True
+        return False
+
+    def snapshot_references(self,p):
+        if any(p in source.parents for source,_,_ in self.sources): return True
+        forms={str(p)}
+        try: forms.add(str(p.relative_to(self.business)))
+        except ValueError: pass
+        if self.rule_D_qa_root is not None:
+            forms.add(p.name)
+            try: forms.add(str(p.relative_to(self.rule_D_qa_root.parent)))
+            except ValueError: pass
+        for text in self.texts:
+            if any(x in text for x in forms): return True
+        return any(pin==p or pin in p.parents or p in pin.parents for pin in self.ancestor_pins)
+
+    def references(self,p):
+        return self.measure('references',self.check_references,Path(p))
+
+    def check_references(self,p):
+        if hasattr(self,'last_changed_source'): del self.last_changed_source
+        if self.invalid_source: return self.invalidate(self.invalid_source)
+        if self.measure('identity_before',self.generation_changed,self.relay_source_identities): return True
+        if self.measure('consumer_validation',self.consumers_changed): return True
+        if self.cache_valid and self.measure('snapshot_match',self.snapshot_references,p):
+            self.cache_hits+=1
+            return True
+        # Positive admission is always uncached, even in qualification mode.
+        if self.refresh(): return True
+        if self.measure('consumer_validation',self.consumers_changed): return True
+        if any(pin==p or pin in p.parents or p in pin.parents for pin in self.live_pins): return True
+        return self.measure('snapshot_match',self.snapshot_references,p)
+
+    def validate_qualification(self):
+        """Current-generation completeness, including empty/all-held cohorts."""
+        if self.invalid_source: return False
+        if not self.cache_valid and self.refresh(): return False
+        if self.measure('identity_final',self.generation_changed,self.relay_source_identities): return False
+        return not self.measure('consumer_validation',self.consumers_changed)
 
 
 def reference_source_allowed(p):
@@ -549,6 +681,10 @@ def archive_tree(api,root,pins,*,dry_run,deadline,state_dir=None,min_bytes=0):
         pointerdir=root.with_name('.'+root.name+'.archive-pointer')
         retired=root.with_name('.'+root.name+'.archive-retiring')
         if pointerdir.exists() or retired.exists(): return dict(row,status='GATED_TRANSACTION_COLLISION')
+        # Hashing a large verified archive can outlive the preceding reference
+        # check. Re-read live custody at the actual namespace-commit boundary.
+        if pins.references(root):
+            return dict(row,status='GATED_REFERENCE_BEFORE_COMMIT')
         pointerdir.mkdir(mode=0o755)
         atomic_json(pointerdir/'MANIFEST.json',pointer)
         (pointerdir/'README.md').write_text(f'# Archived evidence\n\nOriginal paths and bytes are preserved in `{archive.name}`.\n\nSHA256: `{archive_sha}`\n\nRestore in an empty directory with:\n```sh\nzstd -d -c {archive.name!r} | tar -xpf -\n```\n\nFull content, listing and metadata round-trip verification is recorded in MANIFEST.json.\n')
@@ -655,7 +791,11 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
                 if progress_path:
                     atomic_json(progress_path,{'stage':'D_cold_run_images','rows':d_rows,
                         'runtime_seconds':time.monotonic()-start})
-            rows.extend(run_D(api,config,dry_run=dry_run,deadline=deadline,progress=d_progress))
+            # Reserve finite progress for A/B/C inside the unchanged total cap.
+            # Single-class qualification keeps its entire original deadline.
+            now=time.monotonic()
+            d_deadline=deadline if images_only else min(deadline,now+max(0,deadline-now)/4)
+            rows.extend(run_D(api,config,dry_run=dry_run,deadline=d_deadline,progress=d_progress))
             d_partial=any(r.get('partial',False) or not r.get('ok',True) for r in rows)
             save('D_cold_run_images_complete' if not d_partial else 'D_partial_or_gated')
             if images_only:
@@ -665,21 +805,23 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
     bstate={} if dry_run else state.setdefault('B_scan',{})
     if not archive_only:
         save('A_regenerable')
+        now=time.monotonic(); a_deadline=min(deadline,now+max(0,deadline-now)/3)
         while True:
             with ExitStack() as lease:
                 if not acquire(lease,'A_regenerable'): return rows
                 rows.extend(regenerable(api,Path(config['business']),state,dry_run=dry_run,
-                            deadline=min(deadline,time.monotonic()+config['A_budget_seconds']),protected_roots=protected_snapshot()))
+                            deadline=min(a_deadline,time.monotonic()+config['A_budget_seconds']),protected_roots=protected_snapshot()))
                 save('A_regenerable')
-            if not full_pass or time.monotonic()>=deadline or not (state.get('A_cursor') or state.get('A_pending')): break
+            if not full_pass or time.monotonic()>=a_deadline or not (state.get('A_cursor') or state.get('A_pending')): break
         save('B_readonly_evidence_dedupe')
+        now=time.monotonic(); b_deadline=min(deadline,now+max(0,deadline-now)/2)
         while True:
             with ExitStack() as lease:
                 if not acquire(lease,'B_readonly_evidence_dedupe'): return rows
                 result=dedupe(config['dedupe_roots'],bstate,dry_run=dry_run,
-                              deadline=min(deadline,time.monotonic()+config['B_budget_seconds']),protected_roots=protected_snapshot())
+                              deadline=min(b_deadline,time.monotonic()+config['B_budget_seconds']),protected_roots=protected_snapshot())
                 rows.append(result); save('B_readonly_evidence_dedupe')
-            if not full_pass or time.monotonic()>=deadline or result.get('status')!='TIME_BUDGET_PARTIAL': break
+            if not full_pass or time.monotonic()>=b_deadline or result.get('status')!='TIME_BUDGET_PARTIAL': break
 
     with ExitStack() as lease:
         if not acquire(lease,'C_cold_evidence_archive'): return rows
@@ -723,6 +865,7 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
         done=[]
         pending_statuses={'TIME_BUDGET_PARTIAL','ARCHIVE_BUILD_PARTIAL','ARCHIVE_VERIFY_PENDING','RETIREMENT_PENDING','GATED_REFERENCE_CHANGED'}
         save('C_cold_evidence_archive')
+        reference_refresh_attempted=False
         for p in candidates:
             if str(p) in done: continue
             if time.monotonic()+45>=deadline: break
@@ -736,6 +879,19 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
             archive_progress['roots_evaluated']=[str(root) for root in roots
                     if all(str(p) in done for p in candidates if root in p.parents)]
             save('C_cold_evidence_archive')
+            if result.get('status')=='GATED_REFERENCE_CHANGED' and not reference_refresh_attempted:
+                # Retain this refusal; never retry it from an old snapshot.
+                # A complete fresh inventory admits only subsequent candidates.
+                reference_refresh_attempted=True
+                try:
+                    pins=ReferenceIndex(reference_files(config,min(deadline,time.monotonic()+1200)),config['business'])
+                except (OSError,ValueError,ScanBudget) as exc:
+                    state['full_pass_complete']=False
+                    rows.append({'rule':'C_cold_evidence_archive','ok':True,
+                        'status':'GATED_REFERENCE_INVENTORY_INCOMPLETE',
+                        'reason':str(exc)[:300],'bytes_freed':0})
+                    save('C_reference_refresh_gated')
+                    return rows
         archive_progress['roots_evaluated']=[str(root) for root in roots
                 if all(str(p) in done for p in candidates if root in p.parents)]
         state['full_pass_complete']=not (d_partial or (not archive_only and (state.get('A_cursor') or state.get('A_pending') or bstate.get('cursors')))

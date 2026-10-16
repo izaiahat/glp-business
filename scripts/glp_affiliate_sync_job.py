@@ -38,6 +38,7 @@ def run(argv,*,cwd=ROOT,log=None):
 
 
 def namespace(config,source,report):
+    from glp_release_inputs import path_digest
     argv=list(config['base_argv']); ns=config['namespace']
     for i,t in enumerate(argv):
         if t=='--bind':
@@ -45,12 +46,19 @@ def namespace(config,source,report):
             if destination==ns:argv[i+1]=str(source)
             else:
                 target=report/('bind-'+str(i))
+                # Non-source writable mounts are inputs, not an ungoverned
+                # cache. Never silently reuse a dirty/preexisting build seed.
+                if target.exists() and path_digest(target)!=path_digest(argv[i+1]):
+                    raise ValueError('effective_writable_bind_preexisting_drift:'+destination)
                 if not target.exists():shutil.copytree(argv[i+1],target,symlinks=True)
                 argv[i+1]=str(target)
+    # Runtime-only mapping shared with input capture; never persist host paths
+    # as the cross-run identity, and never mutate the declared recipe.
+    config['_effective_base_argv']=list(argv)
     return argv
 
 
-def ci(pr,report):
+def ci(pr,report,receipt_name='CI.json'):
     # PR creation and Actions registration are asynchronous. Poll read-only
     # metadata until checks exist; never mistake that short gap for CI failure.
     for attempt in range(60):
@@ -63,7 +71,7 @@ def ci(pr,report):
     evidence=json.loads(run(['gh','pr','view',pr,'--repo',REPO,'--json','url,state,headRefOid,mergeCommit,statusCheckRollup']))
     checks=evidence.get('statusCheckRollup') or []
     if not checks or any(c.get('status')!='COMPLETED' or c.get('conclusion')!='SUCCESS' for c in checks):raise RuntimeError('exact_ci_nonpass')
-    save(report/'CI.json',evidence)
+    save(report/receipt_name,evidence)
     return evidence
 
 
@@ -217,6 +225,14 @@ def prepare_sync_source(source, report, changed):
 def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_only=True):
     """Default to source production; hourly main must explicitly own publication."""
     from glp_affiliate_registry_sync import sync
+    # Resume receipts already bind a PR to an exact head. Reuse the existing
+    # read-only CI admission before allocating another clone for that head.
+    if source_ref and source_pr:
+        # Admission is preliminary: a later fetch/sync failure must not add a
+        # retention custody marker. CI.json remains authoritative post-sync.
+        resumed=ci(source_pr,report,'CI-admission.non-custody.json')
+        if resumed['headRefOid']!=source_ref:raise RuntimeError('source_pr_head_mismatch')
+    # Keep the post-sync CI/head check below: sync may produce a different PR.
     source=report/'candidate'
     run(['git','clone','--quiet','--single-branch','git@github.com:'+REPO+'.git',str(source)])
     if source_ref:
@@ -343,10 +359,10 @@ DISPOSABLE_KEEP=3
 def retire_disposable_clones(root,*,keep=DISPOSABLE_KEEP,pins=(),active=None):
     """Bound hourly regrowth: each run clones the ~0.5 GiB site repo into <run>/candidate.
 
-    No-change (PASS_ALREADY_CURRENT) and FAIL runs keep their small result/failure JSON
-    and logs; only the re-clonable candidate checkout is removed, and only when it is
-    clean, has no unpushed commits, carries no custody marker, is not pinned (e.g. the
-    current content base release_root) and is not among the newest `keep` runs.
+    Failed, orphaned and no-change runs keep their small records and logs.
+    Only clean/pushed clones or no-PR generated-sync-only tracked diffs are
+    disposable; the latter are saved as a hash-bound candidate.DIFF.patch.
+    Custody/publication markers, release_root pins and newest `keep` runs stay.
     """
     root=Path(root);pins=tuple(Path(p) for p in pins);rows=[]
     runs=sorted(p for p in root.iterdir() if p.is_dir() and not p.is_symlink() and len(p.name)==16 and p.name.endswith('Z'))
@@ -357,26 +373,52 @@ def retire_disposable_clones(root,*,keep=DISPOSABLE_KEEP,pins=(),active=None):
             if any((run_dir/m).exists() for m in CUSTODY_MARKERS):row['reason']='custody_marker'
             elif any(p==run_dir or run_dir in p.parents for p in pins):row['reason']='pinned'
             elif active is not None and active(clone):row['reason']='active_reference'
-            elif not any((run_dir/f).is_file() for f in ('RESULT.json','FAILURE.json')):row['reason']='no_terminal_record'
-            elif (run_dir/'RESULT.json').is_file() and read(run_dir/'RESULT.json').get('status')!='PASS_ALREADY_CURRENT':row['reason']='non_noop_result'
+            elif (run_dir/'RESULT.json').is_file() and read(run_dir/'RESULT.json').get('status') not in {'PASS_ALREADY_CURRENT','PASS_SOURCE_NO_CHANGE','FAIL'}:row['reason']='non_noop_result'
             else:
                 git=['git','--no-optional-locks','-c','safe.directory='+str(clone),'-c','core.fsmonitor=false','-C',str(clone)]
                 status=subprocess.run(git+['status','--porcelain','--untracked-files=normal'],capture_output=True,text=True,timeout=60)
-                local=subprocess.run(git+['log','--branches','--not','--remotes','--format=%H'],capture_output=True,text=True,timeout=60)
-                broken=(clone/'.git/objects.ARCHIVED.json').is_file()  # objects already archived by a verified reclaim
-                if (status.returncode or status.stdout.strip() or local.returncode or local.stdout.strip()) and not broken:
+                local=subprocess.run(git+['log','HEAD','--branches','--not','--remotes','--format=%H'],capture_output=True,text=True,timeout=60)
+                untracked=subprocess.run(git+['ls-files','--others','--exclude-standard','-z'],capture_output=True,timeout=60)
+                names=subprocess.run(git+['diff','--no-renames','--name-only','-z','HEAD'],capture_output=True,text=True,timeout=60)
+                generated={p for p in names.stdout.split('\0') if p}
+                allowed={'data/program-registry.json','functions/go/program-manifest.js'}
+                if (status.returncode or local.returncode or local.stdout.strip() or untracked.returncode or untracked.stdout
+                        or names.returncode or (status.stdout.strip() and (not generated or not generated<=allowed))):
                     row['reason']='dirty_or_unpushed'
                 else:
+                    diff_argv=git+['diff','--no-ext-diff','--no-textconv','--binary','HEAD']
+                    diff=subprocess.check_output(diff_argv,timeout=60)
+                    patch=None
+                    if diff:
+                        path=run_dir/'candidate.DIFF.patch'
+                        if path.is_symlink():raise ValueError('aliased_candidate_diff')
+                        if path.exists():
+                            if path.read_bytes()!=diff:raise ValueError('candidate_diff_conflict')
+                        else:
+                            with path.open('xb') as stream:
+                                stream.write(diff);stream.flush();os.fsync(stream.fileno())
+                        if path.read_bytes()!=diff:raise ValueError('candidate_diff_readback_failed')
+                        patch={'path':str(path),'sha256':hashlib.sha256(diff).hexdigest(),'paths':sorted(generated)}
                     # Keep a locator: re-clone HEAD plus any verified-archive pointers.
                     head=(clone/'.git/HEAD').read_text().strip() if (clone/'.git/HEAD').is_file() else None
                     refs=(clone/'.git/packed-refs').read_text() if (clone/'.git/packed-refs').is_file() else None
                     locators={str(q.relative_to(clone)):read(q) for q in clone.rglob('*.ARCHIVED.json') if q.is_file() and not q.is_symlink()}
+                    commit=subprocess.check_output(git+['rev-parse','HEAD'],text=True,timeout=60).strip()
                     save(run_dir/'candidate.RETIRED.json',{'repository':REPO,'head_ref':head,
-                         'head':subprocess.run(git+['rev-parse','HEAD'],capture_output=True,text=True).stdout.strip() or None,
-                         'packed_refs':refs,'archived_locators':locators,'reason':'reclonable_noop_or_failed_clone'})
+                         'head':commit,
+                         'packed_refs':refs,'archived_locators':locators,'generated_diff':patch,'reason':'reclonable_unpinned_sync_clone'})
                     du=subprocess.run(['du','-sxB1',str(clone)],capture_output=True,text=True,timeout=120)
+                    # The patch/locator must precede unlink; changed bytes, refs,
+                    # new custody or an active owner veto this candidate.
+                    if (subprocess.check_output(diff_argv,timeout=60)!=diff
+                            or subprocess.check_output(git+['status','--porcelain','--untracked-files=normal'],text=True,timeout=60)!=status.stdout
+                            or subprocess.check_output(git+['rev-parse','HEAD'],text=True,timeout=60).strip()!=commit
+                            or (patch is not None and (run_dir/'candidate.DIFF.patch').read_bytes()!=diff)
+                            or subprocess.check_output(git+['log','HEAD','--branches','--not','--remotes','--format=%H'],timeout=60).strip()
+                            or any((run_dir/m).exists() for m in CUSTODY_MARKERS)
+                            or (active is not None and active(clone))):raise ValueError('clone_changed_before_retirement')
                     shutil.rmtree(clone)
-                    row.update(status='RETIRED',reason='reclonable_noop_or_failed_clone',
+                    row.update(status='RETIRED',reason='reclonable_unpinned_sync_clone',
                                bytes_freed=int(du.stdout.split()[0]) if du.returncode==0 else 0)
         except (OSError,ValueError,subprocess.SubprocessError) as e:row.update(status='ERROR_KEPT',reason=str(e))
         rows.append(row)

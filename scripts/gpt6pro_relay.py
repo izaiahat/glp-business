@@ -558,14 +558,243 @@ def abandon_empty_legacy(*, jobs: list[str], apply=False, live_jobs_reader=_lega
                       'active': active_registry()}, sort_keys=True))
     return 0 if all(r['decision'] in ('WOULD_ABANDON', 'ABANDONED', 'NOT_RUNNING_V1') for r in results) else 1
 
+# Only committed, independently reviewed rulings can authorize sent-job disposition.
+# A new ruling requires a source PR, never a caller-authored runtime allowlist.
+SUPERSESSION_RULINGS = {
+    'ops/linear/approvals/OPERATOR-DECISION-20261013-pro-research-supersession.json': '4ad6e16fd15e8734ce965f4ebd42a339cc893f6e53ae8f938cfbab02920f764d',
+}
+
+
+def _supersession_entries(ruling):
+    """Authenticate the pinned identities independently of mutable queue links."""
+    if ruling not in SUPERSESSION_RULINGS:
+        raise ValueError('RULING_NOT_REGISTERED')
+    path = BUSINESS / ruling
+    raw = path.read_bytes()
+    if path.is_symlink() or hashlib.sha256(raw).hexdigest() != SUPERSESSION_RULINGS[ruling]:
+        raise ValueError('RULING_HASH')
+    facts = json.loads(raw)
+    entries = facts.get('jobs')
+    if (facts.get('schema') != 'pro-research-supersession-ruling-v1' or
+            facts.get('authority') != 'operator' or facts.get('research_only') is not True or
+            facts.get('no_side_effects') is not True or not facts.get('verbatim') or
+            not facts.get('decision_date') or not isinstance(entries, list) or not entries):
+        raise ValueError('RULING_SCOPE')
+    originals = [r['job'] for r in entries]
+    replacements = [r['replacement_job'] for r in entries]
+    if (len(set(originals)) != len(entries) or len(set(replacements)) != len(entries) or
+            set(originals) & set(replacements) or any(not isinstance(j, str) or
+            not re.fullmatch(r'[A-Za-z0-9._-]{1,80}', j) or j in ('.', '..')
+            for j in originals + replacements)):
+        raise ValueError('RULING_IDENTITIES')
+    return entries, raw
+
+
+def _supersession_ruling(ruling, job):
+    entries, raw = _supersession_entries(ruling)
+    matching = [r for r in entries if r['job'] == job]
+    if len(matching) != 1 or matching[0].get('linear_child') == 'GLP-336':
+        raise ValueError('RULING_JOB')
+    return matching[0], raw
+
+
+def _supersession_evidence(cfg, st, preimage, ruling):
+    """Authenticate the complete sent preimage, unchanged packet and original journal."""
+    entry, raw = _supersession_ruling(ruling, st['job'])
+    alias = entry['account_alias']
+    if not re.fullmatch(r'acct[123]', alias):
+        raise ValueError('ACCOUNT_ALIAS')
+    account = cfg['accounts'][int(alias[4:]) - 1]['label']
+    if (json.loads(preimage) != st or hashlib.sha256(preimage).hexdigest() != entry['job_sha256'] or
+            st.get('status') != 'running' or st.get('job_class') != 'research-synthesis' or
+            st.get('typed') is not True or st.get('sent') is not True or
+            st.get('retry_blocked') is not False or st.get('account') != account or
+            st.get('linear_child') != entry['linear_child'] or st.get('linear_child') == 'GLP-336' or
+            st.get('input_sha256') != entry['input_sha256'] or
+            st.get('binding_version') != 2 or not binding_url(st) or
+            st.get('conversation_id') != binding_url(st).rsplit('/', 1)[1] or
+            not isinstance(st.get('tab'), str) or not st['tab'] or
+            not all(isinstance(st.get(k), str) and st[k] for k in PROVENANCE_FIELDS)):
+        raise ValueError('SENT_BOUND_RESEARCH_STATE')
+    d = JOBS / st['job']
+    if (d / 'RESPONSE.md').exists() or (d / 'outbox').exists():
+        raise ValueError('OUTPUT_PRESENT')
+    files = entry['files']
+    if not isinstance(files, dict) or not files:
+        raise ValueError('PACKET_PINS')
+    custody = {}
+    for name, digest in files.items():
+        p = BUSINESS / name
+        if (Path(name).is_absolute() or '..' in Path(name).parts or
+                p.resolve() != p.absolute() or not p.resolve().is_relative_to(BUSINESS.resolve()) or
+                not re.fullmatch(r'[0-9a-f]{64}', digest)):
+            raise ValueError('PACKET_PATH')
+        content = p.read_bytes()
+        if hashlib.sha256(content).hexdigest() != digest:
+            raise ValueError('PACKET_HASH')
+        custody[p] = content
+    required = [d / n for n in ('PROMPT.md', 'MANIFEST.json', 'MESSAGE.md')]
+    if not all(p in custody for p in required):
+        raise ValueError('PACKET_INCOMPLETE')
+    if _failed_generation_identity(st) not in custody[d / 'MESSAGE.md'].decode():
+        raise ValueError('MESSAGE_IDENTITY')
+    manifest = json.loads(custody[d / 'MANIFEST.json'])
+    paths = [d / 'PROMPT.md', *map(Path, manifest['attach']), *map(Path, manifest['drive_attach'])]
+    if any(p not in custody for p in paths):
+        raise ValueError('PACKET_INCOMPLETE')
+    packet = [(p.name, hashlib.sha256(custody[p]).hexdigest()) for p in paths]
+    if hashlib.sha256(json.dumps(packet, separators=(',', ':')).encode()).hexdigest() != st['input_sha256']:
+        raise ValueError('INPUT_HASH')
+    ledger = ledger_path(cfg)
+    custody[ledger] = ledger.read_bytes()
+    all_rows = [(line, json.loads(line)) for line in custody[ledger].splitlines() if line.strip()]
+    job_lines = [line for line, row in all_rows if row.get('job') == st['job']]
+    n = len(entry['ledger_lines_sha256'])
+    if not n or [hashlib.sha256(line).hexdigest() for line in job_lines[:n]] != entry['ledger_lines_sha256']:
+        raise ValueError('JOURNAL_PREIMAGE')
+    rows = [json.loads(line) for line in job_lines]
+    bound = [r for r in rows[:n] if r.get('event') == 'submission_bound']
+    if (len(bound) != 1 or bound[0].get('account') != st['account'] or
+            _conversation(bound[0].get('conversation_url')) != binding_url(st) or
+            any(bound[0].get(k) != st[k] for k in PROVENANCE_FIELDS)):
+        raise ValueError('JOURNAL_BINDING')
+    custody[BUSINESS / ruling] = raw
+    return entry, raw, custody, rows, job_lines
+
+
+def _supersession_observations(st, rows):
+    """Only exact native read-only point observations may follow the ruling prefix."""
+    fields = ('stop', 'logged_out', 'security_interstitial', 'human_challenge',
+              'rate_limited', 'drive_reconnect', 'thinking_failed', 'user_identity_matched')
+    for row in rows:
+        observed = row.get('observed', {})
+        if set(observed) != set(fields) or any(type(v) is not bool and v is not None for v in observed.values()):
+            raise ValueError('JOURNAL_OBSERVATION')
+        generating = (False if any(v is not None and v != (k in ('stop', 'user_identity_matched'))
+                                  for k, v in observed.items()) else
+                      None if any(v is None for v in observed.values()) else True)
+        expected = {'ts': row['ts'], 'event': 'generation_observation',
+                    'schema': 'gpt6pro-generation-observation-v1', 'coverage': 'single_bound_read_only',
+                    'read_started_at': row['read_started_at'], 'read_finished_at': row['read_finished_at'],
+                    'job': st['job'], 'account': st['account'], 'conversation_url': binding_url(st),
+                    'conversation_id': st['conversation_id'], 'binding_version': 2, 'tab': st['tab'],
+                    'observed': observed, 'authenticated_generation_observed': generating,
+                    'reply_token_sha256': hashlib.sha256(st['reply_token'].encode()).hexdigest(),
+                    **{key: st[key] for key in (*PROVENANCE_FIELDS, 'job_class', 'input_sha256')}}
+        times = [datetime.fromisoformat(row[key]) for key in ('read_started_at', 'read_finished_at', 'ts')]
+        if (row != expected or type(row.get('authenticated_generation_observed')) not in (bool, type(None)) or
+                not all(t.tzinfo for t in times) or times != sorted(times)):
+            raise ValueError('JOURNAL_OBSERVATION')
+
+
+def _supersession_event(st, entry, ruling, raw, at, journal_lines):
+    return {'event': 'research_supersession', 'job': st['job'], 'account': st['account'],
+            'from_status': st['status'], 'to_status': 'SUPERSEDED',
+            'replacement_job': entry['replacement_job'], 'ruling': ruling,
+            'ruling_sha256': hashlib.sha256(raw).hexdigest(), 'preimage_sha256': entry['job_sha256'],
+            'journal_preimage_rows': len(journal_lines),
+            'journal_preimage_sha256': hashlib.sha256(b'\n'.join(journal_lines)).hexdigest(),
+            'conversation_url': binding_url(st), 'retained_tab': st['tab'], 'observed_at': at}
+
+
+def _verified_supersession(st):
+    """An interrupted or tampered disposition NEVER frees active capacity."""
+    try:
+        if st.get('status') != 'SUPERSEDED' or job_state(st['job']) != st:
+            return False
+        proof = st['supersession']
+        preimage = (JOBS / st['job'] / ('JOB.pre-supersession-' + proof['preimage_sha256'] + '.json')).read_bytes()
+        original = json.loads(preimage)
+        entry, raw, _, rows, lines = _supersession_evidence(load_config(), original, preimage, proof['ruling'])
+        n = len(rows) - 2
+        if n < len(entry['ledger_lines_sha256']):
+            return False
+        _supersession_observations(original, rows[len(entry['ledger_lines_sha256']):n])
+        expected = _supersession_event(original, entry, proof['ruling'], raw, proof['observed_at'], lines[:n])
+        return (datetime.fromisoformat(proof['observed_at']).tzinfo is not None and proof == expected and
+                st == {**original, 'status': 'SUPERSEDED', 'retry_blocked': True, 'supersession': proof} and
+                len(rows) == n + 2 and all(r == {'ts': r.get('ts'), **proof, 'phase': phase}
+                                         for r, phase in zip(rows[n:], ('STARTED', 'APPLIED'))))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
+        return False
+
+
+def supersede_research(job, ruling, *, apply=False, authorize_preimage=None):
+    """Forward-only ruled disposition. Never stop, close, reload, send, fetch or erase.
+
+    Old tabs remain protected and the original ID is permanently retry-blocked.
+    --apply requires the exact original JOB digest; dry-run changes no custody.
+    Coordination lock files may be created by the existing lock helpers.
+    Replacement creation/submission is a separate installed dispatcher action.
+    """
+    def refuse(reason):
+        raise SystemExit('SUPERSESSION_REFUSED_' + reason + ' ' + job)
+    try:
+        entry, _ = _supersession_ruling(ruling, job)
+        if (apply and authorize_preimage != entry['job_sha256']) or (not apply and authorize_preimage is not None):
+            refuse('AUTHORITY')
+        cfg = load_config()
+        st = job_state(job)
+        use_account(account_of(cfg, st.get('account')))
+        with account_lock(), global_lock():
+            path = JOBS / job / 'JOB.json'
+            preimage = path.read_bytes(); st = json.loads(preimage)
+            if st.get('status') == 'SUPERSEDED':
+                if not _verified_supersession(st) or st['supersession']['ruling'] != ruling:
+                    refuse('INCOMPLETE_OR_CHANGED_HISTORY')
+                print('ALREADY_SUPERSEDED job=' + job)
+                return 0
+            if st.get('job') != job:
+                refuse('JOB_IDENTITY')
+            entry, raw, custody, rows, lines = _supersession_evidence(cfg, st, preimage, ruling)
+            _supersession_observations(st, rows[len(entry['ledger_lines_sha256']):])
+            replacement = JOBS / entry['replacement_job']
+            if replacement.exists() or any(r.get('job') == entry['replacement_job'] for r in ledger_rows(cfg)):
+                refuse('REPLACEMENT_ALREADY_EXISTS')
+            require_binding(st)
+            if _legacy_live_jobs():
+                refuse('LIVE_RUNNER')
+            backup = path.with_name('JOB.pre-supersession-' + entry['job_sha256'] + '.json')
+            if backup.exists():
+                refuse('PREIMAGE_ALREADY_EXISTS')
+            def recheck():
+                if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
+                        replacement.exists() or (path.parent / 'RESPONSE.md').exists() or
+                        (path.parent / 'outbox').exists() or _legacy_live_jobs()):
+                    refuse('DRIFT')
+            recheck()
+            if not apply:
+                print('WOULD_SUPERSEDE job=' + job + ' replacement=' + entry['replacement_job'])
+                return 0
+            with backup.open('xb') as fh:
+                fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
+            fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try: os.fsync(fd)
+            finally: os.close(fd)
+            recheck()
+            event = _supersession_event(st, entry, ruling, raw, now_iso(), lines)
+            ledger_append(cfg, {**event, 'phase': 'STARTED'})
+            job_write(job, {**st, 'status': 'SUPERSEDED', 'retry_blocked': True, 'supersession': event})
+            ledger_append(cfg, {**event, 'phase': 'APPLIED'})
+            if not _verified_supersession(job_state(job)):
+                refuse('READBACK')
+            print('SUPERSEDED job=' + job + ' replacement=' + entry['replacement_job'] + '; retained tab protected')
+            return 0
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError) as exc:
+        refuse(type(exc).__name__ + '_' + str(exc))
+
+
 def active_registry():
     """JOB.json is the account-global reservation, not a wave or live PID count."""
     rows = []
     for path in sorted(JOBS.glob('*/JOB.json')):
         st = json.loads(path.read_text())
-        if st.get('status') in ACTIVE_STATES or (st.get('retry_blocked') and
+        if ((st.get('status') == 'SUPERSEDED' and
+                (st.get('job') != path.parent.name or not _verified_supersession(st))) or
+                st.get('status') in ACTIVE_STATES or (st.get('retry_blocked') and
+                st.get('status') != 'SUPERSEDED' and
                 not (st.get('status') == 'failed' and st.get('reason') == 'THINKING_FAILED') and
-                not (st.get('job') == path.parent.name and _verified_terminal_unsent(st))):
+                not (st.get('job') == path.parent.name and _verified_terminal_unsent(st)))):
             rows.append({'job': path.parent.name, 'account': st.get('account'),
                          'status': st.get('status'), 'conversation_id': st.get('conversation_id'),
                          'retry_blocked': bool(st.get('retry_blocked'))})
@@ -747,7 +976,7 @@ def bu_json(script: str, timeout: int = 300) -> dict:
                 if f"http://127.0.0.1:{a.get('cdp_port', 9340)}" == BU_ENV['BU_CDP_URL']]
     if len(accounts) == 1:
         retained = {t for s in sibling_bindings(accounts[0]['label'], '')
-                    if _verified_terminal_unsent(s) for t in custody_tabs(s)}
+                    if _verified_terminal_unsent(s) or _verified_supersession(s) for t in custody_tabs(s)}
         cap += len(retained)
     preamble = ('import time\n_pace_path=' + repr(str(BUSINESS / 'ops/gpt6pro-relay/locks/page-load-ip.clock')) +
                 '\n_page_gap=' + repr(max(60, 60 / max(0.01, envelope.get('max_page_loads_per_min_per_ip', 1)))) + '\n')
@@ -962,7 +1191,7 @@ COMPOSER_TEXT_JS = r'''function composerText(e){
 
 # Chat/Work is independent of selectedModel. The sender verifies only; idle
 # mode correction is a separately authorized UI action, never a send fallback.
-PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
+PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(diagnose=true){
     const visible=e=>{
         if(!e.getClientRects().length)return false;
         for(let p=e;p;p=p.parentElement){
@@ -972,13 +1201,59 @@ PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
         }return true;
     };
     const main=document.querySelector('main');
-    if(!main)return {error:'CHAT_SURFACE_REFUSED'};
-    const buttons=[...main.querySelectorAll('button')].filter(visible);
-    const chat=buttons.filter(e=>e.innerText.trim()==='Chat');
-    const work=buttons.filter(e=>e.innerText.trim()==='Work');
-    if(chat.length!==1||work.length!==1)return {error:'CHAT_SURFACE_REFUSED'};
+    let groups=[],scope=main;
+    // Capture only structural facts from the deciding evaluation. Never retain
+    // draft text, arbitrary attributes, HTML or account/conversation metadata.
+    // Diagnostics are emitted on refusal only; bounded samples never limit the
+    // full uniqueness/visibility predicate used for the decision.
+    const refuse=reason=>{
+        const result={error:'CHAT_SURFACE_REFUSED',reason:reason};
+        if(!diagnose)return result;
+        const excluded=e=>{
+            if(!e.getClientRects().length)return 'no_rect';
+            for(let p=e;p;p=p.parentElement){
+                const s=getComputedStyle(p);
+                if(p.hidden)return 'hidden';if(p.inert)return 'inert';if(p.disabled)return 'disabled';
+                if(p.getAttribute('aria-hidden')==='true')return 'aria_hidden';
+                if(p.getAttribute('aria-disabled')==='true')return 'aria_disabled';
+                if(s.display==='none')return 'display_none';if(s.visibility==='hidden')return 'visibility_hidden';
+            }return null;
+        };
+        const buttons=scope?[...scope.querySelectorAll('button')]:[];
+        const candidates=label=>{
+            const raw=buttons.filter(e=>(e.textContent||e.innerText).trim()===label);
+            return {raw_count:raw.length,filtered_count:raw.filter(visible).length,
+                overflow:raw.length>8,candidates:raw.slice(0,8).map(e=>{
+                    const p=e.getAttribute('aria-pressed');
+                    return {pressed:p===null?'missing':['true','false','mixed'].includes(p)?p:'other',
+                        excluded:excluded(e)};
+                })};
+        };
+        result.diagnostics={main_present:!!main,
+            main_count:typeof document.querySelectorAll==='function'?document.querySelectorAll('main').length:null,
+            group_count:groups.length,scope:groups.length===1?'composer_mode':main?'first_main':'none',
+            group_excluded:groups.length===1?excluded(groups[0]):null,
+            chat:candidates('Chat'),work:candidates('Work')};
+        return result;
+    };
+    if(!main)return refuse('mode_missing');
+    // The captured app shell identifies the toggle independently of other
+    // Chat/Work-labelled buttons. Retain the old main-only contract if absent.
+    groups=typeof main.querySelectorAll==='function'?
+        [...main.querySelectorAll('[role="group"][aria-label="Composer mode"]')]
+            .filter(e=>e.getAttribute('aria-label')==='Composer mode'):[];
+    if(groups.length===1)scope=groups[0];
+    if(groups.length>1)return refuse('mode_ambiguous');
+    if(groups.length===1&&!visible(groups[0]))return refuse('mode_unverified');
+    const buttons=[...scope.querySelectorAll('button')].filter(visible);
+    const label=e=>(e.textContent||e.innerText).trim();
+    const chat=buttons.filter(e=>label(e)==='Chat');
+    const work=buttons.filter(e=>label(e)==='Work');
+    if(!chat.length&&!work.length)return refuse('mode_missing');
+    if(chat.length!==1||work.length!==1)return refuse('mode_ambiguous');
     if(chat[0].getAttribute('aria-pressed')==='true'&&work[0].getAttribute('aria-pressed')==='false')return {switched:false};
-    return {error:'CHAT_SURFACE_REFUSED'};
+    if(work[0].getAttribute('aria-pressed')==='true')return refuse('work_selected');
+    return refuse('mode_unverified');
 }'''
 
 
@@ -1008,7 +1283,7 @@ function pickerMenu(){
 function committed6ProMaximum(){
     // Revalidate Chat at every existing initial/chunk/Send admission, including
     // retained atomic Send. A stale Pro selection never authorizes Work quota.
-    if(ensureProChatSurface().error)return false;
+    if(ensureProChatSurface(false).error)return false;
     const trigger=pickerTrigger();
     // The trigger's candidate effort also labels staged state. Only the closed
     // selection owner's incoming selectedModel is a parent-acceptance witness.
@@ -1284,9 +1559,25 @@ for readiness_observations in range(1, 47):
 if RETAINED: _fresh()
 # Verify the independent composer mode before every path's picker. The sender
 # never changes Work to Chat; unverified/ambiguous mode refuses before input.
-chat_surface=_bound_js(tab['targetId'],fresh,{json.dumps('(()=>{' + PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()')})
+chat_surface=None
+# A new empty root can hydrate the composer before its independent mode toggle.
+# Observe ONLY missing controls under the same freshness/security checks; do not
+# switch Work, retry retained documents, or insert before a positive Chat proof.
+for mode_observation in range(11):
+    if _fresh()!=fresh:
+        _binding_error('conversation_mismatch', tab=tab['targetId'])
+    chat_surface=_bound_js(tab['targetId'],fresh,{json.dumps('(()=>{' + PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()')})
+    if (not isinstance(chat_surface,dict) or not chat_surface.get('error') or
+            chat_surface.get('reason')!='mode_missing' or RETAINED or mode_observation==10):
+        break
+    current=_state(lambda expression: _bound_js(tab['targetId'],fresh,expression))
+    if (current['human_challenge'] or current['security_interstitial'] or current['logged_out'] or
+            current['rate_limited'] or current['drive_reconnect'] or current['stop']):
+        _binding_error('mode_readiness_changed', tab=tab['targetId'], state=current)
+    time.sleep(0.3)
 if not isinstance(chat_surface,dict) or chat_surface.get('error'):
-    print('RELAY_JSON:'+json.dumps({{'error':'CHAT_SURFACE_REFUSED','typed':False,'sent':False,'tab':tab['targetId']}})); raise SystemExit(0)
+    print('RELAY_JSON:'+json.dumps({{'error':'CHAT_SURFACE_REFUSED','typed':False,'sent':False,'tab':tab['targetId'],
+        'mode_observation':mode_observation+1,'mode_evidence':chat_surface}})); raise SystemExit(0)
 if chat_surface.get('switched') is not False:
     _binding_error('CHAT_SURFACE_REFUSED', tab=tab['targetId'])
 # All paths must commit supported 6 Pro maximum explicitly, even when
@@ -1418,6 +1709,41 @@ else:
     return bu_json(script, timeout=900)
 
 
+# Activity/commentary uses the same markdown style as final output. Only a
+# positively complete latest turn and its typed final assistant unit supply bytes.
+CURRENT_REPLY_JS = r'''function currentFinalReply(start,end,renderer='turn_markdown'){
+    const main=document.querySelector('main');
+    const turns=main?[...main.querySelectorAll('[data-turn-key]')]:[];
+    const states=main?[...main.querySelectorAll('[data-talvt-turn-state]')]:[];
+    if(!turns.length&&!states.length)return {present:false};
+    const refuse=reason=>({present:true,complete:false,reason:reason,n:0});
+    if(main.querySelector('button[data-testid="stop-button"], button[aria-label="Stop generating"]'))
+        return refuse('generation_active');
+    if(!turns.length)return refuse('turn_missing');
+    const turn=turns[turns.length-1];
+    const owned=[...turn.querySelectorAll('[data-talvt-turn-state]')]
+        .filter(e=>e.closest('[data-turn-key]')===turn);
+    if(owned.length!==1||owned[0].getAttribute('data-talvt-turn-state')!=='complete')
+        return refuse('turn_incomplete');
+    const units=[...owned[0].querySelectorAll('[data-content-search-unit-key$=":assistant"]')];
+    if(units.length!==1||!units[0].querySelector('[data-conversation-role="assistant"]'))
+        return refuse('final_assistant_unverified');
+    const nodes=[...units[0].querySelectorAll('[data-markdown-text-style="assistant-message"]')]
+        .filter(e=>!e.closest('[class*="group/activity-header"]')&&
+                   e.closest('[data-content-search-unit-key]')===units[0]);
+    if(nodes.length!==1||!nodes[0].innerText)return refuse('final_markdown_unverified');
+    let node=nodes[0];
+    if(renderer==='role')node=node.closest('[data-message-author-role=assistant]');
+    if(renderer==='selection_markdown'&&!node.closest('[data-chatgpt-selection-message-id]'))
+        return refuse('saved_renderer_unavailable');
+    if(!node)return refuse('saved_renderer_unavailable');
+    if(start!==undefined)return node.innerText.slice(start,end);
+    return {present:true,complete:true,n:node.innerText.length,
+        turn_key:turn.getAttribute('data-turn-key'),
+        unit_key:units[0].getAttribute('data-content-search-unit-key')};
+}'''
+
+
 def read_reply(conversation_url: str, tab: str | None = None, reload: bool = False,
                protected: list[str] | tuple[str, ...] = (), existing_only: bool = False,
                expected_identity: str | None = None, capture_mode: str | None = None) -> dict:
@@ -1428,8 +1754,11 @@ def read_reply(conversation_url: str, tab: str | None = None, reload: bool = Fal
     """
     if existing_only and (reload or not tab or not _conversation(conversation_url)):
         raise ValueError('existing reply requires an exact tab and canonical conversation without reload')
-    if capture_mode not in (None, 'role', 'selection_markdown'):
+    if capture_mode not in (None, 'role', 'selection_markdown', 'turn_markdown'):
         raise ValueError('unknown reply capture mode')
+    turn_probe = '(()=>{' + CURRENT_REPLY_JS + 'return currentFinalReply();})()'
+    turn_slice = '(()=>{' + CURRENT_REPLY_JS + 'return currentFinalReply(%d,%d,%s);})()'
+    turn_render = '(()=>{' + CURRENT_REPLY_JS + 'return currentFinalReply(undefined,undefined,%s);})()'
     script = BU_PRELUDE + f'''
 RELOAD={reload!r}
 EXISTING_ONLY={existing_only!r}
@@ -1449,33 +1778,54 @@ activate_tab(tab)
 time.sleep(1)
 probe=lambda expression: _bound_js(tab, want, expression)
 st=_state(probe)
-if RELOAD and not st["stop"] and not st["thinking_failed"]:
+turn=probe({turn_probe!r})
+def _incomplete(value):
+    return value.get('present') and value.get('complete') is not True
+if RELOAD and not st["stop"] and not st["thinking_failed"] and not _incomplete(turn):
     _page_load_slot()
-    # Generation may resume or fail while waiting for the global page token.
-    if not (lambda state: state["stop"] or state["thinking_failed"])(_state(probe)):
+    # Recheck both generation representations after the shared pacing wait.
+    if not (lambda state: state["stop"] or state["thinking_failed"])(_state(probe)) and not _incomplete(probe({turn_probe!r})):
         probe("location.href="+json.dumps(want))
         wait_for_load(); time.sleep(8)
     st=_state(probe)
+turn=probe({turn_probe!r})
+if _incomplete(turn):
+    st['stop']=True
+    st['reply_incomplete_reason']=turn.get('reason')
 st["conversation_url_now"]=probe("location.href")
 if {expected_identity is not None!r}:
     identity={expected_identity!r}
     st["user_identity_matched"]=probe("(()=>{{const m=document.querySelector('main');return !!m&&[...m.querySelectorAll('[data-message-author-role=user]')].some(e=>e.innerText.includes("+json.dumps(identity)+"));}})()")
-n=probe("""(()=>{{const m=[...document.querySelectorAll('[data-message-author-role=assistant]')];return m.length?m[m.length-1].innerText.length:0;}})()""")
 mode=CAPTURE_MODE or 'role'
-if mode=='selection_markdown':
-    n=0
-if not n and CAPTURE_MODE!='role':
-    # A forced capture uses the original DOM source; never substitute the other
-    # renderer when it cannot reproduce the saved representation.
-    n=probe("""(()=>{{const m=[...document.querySelectorAll('[data-chatgpt-selection-message-id] [data-markdown-text-style]')];return m.length?m[m.length-1].innerText.length:0;}})()""") or 0
-    if n: mode='selection_markdown'
+n=0
+if turn.get('present'):
+    mode=CAPTURE_MODE or 'turn_markdown'
+    rendered=probe({turn_render!r} % json.dumps(mode))
+    if rendered.get('complete') is True:
+        n=rendered['n']
+    else:
+        st['stop']=True
+        st['reply_incomplete_reason']=rendered.get('reason')
+elif not _incomplete(turn):
+    if mode not in ('selection_markdown','turn_markdown'):
+        n=probe("""(()=>{{const m=[...document.querySelectorAll('[data-message-author-role=assistant]')];return m.length?m[m.length-1].innerText.length:0;}})()""")
+    if not n and CAPTURE_MODE not in ('role','turn_markdown'):
+        # Preserve the exact saved renderer; no approximate equivalence.
+        n=probe("""(()=>{{const m=[...document.querySelectorAll('[data-chatgpt-selection-message-id] [data-markdown-text-style]')];return m.length?m[m.length-1].innerText.length:0;}})()""") or 0
+        if n: mode='selection_markdown'
 parts=[]
 for i in range(0, n, {IPC_CHUNK}):
-    if mode=='selection_markdown':
+    if turn.get('present'):
+        part=probe({turn_slice!r} % (i,i+{IPC_CHUNK},json.dumps(mode)))
+        if not isinstance(part,str):_binding_error('reply_became_incomplete',tab=tab)
+        parts.append(part)
+    elif mode=='selection_markdown':
         parts.append(probe("(()=>{{const m=[...document.querySelectorAll('[data-chatgpt-selection-message-id] [data-markdown-text-style]')];return m[m.length-1].innerText.slice(%d,%d);}})()" % (i, i+{IPC_CHUNK})))
     else:
         parts.append(probe("(()=>{{const m=[...document.querySelectorAll('[data-message-author-role=assistant]')];return m[m.length-1].innerText.slice(%d,%d);}})()" % (i, i+{IPC_CHUNK})))
 text="".join(parts)
+if turn.get('present') and probe({turn_probe!r})!=turn:
+    _binding_error('reply_turn_changed',tab=tab)
 st['render_mode']=mode
 st["conversation_url_now"]=probe("location.href")
 print("RELAY_JSON:"+json.dumps({{"state":st,"text":text,"tab":tab}}))
@@ -1752,9 +2102,243 @@ def read_terminal_reply(st: dict) -> dict:
     return reply  # unchanged final-hash gate must still reject a genuinely changed reply
 
 
+# Executed in the existing browser-use process, with its native event queue.
+# The on-disk receipt, not stdout or an expected filename, survives IPC failure.
+NATIVE_DOWNLOAD_CODE = r'''
+import hashlib, os
+from pathlib import Path
+
+def _native_save():
+    tmp = receipt_path.with_suffix('.tmp')
+    with open(tmp, 'w', opener=lambda p, f: os.open(p, f, 0o600)) as fh:
+        json.dump(receipt, fh, sort_keys=True)
+        fh.flush(); os.fsync(fh.fileno())
+    os.replace(tmp, receipt_path)
+    fd = os.open(str(receipt_path.parent), os.O_RDONLY)
+    try: os.fsync(fd)
+    finally: os.close(fd)
+
+try:
+    _select(receipt['tab'])
+    probe = lambda expression: _bound_js(receipt['tab'], receipt['conversation_url'], expression)
+    probe('location.href')
+    frame = cdp('Page.getFrameTree', session_id=_sessions[receipt['tab']])['frameTree']['frame']['id']
+    receipt['frame_id'] = frame
+    # Discard no unattributed event silently into this transfer's history.
+    prior = {e.get('params', {}).get('guid') for e in drain_events()
+             if e.get('method', '').startswith('Browser.download')}
+    opened = probe(open_expression)
+    receipt['preview'] = opened; _native_save()
+    if opened.get('opened') is not True:
+        raise ValueError('PREVIEW_NOT_UNIQUE')
+    time.sleep(2)
+    cdp('Browser.setDownloadBehavior', behavior='allow',
+        downloadPath=receipt['destination'], eventsEnabled=True)
+    prior.update(e.get('params', {}).get('guid') for e in drain_events()
+                 if e.get('method', '').startswith('Browser.download'))
+    receipt['click_attempted'] = True; _native_save()
+    receipt['click_result'] = probe(click_expression); _native_save()
+    if receipt['click_result'].get('clicked') is not True:
+        raise ValueError('DOWNLOAD_NOT_UNIQUE')
+    deadline = time.monotonic() + 30
+    guid = None
+    completed = None
+    while time.monotonic() < deadline:
+        for event in drain_events():
+            method = event.get('method'); params = event.get('params', {})
+            if method == 'Browser.downloadWillBegin':
+                if (params.get('frameId') != frame or params.get('suggestedFilename') != receipt['filename']
+                        or not params.get('guid') or params['guid'] in prior):
+                    receipt['unattributed_events'] += 1
+                    continue
+                if guid is not None and guid != params['guid']:
+                    raise ValueError('AMBIGUOUS_NATIVE_GUID')
+                guid = params['guid']; receipt['guid'] = guid
+                receipt['events'].append({'method': method, 'params': params}); _native_save()
+            elif method == 'Browser.downloadProgress':
+                if not guid or params.get('guid') != guid:
+                    receipt['unattributed_events'] += 1
+                    continue
+                receipt['events'].append({'method': method, 'params': params})
+                receipt['progress'] = params; _native_save()
+                state = params.get('state')
+                if state == 'canceled':
+                    receipt.update(result='CANCELED', transfer_state='canceled', reason='NATIVE_CANCELED')
+                elif state == 'completed':
+                    completed = params; receipt['transfer_state'] = 'completed'
+                elif state != 'inProgress':
+                    raise ValueError('INVALID_NATIVE_STATE')
+        if receipt['result'] == 'CANCELED':
+            break
+        if completed is not None:
+            actual = completed.get('filePath')
+            # CDP permits omitted filePath: that is UNKNOWN, never guessed success.
+            if actual is not None and actual != receipt['expected_path']:
+                raise ValueError('NATIVE_DESTINATION_MISMATCH')
+            target = Path(receipt['expected_path'])
+            if actual and target.is_file():
+                if any(p.is_symlink() for p in (target, *target.parents)):
+                    raise ValueError('NATIVE_DESTINATION_SYMLINK')
+                raw = target.read_bytes()
+                if hashlib.sha256(raw).hexdigest() != receipt['expected_sha256']:
+                    raise ValueError('NATIVE_FILE_HASH')
+                receipt.update(result='COMPLETED', reason='NATIVE_COMPLETED',
+                               resolved_destination=actual, bytes=len(raw),
+                               sha256=hashlib.sha256(raw).hexdigest())
+                break
+        time.sleep(0.2)
+    if receipt['result'] == 'UNKNOWN':
+        receipt['reason'] = 'NATIVE_CAPTURE_OR_DESTINATION_UNKNOWN'
+except BaseException as exc:
+    # Binding helper SystemExit and transport failures cannot be called canceled.
+    receipt['reason'] = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+    receipt['result'] = 'ERROR' if isinstance(exc, ValueError) or not receipt['click_attempted'] else 'UNKNOWN'
+finally:
+    if receipt.get('preview', {}).get('opened') is True:
+        try:
+            probe('location.href')
+            for typ in ['keyDown', 'keyUp']:
+                cdp('Input.dispatchKeyEvent', session_id=_sessions[receipt['tab']],
+                    type=typ, key='Escape', code='Escape', windowsVirtualKeyCode=27)
+            # CDP accepting Escape is not proof the modal closed. Refuse the
+            # next file unless the exact bound page has no visible Download.
+            preview_gone = False
+            for _ in range(10):
+                preview_gone = probe('(()=>{const previewGone=![...document.querySelectorAll("button[aria-label=Download]")].some(e=>e.getClientRects().length);return previewGone})()') is True
+                if preview_gone:
+                    break
+                time.sleep(0.2)
+            receipt['preview_restoration'] = {'restored': preview_gone}
+        except BaseException as exc:
+            receipt['preview_restoration'] = {'restored': False, 'error': type(exc).__name__}
+    try:
+        cdp('Browser.setDownloadBehavior', behavior='default', eventsEnabled=False)
+        receipt['restoration'] = {'restored': True}
+    except BaseException as exc:
+        receipt['restoration'] = {'restored': False, 'error': type(exc).__name__}
+    _native_save()
+print('RELAY_JSON:' + json.dumps({'result': receipt['result']}))
+'''
+
+
+def receive_native_download(st, tab, name, directory, expected_sha256):
+    """One future, explicitly admitted native effect; any prior intent forbids it.
+
+    Normal route/heavy/account custody is still required. Never use this API to
+    replay historical report-local attempts. It does not accept or deliver output.
+    """
+    require_binding(st)
+    if (st.get('status') != 'done' or not binding_url(st) or
+            not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', name) or
+            not re.fullmatch(r'[0-9a-f]{64}', expected_sha256) or
+            not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', st['job'])):
+        raise ValueError('NATIVE_RECEIVE_AUTHORITY')
+    directory = Path(directory).absolute()
+    if any(p.is_symlink() for p in (directory, *directory.parents)):
+        raise ValueError('NATIVE_RECEIVE_SYMLINK')
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / name
+    path = JOBS / st['job'] / ('native-download-' + name + '.json')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    receipt = {'schema': 'native-download-v1', 'job': st['job'], 'at': now_iso(),
+               'conversation_id': st['conversation_id'], 'conversation_url': binding_url(st),
+               'tab': tab, 'filename': name, 'destination': str(directory), 'expected_path': str(target),
+               'expected_sha256': expected_sha256, 'input_sha256': st['input_sha256'],
+               'final_reply_sha256': st['last_text_sha'], 'result': 'UNKNOWN',
+               'retry_blocked': True, 'click_attempted': False, 'events': [],
+               'unattributed_events': 0, 'reason': 'INTENT_CAPTURE_PENDING'}
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        raise ValueError('NATIVE_RECEIVE_PRIOR_INTENT') from None
+    with os.fdopen(fd, 'w') as fh:
+        json.dump(receipt, fh, sort_keys=True); fh.flush(); os.fsync(fh.fileno())
+    parent_fd = os.open(str(path.parent), os.O_RDONLY)
+    try: os.fsync(parent_fd)
+    finally: os.close(parent_fd)
+    if target.exists():
+        receipt.update(result='ERROR', reason='NATIVE_RECEIVE_PREEXISTING_DESTINATION')
+        _atomic_json(path, receipt)
+        return receipt
+    opened = ('(()=>{const es=[...document.querySelectorAll("main button[aria-label]")].filter(e=>'
+              'e.getAttribute("aria-label")===' + json.dumps('Open preview of ' + name) +
+              ');if(es.length!==1)return {opened:false,count:es.length};es[0].click();return {opened:true}})()')
+    click = ('(()=>{const es=[...document.querySelectorAll("button[aria-label=Download]")]'
+             '.filter(e=>e.getClientRects().length);if(es.length!==1)return {clicked:false,count:es.length};'
+             'es[0].click();return {clicked:true}})()')
+    script = (BU_PRELUDE + '\nreceipt_path=__import__("pathlib").Path(' + repr(str(path)) +
+              ')\nreceipt=json.loads(receipt_path.read_text())\nopen_expression=' + repr(opened) +
+              '\nclick_expression=' + repr(click) + '\n' + NATIVE_DOWNLOAD_CODE)
+    transport_error = None
+    try:
+        bu_json(script, timeout=90)
+    except BaseException as exc:
+        transport_error = type(exc).__name__
+    finally:
+        # Even a malformed/missing stdout capture must restore behavior. Preserve
+        # the native journal after a timeout, not the browser wrapper's return.
+        receipt = json.loads(path.read_text())
+        if transport_error:
+            receipt['transport_error'] = transport_error
+        if transport_error or not receipt.get('restoration', {}).get('restored'):
+            try:
+                restored = bu_json(BU_PRELUDE + "\ncdp('Browser.setDownloadBehavior',behavior='default',eventsEnabled=False)\nprint('RELAY_JSON:'+json.dumps({'restored':True}))", timeout=30)
+                receipt['restoration'] = {'restored': restored.get('restored') is True, 'outer_finally': True}
+            except BaseException as restore:
+                receipt['restoration'] = {'restored': False, 'error': type(restore).__name__}
+        # mkstemp keeps native URL/event custody private across atomic updates.
+        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix='.native-receive-')
+        with os.fdopen(fd, 'w') as fh:
+            json.dump(receipt, fh, sort_keys=True); fh.flush(); os.fsync(fh.fileno())
+        os.replace(tmp, path)
+        parent_fd = os.open(str(path.parent), os.O_RDONLY)
+        try: os.fsync(parent_fd)
+        finally: os.close(parent_fd)
+    return receipt
+
+
+def _receive_native_outbox(st, reply, directory, marker):
+    """Explicit future-entry preparation, then the unchanged verifier runs below."""
+    def receive(name, digest):
+        result = receive_native_download(st, reply['tab'], name, directory, digest)
+        if (result['result'] != 'COMPLETED' or not result.get('restoration', {}).get('restored')
+                or not result.get('preview_restoration', {}).get('restored')):
+            raise ValueError('NATIVE_RECEIVE_' + result['result'] + ' no retry')
+        raw = (directory / name).read_bytes()
+        # The native receipt authenticated earlier bytes, not this consumed buffer.
+        if hashlib.sha256(raw).hexdigest() != digest:
+            raise ValueError('NATIVE_RECEIVE_BUFFER_HASH no retry')
+        return raw
+    raw = receive('OUTPUT-MANIFEST.json', marker[2])
+    manifest = json.loads(raw)
+    # Check the same identity gates BEFORE authorizing any payload click.
+    if manifest.get('job') != st['job'] or manifest.get('input_sha256') != st['input_sha256']:
+        raise ValueError('native manifest job/input')
+    if manifest.get('schema') == 'gpt6pro-output-manifest-v2':
+        if not st.get('reply_token') or manifest.get('reply_token') != st['reply_token']:
+            raise ValueError('native manifest reply token')
+    else:
+        if manifest.get('conversation_id') != st['conversation_id'] or manifest.get('source_reply_sha256') != hashlib.sha256(marker[1].encode()).hexdigest():
+            raise ValueError('native manifest conversation/reply')
+    if ('conversation_id' in manifest and manifest['conversation_id'] != st['conversation_id'] or
+            'source_reply_sha256' in manifest and manifest['source_reply_sha256'] != hashlib.sha256(marker[1].encode()).hexdigest()):
+        raise ValueError('native manifest optional identity')
+    files = manifest.get('files')
+    if not isinstance(files, dict) or not files or 'OUTPUT-MANIFEST.json' in files:
+        raise ValueError('native manifest file set')
+    # Validate the WHOLE declaration before the first payload effect.
+    if any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', n) or
+           not isinstance(h, str) or not re.fullmatch(r'[0-9a-f]{64}', h) for n, h in files.items()):
+        raise ValueError('native manifest filename/hash')
+    for name, digest in files.items():
+        receive(name, digest)
+
+
 def _cmd_fetch_outbox(a) -> int:
     """Folder names locate data; only a final-chat-bound manifest authorizes it."""
     cfg = load_config(); st = job_state(a.job)
+    if getattr(a, 'receive_native', False) and getattr(a, 'download_dir', None) is None:
+        raise SystemExit('NATIVE_RECEIVE_REQUIRES_DOWNLOAD_DIR')
     require_binding(st)
     if not st.get('conversation_url'):
         raise SystemExit('BINDING_PENDING poll before fetch-outbox')
@@ -1785,6 +2369,11 @@ def _cmd_fetch_outbox(a) -> int:
             need(marker, 'missing final-chat manifest receipt')
             directory = Path(download_dir)
             need(not any(p.is_symlink() for p in (directory, *directory.parents)), 'download symlink')
+            if getattr(a, 'receive_native', False):
+                need(st.get('fetch_verification', {}).get('state') != 'VERIFIED', 'already verified')
+                need(not directory.exists() or not any(directory.iterdir()), 'native destination not empty')
+                directory.mkdir(parents=True, exist_ok=True)
+                _receive_native_outbox(st, r, directory, marker)
             need(directory.is_dir(), 'missing download directory')
             by_name = {p.name: p for p in directory.iterdir()}
             need(all(p.is_file() and not p.is_symlink() for p in by_name.values()), 'download non-file')
@@ -2852,7 +3441,7 @@ def _terminal_unsent_pin(job, report=None):
     if len(matching) != 1:
         raise ValueError('REPORT')
     row = matching[0]
-    if row.get('disposition') != 'terminal_unsent_preinsert' or row.get('reason') not in ('WRONG_MODEL', 'SECURITY_INTERSTITIAL'):
+    if row.get('disposition') != 'terminal_unsent_preinsert' or row.get('reason') not in ('WRONG_MODEL', 'SECURITY_INTERSTITIAL', 'CHAT_SURFACE_REFUSED'):
         raise ValueError('DISPOSITION')
     c = {'job': job, 'held': row['job_sha256'], 'message': row['message_sha256'],
          'manifest': row['manifest_sha256'], 'drive_prompt': row['drive_prompt_sha256'],
@@ -2867,6 +3456,101 @@ def _terminal_unsent_pin(job, report=None):
             type(c['time_origin']) not in (int, float) or c['time_origin'] <= 0):
         raise ValueError('PINS')
     return c
+
+
+def _terminal_mode_receipt_valid(error, tab):
+    """Closed legacy/current pretyping schemas; never normalize factual receipts."""
+    base = {'error', 'typed', 'sent', 'tab'}
+    if (not isinstance(error, dict) or error.get('error') != 'CHAT_SURFACE_REFUSED' or
+            error.get('typed') is not False or error.get('sent') is not False or
+            not isinstance(tab, str) or not tab or error.get('tab') != tab):
+        return False
+    if set(error) == base:
+        return True  # Historical four-field gate, still bound to full custody.
+    if set(error) != base | {'mode_observation', 'mode_evidence'}:
+        return False
+    observation = error['mode_observation']
+    if type(observation) is not int or not 1 <= observation <= 11:
+        return False
+    evidence = error['mode_evidence']
+    reasons = {'mode_missing', 'mode_ambiguous', 'mode_unverified', 'work_selected'}
+    if (not isinstance(evidence, dict) or
+            set(evidence) not in ({'error', 'reason'}, {'error', 'reason', 'diagnostics'}) or
+            evidence.get('error') != 'CHAT_SURFACE_REFUSED' or
+            not isinstance(evidence.get('reason'), str) or evidence['reason'] not in reasons):
+        return False
+    # Only missing controls are retried; retained stops at 1, fresh at 11.
+    if evidence['reason'] == 'mode_missing' and observation not in (1, 11):
+        return False
+    if 'diagnostics' not in evidence:
+        return True  # Earlier current gate before diagnostic sampling.
+    d = evidence['diagnostics']
+    excluded = {None, 'no_rect', 'hidden', 'inert', 'disabled', 'aria_hidden',
+                'aria_disabled', 'display_none', 'visibility_hidden'}
+    def enum(value, choices):
+        return (value is None or isinstance(value, str)) and value in choices
+    def count(value):
+        return type(value) is int and 0 <= value <= 9007199254740991
+    if (not isinstance(d, dict) or set(d) != {'main_present', 'main_count', 'group_count',
+            'scope', 'group_excluded', 'chat', 'work'} or
+            type(d['main_present']) is not bool or
+            not (d['main_count'] is None or count(d['main_count'])) or
+            not count(d['group_count']) or
+            not enum(d['scope'], {'composer_mode', 'first_main', 'none'}) or
+            not enum(d['group_excluded'], excluded)):
+        return False
+    if (d['scope'] != ('composer_mode' if d['group_count'] == 1 else
+                      'first_main' if d['main_present'] else 'none') or
+            (d['main_count'] is not None and d['main_present'] != (d['main_count'] > 0)) or
+            (not d['main_present'] and d['group_count'] != 0) or
+            (d['group_count'] != 1 and d['group_excluded'] is not None)):
+        return False
+    selected = {}
+    for label in ('chat', 'work'):
+        part = d[label]
+        if (not isinstance(part, dict) or set(part) != {'raw_count', 'filtered_count', 'overflow', 'candidates'} or
+                not count(part['raw_count']) or not count(part['filtered_count']) or
+                part['filtered_count'] > part['raw_count'] or type(part['overflow']) is not bool or
+                part['overflow'] != (part['raw_count'] > 8) or
+                not isinstance(part['candidates'], list) or
+                len(part['candidates']) != min(8, part['raw_count'])):
+            return False
+        visible = []
+        for candidate in part['candidates']:
+            if (not isinstance(candidate, dict) or set(candidate) != {'pressed', 'excluded'} or
+                    not enum(candidate['pressed'], {'true', 'false', 'mixed', 'missing', 'other'}) or
+                    candidate['pressed'] is None or not enum(candidate['excluded'], excluded)):
+                return False
+            if candidate['excluded'] is None:
+                visible.append(candidate['pressed'])
+        if (len(visible) > part['filtered_count'] or
+                part['filtered_count'] > len(visible) + part['raw_count'] - len(part['candidates']) or
+                (d['scope'] == 'none' and part['raw_count'] != 0) or
+                (d['group_excluded'] is not None and part['filtered_count'] != 0)):
+            return False
+        selected[label] = visible
+    # Mirror ensureProChatSurface's decision order, including early scope gates.
+    if not d['main_present']:
+        expected = {'mode_missing'}
+    elif d['group_count'] > 1:
+        expected = {'mode_ambiguous'}
+    elif d['group_excluded'] is not None:
+        expected = {'mode_unverified'}
+    elif d['chat']['filtered_count'] == d['work']['filtered_count'] == 0:
+        expected = {'mode_missing'}
+    elif d['chat']['filtered_count'] != 1 or d['work']['filtered_count'] != 1:
+        expected = {'mode_ambiguous'}
+    else:
+        # A unique visible button can be outside the bounded eight-item sample.
+        # Keep those genuinely emitted overflow cases; infer no unseen value.
+        unknown = {'true', 'false', 'mixed', 'missing', 'other'}
+        chats = selected['chat'] or unknown
+        works = selected['work'] or unknown
+        expected = {('success' if chat == 'true' and work == 'false' else
+                     'work_selected' if work == 'true' else 'mode_unverified')
+                    for chat in chats for work in works}
+    return evidence['reason'] in expected
+
 
 
 def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
@@ -2890,7 +3574,12 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
                 log_bytes != ('SEND_FAILED TAB_CAP ' + json.dumps(error) + '\n').encode()):
             raise ValueError('ATTEMPT_LOG')
         attempt_custody[lp] = log_bytes
-    readiness_invalid = (not c.get('pretarget') and
+    mode_refusal = c.get('generic') and c['reason'] == 'CHAT_SURFACE_REFUSED'
+    if mode_refusal and not _terminal_mode_receipt_valid(error, c['tab']):
+        raise ValueError('MODE_RECEIPT')
+    # This gate's exact pre-input receipt carries its own target, but no state.
+    # Never borrow this exception for readiness/model failures or missing tabs.
+    readiness_invalid = (not c.get('pretarget') and not mode_refusal and
         (observed.get('url') != 'https://chatgpt.com/' or observed.get('stop') is not False or
          observed.get('assistant_count') != 0 or observed.get('last_len') != 0))
     if (sha(preimage) != c['held'] or json.loads(preimage) != st or
@@ -2980,7 +3669,8 @@ def _generic_terminal_unsent_evidence(st, c, rows, custody):
             not start.timestamp()*1000 <= c['time_origin'] <= end.timestamp()*1000):
         raise ValueError('DOCUMENT_INTERVAL')
     records = {}
-    for key in ('preflight', 'observation'):
+    explicit_mode_target = c['reason'] == 'CHAT_SURFACE_REFUSED'
+    for key in (('observation',) if explicit_mode_target else ('preflight', 'observation')):
         pin = c['target_evidence'][key]
         ep = (BUSINESS / pin['path']).resolve()
         if Path(pin['path']).is_absolute() or not ep.is_relative_to(BUSINESS.resolve()):
@@ -2989,9 +3679,10 @@ def _generic_terminal_unsent_evidence(st, c, rows, custody):
         if sha(custody[ep]) != pin['sha256']:
             raise ValueError('EVIDENCE')
         records[key] = json.loads(custody[ep])
-    before = {t['target_id'] for t in records['preflight']['targets']}
+    before = set() if explicit_mode_target else {t['target_id'] for t in records['preflight']['targets']}
     observed = records['observation']['browser']
-    candidates = [t for t in observed['metadata'] if t['target_id'] not in before and
+    candidates = [t for t in observed['metadata'] if
+        (t['target_id'] == st['error']['tab'] if explicit_mode_target else t['target_id'] not in before) and
         t['url'] == 'https://chatgpt.com/' and start.timestamp()*1000 <= t['time_origin'] <= end.timestamp()*1000]
     if (len(candidates) != 1 or candidates[0]['target_id'] != c['tab'] or
             candidates[0]['time_origin'] != c['time_origin'] or
@@ -3525,7 +4216,7 @@ def _cmd_submit(a) -> int:
         raise SystemExit(f"REFUSED_JOB_CLASS {a.job_class} not in {cfg['job_classes_allowed']}")
     d = job_dir(a.job)
     previous = job_state(a.job)
-    if previous.get("status") in ("submitting", "running", "done") or previous.get("retry_blocked"):
+    if previous.get("status") in ("submitting", "running", "done", "SUPERSEDED") or previous.get("retry_blocked"):
         raise SystemExit(f"REFUSED_DUPLICATE job {a.job} already submitted or uncertain (use poll/operator recovery)")
     siblings = sibling_bindings(acct["label"], a.job)
     if any((s.get("status") in ("submitting", "running") or s.get("retry_blocked")) and
@@ -3851,6 +4542,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
+    ss = sub.add_parser('supersede-research', help='dry-run by default; registered operator ruling for sent/bound research-only jobs')
+    ss.add_argument('--job', required=True)
+    ss.add_argument('--ruling', required=True, help='registered approval path relative to business root')
+    ss.add_argument('--apply', action='store_true')
+    ss.add_argument('--authorize-preimage', help='exact original JOB.json SHA256, required only with --apply')
     nr = sub.add_parser("reconcile-no-reply", help="read exact bound tab without reload or freeing uncertain capacity")
     nr.add_argument("--job", required=True)
     u = sub.add_parser("reconcile-unsent-focus", help="dry-run first; exact pre-insert focus() KeyError only")
@@ -3894,6 +4590,7 @@ def main() -> int:
     s.add_argument("--max-wait", type=int, default=3600)
     fo = sub.add_parser("fetch-outbox"); fo.add_argument("--job", required=True)
     fo.add_argument('--download-dir', type=Path, help='exact original native downloads; same final-chat hash/token/payload checks, never rewrite Drive artifacts')
+    fo.add_argument('--receive-native', action='store_true', help='explicit future receiving only: one journaled native download per exact file; requires download-dir, normal heavy admission and separate effect authority; never replay historical attempts')
     f = sub.add_parser("followup")
     f.add_argument("--job", required=True)
     f.add_argument("--text-file", help="message text; default = resume-after-disconnect")
@@ -3903,6 +4600,8 @@ def main() -> int:
     p.add_argument("--interval", type=int, default=30)
     p.add_argument("--max-wait", type=int, default=3600)
     a = ap.parse_args()
+    if a.cmd == 'supersede-research':
+        return supersede_research(a.job, a.ruling, apply=a.apply, authorize_preimage=a.authorize_preimage)
     if a.cmd == "status":
         return cmd_status(a)
     if a.cmd == "reconcile-no-reply":

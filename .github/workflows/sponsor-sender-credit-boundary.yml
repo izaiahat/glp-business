@@ -1,0 +1,28 @@
+name: Sponsor sender shared credit boundary
+on:
+  pull_request:
+    paths:
+      - scripts/glp_sponsor_readiness.py
+      - scripts/glp_sponsor_firecrawl_supply.py
+      - tests/test_glp_sponsor_sender_budget.py
+      - .github/workflows/sponsor-sender-credit-boundary.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sender-credit-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONPATH: ops:scripts:.
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          persist-credentials: false
+      - run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - run: python3 -m venv .sender-test && .sender-test/bin/pip install pytest==8.4.2
+      - name: Actual sender transport and shared producer, synthetic offline controls
+        run: .sender-test/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_sponsor_sender_budget.py

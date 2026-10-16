@@ -12,7 +12,7 @@ import stat
 import time
 
 PROC = Path('/proc')
-SYMLINK_ROOTS = tuple(map(Path, ('/home/ubuntu', '/root', '/etc', '/tmp')))
+SYMLINK_ROOTS = tuple(map(Path, ('/home/ubuntu', '/root', '/etc', '/tmp', '/run/user')))
 CRON_ROOTS = tuple(map(Path, ('/etc/crontab', '/etc/anacrontab', '/etc/cron.d',
                             '/etc/cron.hourly', '/etc/cron.daily', '/etc/cron.weekly',
                             '/etc/cron.monthly', '/var/spool/cron')))
@@ -70,7 +70,12 @@ def _user_systemd_source(path):
 
 
 def _systemd_source(path):
-    return _user_systemd_source(path) or any(_under(path, root) for root in SYSTEMD_ROOTS)
+    parts = path.parts
+    runtime = (len(parts) >= 6 and parts[:3] == ('/', 'run', 'user')
+               and parts[3].isdigit() and parts[4] == 'systemd'
+               and parts[5] in {'user', 'user.control', 'user.attached', 'transient',
+                                'generator', 'generator.early', 'generator.late'})
+    return runtime or _user_systemd_source(path) or any(_under(path, root) for root in SYSTEMD_ROOTS)
 
 
 def _schedule(path):

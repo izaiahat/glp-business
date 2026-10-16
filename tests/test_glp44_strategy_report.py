@@ -48,15 +48,17 @@ def test_registered_gate_runs_report_and_does_not_recollect_same_week(tmp_path, 
     spec=importlib.util.spec_from_file_location('strategy_gate',ROOT/'ops/hermes-cron-scripts/weekly_strategy_review_gate.py')
     assert spec and spec.loader
     gate=importlib.util.module_from_spec(spec); spec.loader.exec_module(gate)
+    monkeypatch.syspath_prepend(str(ROOT/'systems/seo-blog-machine/scripts'))
     monkeypatch.setattr(gate,'B',tmp_path); monkeypatch.setattr(gate,'MARKER',tmp_path/'marker.json')
     count=[]
     def execute(command,**kwargs):
         count.append(command)
         output=tmp_path/'report';output.mkdir(parents=True)
         (output/'REPORT.json').write_text(json.dumps({'schema':'glp-weekly-strategy-report-v1','generated_at_utc':dt.datetime.now(dt.timezone.utc).isoformat(),'status':'COMPLETE_WITH_EXPLICIT_HOLDS','unknowns':{},'action_count':2,'module_statuses':{'estate_health':'PASS_ANALYSIS_ONLY'}}))
-        result={'status':'COMPLETE_WITH_EXPLICIT_HOLDS','report':str(output/'REPORT.json'),'review':str(output/'REVIEW.md'),'topic_recommendations':str(output/'TOPIC-RECOMMENDATIONS.json'),'summary':{'action_count':2}}
+        result={'status':'COMPLETE_WITH_EXPLICIT_HOLDS','report':str(output/'REPORT.json'),'review':str(output/'REVIEW.md'),'topic_recommendations':str(output/'TOPIC-RECOMMENDATIONS.json'),'summary':{'action_count':2},'host_completion':{'task_id':'offline-host-task'}}
         return subprocess.CompletedProcess(command,0,json.dumps(result))
     monkeypatch.setattr(gate.subprocess,'run',execute)
+    monkeypatch.setattr('ops.glp.weekly_analytics_owner.consume',lambda result,consumer:{'task_id':result['host_completion']['task_id'],'consumer':consumer})
     monkeypatch.setattr('sys.argv',['gate'])
     assert gate.main()==0
     first=json.loads(capsys.readouterr().out)
@@ -64,5 +66,7 @@ def test_registered_gate_runs_report_and_does_not_recollect_same_week(tmp_path, 
     assert gate.main()==0
     second=json.loads(capsys.readouterr().out)
     assert second['context']==first['context'] and len(count)==1
+    assert '--host-owned' in count[0] and '--update-strategy' not in count[0]
+    assert second['context']['host_analytics_consumption']['consumer']=='020bcdd7f0e1'
     assert second['context']['focus']=='GLP Clinic Scout only; affiliate revenue first; all ads remain paused'
 

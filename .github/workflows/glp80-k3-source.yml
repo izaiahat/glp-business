@@ -37,6 +37,7 @@ on:
       - "tests/test_glp73_current_pointer_consumer.py"
       - "tests/test_glp80_daily_progress.py"
       - "tests/test_glp80_k3_prepared_consumer.py"
+      - "tests/test_glp_evidence_refresh_entry_pins.py"
       - "tests/test_glp80_registered_taxonomy_intake.py"
       - "tools/glp/evidence_refresh*"
       - "tools/glp/evidence_refresh.py"
@@ -66,5 +67,5 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           printf 'K3_EXACT_HEAD=%s\n' "$(git rev-parse HEAD)"
-          .venv/bin/python -B -m pytest --collect-only -q -p no:cacheprovider tests/test_glp73_builder_current_base.py tests/test_glp80_k3_prepared_consumer.py tests/test_glp80_daily_progress.py tests/test_glp80_registered_taxonomy_intake.py
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp73_builder_current_base.py tests/test_glp80_k3_prepared_consumer.py tests/test_glp80_daily_progress.py tests/test_glp80_registered_taxonomy_intake.py
+          .venv/bin/python -B -m pytest --collect-only -q -p no:cacheprovider tests/test_glp73_builder_current_base.py tests/test_glp80_k3_prepared_consumer.py tests/test_glp_evidence_refresh_entry_pins.py tests/test_glp80_daily_progress.py tests/test_glp80_registered_taxonomy_intake.py
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp73_builder_current_base.py tests/test_glp80_k3_prepared_consumer.py tests/test_glp_evidence_refresh_entry_pins.py tests/test_glp80_daily_progress.py tests/test_glp80_registered_taxonomy_intake.py

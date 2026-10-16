@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Packet-only GLP article reviewer backed by native Hermes/OpenAI Astra.
+"""Packet-only GLP article reviewer backed by registered native Hermes/OpenAI routes.
 
 This is the review transport used by the GLP article-review controller. It
 resolves the provider through Hermes, creates a Hermes ``AIAgent`` with an empty
@@ -19,6 +19,12 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+
+# Spec-loaded tooling must resolve the same sibling controls as direct CLI use.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from article_review_physical_lines import physical_lines
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts'))
+import review_transports
 
 TARGET_PROVIDER = "openai-codex"
 TARGET_MODEL = "gpt-6-astra-900k"
@@ -239,20 +245,21 @@ def review_input(
     runtime: dict[str, object] | None = None,
 ) -> dict[str, object]:
     runtime = runtime or {}
+    route = target_route(args.provider, args.model, args.effort)
     return {
         # Transport identity for the dual-authorized review contract
         # (systems/seo-blog-machine/scripts/review_transports.py, operator
         # authorization 2026-08-18). This transport's isolation comes from
         # skip_context_files + skip_memory + an empty tool surface.
-        "transport_id": TARGET_TRANSPORT,
+        "transport_id": route["transport_id"],
         "context_isolated": True,
         "hermes_managed": True,
         "provider": args.provider,
         "model": args.model,
         "api_mode": runtime.get("api_mode", TARGET_API_MODE),
         "effort": args.effort,
-        "speed": TARGET_SPEED,
-        "service_tier": TARGET_SERVICE_TIER,
+        "speed": route["speed"],
+        "service_tier": route["service_tier"],
         "tools_disabled": args.disable_tools,
         "tool_count": runtime.get("tool_count", 0),
         "fallback_provider_count": runtime.get("fallback_provider_count", 0),
@@ -269,13 +276,21 @@ def review_input(
     }
 
 
+def target_route(provider: str, model: str, effort: str) -> dict[str, Any]:
+    """Select only explicit current native rows; never revive historical routes."""
+    if provider != TARGET_PROVIDER:
+        raise ValueError(f"provider_must_be_{TARGET_PROVIDER}:{provider}")
+    for transport_id in review_transports.NATIVE_INVOCATION_TRANSPORT_IDS:
+        row = review_transports.transport(transport_id)
+        if row['model'] == model:
+            if effort != row['effort']:
+                raise ValueError(f"effort_must_be_{row['effort']}:{effort}")
+            return row
+    raise ValueError(f"model_must_be_registered_native_review:{model}")
+
+
 def validate_target_args(args: argparse.Namespace) -> None:
-    if args.provider != TARGET_PROVIDER:
-        raise ValueError(f"provider_must_be_{TARGET_PROVIDER}:{args.provider}")
-    if args.model != TARGET_MODEL:
-        raise ValueError(f"model_must_be_{TARGET_MODEL}:{args.model}")
-    if args.effort != TARGET_EFFORT:
-        raise ValueError(f"effort_must_be_{TARGET_EFFORT}:{args.effort}")
+    target_route(args.provider, args.model, args.effort)
     if not args.disable_tools:
         raise ValueError("disable_tools_required")
 
@@ -305,6 +320,7 @@ def authenticate_result(session_id: str, payload: str, response: str, *,
     The DB is fixed by maintained code, never chosen by a raw review receipt.
     """
     try:
+        route = target_route(provider, model, effort)
         with sqlite3.connect(Path(session_db or SESSION_DB).resolve(strict=True).as_uri() + '?mode=ro',
                              uri=True) as db:
             db.row_factory = sqlite3.Row
@@ -315,9 +331,9 @@ def authenticate_result(session_id: str, payload: str, response: str, *,
         if session is None:
             raise ValueError('reviewer session absent')
         config = json.loads(session['model_config'] or '{}')
-        if not (session['model'] == model == TARGET_MODEL
-                and session['billing_provider'] == provider == TARGET_PROVIDER
-                and config.get('reasoning_config', {}).get('effort') == effort == TARGET_EFFORT
+        if not (session['model'] == model == route['model']
+                and session['billing_provider'] == provider == route['provider']
+                and config.get('reasoning_config', {}).get('effort') == effort == route['effort']
                 and config.get('max_iterations') == 1
                 and session['api_call_count'] == 1 and session['tool_call_count'] == 0
                 and SYSTEM_BRIEF in system_prompt):
@@ -346,6 +362,9 @@ def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_
     try:
         inputs, runtime = raw['review_input'], raw['hermes_runtime']
         claimed = runtime['result_custody']
+        route = target_route(runtime['provider'], runtime['model'], runtime['effort'])
+        if runtime.get('transport_id') != route['transport_id']:
+            raise ValueError('runtime transport identity differs')
         if raw['session_id'] != runtime['session_id']:
             raise ValueError('reviewer session mismatch')
         args = argparse.Namespace(
@@ -366,11 +385,22 @@ def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_
                  f"manifest_sha256={manifest['manifest_sha256']}", '']
         for row in manifest['subject_files']:
             parts.append(f"===== {row['path']} =====")
-            text = (packet / row['path']).read_text(encoding='utf-8')
-            parts.extend(f'{i:04d}|{line}' for i, line in enumerate(text.splitlines(), 1))
+            lines = physical_lines((packet / row['path']).read_bytes())
+            parts.extend(f'{i:04d}|{line}' for i, line in enumerate(lines, 1))
             parts.append('')
         expected_context = '\n'.join(parts) + '\n'
-        if len(captured['context_files']) != 1 or captured['context_files'][0]['content'] != expected_context:
+        # Accepted PR441 native reviews predate the current numbered envelope.
+        # Reconstruct BOTH exact formats from sealed subjects; never normalize
+        legacy = ['# SEALED PACKET CONTENT — ALREADY IN BAND', '',
+                  f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
+                  'Every source line is prefixed with its original 1-based line number.']
+        for row in manifest['subject_files']:
+            legacy.extend(['', f"## FILE: {row['path']}", ''])
+            lines = physical_lines((packet / row['path']).read_bytes())
+            legacy.extend(f'{i}|{line}' for i, line in enumerate(lines, 1))
+        legacy_context = '\n'.join(legacy) + '\n'
+        if (len(captured['context_files']) != 1 or
+                captured['context_files'][0]['content'] not in (expected_context, legacy_context)):
             raise ValueError('runtime input is not this sealed packet')
         custody = authenticate_result(runtime['session_id'], payload, raw['result'], model=runtime['model'],
                                       provider=runtime['provider'], effort=runtime['effort'], session_db=session_db)
@@ -385,6 +415,7 @@ def hermes_agent_kwargs(
     runtime: dict[str, Any], args: argparse.Namespace, session_id: str, session_db
 ) -> dict[str, Any]:
     """Return the fail-closed Hermes agent configuration for one review."""
+    route = target_route(args.provider, args.model, args.effort)
     return {
         "api_key": runtime.get("api_key"),
         "base_url": runtime.get("base_url"),
@@ -404,7 +435,7 @@ def hermes_agent_kwargs(
         "session_id": session_id,
         "max_iterations": 1,
         "reasoning_config": {"enabled": True, "effort": args.effort},
-        "request_overrides": {"timeout": float(args.timeout), "service_tier": TARGET_SERVICE_TIER},
+        "request_overrides": {"timeout": float(args.timeout), "service_tier": route['service_tier']},
         "fallback_model": None,
         "credential_pool": runtime.get("credential_pool"),
     }
@@ -442,6 +473,7 @@ def run_hermes(
 ) -> tuple[str, dict[str, Any], dict[str, object]]:
     """Execute one no-tools review through Hermes' provider/runtime boundary."""
     validate_target_args(args)
+    route = target_route(args.provider, args.model, args.effort)
     ensure_hermes_python()
     # System Python normally receives the Hermes checkout through its installed
     # .pth file. Keep the explicit path fallback so scheduler environments with
@@ -468,7 +500,8 @@ def run_hermes(
         )
 
     from hermes_state_registry import acquire, release_or_close
-    session_id = f"glp_astra_review_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+    seat = 'astra' if route['transport_id'] == TARGET_TRANSPORT else 'sol61'
+    session_id = f"glp_{seat}_review_{int(time.time())}_{uuid.uuid4().hex[:8]}"
     session_db = acquire(SESSION_DB)
     agent = None
     started = time.monotonic()
@@ -494,7 +527,7 @@ def run_hermes(
         raise RuntimeError(f"hermes_review_tool_use_observed:{calls}")
     if (
         result.get("provider") != TARGET_PROVIDER
-        or result.get("model") != TARGET_MODEL
+        or result.get("model") != route['model']
         or result.get("failed") is True
         or result.get("completed") is not True
     ):
@@ -509,14 +542,14 @@ def run_hermes(
     if int(result.get("api_calls") or 0) != 1:
         raise RuntimeError(f"hermes_review_turn_count_invalid:{result.get('api_calls')}")
     execution = {
-        "transport_id": TARGET_TRANSPORT,
+        "transport_id": route["transport_id"],
         "context_isolated": True,
         "model_turns": int(result.get("api_calls") or 0),
         "provider": result["provider"],
         "model": result["model"],
         "effort": args.effort,
-        "speed": TARGET_SPEED,
-        "service_tier": TARGET_SERVICE_TIER,
+        "speed": route["speed"],
+        "service_tier": route["service_tier"],
         "service_tier_evidence": "explicit_request_override_not_provider_confirmation",
         "api_mode": TARGET_API_MODE,
         "session_id": result.get("session_id") or session_id,
@@ -577,7 +610,7 @@ def secure_write(path: Path, content: str) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run a packet-only independent GLP review through native Hermes/OpenAI Astra."
+        description="Run a packet-only independent GLP review through registered native Hermes/OpenAI routes (default Astra)."
     )
     parser.add_argument("--prompt", help="Inline review prompt.")
     parser.add_argument("--prompt-file", help="Review prompt file.")
@@ -635,8 +668,8 @@ def main() -> int:
             "num_turns": execution["api_calls"],
             "permission_denials": [],
             "modelUsage": {
-                TARGET_MODEL: {
-                    "canonicalModel": TARGET_MODEL,
+                args.model: {
+                    "canonicalModel": args.model,
                     "provider": TARGET_PROVIDER,
                     "inputTokens": int(result.get("input_tokens") or 0),
                     "outputTokens": int(result.get("output_tokens") or 0),

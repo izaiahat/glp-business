@@ -38,6 +38,7 @@ def plan_reset(rows, now):
 
 
 def read_live():
+    import hashlib
     from agent.account_usage import _codex_headers, _codex_backend_urls
     from account_capacity_collector import _read_pool_rows, _default_usage_getter, _record_from_payload
     pool = _read_pool_rows()
@@ -49,7 +50,8 @@ def read_live():
         # Read only known pool labels, never serialize arbitrary upstream strings.
         if label not in (*ALLOWED, 'openai-codex-oauth-4'):
             continue
-        safe = {'label': label, 'identity_safe': bool(identity and identities.count(identity) == 1)}
+        safe = {'label': label, 'identity_safe': bool(identity and identities.count(identity) == 1),
+                'identity_sha256': hashlib.sha256(identity.encode()).hexdigest() if identity else None}
         try:
             payload = _default_usage_getter(_codex_backend_urls(r.get('base_url', ''))[0],
                                           _codex_headers(r['access_token'], None))
@@ -95,11 +97,11 @@ def _consume(row, request_id):
 
 
 def reset_tick(directory, *, now=None, dry_run=True, reader=read_live, consumer=_consume, clear=None):
-    import fcntl, json, uuid
+    import fcntl, json, uuid, copy, re
     from pathlib import Path
     now = now or datetime.now(timezone.utc)
     rows, handles = reader()
-    result = dict(plan_reset(rows, now), dry_run=dry_run, accounts=rows, observed_at=now.isoformat())
+    result = dict(plan_reset(rows, now), dry_run=dry_run, accounts=copy.deepcopy(rows), observed_at=now.isoformat())
     if dry_run:
         return result
     directory = Path(directory)
@@ -115,9 +117,15 @@ def reset_tick(directory, *, now=None, dry_run=True, reader=read_live, consumer=
         # Re-read under lock before spending; recovery or a reset-date change cancels intent.
         rows, handles = reader()
         fresh = plan_reset(rows, now)
-        if fresh != plan_reset(result['accounts'], now):
+        if (fresh != plan_reset(result['accounts'], now) or
+                {r['label']: r.get('identity_sha256') for r in rows} !=
+                {r['label']: r.get('identity_sha256') for r in result['accounts']}):
             return dict(result, status='changed_before_redemption')
         label = result['selected_account']
+        selected = next(r for r in rows if r['label'] == label)
+        subject = selected.get('identity_sha256')
+        if not isinstance(subject, str) or not re.fullmatch(r'[a-f0-9]{64}', subject):
+            return dict(result, status='unsafe_identity')
         episode = label + ':' + result['reset_at_utc']
         # Trigger account owns the exhaustion episode, not the selected account.
         # Otherwise restoring account-3 leaves account-2 at zero and the next
@@ -139,6 +147,7 @@ def reset_tick(directory, *, now=None, dry_run=True, reader=read_live, consumer=
             observed = next((r for r in after if r['label'] == label), {})
             intent['after'] = after
             verified = (code in ('reset', 'already_redeemed') and observed.get('identity_safe') and
+                        observed.get('identity_sha256') == subject and
                         observed.get('remaining_pct') is not None and observed['remaining_pct'] > 0 and
                         observed.get('banked_resets') == result['banked_resets'] - 1)
             if verified:

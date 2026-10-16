@@ -1,0 +1,559 @@
+"""Rule-D receipt admission and qualification with scratch-only fixtures.
+
+Receipt tests use exact AST and an inventory sentinel. Qualification regressions
+use the maintained classifier with synthetic collectors and effects denied.
+Placeholder contract bytes are not qualification or installation authority.
+"""
+import ast
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import subprocess
+import tempfile
+import time
+import types
+import unittest
+from unittest.mock import patch
+from typing import Any
+
+SOURCE = Path(__file__).resolve().parents[1] / 'scripts/screenshot_pruner.py'
+EP_SOURCE = SOURCE.with_name('evidence_preserving_pruner.py')
+RULE = 'D_cold_run_images'
+
+
+class ReachedInventory(Exception):
+    pass
+
+
+class ScanBudget(Exception):
+    pass
+
+
+def extract(raw, names, namespace, filename):
+    nodes: list[ast.stmt] = [node for node in ast.parse(raw, filename=str(filename)).body
+                            if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in names]
+    assert {node.name for node in nodes} == set(names)
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(filename), 'exec'), namespace)
+
+
+def inventory_stop(*args, **kwargs):
+    raise ReachedInventory()
+
+
+class ScreenshotReceiptTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        scripts = self.root / 'scripts'
+        scripts.mkdir()
+        # These are explicitly synthetic bytes, never copied installed authority.
+        for name in ('screenshot_pruner.py', 'evidence_preserving_pruner.py',
+                     'host_disk_pruner.py', 'pruner_process_reference_guard.py', 'bounded_pruner.py'):
+            (scripts / name).write_bytes(SOURCE.read_bytes() if name == 'screenshot_pruner.py'
+                                        else ('# fixture-only ' + name).encode())
+        ens = dict(os=os, hashlib=hashlib, time=time, ScanBudget=ScanBudget)
+        extract(EP_SOURCE.read_bytes(), {'sha', 'hash_stream'}, ens, EP_SOURCE)
+        self.ep = types.SimpleNamespace(BUS=self.root, __file__=str(scripts / 'evidence_preserving_pruner.py'),
+                                        ScanBudget=ScanBudget, sha=ens['sha'])
+        self.ns: dict[str, Any] = dict(ep=self.ep, Path=Path, hashlib=hashlib, json=json, time=time,
+                       os=os, stat=stat, __file__=str(scripts / 'screenshot_pruner.py'),
+                       IMAGE_SUFFIXES={'.png', '.jpg', '.jpeg', '.webp', '.avif', '.gif'},
+                       RULE=RULE, reference_files=inventory_stop)
+        tree = ast.parse(SOURCE.read_bytes())
+        names = {'run_rules', 'rule_contract'}
+        names.update(node.name for node in tree.body if isinstance(node, ast.FunctionDef)
+                     and node.name == 'read_dry_run_receipt')
+        extract(SOURCE.read_bytes(), names, self.ns, SOURCE)
+        flag = self.root / 'site-system/flagship-v2'
+        self.approval = self.root / 'ops/linear/approvals/OPERATOR-DECISION-20261001-qa-screenshot-deletion.md'
+        self.approval.parent.mkdir(parents=True)
+        self.approval.write_bytes(b'fixture approval: no operational authority')
+        self.policy = {'schema': 'disk-retention-v1', 'protected_roots': [str(flag / 'qa')],
+                       'rule_D': {'image_roots': [str(flag / 'qa'), str(flag / 'candidates')],
+                                  'cold_days': 30, 'image_extensions': sorted(self.ns['IMAGE_SUFFIXES']),
+                                  'qa_protection_exception': str(flag / 'qa'),
+                                  'approval': {'path': str(self.approval),
+                                               'sha256': '3ac87b3d008a214b11df4fa540817435d6962e82a5887076c2ab9486cf390c3b'}}}
+        # Only the independent fixed operator-approval input is synthetic. The
+        # receipt hash/reader are actual source and must not be mocked.
+        native_sha = self.ep.sha
+        self.ep.sha = lambda path, deadline: (self.policy['rule_D']['approval']['sha256']
+                                             if path == self.approval else native_sha(path, deadline))
+        self.receipt = self.root / 'reports/ops/host-disk-pruner-screenshots-v2-20261001/fixture/dry-run-images.json'
+        self.receipt.parent.mkdir(parents=True)
+        self.contract = self.ns['rule_contract'](self.policy)
+        self.valid = {'dry_run': True, 'bytes_freed': 0,
+                      'rows': [{'rule': RULE, 'status': 'GATED_REFERENCED', 'ok': True, 'bytes_freed': 0},
+                               {'rule': RULE + '_summary', 'status': 'COMPLETE', 'ok': True,
+                                'partial': False, 'contract_sha256': self.contract, 'bytes_freed': 0}]}
+        self.setup_receipt(self.valid)
+
+    def setup_receipt(self, data, *, pin=True, raw=None):
+        raw = json.dumps(data).encode() if raw is None else raw
+        self.receipt.write_bytes(raw)
+        self.policy['rule_D']['dry_run_receipt'] = {'path': str(self.receipt),
+                                                 'sha256': hashlib.sha256(raw).hexdigest() if pin else '0' * 64}
+        (self.root / 'ops/disk-retention-policy.json').write_text(json.dumps(self.policy))
+        return raw
+
+    def invoke(self):
+        try:
+            rows = self.ns['run_rules'](None, {'reference_roots': []}, dry_run=False,
+                                        deadline=time.monotonic() + 30)
+            return False, rows
+        except ReachedInventory:
+            return True, []
+
+    def test_exact_complete_semantics_refuse_original_failed_and_string_false(self):
+        # RV481's original two resealed semantic counterexamples, unchanged.
+        for kind in ('failed_summary', 'string_false'):
+            with self.subTest(kind=kind):
+                altered = copy.deepcopy(self.valid)
+                if kind == 'failed_summary':
+                    altered['rows'][-1].update(status='FAILED', ok=False, partial=False)
+                else:
+                    altered['dry_run'] = 'false'
+                self.setup_receipt(altered)
+                admitted, rows = self.invoke()
+                self.assertFalse(admitted, kind)
+                self.assertEqual(rows[0]['reason'], 'D_dry_run_incomplete_or_stale')
+
+    def test_authentication_and_parse_use_one_buffer_not_original_second_read(self):
+        # RV481's actual scratch replacement at the second read_text boundary.
+        # A repaired reader removes that boundary, so require the hook NEVER
+        # executes. A positive original buffer remains admissible, not forged.
+        replacement = copy.deepcopy(self.valid)
+        replacement['rows'][-1].update(status='FAILED', ok=False, partial=False)
+        receipt = self.receipt
+        replacement_calls = []
+        base = type(Path())
+        class RacePath(base):
+            def read_text(self, *args, **kwargs):
+                if str(self) == str(receipt):
+                    receipt.write_text(json.dumps(replacement))
+                    replacement_calls.append(True)
+                return super().read_text(*args, **kwargs)
+        self.ns['Path'] = RacePath
+        admitted, _ = self.invoke()
+        self.assertEqual(replacement_calls, [], 'authenticated receipt was reopened for parsing')
+        self.assertTrue(admitted, 'the untouched authentic-buffer positive was refused')
+        self.assertEqual(json.loads(receipt.read_bytes()), self.valid)
+
+    def test_retained_positive_hash_partial_source_drift_and_scope_controls(self):
+        self.assertTrue(self.invoke()[0])  # Real GATED per-run detail stays valid.
+        self.setup_receipt(self.valid, pin=False)
+        self.assertFalse(self.invoke()[0])
+        altered = copy.deepcopy(self.valid)
+        altered['rows'][-1]['partial'] = True
+        self.setup_receipt(altered)
+        self.assertFalse(self.invoke()[0])
+        self.setup_receipt(self.valid)
+        source = self.root / 'scripts/bounded_pruner.py'
+        source.write_bytes(source.read_bytes() + b'\n# drift')
+        self.assertFalse(self.invoke()[0])
+        self.policy['rule_D']['image_roots'].append(str(self.root / 'unapproved'))
+        (self.root / 'ops/disk-retention-policy.json').write_text(json.dumps(self.policy))
+        self.assertFalse(self.invoke()[0])
+
+    def test_bounded_nofollow_reader_and_changed_bytes_fail_closed(self):
+        reader = self.ns['read_dry_run_receipt']
+        deadline = time.monotonic() + 30
+        expected = self.policy['rule_D']['dry_run_receipt']['sha256']
+        native_open = os.open
+        flags_seen = []
+        def observed_open(path, flags, *args, **kwargs):
+            flags_seen.append(flags)
+            return native_open(path, flags, *args, **kwargs)
+        with patch.object(os, 'open', observed_open):
+            self.assertEqual(reader(self.receipt, expected, deadline), self.valid)
+        self.assertEqual(len(flags_seen), 1)
+        self.assertTrue(flags_seen[0] & os.O_NOFOLLOW)
+        self.assertTrue(flags_seen[0] & os.O_NOATIME)
+        self.assertTrue(flags_seen[0] & os.O_NONBLOCK)
+        link = self.receipt.with_name('link.json')
+        link.symlink_to(self.receipt)
+        with self.assertRaises(OSError):
+            reader(link, expected, deadline)
+        large = self.receipt.with_name('large.json')
+        with large.open('wb') as stream:
+            stream.truncate(32 * 1024 * 1024 + 1)
+        with self.assertRaises(ValueError):
+            reader(large, expected, deadline)
+        fifo = self.receipt.with_name('fifo.json')
+        os.mkfifo(fifo)
+        with self.assertRaises(ValueError):
+            reader(fifo, expected, deadline)
+        with self.assertRaises(ScanBudget):
+            reader(self.receipt, expected, time.monotonic() - 1)
+        # Real changed content at the hashing boundary cannot become consumed
+        # authority: mutate the file while SHA256 receives its original buffer.
+        original_sha256 = hashlib.sha256
+        original_bytes = self.receipt.read_bytes()
+        parsed = []
+        original_loads = json.loads
+        def replace_at_hash(raw):
+            self.receipt.write_bytes(b'{"dry_run": false}')
+            return original_sha256(raw)
+        def capture_parse(raw, *args, **kwargs):
+            parsed.append(raw)
+            return original_loads(raw, *args, **kwargs)
+        with patch.object(hashlib, 'sha256', replace_at_hash), patch.object(json, 'loads', capture_parse):
+            data = reader(self.receipt, expected, deadline)
+        self.assertEqual(data, self.valid)
+        self.assertEqual(parsed, [original_bytes])
+        self.assertEqual(original_sha256(parsed[0]).hexdigest(), expected)
+        self.assertNotEqual(original_sha256(self.receipt.read_bytes()).hexdigest(), expected)
+
+    def test_malformed_receipt_shapes_refuse_before_inventory(self):
+        for data in ([], True, None, {'rows': None}, {'rows': {}}, {'rows': [None]},
+                     {'rows': ['not a row']}, {'rows': [1]}):
+            with self.subTest(data=data):
+                self.setup_receipt(data)
+                self.assertFalse(self.invoke()[0])
+        self.setup_receipt(None, raw=b'not JSON')
+        self.assertFalse(self.invoke()[0])
+
+    def test_exact_booleans_single_summary_and_complete_status_controls(self):
+        cases = [('dry_run', value) for value in (False, None, 0, 1, [], {}, 'true')]
+        cases += [('ok', value) for value in (False, None, 0, 1, 'true')]
+        cases += [('partial', value) for value in (True, None, 0, 1, 'false')]
+        cases += [('status', value) for value in ('FAILED', 'TIME_BUDGET_PARTIAL', None)]
+        for key, value in cases:
+            with self.subTest(key=key, value=value):
+                altered = copy.deepcopy(self.valid)
+                (altered if key == 'dry_run' else altered['rows'][-1])[key] = value
+                self.setup_receipt(altered)
+                self.assertFalse(self.invoke()[0])
+        for key in ('dry_run', 'ok', 'partial', 'status'):
+            altered = copy.deepcopy(self.valid)
+            del (altered if key == 'dry_run' else altered['rows'][-1])[key]
+            self.setup_receipt(altered)
+            self.assertFalse(self.invoke()[0])
+        for rows in ([], self.valid['rows'] * 2):
+            altered = copy.deepcopy(self.valid)
+            altered['rows'] = rows
+            self.setup_receipt(altered)
+            self.assertFalse(self.invoke()[0])
+
+
+class CurrentPolicyPointerTests(unittest.TestCase):
+    def test_exact_live_preimage_preserved_except_genuine_receipt_pointer(self):
+        # Complete authenticated historical preimage from its immutable commit.
+        # All original transition/reversal assertions below remain intact; they
+        # prove that historical move, not a permanent freeze of current source.
+        historical = subprocess.check_output([
+            'git', '-C', str(SOURCE.parents[1]), 'show',
+            'b861546cdc509752352aff8703bcc0f8b3c08eef:ops/disk-retention-policy.json'])
+        self.assertEqual(hashlib.sha256(historical).hexdigest(),
+                         '525703a91cda939c52f8844e60a77016792fd99abee21fdfd337f1dd987dee3f')
+        raw = historical.decode()
+        policy = json.loads(raw)
+        pointer = policy['rule_D']['dry_run_receipt']
+        old_path = '/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/pr233-qualification-20261004T075713Z-231834/dry-run-images.json'
+        new_path = '/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/host-repair-20261014T004149Z/dry-run-images.json'
+        old_sha = 'b99d3c4244402a18217ac39b210dd5fcefe06ee4e6391d4520a9f035bdd369c4'
+        new_sha = 'fc4b4aa14bba8122cd770c2477b90a5b9b4b7d5ccb6a4c41089f3221bf58b3e6'
+        self.assertEqual(pointer, {'path': new_path, 'sha256': new_sha})
+        self.assertEqual(raw.count(new_path), 1)
+        self.assertEqual(raw.count(new_sha), 1)
+        restored = raw.replace(new_path, old_path).replace(new_sha, old_sha).encode()
+        self.assertEqual(hashlib.sha256(restored).hexdigest(),
+                         '0438bdf671da6098f14343cce2cd4983dc376f7a48a3303f2b388cd60d3d4d73')
+        self.assertIn('/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13',
+                      policy['protected_roots'])
+        self.assertNotIn('completed_ci_dependencies', policy)
+
+    def test_exact_successor_reverses_only_pointer_and_refuses_drift(self):
+        # Current source authority is separate from the immutable historical
+        # transition above; a newer receipt must not erase that older proof.
+        source = SOURCE.parents[1] / 'ops/disk-retention-policy.json'
+        historical = subprocess.check_output([
+            'git', '-C', str(SOURCE.parents[1]), 'show',
+            'b861546cdc509752352aff8703bcc0f8b3c08eef:ops/disk-retention-policy.json'])
+        self.assertEqual(hashlib.sha256(historical).hexdigest(),
+                         '525703a91cda939c52f8844e60a77016792fd99abee21fdfd337f1dd987dee3f')
+        old = json.loads(historical)['rule_D']['dry_run_receipt']
+        expected = {
+            'path': '/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/host-repair-merged-5c8ee70-20261014/dry-run-images.json',
+            'sha256': '8529c0fb238fede4cb5025147c53e38a6f2c739b58ec505b78fd8c48ad64bc10'}
+
+        def verify(raw):
+            self.assertEqual(json.loads(raw)['rule_D']['dry_run_receipt'], expected)
+            restored = raw
+            for key in ('path', 'sha256'):
+                self.assertEqual(raw.count(expected[key].encode()), 1)
+                restored = restored.replace(expected[key].encode(), old[key].encode())
+            self.assertEqual(restored, historical)
+            self.assertEqual(hashlib.sha256(raw).hexdigest(),
+                             '53fa1c1a7b482859b4b4df98003f059c5167fc0ec41cd390a20b209bdeb2a911')
+
+        # Preserve the exact historical pointer-only successor and every
+        # tamper/reversal assertion; newer deny-only pins are proved below.
+        raw = subprocess.check_output([
+            'git', '-C', str(SOURCE.parents[1]), 'show',
+            '9b271bdb691f03d14355d8c05bb7cc8953f220c7:ops/disk-retention-policy.json'])
+        verify(raw)
+        # These are private byte mutations, not policy edits or receipt reseals.
+        for before, after in (
+                (expected['path'], expected['path'] + '.other'),
+                (expected['sha256'], '0' * 64),
+                ('wrangler-4.114.0-r13', 'wrangler-4.114.0-r99')):
+            with self.subTest(drift=before):
+                self.assertEqual(raw.count(before.encode()), 1)
+                with self.assertRaises(AssertionError):
+                    verify(raw.replace(before.encode(), after.encode()))
+
+
+    def test_current_policy_adds_only_exact_deny_roots(self):
+        predecessor = subprocess.check_output([
+            'git', '-C', str(SOURCE.parents[1]), 'show',
+            '9b271bdb691f03d14355d8c05bb7cc8953f220c7:ops/disk-retention-policy.json'])
+        self.assertEqual(hashlib.sha256(predecessor).hexdigest(),
+                         '53fa1c1a7b482859b4b4df98003f059c5167fc0ec41cd390a20b209bdeb2a911')
+        raw = (SOURCE.parents[1] / 'ops/disk-retention-policy.json').read_bytes()
+        added = b'"/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912", "/home/ubuntu/business/reports/ops/system-resume-20261006", "/home/ubuntu/business/ops/gpt6pro-relay", '
+        self.assertEqual(raw.count(added), 1)
+        self.assertEqual(raw.replace(added, b'', 1), predecessor)
+        self.assertEqual(json.loads(raw)['protected_roots'], [
+            '/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912',
+            '/home/ubuntu/business/reports/ops/system-resume-20261006',
+            '/home/ubuntu/business/ops/gpt6pro-relay',
+            *json.loads(predecessor)['protected_roots']])
+
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+# The 18-run / 1,934-consumer shape and controlled 60-second collector are
+# copied from GLP-349's diagnosis repro. No lanes/ imports or live collectors.
+def rule_d_fixture(tmp_path, monkeypatch):
+    import sys
+    from collections import Counter
+    sys.path.insert(0, str(SOURCE.parent))
+    import evidence_preserving_pruner as ep
+    import screenshot_pruner as sp
+    import host_disk_relay_custody as relay
+
+    class Clock:
+        value = 0.0
+        def monotonic(self): return self.value
+        def time(self): return 1800000000.0
+    clock = Clock()
+    counts = Counter()
+    flag = tmp_path / 'site-system/flagship-v2'
+    (flag / 'qa').mkdir(parents=True)
+    units = [flag / 'candidates' / f'held-{n:02d}' for n in range(18)]
+    for unit in units: unit.mkdir(parents=True)
+    source_dir = tmp_path / 'consumers'
+    source_dir.mkdir()
+    sources = [source_dir / f'{n:04d}.json' for n in range(1934)]
+    for n, source in enumerate(sources):
+        source.write_text(json.dumps({'consumer_paths': list(map(str, units))}) if n == 0 else '{}')
+    control = tmp_path / 'generation.json'
+    control.write_text('{}')
+    state = types.SimpleNamespace(fail=False, mutate=False, fresh_pins=[])
+    def collect(**kwargs):
+        counts['collect_calls'] += 1
+        clock.value += 60.0
+        if state.fail: raise ValueError('fixture incomplete collector')
+        if state.mutate:
+            control.write_text('{"changed_generation":true}')
+        return relay.BindingPins(state.fresh_pins, {str(control): relay.signature(control)})
+    def denied(*args, **kwargs):
+        raise AssertionError('image scan / process / effect boundary reached')
+    monkeypatch.setattr(relay, 'collect', collect)
+    monkeypatch.setattr(ep, 'BUS', tmp_path)
+    monkeypatch.setattr(ep, 'STATE', tmp_path / 'runstate/state.json')
+    monkeypatch.setattr(ep, 'time', clock)
+    monkeypatch.setattr(sp, 'time', clock)
+    monkeypatch.setattr(sp, 'reference_files', lambda *a: sources.copy())
+    monkeypatch.setattr(sp, 'rule_contract', lambda policy: 'fixture-contract')
+    monkeypatch.setattr(sp, 'scan', denied)
+    monkeypatch.setattr(ep, 'atomic_json', denied)
+    monkeypatch.setattr(subprocess, 'run', denied)
+    import shutil
+    monkeypatch.setattr(shutil, 'disk_usage', lambda p: types.SimpleNamespace(free=10**9))
+    real_is_file = Path.is_file
+    service = Path('/home/ubuntu/.config/systemd/user/host-disk-cleanup.service')
+    monkeypatch.setattr(Path, 'is_file', lambda p: False if p == service else real_is_file(p))
+    approval = tmp_path / 'ops/linear/approvals/OPERATOR-DECISION-20261001-qa-screenshot-deletion.md'
+    approval.parent.mkdir(parents=True)
+    approval.write_text('fixture only')
+    digest = '3ac87b3d008a214b11df4fa540817435d6962e82a5887076c2ab9486cf390c3b'
+    monkeypatch.setattr(ep, 'sha', lambda *a: digest)
+    policy = {'schema': 'disk-retention-v1', 'protected_roots': [str(flag / 'qa')],
+              'rule_D': {'image_roots': [str(flag / 'qa'), str(flag / 'candidates')],
+                         'cold_days': 30, 'image_extensions': sorted(sp.IMAGE_SUFFIXES),
+                         'qa_protection_exception': str(flag / 'qa'),
+                         'approval': {'path': str(approval), 'sha256': digest}}}
+    (tmp_path / 'ops/disk-retention-policy.json').write_text(json.dumps(policy))
+    return types.SimpleNamespace(ep=ep, sp=sp, relay=relay, clock=clock, counts=counts,
+        units=units, sources=sources, control=control, state=state, flag=flag,
+        api=types.SimpleNamespace(path_is_active_privileged=denied), denied=denied)
+
+
+def test_rule_d_referenced_qualification_completes_with_one_collection(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    started = time.perf_counter()
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True, deadline=1050)
+    wall = time.perf_counter() - started
+    print(json.dumps({'fixture_wall_seconds': wall, 'virtual_seconds': f.clock.value,
+                      'collections': f.counts['collect_calls'], 'summary': rows[-1]['status'],
+                      'runs': rows[-1].get('runs_evaluated')}))
+    assert rows[-1]['status'] == 'COMPLETE'
+    assert rows[-1]['partial'] is False
+    assert rows[-1]['runs_evaluated'] == 18
+    assert [r['status'] for r in rows[:-1]] == ['GATED_REFERENCED'] * 18
+    assert f.clock.value < 1050
+    assert f.counts['collect_calls'] == 1
+
+
+def test_rule_d_generation_changed_during_refresh_refuses_complete(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    # First row populates the cache. Second is unheld and must refresh. That
+    # refresh returns the NEW identity: it must not replace the admitted one.
+    f.sources[0].write_text(json.dumps({'consumer_paths': [str(f.units[0])]}))
+    def progress(rows):
+        if len(rows) == 1: f.state.mutate = True
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True,
+                          deadline=1050, progress=progress)
+    assert rows[0]['status'] == 'GATED_REFERENCED'
+    assert rows[1]['status'] == 'GATED_REFERENCE_CHANGED'
+    assert rows[-1]['status'] != 'COMPLETE'
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['eligible_bytes'] == 0
+    assert rows[-1]['reference_source'] == str(f.control)
+    assert f.counts['collect_calls'] == 2
+
+
+def test_rule_d_incomplete_refresh_cannot_use_static_denial(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    f.state.fail = True
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True, deadline=1050)
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['status'] != 'COMPLETE'
+    assert rows[-1]['reference_source'] == 'relay_lane_linear_refresh_incomplete'
+    assert rows[-1]['reference_timings']['collection']['failures'] == 1
+    assert f.counts['collect_calls'] == 1  # invalidation is sticky, no retry storm
+
+
+def test_rule_d_fresh_hold_and_uncached_positive_admission(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    index = f.ep.QualificationReferenceIndex([f.sources[1]], tmp_path,
+                                            rule_D_qa_root=f.flag / 'qa')
+    assert not index.references(f.units[0])
+    assert not index.references(f.units[0])
+    assert f.counts['collect_calls'] == 2
+    f.state.fresh_pins[:] = [f.units[0] / 'new-held-proof.json']
+    assert index.references(f.units[0])
+    assert f.counts['collect_calls'] == 3
+    assert not hasattr(index, 'last_changed_source')
+    assert index.references(f.units[0])
+    assert f.counts['collect_calls'] == 3  # only a complete denial is reusable
+
+
+def test_rule_d_consumer_content_drift_refuses_cached_denial(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    def progress(rows):
+        if len(rows) == 1: f.sources[1].write_text('{"new_consumer":true}')
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True,
+                          deadline=1050, progress=progress)
+    assert rows[1]['status'] == 'GATED_REFERENCE_CHANGED'
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['reference_source'] == str(f.sources[1])
+
+
+def test_rule_d_missing_or_unreadable_source_refuses_cached_denial(tmp_path, monkeypatch):
+    for failure in ('missing', 'unreadable'):
+        with monkeypatch.context() as patcher:
+            root = tmp_path / failure
+            root.mkdir()
+            f = rule_d_fixture(root, patcher)
+            def progress(rows):
+                if len(rows) != 1: return
+                if failure == 'missing':
+                    exists = Path.exists
+                    patcher.setattr(Path, 'exists', lambda p: False if p == f.sources[1] else exists(p))
+                else:
+                    f.sources[1].write_text('{"changed":true}')
+                    original = f.ep.ReferenceIndex.consumer_text
+                    def unreadable(index, source):
+                        if source == f.sources[1]: raise PermissionError('fixture unreadable')
+                        return original(index, source)
+                    patcher.setattr(f.ep.ReferenceIndex, 'consumer_text', unreadable)
+            rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True,
+                                  deadline=1050, progress=progress)
+            assert rows[1]['status'] == 'GATED_REFERENCE_CHANGED', failure
+            assert rows[-1]['partial'] is True
+            assert rows[-1]['reference_source'] == str(f.sources[1])
+
+
+def test_rule_d_final_generation_validation_refuses_complete(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    def progress(rows):
+        if len(rows) == 18: f.control.write_text('{"changed_after_last_run":true}')
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True,
+                          deadline=1050, progress=progress)
+    assert all(r['status'] == 'GATED_REFERENCED' for r in rows[:-1])
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['status'] != 'COMPLETE'
+    assert rows[-1]['reference_source'] == str(f.control)
+
+
+def test_rule_d_receipt_contains_collector_and_per_run_timings(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    rows = f.sp.run_rules(f.api, {'reference_roots': []}, dry_run=True, deadline=1050)
+    # Same serialization used by dry-run-images.json; no extra receipt/pointer.
+    receipt = json.loads(json.dumps({'dry_run': True, 'rows': rows}))
+    timings = receipt['rows'][-1]['reference_timings']
+    assert timings['collection'] == {'calls': 1, 'seconds': 60.0, 'failures': 0}
+    assert timings['references']['calls'] == 18
+    assert receipt['rows'][-1]['reference_cache_hits'] == 17
+    assert receipt['rows'][0]['runtime_seconds'] == 60.0
+    assert receipt['rows'][0]['reference_timings']['collection']['calls'] == 1
+    assert all('collection' not in r['reference_timings'] for r in receipt['rows'][1:-1])
+
+
+def test_rule_d_collector_phase_timings_include_failed_linear(tmp_path, monkeypatch):
+    import sys
+    import pytest
+    sys.path.insert(0, str(SOURCE.parent))
+    import host_disk_relay_custody as relay
+    class Clock:
+        value = 0.0
+        def monotonic(self): return self.value
+    clock = Clock()
+    monkeypatch.setattr(relay, 'time', clock)
+    class Reader:
+        fail = False
+        def pages(self, *args):
+            clock.value += 7.0
+            if self.fail: raise RuntimeError('fixture incomplete pages')
+            return []
+    reader = Reader()
+    timings = {}
+    relay.collect(bus=tmp_path, reader=reader, timings=timings)
+    expected = {'newest_site', 'relay', 'lanes', 'transitive', 'linear', 'generation_validation'}
+    assert set(timings) == {'collector.' + name for name in expected}
+    assert timings['collector.linear'] == {'calls': 1, 'seconds': 7.0, 'failures': 0}
+    reader.fail = True
+    with pytest.raises(RuntimeError, match='Linear inventory unavailable'):
+        relay.collect(bus=tmp_path, reader=reader, timings=timings)
+    assert timings['collector.linear'] == {'calls': 2, 'seconds': 14.0, 'failures': 1}
+
+
+def test_rule_d_expired_budget_does_not_start_final_collection(tmp_path, monkeypatch):
+    f = rule_d_fixture(tmp_path, monkeypatch)
+    index = f.ep.QualificationReferenceIndex([f.sources[0]], tmp_path,
+                                            rule_D_qa_root=f.flag / 'qa')
+    f.clock.value = 1050.0
+    rows = f.sp.run_units(f.api, f.units, index, dry_run=True, deadline=1050,
+                          journal_dir=tmp_path / 'journals')
+    assert rows[-1]['partial'] is True
+    assert rows[-1]['runs_evaluated'] == 0
+    assert f.counts['collect_calls'] == 0

@@ -1,0 +1,11 @@
+{
+  "error": "CHAT_SURFACE_REFUSED",
+  "typed": false,
+  "sent": false,
+  "tab": "EBE38BAC1F838EE8BE732DC64D3736DB",
+  "mode_observation": 1,
+  "mode_evidence": {
+    "error": "CHAT_SURFACE_REFUSED",
+    "reason": "work_selected"
+  }
+}

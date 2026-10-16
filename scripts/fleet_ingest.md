@@ -11,7 +11,22 @@ Changes to the proof policy or installed closer automatically retry. `--retry` e
 
 * Native: RESULT with a dead positive PID, or a runtime-owned completed delegation manifest
   naming its exact RESULT. A live PID always wins over a terminal claim. Partial worker results
-  are ingested as REDISPATCH, not reported complete.
+  are ingested as REDISPATCH, not reported complete. Existing recursive discovery remains
+  confined to `reports/ops`. Root `lanes/OWNER/RESULT.json` is eligible only through
+  the coordinator's existing `CONFIG.json issues[ISSUE].worker_result` override
+  (relative or workspace-absolute), never a root-lane glob or a PID claim alone.
+  The exact path must be named by a terminal native manifest's completed task,
+  whose goal starts with OWNER and binds that one issue (GLP-n or GLPn).
+  A running task/PID referencing the path overrides historical completion. Finalized
+  native `failed`/`error`/`interrupted`/`timeout` tasks do not suppress a completed retry,
+  but never authorize completion themselves; live PIDs still win and unknown or
+  unfinalized states fail closed. Symlinks, cross-issue/shared-issue bindings, absent
+  terminal custody and result writes newer than the manifest are refused. Root-lane
+  RESULT and manifest data are parsed and hashed from the same captured byte buffer,
+  then rehashed to refuse subsequent drift; changed native evidence at ingestion
+  cannot become READY.
+  Truncated/braced goals that do not name the exact file remain undiscovered;
+  registration is not permission to copy old proof or manufacture terminal custody.
 * Codex: finished RUN.json with exit_code and RESPONSE.md. Missing/failed response is REDISPATCH.
 * Pro: complete route queue row plus VERIFIED JOB.json receipt. All manifest, source reply and
   outbox file bytes are rehashed locally. No browser polling, recovery sends or CONSUMED writes.
@@ -34,9 +49,26 @@ Coordinator overrides: reports/ops/fleet-inbox/CONFIG.json, not worker output. E
 Commands run as argv, never shell/eval. stat/test/sha256sum, read-only gh views/checks,
 stdlib unittest and nontracking publisher guide/sitemap/robots curl GET/HEAD are permitted.
 Prose, placeholders, shell operators and effectful commands fail closed with exact failure text.
-The poller then invokes installed `linear_close.py ISSUE genuine-worker-RESULT --check-only`
-as LINEAR_ROLE=fleet-ingest. This must be a truly no-Linear-write API; older versions lack
-that flag and return 2. Both checks must return 0 and the source must be valid for READY_TO_CLOSE.
+The coordinator selects `completion_contract` in its PLAN issue or CONFIG issue override
+(never in worker output). Absent/`worker` retains installed
+`linear_close.py ISSUE genuine-worker-RESULT --check-only` and explicit `ISSUE PASS`.
+For an **already typed COMPLETE** result, `ordinary`, `protected-runtime` or
+`protected-noncode` instead invokes `linear_orchestrator.py pass ISSUE ABS_RESULT
+--ordinary|--protected-runtime|--protected-noncode --check-only`. The shared ingester/loop
+dispatcher requires exact issue, scope and supported schema: ordinary uses
+`linear-ordinary-completion-v1`; existing protected retained contracts have no schema
+discriminator and may not carry a foreign one. Typed paths must be existing RESULT.json
+under reports. Exit 0 plus a whole parsed JSON response with exact `identifier`,
+`validated:true`, integer `writes:0` is mandatory, never PASS prose. All authenticated
+current-scope, same-hour author/review, evidence and protected independent gates still run.
+The loop rehashes PLAN/INGEST and coordinator CONFIG selection and retains PLAN's
+`proof_complete:true`; it cannot apply closure. Poller runs as LINEAR_ROLE=fleet-ingest.
+Both proof and closure checks must return 0 and source custody must be valid for READY_TO_CLOSE.
+Neither route translates blocked/source-only statuses or manufactures typed success.
+Worker-generated typed destinations are `reports/ops/linear-close/ISSUE/WORKER_ID/RESULT.json`,
+where WORKER_ID is a stable SHA256 of the workspace-relative physical worker path, not
+its mutable bytes. Check-only resolves the same reports-only destination but writes
+neither RESULT nor acceptance comments. Original worker bytes/provenance stay unchanged.
 A Pro advisory alone cannot satisfy closure. An explicit coordinator policy may join the advisory
 with an independently completed worker RESULT, whose issue and byte hash are checked.
 

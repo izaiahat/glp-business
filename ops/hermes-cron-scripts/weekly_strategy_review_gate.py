@@ -38,6 +38,7 @@ def main():
         # A bound current-week report may be re-summarized after a delivery
         # failure; do not replay collection or infer a completed delivery.
         cached=previous.get('report_result') if previous.get('week_start')==week else None
+        if cached and not cached.get('host_completion'): cached=None
         if cached and not args.output:
             binding=previous.get('report_binding',{})
             raw=Path(binding['path']).read_bytes()
@@ -48,7 +49,7 @@ def main():
         if cached and not args.output:
             result=cached
         else:
-            command=[sys.executable,str(PRODUCER),'--update-strategy']
+            command=[sys.executable,str(PRODUCER),'--host-owned']
             if args.output: command+=['--output',str(args.output)]
             completed=subprocess.run(command,cwd=B,capture_output=True,text=True,timeout=1800,check=True)
             result=json.loads(completed.stdout)
@@ -59,6 +60,9 @@ def main():
                     'checked_at_utc':now.isoformat()}
             if not args.output:
                 temp=MARKER.with_suffix('.tmp');temp.write_text(json.dumps(marker,indent=2)+'\n');temp.replace(MARKER)
+        sys.path.insert(0,str(B))
+        from ops.glp.weekly_analytics_owner import consume
+        adoption=consume(result,'020bcdd7f0e1')
         print(json.dumps({'wakeAgent':True,'gate':'weekly_strategy_review_once_per_week',
             'week_start':week,'status':result['status'],'context':{
                 'focus':'GLP Clinic Scout only; affiliate revenue first; all ads remain paused',
@@ -66,7 +70,8 @@ def main():
                 'seo_refill_recommendations':result['topic_recommendations'],
                 'report_summary':result['summary'],
                 'strategy_update':result.get('strategy_update'),
-                'instruction':'Use the produced live report and exact-readback Cogny strategy input. Nightly refill and existing-route updater must bind this strategy SHA; a report alone is not adoption or publication. Unknown is not zero. No publication or new paid collection; scheduler alone delivers the final summary.'}},ensure_ascii=False))
+                'host_analytics_consumption':adoption,
+                'instruction':'Use the bound host-owned weekly report and strategy rows. Cogny is a read input, not a queued-task completion authority. This ACK proves GLP-44 planning ingestion, not GLP-73 refill adoption or publication. Unknown is not zero. No publication or new paid collection; scheduler alone delivers the final summary.'}},ensure_ascii=False))
     return 0
 
 if __name__=='__main__': sys.exit(main())

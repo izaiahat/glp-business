@@ -40,6 +40,22 @@ def text_paths(text):
     return out
 
 
+def pin_inventory():
+    """Fresh all-or-nothing registry read with safe, stage-specific refusals.
+
+    Never serialize exception text: transports can include credentials or raw
+    responses. A failed collector must not expose a partial union as authority.
+    """
+    pins=set()
+    for source in ('pr_pins','worktree_pins','live_release_pins','r8_pins','linear_pins'):
+        try:
+            pins.update(globals()[source]())
+        except Exception as error:
+            return {'schema':'host-disk-pins-v1','ok':False,
+                    'source':source,'error_type':type(error).__name__}
+    return {'schema':'host-disk-pins-v1','ok':True,'pins':sorted(map(str,pins))}
+
+
 def worktree_pins(roots=(BUS / '.worktrees', BUS / 'worktrees')):
     """Every registered worktree of every repo that owns a business worktree (any location)."""
     pins = set()
@@ -92,19 +108,52 @@ def pr_pins(repos=('izaiahat/glp-business', 'izaiahat/glp-site-candidate')):
     return pins
 
 
-def linear_pins(client=BUS / 'scripts/linear_client.py'):
-    r = subprocess.run([sys.executable, str(client), 'list', 'GLP'], capture_output=True, text=True, timeout=120)
-    if r.returncode:
-        raise RuntimeError('Linear inventory unavailable')
+LINEAR_PIN_QUERY = '''query HostDiskLiveLinearPins($filter:IssueFilter,$after:String){
+  issues(first:100,after:$after,filter:$filter){
+    nodes{identifier description state{type} team{key}}
+    pageInfo{hasNextPage endCursor}
+  }
+}'''
+
+
+def linear_pins(client=BUS / 'scripts/linear_client.py', *, reader=None):
+    """One complete fresh paginated read, never an issue-get storm or a cache."""
+    variables = {'filter': {'team': {'key': {'eq': 'GLP'}}}}
+    try:
+        if reader is not None:
+            issues = reader.pages(LINEAR_PIN_QUERY, variables, ('issues',))
+        else:
+            # Reuse the installed registered client's role, credential locator,
+            # bounded retries and fail-closed pagination. It is deliberately not
+            # duplicated into this reduced source mirror or run as orchestrator.
+            code = (
+                'import importlib.util,json,sys;from pathlib import Path;'
+                'sys.path.insert(0,str(Path(sys.argv[1]).resolve().parent));'
+                's=importlib.util.spec_from_file_location("host_disk_registered_linear_client",sys.argv[1]);'
+                'm=importlib.util.module_from_spec(s);s.loader.exec_module(m);'
+                'print(json.dumps(m.Client().pages(sys.argv[2],json.loads(sys.argv[3]),("issues",))))'
+            )
+            result = subprocess.run([sys.executable, '-c', code, str(client),
+                                     LINEAR_PIN_QUERY, json.dumps(variables)],
+                                    capture_output=True, text=True, timeout=120)
+            if result.returncode:
+                raise RuntimeError('registered Linear reader refused')
+            issues = json.loads(result.stdout)
+    except Exception as error:
+        raise RuntimeError('Linear inventory unavailable') from error
+    if not isinstance(issues, list):
+        raise RuntimeError('Linear inventory incomplete')
     pins = set()
-    for issue in json.loads(r.stdout):
-        if issue['state']['type'] in ('completed', 'canceled'):
-            continue
-        g = subprocess.run([sys.executable, str(client), 'get', issue['identifier']],
-                           capture_output=True, text=True, timeout=60)
-        if g.returncode:
-            raise RuntimeError('Linear issue unavailable')
-        pins.update(text_paths(json.loads(g.stdout).get('description') or ''))
+    for issue in issues:
+        if (not isinstance(issue, dict) or not isinstance(issue.get('identifier'), str)
+                or not issue['identifier'] or not isinstance(issue.get('state'), dict)
+                or not isinstance(issue['state'].get('type'), str) or not issue['state']['type']
+                or not isinstance(issue.get('team'), dict) or issue['team'].get('key') != 'GLP'
+                or 'description' not in issue
+                or (issue['description'] is not None and not isinstance(issue['description'], str))):
+            raise RuntimeError('Linear inventory incomplete')
+        if issue['state']['type'] not in ('completed', 'canceled'):
+            pins.update(text_paths(issue['description'] or ''))
     return pins
 
 
@@ -141,14 +190,19 @@ LAYOUT = {Path('/'), Path('/home/ubuntu'), Path('/home/ubuntu/.hermes'), Path('/
           SCRATCH, TMP, REGISTRY_RUNS, REGISTRY_RUNS.parent}
 
 
-def external_pins():
+def external_pins(*, include_worktrees=True):
     """All live reference sources; any failure propagates (no effects without it).
 
     Bare layout roots (a reference to '/tmp' or 'reports/ops' itself) name no
     specific artifact; they are retained, never retired, but do not pin children.
     """
     pins = set()
-    for source in (worktree_pins, prepared_pins, pr_pins, linear_pins, live_release_pins, r8_pins):
+    # False is used only by the finite completed-CI dependency class. Every
+    # legacy caller retains the blanket Git source/worktree ownership pin.
+    sources = (prepared_pins, pr_pins, linear_pins, live_release_pins, r8_pins)
+    if include_worktrees:
+        sources = (worktree_pins, *sources)
+    for source in sources:
         pins |= source()
     from host_disk_cold_classes import existing_pins
     return existing_pins(pins - LAYOUT)

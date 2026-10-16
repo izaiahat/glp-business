@@ -1,6 +1,8 @@
 {
   "schema": 1,
-  "mode": "manual_fallback",
+  "mode": "automatic",
+  "lifetime_days": 90,
+  "renew_before_days": 14,
   "documentation_checked": "2026-10-11",
   "environments": [
     {

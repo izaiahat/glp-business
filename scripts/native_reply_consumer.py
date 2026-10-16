@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Consume only explicitly registered native replies; no ingress/sends/attachments.
+"""Consume explicitly registered native replies; no ingress or sends.
 
 Run from frozen reviewed source via parent terminal(background=True, notify=True)
 (or confirmed process handoff), under GNU timeout --foreground --signal=KILL
@@ -65,6 +65,7 @@ class Registration:
     reply_id: str | None = None
     content_sha256: str | None = None
     result_key: str | None = None
+    terminal_attachment: dict | None = None
 
     def __post_init__(self):
         s = self.scope
@@ -81,6 +82,17 @@ class Registration:
                 or self.reply_id is not None and (not re.fullmatch(r'[1-9][0-9]{0,19}', self.reply_id)
                     or not re.fullmatch(SHA, self.content_sha256))):
             raise ValueError('invalid_registration')
+        if self.terminal_attachment is not None:
+            a = self.terminal_attachment
+            if (not s.finch or self.reply_id is None or self.result_key is None
+                    or not isinstance(a, dict)
+                    or set(a) != {'id', 'filename', 'content_type', 'byte_length', 'sha256'}
+                    or not isinstance(a['id'], str) or not re.fullmatch(r'[1-9][0-9]{0,19}', a['id'])
+                    or not isinstance(a['filename'], str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,128}\.txt', a['filename'])
+                    or a['content_type'] != 'text/plain'
+                    or type(a['byte_length']) is not int or not 1 <= a['byte_length'] <= 64000
+                    or not isinstance(a['sha256'], str) or not re.fullmatch(SHA, a['sha256'])):
+                raise ValueError('invalid_terminal_attachment_registration')
 
     @property
     def receipt_id(self):
@@ -98,6 +110,8 @@ class Registration:
         # be retrofitted onto an already staged legacy registration.
         if self.result_key is not None:
             fields.append({'result_key': self.result_key})
+        if self.terminal_attachment is not None:
+            fields.append({'terminal_attachment': self.terminal_attachment})
         return hashlib.sha256(canonical(fields).encode()).hexdigest()
 
 
@@ -117,6 +131,7 @@ class Receipts:
     def __init__(self, directory):
         directory = Path(directory)
         private(directory, True)
+        self.directory = directory
         self.lock = os.open(directory / 'reply-consumers.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         try:
             private(directory / 'reply-consumers.lock')
@@ -148,29 +163,130 @@ class Receipts:
         self.db.execute('INSERT OR REPLACE INTO receipts VALUES (?,?)', (value['receipt_id'], canonical(value)))
         self.db.commit()
 
-    def record(self, identity, owner, status, evidence):
+    def record(self, identity, owner, status, evidence, *, handoff_plan=None):
+        from contextlib import nullcontext
         row = self.get(identity)
-        if (not row or status not in {'received', 'applied', 'rejected'}
-                or not isinstance(evidence, str) or not 1 <= len(evidence) <= 1000
-                or owner != (row['parent'] if status == 'received' else row['task_owner'])):
-            raise ValueError('owner_or_disposition_refused')
-        if row['status'] == status and row.get('evidence') == evidence and row.get('recorded_by') == owner:
-            return row  # exact repeat, not another effect
-        if row['status'] != ('staged' if status == 'received' else 'received'):
-            raise ValueError('invalid_disposition_transition')
-        row.update(status=status, evidence=evidence, recorded_by=owner, recorded_at=time.time())
-        if status == 'received':
-            row['coordinator_receipt'] = {'owner': owner, 'evidence': evidence, 'at': row['recorded_at']}
-        self.put(row)
-        return row
+        audit = row.get('owner_handoff') if row else None
+        plan = handoff_plan if handoff_plan is not None else audit.get('plan') if audit else None
+        if plan is not None:
+            if not isinstance(plan, dict) or not isinstance(plan.get('ticket'), str):
+                raise ValueError('owner_handoff_plan_refused')
+            ticket = Path(plan['ticket'])
+            if not ticket.is_absolute() or ticket != ticket.resolve():
+                raise ValueError('owner_handoff_ticket_refused')
+            private(ticket, True)
+            private(ticket.parent, True)
+            import dot_dispatch as dots
+            guard = dots.locked(ticket.parent)
+        else:
+            guard = nullcontext()
+        with guard:
+            if plan is not None:
+                audit = checked_owner_handoff(row, plan, self.directory)
+                expected_owner = plan['receiving_owner']
+            else:
+                expected_owner = row.get('parent' if status == 'received' else 'task_owner') if row else None
+            if (not row or status not in {'received', 'applied', 'rejected'}
+                    or not isinstance(evidence, str) or not 1 <= len(evidence) <= 1000
+                    or owner != expected_owner):
+                raise ValueError('owner_or_disposition_refused')
+            if row['status'] == status and row.get('evidence') == evidence and row.get('recorded_by') == owner:
+                return row  # exact repeat, not another effect
+            if row['status'] != ('staged' if status == 'received' else 'received'):
+                raise ValueError('invalid_disposition_transition')
+            if audit is not None:
+                row['owner_handoff'] = audit
+            row.update(status=status, evidence=evidence, recorded_by=owner, recorded_at=time.time())
+            if status == 'received':
+                row['coordinator_receipt'] = {'owner': owner, 'evidence': evidence, 'at': row['recorded_at']}
+            self.put(row)
+            return row
 
 
-def collect(registration, receipts, *, reader=None, replay=False):
+def checked_owner_handoff(row, plan, directory):
+    """Exact existing-ticket successor custody; original owners never change.
+
+    Caller holds both receipt and dispatch locks. Local owner authorization is
+    the existing same-Unix-owner boundary, not independent review or approval.
+    """
+    required = {'schema', 'ticket', 'ticket_sha256', 'native_config_sha256',
+        'completion_sha256', 'reply_sha256', 'receipt_preimage_sha256',
+        'from_parent', 'from_task_owner', 'receiving_owner', 'reason'}
+    if (not isinstance(plan, dict) or set(plan) != required
+            or plan['schema'] != 'DOT_RECEIPT_OWNER_HANDOFF_V1'
+            or any(not isinstance(plan[k], str) or not re.fullmatch(SHA, plan[k]) for k in required if k.endswith('_sha256'))
+            or any(not isinstance(plan[k], str) or not re.fullmatch(NAME, plan[k]) for k in ('from_parent', 'from_task_owner', 'receiving_owner'))
+            or not isinstance(plan['reason'], str) or not 1 <= len(plan['reason']) <= 1000
+            or not row):
+        raise ValueError('owner_handoff_plan_refused')
+    ticket = Path(plan['ticket'])
+    if not ticket.is_absolute() or ticket != ticket.resolve():
+        raise ValueError('owner_handoff_ticket_refused')
+    private(ticket, True)
+    files = {name: ticket/name for name in ('TICKET.json', 'NATIVE-CONFIG.json', 'COMPLETION.json', 'REPLY.md')}
+    pins = dict(zip(files, ('ticket_sha256', 'native_config_sha256', 'completion_sha256', 'reply_sha256')))
+    for name, path in files.items():
+        private(path)
+        if hashlib.sha256(path.read_bytes()).hexdigest() != plan[pins[name]]:
+            raise ValueError('owner_handoff_preimage_refused')
+    import dot_lane
+    state = json.loads(files['TICKET.json'].read_text())
+    completion = dot_lane.terminal(ticket, state)
+    receipt_directory, entries = load_registrations(files['NATIVE-CONFIG.json'])
+    if (state.get('state') not in {'complete', 'blocked'} or state.get('ticket') != ticket.name
+            or state.get('parent') != plan['from_parent'] or state.get('task_owner') != plan['from_task_owner']
+            or row.get('parent') != plan['from_parent'] or row.get('task_owner') != plan['from_task_owner']
+            or Path(receipt_directory) != ticket/'receipts' or Path(receipt_directory).resolve() != directory.resolve()
+            or len(entries) != 1 or entries[0].parent != plan['from_parent']
+            or entries[0].task_owner != plan['from_task_owner'] or entries[0].result_key != ticket.name
+            or entries[0].receipt_id != row.get('receipt_id')
+            or entries[0].registration_sha256 != row.get('registration_sha256')):
+        raise ValueError('owner_handoff_custody_refused')
+    old = row.get('owner_handoff')
+    preimage = old.get('receipt_preimage') if old else json.loads(canonical(row))
+    if (old and (set(old) != {'plan', 'receipt_preimage'} or old['plan'] != plan)
+            or not isinstance(preimage, dict) or preimage.get('status') != 'staged'
+            or hashlib.sha256(canonical(preimage).encode()).hexdigest() != plan['receipt_preimage_sha256']
+            or completion != preimage):
+        raise ValueError('owner_handoff_receipt_preimage_refused')
+    mutable = {'status', 'evidence', 'recorded_by', 'recorded_at', 'coordinator_receipt', 'owner_handoff'}
+    if ({k:v for k,v in row.items() if k not in mutable} != {k:v for k,v in preimage.items() if k not in mutable}):
+        raise ValueError('owner_handoff_receipt_changed')
+    check_saved_attachment(row, entries[0])
+    return {'plan': plan, 'receipt_preimage': preimage}
+
+
+def check_saved_attachment(value, registration):
+    """Receipt SQLite stores exact UTF-8 bytes and custody before stdout."""
+    if registration.terminal_attachment is None:
+        if value.get('attachment') is not None:
+            raise ValueError('saved_attachment_integrity_refused')
+        return
+    a = value.get('attachment', {})
+    try:
+        payload = a['text'].encode('utf-8')
+        valid = (all(a.get(k) == v for k, v in registration.terminal_attachment.items())
+            and len(payload) == a['byte_length']
+            and hashlib.sha256(payload).hexdigest() == a['sha256']
+            and a['provenance_kind'] == 'assistant-copy'
+            and re.fullmatch(SHA, a['url_sha256'])
+            and value.get('native_attachment_custody') == {k: a[k] for k in
+                ('id', 'filename', 'content_type', 'byte_length', 'sha256', 'url_sha256')}
+            and value.get('reply_id') == registration.reply_id
+            and value.get('content_sha256') == registration.content_sha256)
+    except (KeyError, AttributeError, UnicodeError, TypeError):
+        valid = False
+    if not valid:
+        raise ValueError('saved_attachment_integrity_refused')
+
+
+def collect(registration, receipts, *, reader=None, replay=False, attachment_reader=None):
     s = registration.scope
     old = receipts.get(registration.receipt_id)
     if old:
         if old['registration_sha256'] != registration.registration_sha256:
             raise ValueError('registration_conflict')
+        check_saved_attachment(old, registration)
         if replay and old['status'] in {'staged', 'non_result_reply'}:
             return dict(old, replay=True)
         return {'status': 'awaiting_coordinator_ack' if old['status'] == 'staged' else old['status'],
@@ -199,23 +315,48 @@ def collect(registration, receipts, *, reader=None, replay=False):
         return {'status': 'waiting_native_confirmation', 'correlation': s.correlation}
     identity = row.get('reply_id')
     if (not isinstance(identity, str) or not re.fullmatch(r'[1-9][0-9]{0,19}', identity)
-            or int(identity) <= int(s.after_message) or row.get('attachment') is not None
+            or int(identity) <= int(s.after_message)
+            or row.get('attachment') is not None and registration.terminal_attachment is None
+            or registration.terminal_attachment is not None and (
+                not isinstance(row.get('attachment'), dict) or any(
+                    row['attachment'].get(k) != v for k, v in registration.terminal_attachment.items()))
             or registration.reply_id is not None and (identity != registration.reply_id
                 or row.get('reply_sha256') != registration.content_sha256)):
         raise ValueError('native_reply_refused')
     if reader is None:
         from rook_mcp_events import discord_request
         reader = lambda channel, message: discord_request('GET', f'/channels/{channel}/messages/{message}', finch=s.finch)
-    data = reader(s.channel, identity)  # exact message, never channel history or attachments
+    data = reader(s.channel, identity)  # exact message, never channel history
     body = parse_reply_content(data.get('content'), s.reply_kind)
     if (data.get('id') != identity or data.get('channel_id') != s.channel
             or data.get('guild_id', s.guild) != s.guild or data.get('type') != 0
             or data.get('webhook_id') is not None or data.get('author', {}).get('id') != s.bot
-            or data.get('attachments') != [] or not isinstance(body, dict)
+            or (registration.terminal_attachment is None and data.get('attachments') != [])
+            or not isinstance(body, dict)
             or body.get('correlation') != s.correlation or body.get('kind') != s.reply_kind
             or not isinstance(body.get('text'), str) or not body['text'].strip()
             or not verified_registered_reply_binding(data, s, s.bot)):
         raise ValueError('live_reply_or_custody_refused')
+    attachment = None
+    if registration.terminal_attachment is not None:
+        from rook_mcp_events import download_attachment, finch_attachment_custody, validate_file
+        # The existing verifier checked exact native effect AND CDN URL hash.
+        items = data.get('attachments')
+        if not isinstance(items, list) or len(items) != 1:
+            raise ValueError('terminal_attachment_metadata_refused')
+        metadata = items[0]
+        custody = finch_attachment_custody(metadata, s.channel, registration.terminal_attachment['sha256'])
+        if custody != row['attachment']:
+            raise ValueError('terminal_attachment_metadata_refused')
+        payload = (attachment_reader or download_attachment)(metadata, s.channel, finch=True)
+        if (not isinstance(payload, bytes) or len(payload) != custody['byte_length']
+                or hashlib.sha256(payload).hexdigest() != custody['sha256']):
+            raise ValueError('terminal_attachment_bytes_refused')
+        # Preserve all existing active-content/credential/privacy refusals.
+        validate_file(metadata['filename'], metadata['content_type'], payload, finch=True)
+        attachment = dict(custody, text=payload.decode('utf-8'), provenance_kind='assistant-copy')
+        if native_row(registration) != row or not verified_registered_reply_binding(data, s, s.bot):
+            raise ValueError('terminal_attachment_native_changed')
     value = {'status': 'staged', 'receipt_id': registration.receipt_id,
         'registration_sha256': registration.registration_sha256,
         'parent': registration.parent, 'task_owner': registration.task_owner, 'action': registration.action,
@@ -223,6 +364,9 @@ def collect(registration, receipts, *, reader=None, replay=False):
         'content_sha256': hashlib.sha256(data['content'].encode()).hexdigest(), 'trust': TRUST,
         'text': body['text'][:TEXT_LIMIT], 'text_truncated': len(body['text']) > TEXT_LIMIT,
         'staged_at': time.time(), 'operator_approval': False}
+    if attachment is not None:
+        value['attachment'] = attachment
+        value['native_attachment_custody'] = row['attachment']
     if registration.result_key is not None:
         # Syntax is a task-result contract, NOT an approval or proof of quality.
         terminal = re.match(r'^(?:<@!?[0-9]+>\s*)*(RESULT|BLOCKED)\s+'
@@ -252,7 +396,7 @@ def load_registrations(path):
     entries = []
     required = {'correlation', 'channel', 'state_dir', 'issuer', 'audience', 'subject', 'task_owner', 'action'}
     for r in config['registrations']:
-        if not required <= set(r) or set(r) - required - {'reply_id', 'content_sha256', 'result_key'}:
+        if not required <= set(r) or set(r) - required - {'reply_id', 'content_sha256', 'result_key', 'terminal_attachment'}:
             raise ValueError('invalid_registration_fields')
         if r['channel'] not in {CHANNEL, FINCH_CHANNEL, SHARED_CHANNEL}:
             raise ValueError('unauthorized_channel')
@@ -262,7 +406,7 @@ def load_registrations(path):
             1, r['state_dir'], r['issuer'], r['audience'], r['subject'], None,
             finch if is_finch else None, r['channel'] if is_finch else None)
         entries.append(Registration(scope, config['parent'], r['task_owner'], r['action'],
-            r.get('reply_id'), r.get('content_sha256'), r.get('result_key')))
+            r.get('reply_id'), r.get('content_sha256'), r.get('result_key'), r.get('terminal_attachment')))
     if len({r.receipt_id for r in entries}) != len(entries):
         raise ValueError('duplicate_registration')
     return config['receipt_state_dir'], entries
@@ -294,17 +438,26 @@ def main(argv=None):
     p.add_argument('--record', choices=['received', 'applied', 'rejected'])
     p.add_argument('--owner')
     p.add_argument('--evidence')
+    p.add_argument('--owner-handoff-plan', type=Path,
+        help='Private parent-reviewed exact-ticket/preimage successor receiving plan; record only')
     a = p.parse_args(argv)
     os.umask(0o077)
     try:
-        if any((a.receipt_id, a.record, a.owner, a.evidence)):
+        if any((a.receipt_id, a.record, a.owner, a.evidence, a.owner_handoff_plan)):
             if not all((a.receipt_id, a.record, a.owner, a.evidence)) or a.replay:
                 raise ValueError('complete_owner_disposition_required')
+            plan = None
+            if a.owner_handoff_plan:
+                private(a.owner_handoff_plan)
+                plan = json.loads(a.owner_handoff_plan.read_text())
+                if (not isinstance(plan, dict) or not isinstance(plan.get('ticket'), str)
+                        or a.config != Path(plan['ticket'])/'NATIVE-CONFIG.json'):
+                    raise ValueError('owner_handoff_config_refused')
             directory, registrations = load_registrations(a.config)
             if a.receipt_id not in {r.receipt_id for r in registrations}:
                 raise ValueError('unregistered_receipt')
             with Receipts(directory) as receipts:
-                result = receipts.record(a.receipt_id, a.owner, a.record, a.evidence)
+                result = receipts.record(a.receipt_id, a.owner, a.record, a.evidence, handoff_plan=plan)
         else:
             result = run(a.config, a.max_wait_seconds, a.replay)
         print(canonical(result), flush=True)

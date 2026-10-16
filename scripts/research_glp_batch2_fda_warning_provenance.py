@@ -12,7 +12,7 @@ args.add_argument('--output',type=Path)
 args.add_argument('--spec',type=Path,help='Onboarding program spec; check every non-excluded provider')
 args=args.parse_args()
 if not 1 <= args.limit <= 13: raise ValueError('limit_must_be_1_to_13')
-B=Path('/home/ubuntu/business'); OUT=args.output or B/'reports/glp-clinic-scout/fda-warning-search'/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'); RAW=OUT/'fda-warning-search-raw'; RAW.mkdir(parents=True,exist_ok=False)
+B=Path('/home/ubuntu/business'); OUT=(args.output or B/'reports/glp-clinic-scout/fda-warning-search'/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')).resolve(); RAW=OUT/'fda-warning-search-raw'; RAW.mkdir(parents=True,exist_ok=False)
 key_name='FIRE'+'CRAWL'+'_API'+'_KEY'; key=''
 for line in (Path.home()/'.hermes/.env').read_text(errors='ignore').splitlines():
     if line.startswith(key_name+'='): key=line.split('=',1)[1].strip(); break

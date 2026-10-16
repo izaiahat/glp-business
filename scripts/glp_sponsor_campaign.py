@@ -5,7 +5,8 @@ Send requires exact packet approval + config enablement + fresh ledger, mail,
 registry and contact admission. Ambiguous sends are durably claimed, never replayed.
 """
 from __future__ import annotations
-import argparse,base64,datetime as dt,fcntl,hashlib,json,os,re,sys,tempfile
+import argparse,base64,datetime as dt,fcntl,hashlib,json,os,re,sys,tempfile,time
+from contextlib import contextmanager
 from pathlib import Path
 from email.message import EmailMessage
 from email.parser import BytesParser
@@ -18,6 +19,54 @@ STATE=Path(os.environ.get('GLP_SPONSOR_STATE',str(ROOT/'reports/ops/sponsor-mach
 CONFIG=ROOT/'ops/sponsor-machine/campaign.json'
 SENDER='partners@glpclinicscout.com'
 INBOX_DB=Path('/home/ubuntu/.hermes/state/email-monitor.sqlite3')
+INBOX_POLL_LOCK=Path('/home/ubuntu/.hermes/state/email-monitor-cron.lock')
+INBOX_POLL_WAIT_SECONDS=240
+
+
+def notify_inbox_poll_timeout(job):
+ """One existing ops-alerts post; never retry an uncertain webhook submission."""
+ import urllib.request
+ body=(f'⚠️ **{job}** — canonical inbox poll lock unavailable after 240s\n\n'
+       'Outbound sends **0** · eligibility checks **not started** · failed closed\n'
+       '→ Inspect the running inbox poll and this job before any manual retry.\n'
+       '-# source: scheduled sponsor inbox boundary · internal only')
+ try:
+  url=(Path.home()/'.hermes/secrets/n8n/ops-alerts-webhook.txt').read_text().strip()
+  request=urllib.request.Request(url+('&' if '?' in url else '?')+'wait=true',
+   data=json.dumps({'content':body,'allowed_mentions':{'parse':[]}}).encode(),method='POST',
+   headers={'Content-Type':'application/json','User-Agent':'glp-sponsor-inbox-boundary/1.0'})
+  with urllib.request.urlopen(request,timeout=30) as response:receipt=json.loads(response.read())
+  if not receipt.get('id') or str(receipt.get('channel_id'))!='1487300132054765629':
+   raise RuntimeError('ops_alert_readback_mismatch')
+ except Exception as exc:
+  # URL-bearing exceptions are secret; do not expose them or retry a possible post.
+  print('sponsor_inbox_lock_alert_unconfirmed:'+type(exc).__name__,file=sys.stderr)
+
+
+@contextmanager
+def inbox_poll_boundary(*,alert=False,job='Sponsor outreach'):
+ """Wait for the canonical cron, then retain its stable snapshot through transport.
+
+ Lock order: poll -> campaign -> canonical SQLite boundary. Never unlink the
+ shared inode or rerun a poll here. All original eligibility guards still run.
+ """
+ INBOX_POLL_LOCK.parent.mkdir(parents=True,exist_ok=True)
+ with INBOX_POLL_LOCK.open('a+') as poll_lock:
+  deadline=time.monotonic()+INBOX_POLL_WAIT_SECONDS
+  while True:
+   try:
+    fcntl.flock(poll_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    break
+   except BlockingIOError as exc:
+    remaining=deadline-time.monotonic()
+    if remaining<=0:
+     if alert:notify_inbox_poll_timeout(job)
+     raise RuntimeError('canonical_inbox_poll_lock_timeout') from exc
+    time.sleep(min(0.25,remaining))
+  try:yield
+  finally:fcntl.flock(poll_lock,fcntl.LOCK_UN)
+
+
 CAMPAIGN='sponsor-20261003-v1'
 PT=ZoneInfo('America/Los_Angeles')
 DAY_DELAYS=(0,4,10)
@@ -192,6 +241,132 @@ def fresh_public_contact(recipient,at):
  return None
 
 
+# Targeting policy stays in the already packet-bound campaign module. The supply
+# producer may propose evidence, but must not supply executable admission policy.
+RESEARCH_ONLY = re.compile(r'research[- ]use[- ]only|for research (?:use|purposes) only|not for human (?:use|consumption)', re.I)
+CATEGORY = {
+    'telehealth_glp1': re.compile(r'(?:GLP[- ]?1|semaglutide|tirzepatide|Wegovy|Zepbound).{0,100}(?:treatment|prescription|telehealth)|(?:prescri\w+|telehealth|treatment).{0,100}(?:GLP[- ]?1|semaglutide|tirzepatide|Wegovy|Zepbound)', re.I),
+    'pharmacy': re.compile(r'(?:compounding|mail[- ]order|specialty) pharmacy|pharmacy.{0,50}(?:compounding|prescription delivery)', re.I),
+    'nutrition_protein': re.compile(r'protein (?:shakes?|powder|nutrition)|nutrition shakes?|meal replacement', re.I),
+    'meals': re.compile(r'meal delivery|prepared meals|healthy meals|meal plans', re.I),
+    'fitness': re.compile(r'fitness (?:app|training|program)|personal training|strength training|workout (?:app|program)', re.I),
+    'cgm': re.compile(r'continuous glucose monitor|metabolic health|glucose monitoring', re.I),
+    'weight_coaching': re.compile(r'weight[- ]loss (?:app|coaching|program)|weight management (?:app|coaching|program)', re.I),
+}
+COMMERCIAL = re.compile(r'\b(?:our|we|shop|buy|order|subscribe|membership|plans|products|program|patients|customers|offers?|provid\w+|prescri\w+|get started)\b', re.I)
+US_ADDRESS = re.compile(r'\b(?:CA|NY|TX|FL|MA|CO|WA|IL|AZ|NC|GA|PA|NJ|UT|TN|OH|OR|VA|NV|MD|CT|MN|MI|WI|MO|IN|KY|SC|AL|LA|OK|KS|NM|ID|IA|NE|AR|MS|NH|ME|RI|DE|VT|WV|MT|WY|ND|SD|HI|AK|DC)\s+\d{5}(?:-\d{4})?\b')
+LEGAL_NEGATOR = re.compile(
+    r'\b(?:Do Not Sell(?: or Share)? My Personal Information|Do Not Sell["”] box to remove your consent|'
+    r'no limit to the number of successful referrals|cannot be claimed again for subsequent referrals|'
+    r'If it is not claimed within this period, the offer will expire|'
+    r'not dependent on the referring client making any further successful referrals|'
+    r'Timeframes for results are not guaranteed)\b', re.I)
+SPONSOR_US_SCOPE = re.compile(r'(?:available|licensed|serv(?:e|es|ing)|operat\w*|residents|customers|patients|ship\w*|deliver\w*)\b.{0,80}(?:United States|U\.S\.|USA|\bUS\b|50 states)|(?:across|throughout|in all)\s+(?:the\s+)?(?:United States|U\.S\.|US|USA|50 states)|based in the United States', re.I)
+SPONSOR_US_REJECT = re.compile(r'copyright|©|usa-today|1 out of 5|Pharmacopeia|not available in (?:all|every)|\bnot (?:yet )?(?:licensed|offered)', re.I)
+
+
+def sponsor_fit(text):
+    """Commercial first-party excerpt, not a seed/domain or generic blog keyword."""
+    # Refuse ambiguous/negative context before clipping: a long product list
+    # must not lose its governing negator. Deliberately prefer false negatives
+    # (including double negatives and "not only") to unsupported admission.
+    # Same narrow legal contexts as the producer; retain full-page product/RUO gate.
+    if RESEARCH_ONLY.search(text) or re.search(r"\b(?:no|not|never|neither|nor|cannot|no longer|\w+n['’]t)\b", LEGAL_NEGATOR.sub('', text), re.I):
+        return None
+    for category, pattern in CATEGORY.items():
+        for match in pattern.finditer(text):
+            start, end = max(0, match.start()-120), match.end()+180
+            # The receiver rechecks this original quote. Keep recognized literal
+            # legal clauses whole rather than leaving unexplained negators.
+            for clause in LEGAL_NEGATOR.finditer(text):
+                if clause.start() < start < clause.end():
+                    start = clause.start()
+                if clause.start() < end < clause.end():
+                    end = clause.end()
+            excerpt = text[start:end].strip()
+            if COMMERCIAL.search(excerpt):
+                return category, excerpt
+    return None
+
+
+def research_only_organization(host, org, campaign):
+    for page in org.get('discovery', {}).get('_markup', []):
+        markup = page.get('html', '')
+        if campaign.source_on_provider(page.get('final_url', page.get('url')), host) and hashlib.sha256(markup.encode('utf-8', 'replace')).hexdigest() == page.get('sha256'):
+            if RESEARCH_ONLY.search(campaign.public_page_hits(markup)[1]):
+                return True
+    return False
+
+
+def sponsor_scope_current(host, organization, campaign, at):
+    import glp_sponsor_readiness as readiness
+    qualified = []
+    for ev in organization.get('scope_evidence', []):
+        if not campaign.source_on_provider(ev.get('source_url'), host) or not readiness.current_evidence(
+                {'captured_at_utc': ev.get('observed_utc'), 'evidence_sha256': ev.get('sha256')}, at):
+            continue
+        for page in organization.get('discovery', {}).get('_markup', []):
+            markup = page.get('html', '')
+            if page.get('final_url', page.get('url')) != ev['source_url'] or hashlib.sha256(markup.encode('utf-8', 'replace')).hexdigest() != ev['sha256']:
+                continue
+            _, text = campaign.public_page_hits(markup)
+            if RESEARCH_ONLY.search(text):
+                return []
+            norm = lambda s: ' '.join(str(s).split()).casefold()
+            excerpt = ev.get('sponsor_category_excerpt') or ev.get('country_excerpt')
+            if not excerpt or norm(excerpt) not in norm(text):
+                continue
+            # Recheck the complete bound page, not merely a proposal substring
+            # which may have dropped a negator before its category keyword.
+            if ev.get('sponsor_category') in CATEGORY and sponsor_fit(text) and sponsor_fit(excerpt) and CATEGORY[ev['sponsor_category']].search(excerpt):
+                qualified.append(ev)
+            elif ev.get('country') == 'US' and not SPONSOR_US_REJECT.search(excerpt) and (SPONSOR_US_SCOPE.search(excerpt) or US_ADDRESS.search(excerpt)):
+                qualified.append(ev)
+    return qualified
+
+
+def sponsor_rows(discovery, registry_rows, local, campaign, at):
+    """Supplement the existing recipient census; never write a provider registry row."""
+    from glp328_outreach_policy import _same_adverse_org
+    held = {r['host'] for r in registry_rows if r.get('blocks_org') and r.get('host')}
+    held_names = {campaign.normalize(r.get('program', '')) for r in registry_rows if r.get('blocks_org')}
+    blocked = held | {x['domain'] for x in local['suppression']['entries']} | {x['domain'] for x in local['conversations']}
+    out = {}
+    if not local['suppression']['complete']:
+        return out
+    for host, org in sorted(discovery.get('organizations', {}).items()):
+        name = str(org.get('provider') or host)
+        if ('fella' in (host + name).lower() or campaign.normalize(name) in held_names
+                or host.endswith(campaign.PLATFORMS) or any(_same_adverse_org(host, h) for h in blocked)
+                or research_only_organization(host, org, campaign)):
+            continue
+        scope = sponsor_scope_current(host, org, campaign, at)
+        if any(x.get('sponsor_category') for x in scope) and any(x.get('country') == 'US' for x in scope):
+            out[host] = [{'program': name, 'host': host, 'row': None, 'population': 'pending', 'eligible': True}]
+    return out
+
+
+def reconcile_public_stock(discovery,at):
+ """Label retained stock; never delete evidence or grant delivery permission.
+
+ Caller persists under the existing campaign run.lock. Each address must bind
+ its own first-party public evidence; another published address is not proof.
+ """
+ held=set()
+ for host,org in discovery.get('organizations',{}).items():
+  d=org.get('discovery') or {};seen=set()
+  rows=list(org.get('professional_contacts') or [])+[d,d.get('contact_evidence') or {}]+list(d.get('candidates') or [])
+  for row in rows:
+   if not isinstance(row,dict) or id(row) in seen:continue
+   seen.add(id(row));email=str(row.get('email') or row.get('address') or row.get('contact_email') or '').lower()
+   if not email:continue
+   if not public_business_contact(host,org,at,exact_email=email):
+    row['stock_status']='HELD_NOT_PUBLIC';held.add((host,email))
+   elif row.get('stock_status')=='HELD_NOT_PUBLIC':
+    row['stock_status']='PUBLIC_EVIDENCE_PRESENT' # not send eligibility
+ return len(held)
+
+
 def recipients(values,discovery,local):
  """Census every registry row; only public business-purpose contacts survive.
 
@@ -212,35 +387,37 @@ def recipients(values,discovery,local):
   med_evidenced=any(x.get('medication_provider_excerpt') for x in scope)
   us_evidenced=any(x.get('country')=='US' and re.search(r'customers|residents|areaServed|PostalAddress|available|across|pricing|states|doctors|WW USA',x.get('country_excerpt',''),re.I) and not re.search(r'copyright|usa-today|1 out of 5',x.get('country_excerpt',''),re.I) for x in scope)
   if any(same(h,b) for b in held_hosts) or normalize(name) in held_names or 'fella' in name.lower():reason='held_or_excluded_organization'
+  elif research_only_organization(h,discovery.get('organizations',{}).get(h,{}),sys.modules[__name__]):reason='research_use_only_excluded'
   elif any(h.endswith(p) for p in PLATFORMS):reason='registry_official_host_is_portal_unresolved'
   elif not (MEDICATION.search(' '.join(map(str,[raw[3],raw[7],name]))) or med_evidenced) or re.search(r'snack|nutrition|serum|ring|tracker|belt|supplement',name,re.I):reason='not_glp_medication_provider'
   elif not (re.search(r'\bUS\b|United States|USA', ' '.join(map(str,[raw[3],raw[7],name])),re.I) or us_evidenced):reason='us_program_scope_unknown'
   if reason:exclusions.append({**r,'reason':reason});continue
   organizations.setdefault(h,[]).append(r)
+ # Sponsor discovery is a separate commercial census, not a registry mutation.
+ for h,rs in sponsor_rows(discovery,rows,local,sys.modules[__name__],now()).items():
+  organizations.setdefault(h,rs)
  candidates=[]
  import glp_sponsor_readiness as readiness
  for h,rs in sorted(organizations.items()):
   organization=discovery.get('organizations',{}).get(h,{})
-  professional=readiness.professional_contact(h,organization.get('professional_contacts',[]),now())
   reason='';d=organization.get('discovery',{});email=str(d.get('contact_email') or '').lower();ev=d.get('contact_evidence') or {}
-  public=None if professional else public_business_contact(h,organization,now())
-  if professional:
-   email=professional['email'].lower();ev=professional
-  elif public:email=public['address'];ev=public
+  # Professional enrichment is research only; it cannot substitute for literal
+  # first-party public role/context evidence, even with a deliverable mailbox.
+  public=public_business_contact(h,organization,now())
+  if public:email=public['address'];ev=public
   if not local['suppression']['complete']:reason='suppression_ledger_incomplete'
   elif any(same(h,x['domain']) for x in local['suppression']['entries']):reason='suppressed_organization'
   elif any(same(h,x['domain']) for x in local['conversations']):reason='existing_legacy_conversation'
   elif h in ('nuimage.com','nuimagemedical.com') or re.search(r'nu\s*image',rs[0]['program'],re.I):reason='nu_image_warm_conversation_excluded'
-  elif not professional and (not email or not BUSINESS_LOCALS.fullmatch(email.split('@')[0]) or not same(email.split('@')[-1],h)):reason='no_verified_business_purpose_contact'
-  elif not professional and ev.get('tier',d.get('contact_tier')) not in ('partnerships','named_on_partnerships_page'):reason='contact_purpose_unverified'
-  elif not professional and (not ev.get('page_sha256') or not ev.get('found_on') or ev.get('address','').lower()!=email or not ev.get('captured_at_utc') or ev.get('how') not in ('mailto','cloudflare_obfuscated','visible_text','published_text')):reason='contact_evidence_incomplete'
-  elif not professional and not public:reason='public_source_or_role_evidence_unknown'
-  if reason:exclusions.append({'host':h,'rows':[r['row'] for r in rs],'reason':reason});continue
+  elif not public:reason='public_source_or_role_evidence_unknown'
+  if reason:
+   exclusions.append({'host':h,'rows':[r['row'] for r in rs],'reason':reason,
+                      **({'status':'HELD_NOT_PUBLIC'} if not public else {})});continue
   if any(same(h,c['host']) or email==c['email'] for c in candidates):
    exclusions.append({'host':h,'reason':'organization_contact_deduplicated'});continue
   candidates.append({'organization':rs[0]['program'],'host':h,'email':email,'rows':[r['row'] for r in rs],'population':'approved' if any(r['population']=='approved' for r in rs) else 'pending','contact_evidence':ev,'purpose':'relevant US-provider sponsorship proposal; no patient data','consent_basis':'published business-purpose contact; operator campaign approval still required'})
   relation=readiness.relationship(h,organization.get('relationship_evidence',{}),now())
-  candidates[-1].update(contact_source='apollo' if professional else 'published_business_contact',relationship=relation,verification=readiness.bouncer_readiness(email,ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl',now()))
+  candidates[-1].update(contact_source='published_business_contact',relationship=relation,verification=readiness.bouncer_readiness(email,ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl',now()))
  return {'registry_rows':len(rows),'candidate_rows':sum(r['eligible'] for r in rows),'recipients':candidates,'exclusions':exclusions,'send_enabled':False}
 
 def footer(config):
@@ -310,7 +487,7 @@ def campaign_config():
 # local custody has the same trust boundary as the existing personal receipt.
 TECHNICAL_PREDECESSOR_SHA256='7ec96bf1fe44ef69fc4c7a5c2f1090420bff3d6e15140d00c02c1ac93444d95c'
 TECHNICAL_SOURCE_SHA256={
- 'scripts/firecrawl_client.py':'a3b8df3dd8436aebbf71829be9daf078a3c135462d0bdac68e2c613bc50b4552',
+ 'scripts/firecrawl_client.py':'d850907ff65c53ba60ae5f51f485408484a599851b1792b80d7ec067d3bb6d3b',
  'scripts/glp328_readonly_evidence.py':'bf1854217b20be3b551994f882b1e7fb4c4971930ed195cec42c714dbc4fbaee',
  'scripts/glp_sponsor_paypal.py':'99751607fcb43551b7f58ca7d5b9236291786aaf0e8a503abce98ce2cd71d3f7',
  'ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md':'9b5cd76a5e81c5d7e5e1328888f6501ebafb1fb4bbb9621da9ea855dae5981e2',
@@ -484,17 +661,24 @@ def mail_admit(recipient,previous,client):
   else:raise RuntimeError('mail_coverage_incomplete')
  return True,''
 
-def send_message(client,preview,previous,attachments):
- """Use existing partner-mail client and verified alias, with attachment readback."""
- require_sponsor_send_window()
+def prepare_message(client,preview,previous,attachments,*,at=None):
+ """Shared alias, style, MIME and attachment admission; no send effect."""
+ require_sponsor_send_window(at)
  import glp_application_email_apply as partner
+ from inbox_control_plane.outbound_style_guard import assert_dash_free
+ assert_dash_free(preview['subject']+'\n'+preview['body'])
  partner.require_alias(client)
  message=EmailMessage();message['From']=f'GLP Clinic Scout <{SENDER}>';message['Reply-To']=SENDER;message['To']=preview['to'];message['Subject']=preview['subject'];message['List-Unsubscribe']=f'<mailto:{SENDER}?subject=STOP>'
  if previous.get('sent'):
   initial=previous['sent'][0];message['In-Reply-To']=initial['rfc_message_id'];message['References']=initial['rfc_message_id']
  message.set_content(preview['body'])
  for p in attachments:message.add_attachment(p.read_bytes(),maintype='application',subtype='pdf',filename=p.name)
- raw=base64.urlsafe_b64encode(message.as_bytes()).decode()
+ return base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+
+def send_message(client,preview,previous,attachments):
+ """Use existing partner-mail client and verified alias, with attachment readback."""
+ raw=prepare_message(client,preview,previous,attachments)
  require_sponsor_send_window()  # Alias/authentication/attachments may cross 17:00.
  if previous.get('sent'):
   # Thread binding uses the same authorized client, with its dash check above.
@@ -635,16 +819,21 @@ def consume_reply_stops(ledger,db=None,at=None):
       entry.update(stopped=stop['kind'],stop_event_id=stop['event_id'],reply_state=stop)
       result['applied']+=1
    try:
-    cursors=connection.execute("SELECT m.mailbox_id,m.lifecycle,m.freshness_sla_seconds,c.last_auth_success_at,c.last_read_success_at,c.last_complete_poll_at,c.unhealthy_reason,c.poll_receipt_id,r.finished_at,r.exit_status,r.discovered_count,r.persisted_count,r.duplicate_count FROM mailboxes m JOIN provider_cursors c USING(mailbox_id) JOIN inbox_runs r ON r.run_id=c.poll_receipt_id WHERE m.mailbox_id IN ('glp_ops_gmail','glp_izaiah_gmail')").fetchall()
+    run_columns={row[1] for row in connection.execute('PRAGMA table_info(inbox_runs)')}
+    skipped='r.non_inbound_count' if 'non_inbound_count' in run_columns else '0'
+    cursors=connection.execute("SELECT m.mailbox_id,m.lifecycle,m.freshness_sla_seconds,c.last_auth_success_at,c.last_read_success_at,c.last_complete_poll_at,c.unhealthy_reason,c.poll_receipt_id,r.finished_at,r.exit_status,r.discovered_count,r.persisted_count,r.duplicate_count,"+skipped+" FROM mailboxes m JOIN provider_cursors c USING(mailbox_id) JOIN inbox_runs r ON r.run_id=c.poll_receipt_id WHERE m.mailbox_id IN ('glp_ops_gmail','glp_izaiah_gmail')").fetchall()
     if {r[0] for r in cursors}!={'glp_ops_gmail','glp_izaiah_gmail'}:return result
-    # Current canonical adapter uses last_complete_poll_at as its watermark;
-    # its cursor column is not populated. Backlog_count counts discovered mail,
-    # so verify the finished run's persisted+duplicate closure instead.
-    for box,lifecycle,sla,auth,read,complete,unhealthy,receipt,finished,status,found,persisted,duplicates in cursors:
-     if lifecycle!='active' or not receipt or status!='pass' or not finished or unhealthy or found!=persisted+duplicates:return result
+    # Closure includes only provider-labelled non-inbound drafts/sent copies,
+    # not unknown ingestion refusals or deferred unseen messages.
+    for box,lifecycle,sla,auth,read,complete,unhealthy,receipt,finished,status,found,persisted,duplicates,non_inbound in cursors:
+     if (lifecycle!='active' or not receipt or status!='pass' or not finished or unhealthy
+         or non_inbound<0 or found!=persisted+duplicates+non_inbound):return result
      for timestamp in (auth,read,complete,finished):
       age=at-dt.datetime.fromisoformat(timestamp)
-      if not dt.timedelta(0)<=age<=dt.timedelta(seconds=min(int(sla),900)):return result
+      if age<dt.timedelta(0):return result
+      if age>dt.timedelta(seconds=min(int(sla),900)):
+       result['reason']='stale_complete_poll'
+       return result
     result.update(status='read_complete',mailboxes=[r[0] for r in cursors])
    except (sqlite3.Error,ValueError,TypeError):
     return result
@@ -653,20 +842,57 @@ def consume_reply_stops(ledger,db=None,at=None):
  return result
 
 
+def refresh_canonical_poll():
+ """Use the installed read-only inbox producer under our existing poll flock.
+
+ Never call the flock-taking cron wrapper recursively. No dispatch, decisions,
+ provider drafts or sends; the canonical producer alone owns cursor writes.
+ This call must finish before opening the SQLite send transaction.
+ """
+ import subprocess
+ try:
+  proc=subprocess.run([sys.executable,str(ROOT/'inbox_control_plane/control_plane.py'),
+                       '--poll','--limit','250'],capture_output=True,text=True,timeout=240)
+  receipt=json.loads(proc.stdout)
+  if (proc.returncode!=0 or receipt.get('status')!='pass' or not receipt.get('run_id')
+      or receipt.get('outbound_send_count')!=0 or receipt.get('provider_draft_count')!=0
+      or receipt.get('provider_mutation_count')!=0 or receipt.get('secret_printed') is not False):
+   raise ValueError('poll_receipt_refused')
+ except (subprocess.TimeoutExpired,OSError,ValueError,TypeError,AttributeError) as exc:
+  # Provider stdout/stderr and exception strings may contain private data.
+  raise RuntimeError('canonical_sponsor_poll_refresh_failed') from None
+
+
+def reply_coverage(ledger,*,allow_poll_refresh=False):
+ """One actual poll can renew expired proof; a no-send forecast never writes it."""
+ result=consume_reply_stops(ledger)
+ if allow_poll_refresh and result.get('reason')=='stale_complete_poll':
+  applied=result['applied']
+  refresh_canonical_poll()
+  result=consume_reply_stops(ledger) # New effect time and newly committed stops.
+  result['applied']+=applied
+ return result
+
+
 from contextlib import contextmanager
 @contextmanager
-def canonical_send_boundary(ledger,at,required):
+def canonical_send_boundary(ledger,at,required,*,persist_stops=True,allow_poll_refresh=False):
  """Serialize canonical stop commits with the durable claim and send receipt."""
  if not required:
   yield
   return
+ if allow_poll_refresh:
+  readiness=reply_coverage(ledger,allow_poll_refresh=True)
+  if readiness['applied'] and persist_stops:save(STATE/'ledger.json',ledger)
+  if readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
+  at=now() # Never grant an expired caller time after a slow poll.
  import sqlite3
  db=sqlite3.connect(INBOX_DB.as_uri()+'?mode=rw',uri=True,timeout=5)
  try:
   with db:
    db.execute('BEGIN IMMEDIATE')
    readiness=consume_reply_stops(ledger,db=db,at=at)
-   if readiness['applied']:save(STATE/'ledger.json',ledger)
+   if readiness['applied'] and persist_stops:save(STATE/'ledger.json',ledger)
    if readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
    yield
  finally:db.close()
@@ -712,7 +938,7 @@ def refresh_paypal_orders(config,at,dry_run=False,finance_hosts=(),ledger=None):
      # is only initial admission (and an offline fixture seam), not a final
      # permission surviving merchant authentication or other slow reads.
      current_hosts=invoice_provider_hosts(read_values(),read_local()) if ledger is not None else finance_hosts
-     with canonical_send_boundary(ledger if ledger is not None else {},now(),ledger is not None):
+     with canonical_send_boundary(ledger if ledger is not None else {},now(),ledger is not None,allow_poll_refresh=not dry_run):
       host=order['provider_host']
       if host not in current_hosts:raise ValueError('sponsor_invoice_provider_held')
       if ledger is not None:
@@ -779,7 +1005,7 @@ def send_interested_next_steps(ledger,config,finance_hosts,capacity):
   # Authentication can take time. Re-read current registry and suppression at
   # the same final boundary as invoice admission; canonical opt-outs win next.
   current_hosts=invoice_provider_hosts(read_values(),read_local())
-  with canonical_send_boundary(ledger,now(),True):
+  with canonical_send_boundary(ledger,now(),True,allow_poll_refresh=True):
    if entry.get('stopped')!='interested' or entry.get('stop_event_id')!=event or entry['host'] not in current_hosts:continue
    entry['next_step_claim']={'event_id':event,'at':stamp(),'packet_sha256':config['packet_sha256']}
    save(STATE/'ledger.json',ledger)
@@ -789,30 +1015,38 @@ def send_interested_next_steps(ledger,config,finance_hosts,capacity):
  return sent
 
 
-def run(config,dry_run=False):
+def run(config,dry_run=False,*,transport_preflight=False,preflight_at=None):
+ if preflight_at is not None and not transport_preflight:raise ValueError('preflight_at_requires_transport_preflight')
+ if transport_preflight and dry_run:raise ValueError('choose_preview_or_transport_preflight')
  STATE.mkdir(parents=True,exist_ok=True)
- with (STATE/'run.lock').open('a') as lock:
+ with inbox_poll_boundary(alert=not dry_run and not transport_preflight), (STATE/'run.lock').open('a') as lock:
   fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
   enabled=False if dry_run else approval_ready(config)
-  at=now();pt=at.astimezone(PT)
+  if transport_preflight and not enabled:raise RuntimeError('transport_preflight_approval_required')
+  at=preflight_at or now();pt=at.astimezone(PT)
   if enabled:require_sponsor_send_window(at)
+  would_send=0;admitted=[]
   values=read_values();discovery=load(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json');local=read_local()
+  reconcile_public_stock(discovery,at)
+  if not dry_run and not transport_preflight:save(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json',discovery)
   plan=recipients(values,discovery,local)
-  sourcing_readiness=refresh_apollo_sources(plan,at) if config.get('apollo_read_only_discovery') is True else {'status':'not_requested','email_verification':'unknown','enrichment_debits':0}
-  if enabled:
+  sourcing_readiness=refresh_apollo_sources(plan,at) if not transport_preflight and config.get('apollo_read_only_discovery') is True else {'status':'not_requested','email_verification':'unknown','enrichment_debits':0}
+  if enabled and not transport_preflight:
    sourcing_readiness['professional']=refresh_professional_sources(plan,discovery,at,config)
    if sourcing_readiness['professional']['status']!='disabled_pending_approval':
+    reconcile_public_stock(discovery,at)
     save(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json',discovery)
     plan=recipients(values,discovery,local)
   import glp_sponsor_readiness as readiness
   if not local['suppression']['complete']:raise RuntimeError('suppression_ledger_incomplete:'+','.join(local['faults']))
   ledger=load(STATE/'ledger.json') if (STATE/'ledger.json').exists() else {}
-  reply_readiness=consume_reply_stops(ledger)
-  if reply_readiness['applied']:save(STATE/'ledger.json',ledger)
+  reply_readiness=reply_coverage(ledger,allow_poll_refresh=enabled and not transport_preflight and config.get('require_canonical_reply_coverage') is True)
+  if reply_readiness['applied'] and not transport_preflight:save(STATE/'ledger.json',ledger)
   finance_hosts=invoice_provider_hosts(values,local) if reply_readiness['status']=='read_complete' else ()
   finance_hosts={host for host in finance_hosts if not any(same(host,row.get('host',email.split('@')[-1]))
                  and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items())}
-  payment_readiness=refresh_paypal_orders(config,at,dry_run=dry_run,finance_hosts=finance_hosts,ledger=ledger)
+  payment_readiness=(dict(status='not_requested_transport_preflight',financial_writes=0,financial_write_attempts=0) if transport_preflight
+                     else refresh_paypal_orders(config,at,dry_run=dry_run,finance_hosts=finance_hosts,ledger=ledger))
   if enabled and config.get('require_canonical_reply_coverage') is True and reply_readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
   sent_today=sum(dt.datetime.fromisoformat(s['sent_at']).astimezone(PT).date()==pt.date() for entry in ledger.values() for s in entry.get('sent',[]))
   # An outstanding claim may already have delivered despite failed readback.
@@ -831,7 +1065,7 @@ def run(config,dry_run=False):
    if claim and dt.datetime.fromisoformat(claim['at']).astimezone(PT).date()==pt.date():used[int(claim['stage']>0)]+=1
   remaining={0:max(0,int(config.get('new_provider_daily_cap',config.get('batch_cap',25)))-used[0]),1:max(0,int(config.get('follow_up_daily_cap',25))-used[1])}
   total_remaining=max(0,config.get('batch_cap',25)-sent_today)
-  next_steps=send_interested_next_steps(ledger,config,invoice_provider_hosts(read_values(),read_local()),remaining[1]) if enabled else 0
+  next_steps=send_interested_next_steps(ledger,config,invoice_provider_hosts(read_values(),read_local()),remaining[1]) if enabled and not transport_preflight else 0
   selected={0:0,1:0};sent_by_kind={0:0,1:next_steps};previews=[];sent_count=next_steps;read_client=None;boundary_exclusions=[]
   for recipient in plan['recipients']:
    stage=due(recipient,ledger,at)
@@ -842,7 +1076,7 @@ def run(config,dry_run=False):
    kind=int(stage>0)
    if split:
     if (sent_by_kind[kind] if enabled else selected[kind])>=remaining[kind]:continue
-   elif (sent_count if enabled else len(previews))>=total_remaining:break
+   elif ((sent_count+would_send) if enabled else len(previews))>=total_remaining:break
    rendered=render(recipient,stage,config);previews.append(rendered);selected[kind]+=1
    if not enabled:continue
    # Old discovery is a census, not a perpetual permission. Reverify the exact
@@ -861,14 +1095,17 @@ def run(config,dry_run=False):
    if read_client is None:read_client=service('read')
    previous=ledger.setdefault(recipient['email'],{})
    allowed,reason=mail_admit(recipient,previous,read_client)
-   if not allowed:previous['stopped']=reason;save(STATE/'ledger.json',ledger);continue
+   if not allowed:
+    previous['stopped']=reason
+    if not transport_preflight:save(STATE/'ledger.json',ledger)
+    continue
    # Re-read suppression immediately before effect, unioned with all own stops.
    if not any(r['email']==recipient['email'] for r in recipients(read_values(),discovery,read_local())['recipients']):continue
-   send_client=service('send') # Complete potentially blocking authentication BEFORE the final claim gate.
-   with canonical_send_boundary(ledger,now(),config.get('require_canonical_reply_coverage') is True):
+   send_client=service('read' if transport_preflight else 'send') # Preflight requests no send-capable authentication.
+   with canonical_send_boundary(ledger,now(),config.get('require_canonical_reply_coverage') is True,persist_stops=not transport_preflight,allow_poll_refresh=not transport_preflight):
     # Re-read the LAST shared-ledger decision after all contact/mail/auth work,
     # using effect-boundary time, not run-start time. This is a read, never a debit.
-    boundary_at=now();boundary_pt=boundary_at.astimezone(PT)
+    boundary_at=at if transport_preflight else now();boundary_pt=boundary_at.astimezone(PT)
     if boundary_pt.weekday()>=5 or not 6<=boundary_pt.hour<17:
      boundary_exclusions.append({'host':recipient['host'],'reason':'outside_approved_weekday_06_17_PT_send_window'});continue
     if config.get('require_bouncer') is True:
@@ -879,6 +1116,15 @@ def run(config,dry_run=False):
      boundary_exclusions.append({'host':recipient['host'],'reason':'boundary_professional_contact_expired'});continue
     # Stops committed during contact/mail/suppression reads win before claim.
     if due(recipient,ledger,boundary_at)!=stage:continue
+    if not approval_ready(config):raise RuntimeError('sponsor_approval_changed_at_boundary')
+    if not any(r['email']==recipient['email'] for r in recipients(read_values(),discovery,read_local())['recipients']):continue
+    attachments=[ROOT/'reports/ops/sponsor-machine-20261003/assets'/n for n in rendered['attachments']]
+    require_sponsor_send_window(boundary_at)
+    if transport_preflight:
+     prepare_message(send_client,rendered,previous,attachments,at=boundary_at)
+     would_send+=1;admitted.append({'host':recipient['host'],'email':recipient['email'],'stage':stage})
+     sent_by_kind[kind]+=1 # Capacity reservations only, never reported as sends.
+     continue
     previous.update(host=recipient['host'],organization=recipient['organization'],contact_source=recipient.get('contact_source','published_business_contact'),variant=rendered['variant'])
     previous['claimed']={'stage':stage,'at':stamp(boundary_at),'packet_sha256':config['packet_sha256']};save(STATE/'ledger.json',ledger)
     receipt=send_message(send_client,rendered,previous,[ROOT/'reports/ops/sponsor-machine-20261003/assets'/n for n in rendered['attachments']])
@@ -898,14 +1144,126 @@ def run(config,dry_run=False):
    'follow_up_count':'actual reconciled follow-up and interested-reply sends in this run',
    'target_new_provider_daily_cap':config.get('new_provider_daily_cap',config.get('batch_cap',25)),
    'current_new_provider_supply':None})
-  save(STATE/'latest-dry-run.json' if not enabled else STATE/'latest-run.json',receipt)
+  receipt.update(would_send=would_send,admitted_recipients=admitted,
+                 run_type='transport_preflight' if transport_preflight else receipt['run_type'],
+                 preflight_slot=stamp(at) if transport_preflight else None,
+                 coverage_observed_at=stamp() if transport_preflight else None)
+  if transport_preflight:receipt.update(new_provider_count=0,follow_up_count=0)
+  if not transport_preflight:save(STATE/'latest-dry-run.json' if not enabled else STATE/'latest-run.json',receipt)
   return receipt
+
+# Only exact maintained reason literals may cross the diagnostic boundary. Never
+# stringify arbitrary exceptions (HTTP libraries often embed bodies/credentials).
+FAILURE_CODES=frozenset('''
+approval_or_postal_address_incomplete approved_manifest_not_in_packet
+approved_packet_binding_missing approved_packet_member_ambiguous
+attachment_readback_failed bouncer_guard_access_unconfirmed
+canonical_inbox_poll_lock_timeout canonical_sponsor_poll_refresh_failed
+canonical_sponsor_reply_coverage_incomplete canonical_sponsor_reply_coverage_unknown
+choose_preview_or_transport_preflight coordinator_technical_receiving_invalid
+current_sponsor_source_binding_missing exact_operator_approval_missing
+mail_coverage_incomplete mail_pagination_cycle ops_alert_readback_mismatch
+original_personal_message_scope_changed outbound_dash_rule
+outside_approved_weekday_06_17_PT_send_window packet_bytes_changed
+paypal_draft_readback_missing paypal_request_readback_missing poll_receipt_refused
+preflight_at_requires_transport_preflight registry_schema_drift
+sent_identity_readback_failed sponsor_activation_invalid
+sponsor_approval_changed_at_boundary sponsor_invoice_provider_held
+sponsor_invoice_provider_stopped technical_manifest_binding_missing
+technical_manifest_invalid technical_manifest_outward_changed
+technical_manifest_scope_changed technical_manifest_source_missing
+technical_packet_binding_missing technical_packet_member_ambiguous
+technical_packet_scope_changed technical_predecessor_changed
+technical_sender_not_reviewed transport_preflight_approval_required
+independent_installed_source_review_required current_coordinator_authority_missing
+current_coordinator_execution_required current_coordinator_receiving_invalid
+recorded_operator_receiving_invalid current_packet_config_changed
+current_packet_manifest_invalid current_packet_manifest_not_installed
+current_packet_members_invalid current_operator_decision_missing
+'''.split())
+FAILURE_PREFIX_CODES=frozenset('''
+approved_asset_changed approved_packet_source_changed
+current_coordinator_execution_required current_coordinator_receiving_invalid
+current_packet_campaign_guard_changed current_packet_installed_binding_changed
+current_packet_member_changed technical_admission_source_changed
+technical_outward_bytes_changed suppression_ledger_incomplete
+'''.split())
+
+
+def safe_failure_diagnostic(exc):
+ """Bounded, JSON-only metadata; no traceback text, source lines or locals.
+
+ Unknown messages are entirely redacted, not regex-scrubbed: even innocent
+ looking HTTP text may contain credentials. Preserve the innermost throw site
+ and class chain without retaining exception objects in the receipt.
+ """
+ result={'error_code':'sponsor_unexpected_failure','message':'[redacted unexpected exception]',
+         'origin':None,'exception_chain':[]}
+ try:
+  args=exc.args
+  if len(args)==1 and type(args[0]) is str:
+   if args[0] in FAILURE_CODES:result.update(error_code=args[0],message=args[0])
+   else:
+    prefix,separator,_=args[0].partition(':')
+    if separator and prefix in FAILURE_PREFIX_CODES:
+     result.update(error_code=prefix,message=prefix+':[redacted details]')
+  tb=exc.__traceback__
+  if tb:
+   while tb.tb_next:tb=tb.tb_next
+   code=tb.tb_frame.f_code
+   filename=Path(code.co_filename).name
+   function=code.co_name
+   result['origin']={
+    'filename':filename if re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,95}\.py',filename) else '[redacted]',
+    'function':function if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,95}|<module>|<lambda>',function) else '[redacted]',
+    'line':tb.tb_lineno}
+  seen=set();current=exc
+  while current is not None and id(current) not in seen and len(seen)<8:
+   seen.add(id(current));name=type(current).__name__
+   result['exception_chain'].append(name if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,63}',name) else 'Exception')
+   current=current.__cause__ if current.__cause__ is not None else (None if current.__suppress_context__ else current.__context__)
+ except Exception:pass # Reporting cannot change the original fail-closed outcome.
+ return result
+
 
 def main():
  sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'ops'),str(ROOT)]
- ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--scheduled',action='store_true');args=ap.parse_args()
- config=campaign_config()
- r=run(config,dry_run=args.dry_run)
- if args.dry_run:print(json.dumps({k:v for k,v in r.items() if k not in ('previews','exclusions')},sort_keys=True))
+ ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--scheduled',action='store_true')
+ ap.add_argument('--transport-preflight',action='store_true');ap.add_argument('--preflight-at',type=dt.datetime.fromisoformat);args=ap.parse_args()
+ try:
+  config=campaign_config()
+  r=run(config,dry_run=args.dry_run,transport_preflight=args.transport_preflight,preflight_at=args.preflight_at)
+ except Exception as exc:
+  # All entry modes use the same safe reporting boundary. Diagnostic modes
+  # remain non-sending; never leak a raw HTTP exception via their traceback.
+  # A failed batch may have sent many messages. Report durable PT-day totals,
+  # never claim this exception means zero effects or authorize a blind replay.
+  failure={'status':'FAILED_RECONCILE_BEFORE_RETRY','error_class':type(exc).__name__,
+           'generated_utc':stamp(),'scope':'PT-day ledger totals, not current-run totals',
+           'replay_allowed':False,'day_sends':None,'outstanding_claims':None}
+  failure.update(error_code='sponsor_diagnostic_unavailable',message='[redacted diagnostic unavailable]',
+                 origin=None,exception_chain=[])
+  try:failure.update(safe_failure_diagnostic(exc))
+  except Exception:pass
+  try:
+   ledger=load(STATE/'ledger.json');day=now().astimezone(PT).date()
+   day_sends=[];claims=[]
+   for email,entry in ledger.items():
+    for sent in entry.get('sent',[])+([entry['next_step_receipt']] if entry.get('next_step_receipt') else []):
+     if dt.datetime.fromisoformat(sent['sent_at']).astimezone(PT).date()==day:
+      day_sends.append({'email':email,'message_id':sent['message_id'],'sent_at':sent['sent_at']})
+    for key in ('claimed','next_step_claim'):
+     claim=entry.get(key)
+     if claim and dt.datetime.fromisoformat(claim['at']).astimezone(PT).date()==day:
+      claims.append({'email':email,'kind':key,'at':claim['at']})
+   failure.update(pt_day=day.isoformat(),day_sends=day_sends,outstanding_claims=claims)
+  except (OSError,ValueError,KeyError,TypeError,AttributeError):pass # Unknown is not zero.
+  try:save(STATE/'latest-failure.json',failure)
+  except Exception:pass # Serialization/storage failure must still exit 1 safely.
+  count='unknown' if failure['day_sends'] is None else len(failure['day_sends'])
+  claims='unknown' if failure['outstanding_claims'] is None else len(failure['outstanding_claims'])
+  print(f"Sponsor outreach FAILED ({failure['error_class']}; {failure['error_code']}); PT-day confirmed sends: {count}; outstanding claims: {claims}. Reconcile ledger and Gmail before retry; not current-run totals.",file=sys.stderr)
+  raise SystemExit(1) from None
+ if args.dry_run or args.transport_preflight:print(json.dumps({k:v for k,v in r.items() if k not in ('previews','exclusions')},sort_keys=True))
  elif r['send_enabled']:print(f"Sponsor outreach: {r['sent']} sent; eligible {r['eligible_recipient_count']}. Replies stop follow-ups.")
 if __name__=='__main__':main()

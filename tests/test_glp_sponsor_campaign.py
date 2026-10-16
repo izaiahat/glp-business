@@ -29,6 +29,96 @@ def inputs():
  local={'suppression':{'complete':True,'entries':[]},'conversations':[]}
  return sheet,discovery,local
 
+def test_failure_diagnostic_preserves_code_origin_and_no_replay(tmp_path,monkeypatch,capsys):
+ monkeypatch.setattr(m,'STATE',tmp_path)
+ monkeypatch.setattr(m,'campaign_config',lambda:{})
+ monkeypatch.setattr(sys,'argv',['sponsor','--scheduled'])
+ calls=[]
+ def injected_failure(*args,**kwargs):
+  calls.append('run')
+  try:raise ValueError('private upstream body')
+  except ValueError as cause:raise RuntimeError('canonical_sponsor_reply_coverage_unknown') from cause
+ monkeypatch.setattr(m,'run',injected_failure)
+ monkeypatch.setattr(m,'send_message',lambda *a,**kw:pytest.fail('NO SEND'))
+ for _ in range(2):
+  with pytest.raises(SystemExit) as error:m.main()
+  assert error.value.code==1
+  failure=m.load(tmp_path/'latest-failure.json')
+  assert failure['error_code']=='canonical_sponsor_reply_coverage_unknown'
+  assert failure['message']=='canonical_sponsor_reply_coverage_unknown'
+  assert failure['origin']['filename']==Path(__file__).name
+  assert failure['origin']['function']=='injected_failure'
+  assert isinstance(failure['origin']['line'],int) and failure['origin']['line']>0
+  assert failure['exception_chain']==['RuntimeError','ValueError']
+  assert failure['replay_allowed'] is False
+  assert failure['day_sends'] is None and failure['outstanding_claims'] is None
+ output=capsys.readouterr()
+ assert 'canonical_sponsor_reply_coverage_unknown' in output.err and 'RuntimeError' in output.err
+ assert 'private upstream body' not in output.err
+ assert calls==['run','run'] and not (tmp_path/'ledger.json').exists()
+
+
+@pytest.mark.parametrize('mode',['--scheduled','--transport-preflight','--dry-run'])
+def test_failure_redacts_hostile_text_in_every_entry_mode(tmp_path,monkeypatch,capsys,mode):
+ monkeypatch.setattr(m,'STATE',tmp_path)
+ monkeypatch.setattr(m,'campaign_config',lambda:{})
+ monkeypatch.setattr(sys,'argv',['sponsor',mode])
+ hostile='canonical_sponsor_reply_coverage_unknown\nAuthorization: Bearer token_SUPERSECRET contact@private.invalid '+('HTTP_BODY'*1000)
+ def failed(*args,**kwargs):raise RuntimeError(hostile)
+ monkeypatch.setattr(m,'run',failed)
+ with pytest.raises(SystemExit) as error:m.main()
+ assert error.value.code==1
+ failure=m.load(tmp_path/'latest-failure.json');output=capsys.readouterr()
+ assert failure['error_code']=='sponsor_unexpected_failure'
+ assert failure['message']=='[redacted unexpected exception]'
+ assert failure['origin']['function']=='failed'
+ assert len(failure['message'])<=160
+ for secret in ('token_SUPERSECRET','contact@private.invalid','HTTP_BODY','Authorization'):
+  assert secret not in json.dumps(failure)+output.err+output.out
+ assert 'sponsor_unexpected_failure' in output.err
+ assert failure['replay_allowed'] is False and failure['day_sends'] is None
+
+
+@pytest.mark.parametrize('reason',['approved_asset_changed','current_packet_installed_binding_changed','suppression_ledger_incomplete'])
+def test_allowlisted_detail_prefix_redacts_entire_suffix(reason):
+ receipt=m.safe_failure_diagnostic(RuntimeError(reason+':Bearer token_SECRET contact@private.invalid\nHTTP BODY'))
+ assert receipt['error_code']==reason
+ assert receipt['message']==reason+':[redacted details]'
+ assert 'token_SECRET' not in json.dumps(receipt) and 'private.invalid' not in json.dumps(receipt)
+
+
+def test_config_failure_uses_same_safe_diagnostic(tmp_path,monkeypatch,capsys):
+ monkeypatch.setattr(m,'STATE',tmp_path)
+ monkeypatch.setattr(sys,'argv',['sponsor','--transport-preflight'])
+ def broken_config():raise ValueError('sponsor_activation_invalid')
+ monkeypatch.setattr(m,'campaign_config',broken_config)
+ monkeypatch.setattr(m,'run',lambda *a,**kw:pytest.fail('CONFIG MUST FAIL FIRST'))
+ with pytest.raises(SystemExit) as error:m.main()
+ assert error.value.code==1
+ assert m.load(tmp_path/'latest-failure.json')['origin']['function']=='broken_config'
+ assert 'sponsor_activation_invalid' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('broken',['helper','serialization','storage'])
+def test_diagnostics_failure_still_exits_one(tmp_path,monkeypatch,capsys,broken):
+ monkeypatch.setattr(m,'STATE',tmp_path)
+ monkeypatch.setattr(m,'campaign_config',lambda:{})
+ monkeypatch.setattr(sys,'argv',['sponsor','--scheduled'])
+ def failed(*args,**kwargs):raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
+ monkeypatch.setattr(m,'run',failed)
+ if broken=='helper':monkeypatch.setattr(m,'safe_failure_diagnostic',failed)
+ else:
+  def broken_save(*args):
+   if broken=='serialization':raise TypeError('private serialization body')
+   raise OSError('private storage body')
+  monkeypatch.setattr(m,'save',broken_save)
+ with pytest.raises(SystemExit) as error:m.main()
+ assert error.value.code==1
+ output=capsys.readouterr()
+ assert 'Sponsor outreach FAILED' in output.err and 'private' not in output.err
+ assert not (tmp_path/'ledger.json').exists()
+
+
 def test_new_provider_capacity_is_separate_from_followups(tmp_path,monkeypatch):
  config,client,rows=offline_campaign(tmp_path,monkeypatch);client.fail=None
  config.update(new_provider_daily_cap=25,follow_up_daily_cap=25)
@@ -94,13 +184,40 @@ def test_apollo_search_is_read_only_and_unrevealed_email_unknown():
  assert result['enrichment_debits']==0
 
 
+def test_existing_stock_without_public_proof_is_held_and_persisted(tmp_path):
+ import copy
+ sheet,discovery,local=inputs()
+ org=discovery['organizations']['example.com']
+ public=copy.deepcopy(org['discovery']['contact_evidence'])
+ apollo={'email':'unpublished@example.com','source':'apollo','person_id':'p1'}
+ org['professional_contacts']=[apollo]
+ before=copy.deepcopy(org['discovery'])
+ assert m.reconcile_public_stock(discovery,NOW)==1
+ assert apollo['stock_status']=='HELD_NOT_PUBLIC'
+ assert org['discovery']['contact_evidence']==public
+ assert org['discovery']['_markup']==before['_markup']
+ p=tmp_path/'discovery.json';m.save(p,discovery)
+ assert m.load(p)['organizations']['example.com']['professional_contacts'][0]['stock_status']=='HELD_NOT_PUBLIC'
+ # A valid published contact remains available; an enriched email never wins.
+ result=m.recipients(sheet,discovery,local)
+ assert [x['email'] for x in result['recipients']]==[public['address']]
+ org['discovery']['_markup']=[]
+ assert m.reconcile_public_stock(discovery,NOW)==2
+ assert org['discovery']['contact_evidence']['stock_status']=='HELD_NOT_PUBLIC'
+ assert not m.recipients(sheet,discovery,local)['recipients']
+ org['discovery']={'contact_email':'legacy@example.com'}
+ m.reconcile_public_stock(discovery,NOW)
+ assert org['discovery']['stock_status']=='HELD_NOT_PUBLIC'
+
+
 def test_professional_contact_and_relationship_require_exact_current_evidence():
  import glp_sponsor_readiness as ready
  sheet,discovery,local=inputs();discovery['organizations']['example.com']['discovery']={}
  professional={'email':'izaiah@example.com','country':'US','title':'Head of Partnerships','organization_domain':'example.com','source':'apollo','person_id':'p1','captured_at_utc':NOW.isoformat(),'evidence_sha256':'b'*64}
  discovery['organizations']['example.com']['professional_contacts']=[professional]
  result=m.recipients(sheet,discovery,local)
- assert len(result['recipients'])==1
+ assert not result['recipients']
+ assert result['exclusions'][-1]['status']=='HELD_NOT_PUBLIC'
  professional['title']='Patient Support';assert not m.recipients(sheet,discovery,local)['recipients']
  evidence={'provider_host':'example.com','network':'Impact','program_id':'p1','status':'approved','captured_at_utc':NOW.isoformat(),'evidence_sha256':'c'*64}
  assert ready.relationship('example.com',evidence,NOW)['variant']=='cold' # caller-created digest is not authenticated network custody
@@ -166,6 +283,7 @@ def test_followup_schedule_stop_and_uncertain_claim():
 
 def test_dryrun_exercises_entry_without_transport(tmp_path,monkeypatch):
  sheet,discovery,local=inputs();monkeypatch.setattr(m,'STATE',tmp_path)
+ monkeypatch.setattr(m,'INBOX_POLL_LOCK',tmp_path/'poll.lock')
  monkeypatch.setattr(m,'read_values',lambda:sheet);monkeypatch.setattr(m,'read_local',lambda:local)
  monkeypatch.setattr(m,'load',lambda p: discovery if 'discovery' in str(p) else {})
  monkeypatch.setattr(m,'render',lambda r,s,c:dict(to=r['email'],stage=s))
@@ -182,6 +300,7 @@ SEND_SLOT=dt.datetime(2026,10,6,16,tzinfo=dt.timezone.utc) # Tuesday 09:00 PT
 
 def offline_campaign(tmp_path,monkeypatch):
  """Exercise run/send_message; replace only external inputs and mail transport."""
+ monkeypatch.setattr(m,'INBOX_POLL_LOCK',tmp_path/'canonical-poll.lock')
  root=tmp_path/'source';state=tmp_path/'state'
  assets=root/'reports/ops/sponsor-machine-20261003/assets';assets.mkdir(parents=True)
  for name in ('rate-card.pdf','placement-template.pdf','promo-page-preview.pdf'):
@@ -225,6 +344,37 @@ def offline_campaign(tmp_path,monkeypatch):
    return {'raw':self.raw[message_id]}
  client=OfflineMail();monkeypatch.setattr(m,'service',lambda *a:client)
  return {'send_enabled':True,'batch_cap':25,'packet_sha256':'a'*64},client,recipients
+
+def test_diagnostics_preserve_partial_effect_claim_without_duplicate_send(tmp_path,monkeypatch,capsys):
+ config,client,rows=offline_campaign(tmp_path,monkeypatch)
+ config['batch_cap']=2
+ m.save(m.STATE/'ledger.json',{rows[0]['email']:{'sent':[{'sent_at':SEND_SLOT.isoformat(),'message_id':'confirmed'}]}})
+ monkeypatch.setattr(m,'campaign_config',lambda:config)
+ monkeypatch.setattr(sys,'argv',['sponsor','--scheduled'])
+ with pytest.raises(SystemExit) as error:m.main()
+ assert error.value.code==1
+ receipt=m.load(m.STATE/'latest-failure.json')
+ assert receipt['day_sends'][0]['message_id']=='confirmed'
+ assert len(receipt['outstanding_claims'])==1 and receipt['replay_allowed'] is False
+ assert receipt['origin']['function']=='get_message'
+ m.main() # Existing claim consumes remaining capacity, not permission to replay.
+ assert client.deliveries==[rows[1]['email']]
+ assert 'PT-day confirmed sends: 1; outstanding claims: 1' in capsys.readouterr().err
+
+
+def test_diagnostic_never_stringifies_http_error_and_bounds_chain():
+ class HostileHTTPError(RuntimeError):
+  def __str__(self):raise AssertionError('must never stringify HTTP body')
+ root=HostileHTTPError({'Authorization':'private'},'private@invalid.test')
+ current=root
+ for _ in range(12):
+  current.__cause__=ValueError('private body');current=current.__cause__
+ current.__cause__=root
+ receipt=m.safe_failure_diagnostic(root)
+ assert receipt['message']=='[redacted unexpected exception]'
+ assert len(receipt['exception_chain'])==8
+ assert 'private' not in json.dumps(receipt)
+
 
 @pytest.mark.parametrize('failure',['readback','uncertain'])
 def test_ambiguous_effects_consume_daily_cap_across_runs(tmp_path,monkeypatch,failure):

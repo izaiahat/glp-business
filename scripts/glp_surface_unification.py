@@ -113,6 +113,27 @@ def latest_release() -> Path:
     return max(dirs, key=lambda p: p.stat().st_mtime)
 
 
+def build_eligibility_entry(program: dict, template: dict, tracking: dict, receipt_sha: str) -> dict:
+    pid = render_id(program)
+    held = tracking.get('held') is True
+    entry = copy.deepcopy(template)
+    entry.update({
+        'program_id': pid, 'display_name': program['display_name'],
+        'review_path': program.get('review_path') or f'/reviews/{pid}/',
+        'affiliate_network': tracking['network'],
+        'network': str(tracking['network']).lower().split()[0],
+        'allowed_fallback_hosts': [] if held else [re.sub(r'^www\.', '', tracking['host'])],
+        'affiliate_link_mode': 'held_editorial_only' if held else 'transparent_direct',
+        'go_route_wired': False, 'live_link_allowed': not held,
+        'promotion_authorized': not held, 'redirector_tos_verified': False,
+        'operator_selection_receipt_sha256': None if held else receipt_sha,
+        'tracking_present_private': not held,
+    })
+    if held:
+        entry['status'] = 'held_editorial_only'
+    return entry
+
+
 def eligibility_with_retained_holds(rows: list[dict], live_ids: list[str]) -> list[dict]:
     """Keep explicit denial evidence; membership counts must not erase holds."""
     live = set(live_ids)
@@ -354,6 +375,26 @@ def logo_for(program_id: str, logo_manifest: dict) -> dict | None:
     return None
 
 
+def captured_shipping_pro(ledger_entry: dict, contract: dict) -> str | None:
+    field=ledger_entry.get('research_shipping_wait') or {}
+    quote=field.get('quote') or ''
+    if not re.search(r'\bfree(?:\s+[0-9]+(?:-[0-9]+)?[- ]day)?\s+shipping\b',quote,re.I):
+        return None
+    binding=(contract.get('source_capture_bindings') or {}).get(field.get('source_url'))
+    if not binding:
+        fail('shipping_pro_capture_unbound')
+    raw=Path(binding['raw_capture_path']).read_bytes()
+    if hashlib.sha256(raw).hexdigest()!=binding.get('raw_capture_sha256'):
+        fail('shipping_pro_capture_drift')
+    body=json.loads(raw)
+    payload=body.get('data',body)
+    text=payload.get('markdown') or payload.get('html') or ''
+    normalized=lambda text:re.sub(r'\s+',' ',text).strip().casefold()
+    if normalized(quote) not in normalized(text):
+        fail('shipping_pro_quote_unbound')
+    return 'Provider advertises free shipping; total intake-to-delivery timing remains unknown.'
+
+
 def build_row(program: dict, ledger_entry: dict, contract: dict | None,
               ready6: dict | None, tracking: dict, logo_manifest: dict,
               receipt_sha: str, checked_as_of: str) -> dict:
@@ -379,7 +420,14 @@ def build_row(program: dict, ledger_entry: dict, contract: dict | None,
     else:
         fail(f"no_row_source:{pid}")
 
-    if len(pros) < 2 or len(cons) < 2:
+    # A second fact must be genuinely bound, not filler to meet card shape.
+    if len(pros)==1 and tracking.get('held') is not True and contract:
+        shipping_pro=captured_shipping_pro(ledger_entry,contract)
+        if shipping_pro:
+            pros.append(shipping_pro)
+    # Do not pad an accepted research contract with an invented benefit.
+    # At least one evidenced pro and two explicit limitations remain required.
+    if len(pros) < 1 or len(cons) < 2:
         fail(f"row_evidence_too_thin:{pid}")
 
     href = tracking["url"]
@@ -395,7 +443,7 @@ def build_row(program: dict, ledger_entry: dict, contract: dict | None,
         "cons": cons,
         "criteria_scores": ledger_entry.get("criteria_scores") or {},
         "insurance": insurance or "Not stated",
-        "live_link_allowed": True,
+        "live_link_allowed": tracking.get('held') is not True,
         "meds_offered": meds or "Prescription and clinician approval required",
         "operator_selection_receipt_sha256": receipt_sha,
         "program_id": pid,
@@ -406,7 +454,7 @@ def build_row(program: dict, ledger_entry: dict, contract: dict | None,
             "status": "NOT_VERIFIED",
             "verified_as_of": checked_as_of,
         },
-        "promotion_authorized": True,
+        "promotion_authorized": tracking.get('held') is not True,
         "pros": pros,
         "provider": display,
         "review_path": program["review_path"],
@@ -449,7 +497,14 @@ def tracking_for(program: dict, contract: dict | None, approved: dict) -> dict:
         network_contract = contract.get("network_contract") or {}
         url = network_contract.get("tracking_url")
         network = network_contract.get("network") or "Direct affiliate"
+        if (program.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True and url:
+            fail(f'held_tracking_url_present:{pid}')
         if not url:
+            row = contract.get('row_contract') or {}
+            if ((program.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True
+                    and network_contract.get('promotion_authorized_in_this_artifact') is False
+                    and row.get('live_link_allowed') is False and row.get('promotion_authorized') is False):
+                return {'url': None, 'host': None, 'network': network, 'held': True}
             fail(f"tracking_url_missing:{pid}")
         host = re.sub(r"^https://([^/]+).*$", r"\1", url)
         return {"url": url, "host": host, "network": network}
@@ -541,9 +596,14 @@ def _unify_in_place(release: Path) -> dict:
     # monthly figure, under "insurance support" only if it publishes active
     # insurance help, and so on. An answer a provider's evidence cannot speak to
     # excludes it rather than matching it on a guess.
+    denied_ids = {render_id(p) for p in live
+                  if (p.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True}
+    quiz['candidates'] = [c for c in quiz['candidates'] if c['program_id'] not in denied_ids]
     quiz_present = {c["program_id"] for c in quiz["candidates"]}
     for program in live:
         pid = render_id(program)
+        if pid in denied_ids:
+            continue
         if pid in quiz_present:
             continue
         entry = ledger_by_id[pid]
@@ -633,7 +693,8 @@ def _unify_in_place(release: Path) -> dict:
             for surface in ("compare", "quiz", "calculator"):
                 exception = exceptions.get(surface) or {}
                 documented_restriction = (
-                    surface in {"quiz", "calculator"}
+                    (surface in {"quiz", "calculator"}
+                     or (program.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True)
                     and exception.get("enabled") is True
                     and bool(str(exception.get("surface_restriction_basis") or "").strip())
                 )
@@ -670,20 +731,7 @@ def _unify_in_place(release: Path) -> dict:
             continue
         contract = contracts.get(program["program_id"])
         tracking = tracking_for(program, contract, approved)
-        entry = copy.deepcopy(elig_template)
-        entry.update({
-            "program_id": pid,
-            "display_name": program["display_name"],
-            "affiliate_network": tracking["network"],
-            "network": str(tracking["network"]).lower().split()[0],
-            "allowed_fallback_hosts": [re.sub(r"^www\.", "", tracking["host"])],
-            "affiliate_link_mode": "transparent_direct",
-            "go_route_wired": False,
-            "live_link_allowed": True,
-            "promotion_authorized": True,
-            "redirector_tos_verified": False,
-            "operator_selection_receipt_sha256": receipt_sha,
-        })
+        entry = build_eligibility_entry(program, elig_template, tracking, receipt_sha)
         eligibility["programs"].append(entry)
         eligibility_ids.add(pid)
     eligibility["programs"] = eligibility_with_retained_holds(eligibility["programs"], live_ids)

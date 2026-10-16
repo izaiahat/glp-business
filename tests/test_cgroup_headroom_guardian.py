@@ -105,3 +105,84 @@ def test_guardian_preserves_write_order_and_oom_refusal(tmp_path, monkeypatch, h
     assert writes == expected
     assert module.anon_bytes(scope) == anon * GIB
     assert all(high < maximum for maximum, high in [*module.POLICY.values(), module.DEFAULT])
+
+
+def protection_fixture(tmp_path, monkeypatch):
+    module, proc, scope = fixture_owner(tmp_path, monkeypatch)
+    root = tmp_path / "user.slice/user-1000.slice/user@1000.service"
+    root.mkdir(parents=True)
+    scope = scope.rename(root / scope.name)
+    chain = [root.parent.parent, root.parent, root, scope]
+    for group in chain:
+        (group / "memory.low").write_text("0\n")
+    monkeypatch.setattr(module, "CGROOT", root)
+    writes = []
+    def write(path, value):
+        assert path.name == "memory.low"
+        writes.append(path)
+        path.write_text(str(value))
+        return True
+    monkeypatch.setattr(module, "write_limit", write)
+    return module, proc, scope, chain, writes
+
+
+def test_authenticated_cold_tui_gets_bounded_hierarchical_reclaim_protection(tmp_path, monkeypatch):
+    module, _, scope, chain, writes = protection_fixture(tmp_path, monkeypatch)
+    # Reproduce the measured zero-low hierarchy: a leaf-only low would be
+    # ineffective against global reclaim with unprotected ancestors.
+    getattr(module, "protect_interactive_memory", lambda scopes: [])([scope])
+    assert [int((group / "memory.low").read_text()) for group in chain] == [8 * GIB] * 4
+    assert writes == [group / "memory.low" for group in chain]
+    assert module.POLICY["--source glp-scout"] == (16, 13)
+    writes.clear()
+    module.protect_interactive_memory([scope])
+    assert writes == []  # natural repeats are idempotent, no restart/warmup
+
+
+@pytest.mark.parametrize("case", ["foreign_profile", "prompt_marker", "missing_low", "malformed_low", "existing_larger_low", "duplicate_owner", "write_failure", "false_write_readback", "owner_disappears"])
+def test_reclaim_protection_refuses_unproven_or_conflicting_policy(tmp_path, monkeypatch, case):
+    module, proc, scope, chain, writes = protection_fixture(tmp_path, monkeypatch)
+    if case == "foreign_profile":
+        p = proc / "100/cmdline"
+        p.write_bytes(p.read_bytes().replace(b"default", b"other"))
+    elif case == "prompt_marker":
+        (proc / "102/cmdline").write_bytes(b"worker\0--source glp-scout\0")
+    elif case == "missing_low":
+        (chain[0] / "memory.low").unlink()
+    elif case == "malformed_low":
+        (chain[0] / "memory.low").write_text("not a budget")
+    elif case == "existing_larger_low":
+        (chain[0] / "memory.low").write_text(str(9 * GIB))
+    elif case == "duplicate_owner":
+        import shutil
+        shutil.copytree(scope, scope.with_name("tmux-spawn-duplicate.scope"))
+    elif case in ("write_failure", "false_write_readback"):
+        monkeypatch.setattr(module, "write_limit", lambda path, value: case != "write_failure")
+    else:
+        original = module.business_coordinator
+        calls = [0]
+        def disappearing(pid, pids):
+            if calls[0]:
+                return False
+            found = original(pid, pids)
+            if found:
+                calls[0] = 1
+            return found
+        # Bind selection, then disappear before the first write.
+        monkeypatch.setattr(module, "business_coordinator", disappearing)
+    scopes = sorted(module.CGROOT.glob("tmux-spawn-*.scope"))
+    module.protect_interactive_memory(scopes)
+    assert writes == []
+    assert (scope / "memory.low").read_text() == "0\n"
+
+
+def test_main_restores_soft_preference_without_touching_existing_ceilings(tmp_path, monkeypatch):
+    module, _, scope, chain, writes = protection_fixture(tmp_path, monkeypatch)
+    for name, value in {"memory.max": 16, "memory.high": 13, "memory.current": 6}.items():
+        (scope / name).write_text(str(value * GIB))
+    (scope / "memory.stat").write_text(f"anon {2 * GIB}\n")
+    monkeypatch.setattr(module, "STATE", tmp_path / "state.json")
+    assert module.main() == 0
+    assert writes == [group / "memory.low" for group in chain]
+    assert int((scope / "memory.max").read_text()) == 16 * GIB
+    assert int((scope / "memory.high").read_text()) == 13 * GIB

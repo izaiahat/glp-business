@@ -55,6 +55,11 @@ _SUBJECT_RE = re.compile(r"[A-Za-z0-9:/._-]{8,240}")
 _ISSUE_ID_RE = re.compile(r"bridge-issue-[0-9a-f]{32}")
 _DEFAULT_HERMES_ENV = Path("/home/ubuntu/.hermes/.env")
 _DISCORD_API_BASE = "https://discord.com/api/v10"
+_MAX_ACCEPTANCE_ATTACHMENT_BYTES = 1024 * 1024
+_ACCEPTANCE_ATTACHMENT_URL_RE = re.compile(
+    rf"https://cdn\.discordapp\.com/attachments/{FIXED_BRIDGE_CHANNEL_ID}/"
+    r"[0-9]{17,20}/reviewer-response\.txt(?:\?[^#\s]*)?"
+)
 
 # Retained operator designation, narrowed to the frozen PR8/current-release
 # subject assigned by GLP73. Not a generic design waiver or a moving PR head.
@@ -381,6 +386,11 @@ def send_successor_issue(*, issue_record_path: Path | str) -> tuple[Path, dict[s
             or not _SNOWFLAKE_RE.fullmatch(str(issue.get("predecessor_reply_message_id", "")))
             or not _ISSUE_ID_RE.fullmatch(str(issue.get("predecessor_issue_id", "")))):
         raise BridgeAuthorityError("bridge_registered_successor_required")
+    return _send_registered_issue(path, issue)
+
+
+def _send_registered_issue(path, issue, *, before_post=None):
+    """Shared canonical sender; public callers separately authenticate their scope."""
     payload = successor_request_payload(issue)
     validate_successor_payload(issue, payload)  # Before token I/O or claim or send.
     if len(payload["content"]) > 2000:
@@ -409,6 +419,9 @@ def send_successor_issue(*, issue_record_path: Path | str) -> tuple[Path, dict[s
         data=json.dumps(payload).encode("utf-8"), method="POST",
         headers={"Authorization": f"Bot {_discord_bot_token()}", "Content-Type": "application/json",
                  "User-Agent": "BoringAI-BridgeAuthorityGuard/3.0"})
+    # Token lookup can block: the caller's final interlock belongs after it.
+    if before_post is not None:
+        before_post()
     # No blind retry, including 429, timeout or a missing/invalid POST response.
     with urllib.request.urlopen(request, timeout=30) as response:
         posted = json.loads(response.read().decode("utf-8"))
@@ -481,6 +494,28 @@ def _discord_bot_token() -> str:
                 if token:
                     return token
     raise BridgeAuthorityError("discord_bot_token_missing")
+
+
+def _fetch_attachment_bytes(url: str) -> bytes:
+    """Private, bounded unauthenticated CDN GET seam; never follow redirects."""
+    if not isinstance(url, str) or not _ACCEPTANCE_ATTACHMENT_URL_RE.fullmatch(url):
+        raise BridgeAuthorityError("bridge_acceptance_attachment_url_invalid")
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    request = urllib.request.Request(url, headers={"User-Agent": "BoringAI-BridgeAuthorityGuard/3.0"})
+    try:
+        with urllib.request.build_opener(NoRedirect()).open(request, timeout=30) as response:
+            if int(response.status) != 200:
+                raise BridgeAuthorityError("bridge_acceptance_attachment_readback_failed")
+            raw = response.read(_MAX_ACCEPTANCE_ATTACHMENT_BYTES + 1)
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise BridgeAuthorityError("bridge_acceptance_attachment_readback_failed") from error
+    if len(raw) > _MAX_ACCEPTANCE_ATTACHMENT_BYTES:
+        raise BridgeAuthorityError("bridge_acceptance_attachment_too_large")
+    return raw
 
 
 def _fetch_discord_message(channel_id: str, message_id: str) -> dict[str, Any]:
@@ -691,6 +726,43 @@ def validate_live_acceptance(
         author_id=fable_author_id,
         role="acceptance",
     )
+    transport = {"acceptance_transport": "message_content"}
+    attachments = acceptance_message.get("attachments")
+    if attachments:
+        wrapper_content = acceptance_content
+        wrapper = re.fullmatch(
+            r"Verbatim independent reviewer response attached \(([1-9][0-9]{0,6}) UTF-8 bytes; "
+            r"SHA-256: ([0-9a-f]{64})\)\. No transport-generated decision\.",
+            wrapper_content,
+        )
+        if not wrapper:
+            raise BridgeAuthorityError("bridge_acceptance_attachment_wrapper_invalid")
+        if not isinstance(attachments, list) or len(attachments) != 1:
+            raise BridgeAuthorityError("bridge_acceptance_attachment_ambiguous")
+        attachment = attachments[0]
+        expected_size = int(wrapper[1])
+        if (not isinstance(attachment, dict)
+                or attachment.get("filename") != "reviewer-response.txt"
+                or attachment.get("content_type") != "text/plain; charset=utf-8"
+                or type(attachment.get("size")) is not int
+                or attachment["size"] != expected_size
+                or expected_size > _MAX_ACCEPTANCE_ATTACHMENT_BYTES):
+            raise BridgeAuthorityError("bridge_acceptance_attachment_metadata_invalid")
+        url = attachment.get("url")
+        if not isinstance(url, str) or not _ACCEPTANCE_ATTACHMENT_URL_RE.fullmatch(url):
+            raise BridgeAuthorityError("bridge_acceptance_attachment_url_invalid")
+        raw = _fetch_attachment_bytes(url)
+        if len(raw) != expected_size or hashlib.sha256(raw).hexdigest() != wrapper[2]:
+            raise BridgeAuthorityError("bridge_acceptance_attachment_bytes_mismatch")
+        try:
+            acceptance_content = raw.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as error:
+            raise BridgeAuthorityError("bridge_acceptance_attachment_utf8_invalid") from error
+        transport = {
+            "acceptance_transport": "verbatim_attachment",
+            "acceptance_wrapper_sha256": sha256_text(wrapper_content),
+            "acceptance_attachment_bytes": len(raw),
+        }
     request_author_id = str((request_message.get("author") or {}).get("id") or "")
     acceptance_author_id = str((acceptance_message.get("author") or {}).get("id") or "")
     if acceptance_author_id in {request_author_id, KAEL_SHARED_BOT_AUTHOR_ID}:
@@ -755,6 +827,7 @@ def validate_live_acceptance(
         "acceptance_message_id": acceptance_message_id,
         "request_content_sha256": sha256_text(request_content),
         "acceptance_content_sha256": sha256_text(acceptance_content),
+        **transport,
         "inspection_note": inspection_note,
         "inspection_note_sha256": sha256_text(inspection_note) if inspection_note is not None else None,
         "issue_schema": issue.get("schema"),

@@ -319,7 +319,7 @@ def test_emitter_refuses_incomplete_or_ambiguous_pin_conventions(mutation):
 
 
 def test_real_installed_scheduler_saver_in_isolated_home(tmp_path):
-    scheduler_source = Path('/home/ubuntu/.hermes/hermes-agent/cron/jobs.py')
+    scheduler_source = ROOT / 'native-scheduler/cron/jobs.py'
     if not scheduler_source.exists():
         pytest.skip('host-only installed scheduler integration; portable cases run above')
     f = release_fixture(tmp_path)

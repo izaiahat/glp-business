@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Weekly Strategy report producer and operator-authorized Cogny planning sync.
+"""Weekly Strategy producer, host ownership and optional legacy Cogny sync.
 
-No metered collection, article queue admission, site writes or sends.
+Collection uses the existing $25/week budget; no article queue, site or sends.
 --update-strategy writes exact-readback Cogny evidence and a governed input pointer.
 The registered wake gate calls this before its scheduler-owned summary delivery.
 """
@@ -26,7 +26,7 @@ def load(path,name):
 def save(path,doc):
     path.write_text(json.dumps(doc,indent=2,ensure_ascii=False)+'\n')
 
-def run(output, *, update_strategy=False):
+def run(output, *, update_strategy=False, host_owned=False):
     from ops.glp.weekly_strategy_inputs import topic_recommendations
     from ops.glp.seo_weekly_modules import read_bound
     from zoneinfo import ZoneInfo
@@ -36,7 +36,11 @@ def run(output, *, update_strategy=False):
     analysis=load(B/'scripts/glp_weekly_seo_analysis.py','weekly_strategy_analysis')
     analysis.verify_pins()
     output=Path(output);output.mkdir(parents=True,exist_ok=False)
-    collected=collector.run(output/'collection',allow_metered=False)
+    # GLP-44 operator authority: recurring weekly metered collection under a
+    # hard $25/week cap; every metered call is reserved first or refused+alerted.
+    from ops.glp.seo_weekly_budget import WeeklyBudget
+    budget=WeeklyBudget()
+    collected=collector.run(output/'collection',allow_metered=True,budget=budget,max_cost_usd=2.0)
     from ops.glp.seo_weekly_continuation import run_week
     receipt=run_week(Path(collected['manifest']['path']),output/'analysis',registered=True)
     manifest=json.loads(Path(collected['manifest']['path']).read_text())
@@ -75,16 +79,33 @@ def run(output, *, update_strategy=False):
         for name in ('bing-page','bing-query'):
             bound=evidence['snapshots'][name];doc=read_bound(bound)
             source_observations[name]={'binding':bound,'context':doc['context'],'result':doc['result']}
-        for name in ('ga4','posthog','footprint'):
+        for name in ('ga4','posthog'):
             doc=read_bound(inputs[name])
             source_observations[name]={'binding':inputs[name],'context':doc['context'],'result':doc['result']}
-        updates=build_updates(topics,module_report,inputs,source_observations=source_observations)
-        client=CognyClient(retries=1,timeout=90);client.initialize()
-        strategy_update=sync_updates(client,updates,output/'cogny-strategy-update')
-        current_pointer=B/'reports/glp-clinic-scout/weekly-strategy/current-strategy.json'
-        publish_current(current_pointer,updates,strategy_update)
-        strategy_update['current_input']=str(current_pointer)
-        strategy_update['consumer_adoption']='PENDING_GLP73_RECEIPT'
+        # Footprint/volume payloads are large: keep exact bindings plus a compact
+        # summary in the Cogny-synced strategy, never the raw provider rows.
+        footprint=read_bound(inputs['footprint']);fres=footprint['result']
+        source_observations['footprint']={'binding':inputs['footprint'],'context':footprint['context'],
+            'result':{'ok':fres.get('ok'),'state':fres.get('state'),'error':fres.get('error'),'cost_usd':fres.get('cost_usd'),
+                      'domains':{d:{'total_count':v.get('total_count'),'rows':len(v.get('items') or []),'complete':v.get('complete')} for d,v in (fres.get('domains') or {}).items()}}}
+        gap_volume=read_bound(inputs['gap-volume']) if 'gap-volume' in inputs else {'result':{'ok':False,'rows':{}}}
+        source_observations['gap-volume']={'binding':inputs.get('gap-volume'),'context':gap_volume.get('context'),
+            'result':{k:v for k,v in gap_volume['result'].items() if k!='rows'}|{'rows_ok':sum(1 for v in gap_volume['result'].get('rows',{}).values() if v.get('ok'))}}
+        live_routes=sorted(read_bound(inputs['pages']).keys()) if 'pages' in inputs else []
+        updates=build_updates(topics,module_report,inputs,source_observations=source_observations,
+            gap_volume=gap_volume['result'],held_routes=held,live_routes=live_routes)
+        if host_owned:
+            from ops.glp.weekly_strategy_sync import atomic
+            strategy_update={'status':'HOST_DURABLE_STRATEGY_INPUT',
+                'updates':atomic(output/'STRATEGY-UPDATES.json',updates),
+                'consumer':'020bcdd7f0e1', 'publication_authorized':False}
+        else:
+            client=CognyClient(retries=1,timeout=90);client.initialize()
+            strategy_update=sync_updates(client,updates,output/'cogny-strategy-update')
+            current_pointer=B/'reports/glp-clinic-scout/weekly-strategy/current-strategy.json'
+            publish_current(current_pointer,updates,strategy_update)
+            strategy_update['current_input']=str(current_pointer)
+            strategy_update['consumer_adoption']='PENDING_GLP73_RECEIPT'
     current={c['component']:c['live_effect'] for c in estate['result']['components']}
     sources=current.get('analytics',{}).get('sources',[])
     unknowns=[{'subject':s['source'],'reason':s.get('reason') or s['state'],'owner':'GLP-44 source/import owner'} for s in sources if s['state'] not in ('healthy','measured_zero')]
@@ -94,6 +115,10 @@ def run(output, *, update_strategy=False):
     unknowns += [{'subject':'affiliate payable revenue / ROAS','reason':'Network join incomplete; unmatched D1 clicks are not lost or payable sales','owner':'network reporting/import owner'},
                  {'subject':'article/click identity in GA4/PostHog','reason':'UNMEASURED_BY_DESIGN: approved neutral-route contract only; do not widen health-data export','owner':'privacy boundary retained'},
                  {'subject':'causal SEO lift','reason':'Returned-row movement is descriptive; GSC omissions and search latency persist','owner':'SEO observation'}]
+    gap_count=None  # unknown is not zero: only a published strategy carries a count
+    if update_strategy:
+        gaps=updates.get('keyword_gaps')
+        gap_count=None if gaps is None else len(gaps)
     report={'schema':'glp-weekly-strategy-report-v1','generated_at_utc':dt.datetime.now(dt.timezone.utc).isoformat(),
             'status':'COMPLETE_WITH_EXPLICIT_UNKNOWNS' if estate['result']['ok'] and all(receipt['module_statuses'].get(k)=='PASS_ANALYSIS_ONLY' for k in ('page2','money_pages','estate_health')) and all(input_observations[k]['ok'] is True and input_observations[k]['complete'] is not False for k in ('ga4','posthog')) else 'PARTIAL_INPUT_UNAVAILABLE',
             'ranking':ranking,'input_observations':input_observations,
@@ -103,12 +128,14 @@ def run(output, *, update_strategy=False):
             'non_article_operations':receipt['source_operations'],'affiliate_join':current.get('affiliate_join'),
             'strategy_update':strategy_update,
             'unknowns':unknowns,'metered_cost_usd':collected['actual_cost_usd'],
+            'weekly_spend':budget.receipt(),
+            'keyword_gap_count':gap_count,
             'sends':0,'queue_writes':0,'site_writes':0,'publication_authorized':False}
     save(output/'REPORT.json',report)
     lines=['# Weekly Strategy — GLP Clinic Scout','',f"Status: {report['status']} · analytics: {report['analytics_mode']}",'',
            '## Ranking outcome', json.dumps(ranking,ensure_ascii=False) if ranking else 'UNKNOWN: no eligible recent ranking receipt.', '',
            '## Source readbacks',*['- '+s['source']+': '+str(s['state'])+'; rows '+str(s.get('actual_rows'))+'; watermark '+str(s.get('watermark')) for s in sources],
-           '',f"Cogny calls: {collected['cogny_query_count']}; GSC query/page windows: {collected['gsc_rows']}; new metered spend: $0.",'',
+           '',f"Cogny calls: {collected['cogny_query_count']}; GSC query/page windows: {collected['gsc_rows']}; week metered spend: ${report['weekly_spend']['committed_usd']} of ${report['weekly_spend']['cap_usd']} cap (within_cap={report['weekly_spend']['within_cap']}).",'',
            '## Concrete SEO action list (GLP-73 governed refill handoff)',
            *[f"{r['priority']}. {r['route']} — query ‘{r['query']}’; {r['impressions']} impressions, {r['clicks']} clicks, avg position {r['average_position']:.2f}. {r['decision_value']}" for r in topics['recommendations']],
            '',f"Non-article source operations: {receipt['source_operations']}; use analysis/NON-ARTICLE-INTAKE.json via the existing governed updater, not article identities.",'',
@@ -119,9 +146,9 @@ def run(output, *, update_strategy=False):
     summary='\n'.join(['📊 **Weekly Strategy** — '+str(report['recommendations'])+' evidence-bound SEO actions',
       f"Status: **{report['analytics_mode']}** · estate **{receipt['module_statuses'].get('estate_health')}**",
       'Observed: Cogny + GSC + GA4 + PostHog + Bing source readbacks consumed.',
-      f"Blocked: network revenue **UNKNOWN**; keyword gap **held**; new metered spend **$0**.",
+      f"Keyword gaps: **{report['keyword_gap_count']}** · week spend **${report['weekly_spend']['committed_usd']}** / ${report['weekly_spend']['cap_usd']} cap; network revenue **UNKNOWN**.",
       f"Next GLP: review **{report['recommendations']}** existing-page opportunities; **{receipt['source_operations']}** source patches.",
-      '→ Keep ads paused; DataForSEO authority exists but unknown account MTD spend blocks new paid collection.',
+      ('→ No action: host strategy rows feed GLP-44 planning; GLP-73 adoption is separate.' if host_owned else '→ No action: refill/updater bind this strategy SHA; over-cap or unknown-cost calls are refused and alerted.'),
       '-# artifact: '+str(output/'WEEKLY-REVIEW.md')])
     (output/'DISCORD.txt').write_text(summary+'\n')
     return {'report':str(output/'REPORT.json'),'review':str(output/'WEEKLY-REVIEW.md'),
@@ -130,11 +157,19 @@ def run(output, *, update_strategy=False):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path)
     parser.add_argument('--update-strategy',action='store_true')
+    parser.add_argument('--host-owned',action='store_true')
     args=parser.parse_args()
     output=args.output or B/'reports/glp-clinic-scout/weekly-strategy'/('run-'+dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8])
     lock=B/'ops/glp/.weekly-strategy-report.lock'
     with lock.open('a') as stream:
         fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        print(json.dumps(run(output,update_strategy=args.update_strategy),ensure_ascii=False))
+        if args.host_owned:
+            from ops.glp.weekly_analytics_owner import ROOT, run_owned
+            # A manual output argument never creates a second weekly owner.
+            result=run_owned(ROOT,
+                lambda target: run(target,update_strategy=True,host_owned=True))
+        else:
+            result=run(output,update_strategy=args.update_strategy)
+        print(json.dumps(result,ensure_ascii=False))
 
 if __name__=='__main__': main()

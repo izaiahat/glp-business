@@ -1,6 +1,21 @@
 import importlib.util
 from pathlib import Path
 import pytest
+from tests.test_glp336_host_weekly import (
+    test_weekly_completion_and_consumer_ack_are_once_only,
+    test_empty_analysis_never_completes,
+    test_crash_after_analysis_resumes_without_collection,
+    test_tampered_analysis_refuses_instead_of_recollecting,
+    test_wrong_week_and_failed_budget_cannot_complete,
+    test_free_analysis_completes_with_explicit_metered_hold,
+    test_report_changed_between_validation_and_binding_must_refuse,
+    test_completion_and_ack_require_validated_report_hash,
+    test_rebound_invalid_report_cannot_verify_or_ack,
+    test_report_drift_at_consumer_lock_refuses_ack,
+    test_malformed_budget_must_not_be_promoted,
+    test_unknown_or_invalid_committed_cost_refuses,
+    test_explicit_zero_cost_is_not_missing_cost,
+)
 
 ROOT=Path(__file__).resolve().parents[1]
 def load():

@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 import time
 import host_disk_cold_classes as m
@@ -72,6 +73,39 @@ def test_small_class_is_refused_before_content_hashing(tmp_path,monkeypatch):
     monkeypatch.setattr(m,'sha',forbidden_hash)
     row=m.cold_archive(API(),p,tmp_path/'out.tar.zst',dry_run=False,min_bytes=128*1024**2,deadline=time.monotonic()+30)
     assert row['status']=='BELOW_RECLAIM_FLOOR' and (p/'proof.txt').exists()
+
+
+@pytest.mark.parametrize('error', [ValueError('relay/lane discovery changed during collection'),
+                                  PermissionError('reference source unreadable'),
+                                  subprocess.CalledProcessError(1,['stat','--','site-run']),
+                                  subprocess.TimeoutExpired(['stat','--','site-run'],30)])
+def test_reference_collection_refusal_has_terminal_zero_effect_receipt(tmp_path,monkeypatch,error):
+    import host_disk_relay_custody
+    bus=tmp_path/'business'
+    root=bus/'reports/ops/glp347-pallas-20261007';root.mkdir(parents=True)
+    evidence=root/'ACK.txt';evidence.write_text('retained evidence')
+    (bus/'ops').mkdir()
+    (bus/'ops/disk-retention-policy.json').write_text('{"protected_roots":[]}')
+    changed=bus/'lanes/RELEASE/evidence'
+    error.changed_source=str(changed)
+    def refuse(**kwargs):raise error
+    def forbidden_effect(*args,**kwargs):raise AssertionError('effect after refused inventory')
+    monkeypatch.setattr(sweep,'BUS',bus)
+    monkeypatch.setattr(host_disk_relay_custody,'collect',refuse)
+    monkeypatch.setattr(m,'node_modules',forbidden_effect)
+    report=tmp_path/'report'
+    with pytest.raises(type(error)) as caught:
+        sweep.run(report,budget=10)
+    assert caught.value is error
+    receipt=json.loads((report/'large-classes.json').read_text())
+    assert receipt['stage']=='reference_inventory_refused'
+    assert receipt['attributable_bytes_freed']==0
+    assert receipt['reference_veto_source']==str(changed)
+    assert receipt['rows']==[{'rule':'reference_inventory','status':'GATED_REFERENCE_INVENTORY',
+        'ok':False,'partial':True,'bytes_freed':0,'reason':str(error),
+        'error_type':type(error).__name__,'changed_source':str(changed)}]
+    assert evidence.read_text()=='retained evidence'
+    assert not (report/'references.json').exists()
 
 
 def test_archive_headroom_veto_keeps_originals(tmp_path,monkeypatch):

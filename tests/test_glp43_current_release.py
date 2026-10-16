@@ -1475,10 +1475,11 @@ class CurrentReleaseTests(unittest.TestCase):
         self.email_probe_fixture()
         real_restore = c.current_restore_cf_email
 
-        def restore(raw):
+        def restore(raw, *, expected):
             self.assert_email_raw_retained(raw)  # disk evidence exists before parsing
-            self.assertEqual(real_restore(raw), self.email_expected)
-            return real_restore(raw)
+            self.assertEqual(expected, self.email_expected)
+            self.assertEqual(real_restore(raw, expected=expected), self.email_expected)
+            return real_restore(raw, expected=expected)
 
         with mock.patch.object(c, 'current_restore_cf_email', side_effect=restore):
             row = self.email_probe(self.email_raw)

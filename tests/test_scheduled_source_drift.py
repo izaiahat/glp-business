@@ -335,6 +335,20 @@ def test_f09_reviewed_active_native_inventory_matches_exact_source(job_id, filen
     assert row['payloads'] == []
 
 
+def test_disk_monitor_inventory_is_exact_maintained_source_and_mutations_drift():
+    inventory = json.loads((ROOT/'ops/scheduled-source-drift-manifest.json').read_text())
+    rows = [row for row in inventory['jobs'] if row['id'] == 'crontab:d1449753b8c4b011']
+    assert len(rows) == 1 and rows[0]['payloads'] == []
+    assert rows[0]['surface'] == 'crontab' and len(rows[0]['sources']) == 1
+    source = rows[0]['sources'][0]
+    assert source['path'] == '/home/ubuntu/.hermes/scripts/disk_monitor.sh'
+    assert source['source'] == 'ops/hermes-cron-scripts/disk_monitor.sh'
+    accepted = '2bc27ff0fdfd02a2de2f94a1678b1ddadb04def5cbe5ddadc8cc75cdb438fe7d'
+    raw = (ROOT/source['source']).read_bytes()
+    assert source['reviewed_sha256'] == sha(raw) == accepted
+    assert sha(raw + b'\n# unreviewed drift\n') != source['reviewed_sha256']
+
+
 def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     import subprocess
     path = 'ops/scheduled-source-drift-manifest.json'
@@ -355,7 +369,9 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
             seen.append(row['id'])
     assert sorted(seen) == sorted(allowed)
     launcher = 'scripts/cron_bridge_action.py'
-    launcher_pin = 'fc1146a502f250c267c3460e8171bde678be7ee20ca773304aa9f0ffbfbfbd4b'
+    # GLP-320 successor adds only GET lineage proof propagation; retain literal
+    # cohort equality and all historical inventory deltas below.
+    launcher_pin = 'ad0398af92b07a67878eb5b0f3cd8456d8c306954eddddc711685e047c78bd72'
     assert sha((ROOT/launcher).read_bytes()) == launcher_pin
     shared = 0
     for row in expected['jobs']:
@@ -393,7 +409,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
         'sha256': sensor_pin,
         'owner': '/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert_cron.sh'}]
     # Sunday review now labels the upcoming governed week (GLP-76).
-    strategy_pin = 'b7e2e6b173956da315510634b220a696509abd950abfae51c87a7dd43d2c910e'
+    strategy_pin = '4aee8957471ab8869bb4acf86f7c24780aebeb184a4450ea537ada7321b58fdb'
     assert sha((ROOT/'ops/hermes-cron-scripts/weekly_strategy_review_gate.py').read_bytes()) == strategy_pin
     strategy_rows = [row for row in expected['jobs'] if row['id'] == '020bcdd7f0e1']
     assert len(strategy_rows) == 1 and strategy_rows[0]['payloads'] == []
@@ -405,19 +421,38 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert pricing_rows[0]['sources'][1] == {'path': '/home/ubuntu/business/scripts/glp_pricing_refresh.py'}
     pricing_source = 'scripts/glp_price_freshness.py'
     pricing_rows[0]['id'] = 'crontab:d58cea74745f59c1'
-    pricing_pin = 'dc4cf6af13abb59b5d417340a780aa4c5449453bcf799d63d174a1903f28beaa'
+    # GLP-350: exact maintained caller successor; transport no longer forces enhanced.
+    pricing_pin = 'c114803b4cd8b544f99815aedc0f04b1d78abac1f1cde593b96c8046f32dabfe'
     assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
     pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
         'source': pricing_source, 'reviewed_sha256': pricing_pin}
-    # D1: only the retained disk monitor launcher pin changes; cron identity and
-    # all other source/payload metadata remain equal to the historical cohort.
+    # D1/PR449: exact maintained monitor successor includes the user-service bus.
+    # Cron identity and all other source/payload metadata remain historical.
     monitor = 'ops/hermes-cron-scripts/disk_monitor.sh'
-    monitor_pin = '1061caac91653c9328e66634983fb713f84d7c1148e960d2ad86babd07755e4c'
+    monitor_pin = '2bc27ff0fdfd02a2de2f94a1678b1ddadb04def5cbe5ddadc8cc75cdb438fe7d'
     assert sha((ROOT/monitor).read_bytes()) == monitor_pin
     monitor_rows = [r for r in expected['jobs'] if r['id'] == 'crontab:d1449753b8c4b011']
     assert len(monitor_rows) == 1 and len(monitor_rows[0]['sources']) == 1
     assert monitor_rows[0]['sources'][0]['reviewed_sha256'] == '1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447'
     monitor_rows[0]['sources'][0]['reviewed_sha256'] = monitor_pin
+    # GLP349 source-only successor: exactly the existing host-storage row.
+    # All historical transitions above and full-document equality remain intact.
+    host = [r for r in expected['jobs'] if r['id'] == '075ed81c6b43']
+    assert len(host) == 1 and host[0]['payloads'] == []
+    assert host[0]['reviewed_sha256'] == '7d469fb2305cdb5bfc742b25e8681df73b3a7dbe4b385b18b54e10de8fd379d2'
+    wrapper = 'ops/hermes-cron-scripts/host_disk_pruner.py'
+    host_pin = '35a23b99209c58a1d43d237228f3fce8af3fea405b0dddcf7b7cbf26dd4d5f45'
+    assert sha((ROOT/wrapper).read_bytes()) == host_pin
+    host[0]['reviewed_sha256'] = host_pin
+    payloads = [
+        ('scripts/host_disk_pruner_trigger.py', 'e3e01d65d345943a4fd880930b9c42eeffadaa2fd3fee1b6a63135c6d549a896'),
+        ('scripts/host_disk_cleanup_large_unit.py', '68a6abb5d6b229f1182aaf2afadd9171561a3c1d80a4efa9df5970ae38b587da'),
+        ('scripts/host_disk_large_sweep.py', '04dae0459281e8e5192ddd965ceb86f00e1983916e335b29ee7f7c5bfe01bce7'),
+    ]
+    for rel, pin in payloads:
+        assert sha((ROOT/rel).read_bytes()) == pin
+    host[0]['payloads'] = [{'path': '/home/ubuntu/business/' + rel, 'sha256': pin,
+        'owner': '/home/ubuntu/.hermes/scripts/host_disk_pruner.py'} for rel, pin in payloads]
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 

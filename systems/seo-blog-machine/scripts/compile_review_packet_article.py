@@ -33,6 +33,9 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
     buffer: list[str] = []
     table: list[str] = []
 
+    def block_order(section: dict[str, Any]) -> int:
+        return sum(len(section.get(key) or []) for key in ("paragraphs", "tables", "subheadings"))
+
     def flush() -> None:
         nonlocal buffer, table
         if current is None:
@@ -42,7 +45,15 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
         if text:
             current.setdefault("paragraphs", []).append(text)
         if table:
-            current.setdefault("tables", []).append(parse_table(table))
+            parsed = parse_table(table)
+            # Position is structure, not prose: the renderer keeps each authored
+            # table beside the paragraph it follows and under its H3 parent.
+            # ``order`` is the shared block sequence (paragraphs, tables, H3s)
+            # so a table and an H3 at the same paragraph offset keep their
+            # authored relative order.
+            parsed["after_paragraph"] = len(current.get("paragraphs") or [])
+            parsed["order"] = block_order(current)
+            current.setdefault("tables", []).append(parsed)
         buffer, table = [], []
 
     for raw in body.splitlines():
@@ -68,7 +79,12 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
         if mode != "body" or current is None:
             continue
         if line.startswith("### "):
-            flush(); buffer.append(f"{line[4:].strip()}.")
+            # Semantic H3 under the current H2 (never flattened into a prose
+            # paragraph). The renderer opens it before paragraph index N.
+            flush()
+            current.setdefault("subheadings", []).append(
+                {"heading": line[4:].strip(), "before_paragraph": len(current["paragraphs"]),
+                 "order": block_order(current)})
         elif re.match(r"^\d+\.\s+", line):
             flush(); current["ordered_items"].append(re.sub(r"^\d+\.\s+", "", line).strip())
         elif line.startswith("- "):
@@ -79,6 +95,7 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
         elif not line.strip():
             flush()
         else:
+            if table: flush()  # prose right after a table follows it, never precedes it
             buffer.append(line)
     flush()
     return sections, faqs
@@ -134,7 +151,41 @@ def commercial_link_metadata(meta: dict[str, Any]) -> dict[str, Any]:
     return {'commercial_link_taxonomy':classification, 'exact_services':services}
 
 
+def evidence_review_timestamp(meta: dict[str, Any], ledger: dict[str, Any],
+                              compiled_at: dt.datetime) -> str:
+    value = meta.get('evidenceReviewedAt')
+    if value is None:
+        # Preserve legacy date precision; never manufacture an actual review
+        # instant from the compile clock or a source's capture time.
+        return f"{meta['dateModified']}T00:00:00Z"
+    try:
+        if not isinstance(value, str) or not value.endswith('Z'):
+            raise ValueError('UTC timestamp required')
+        # fromisoformat silently truncates fractions beyond microsecond precision.
+        if re.search(r'[.,]\d{7,}', value):
+            raise ValueError('unsupported timestamp precision')
+        parsed = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if parsed.tzinfo != dt.timezone.utc or parsed.date().isoformat() != str(meta['dateModified']):
+            raise ValueError('evidence revision day mismatch')
+        if parsed > compiled_at:
+            raise ValueError('evidence review after compile time')
+        # The packet ledger is the evidence set, including non-public captures.
+        # Missing instants stay unknown; checked_date is not an actual clock.
+        for source in ledger['sources']:
+            if 'checked_at_utc' not in source:
+                continue
+            if re.search(r'[.,]\d{7,}', source['checked_at_utc']):
+                raise ValueError('unsupported timestamp precision')
+            checked = dt.datetime.fromisoformat(source['checked_at_utc'].replace('Z', '+00:00'))
+            if checked.tzinfo != dt.timezone.utc or parsed < checked:
+                raise ValueError('evidence review before ledger check')
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise RuntimeError('evidence_review_timestamp_invalid') from exc
+    return value
+
+
 def compile_packet(packet: Path) -> dict[str, Any]:
+    compiled_at = dt.datetime.now(dt.timezone.utc)
     draft_path = packet / "04-draft.md"
     raw = draft_path.read_text()
     parts = raw.split("---", 2)
@@ -244,6 +295,13 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         "byline_attribution": "By the Clinic Scout Editorial Team · no clinical credentials claimed",
         "ai_assistance_disclosure": "site-editorial-policy", "editorial_contract_version": "seo-phase1-v1",
         "sections": sections, "faqs": faqs, "internal_links": links,
+        # Native accepted-guide rendering contract (GLP-320 five-gate repair):
+        # semantic H3s, automatic section TOC, inline **emphasis**, body/table/FAQ
+        # citations resolved through stable S-number source IDs, and no generated
+        # three-column fact recap beside the authored two-column tables.
+        "render_contract": {"schema": "glp-accepted-guide-render-v1", "subheadings": "h3",
+                            "toc": "automatic-sections", "inline_emphasis": True,
+                            "citations": "source-id", "facts_recap": False},
         "claims": claims, "sources": sources, "comparison_required": False,
         "pros": ["Uses current primary evidence.", "Separates verified facts from unknowns.", "Maps decision-bearing claims to captured source text."],
         "cons": ["Terms, prices, labels, and coverage can change.", "Individual outcomes and eligibility cannot be inferred from general evidence.", "The page cannot replace clinician, plan, or pharmacy verification."],
@@ -269,7 +327,7 @@ def compile_packet(packet: Path) -> dict[str, Any]:
                           "status": serp.get("status") or serp.get("schema_version") or "PASS",
                           "parity_target_words": parity.get("primary_target_words") or parity.get("target_words") or parity.get("target") or 3000,
                           "ranking_wedge": (wedge.get("statement") or wedge.get("wedge") if isinstance(wedge, dict) else wedge) or "source-bound decision support"},
-        "evidence_review": {"status": "PASS", "reviewed_at": f"{meta['dateModified']}T00:00:00Z",
+        "evidence_review": {"status": "PASS", "reviewed_at": evidence_review_timestamp(meta, ledger, compiled_at),
                             "content_sha256": hashlib.sha256(draft_path.read_bytes()).hexdigest(),
                             "claim_source_map": "claims[] -> source_ids[] -> sources[].source_id",
                             "clinical_reviewer": None, "clinical_credentials_claimed": False},

@@ -329,6 +329,10 @@ def affiliate_response_disposition(parsed: dict[str, Any], classification: dict[
         return "auto_process_rejection"
     if AFFILIATE_OPERATOR_PREREQUISITE_RE.search(text):
         return "operator_prerequisite_card"
+    # An automated marketplace invitation is not a human direct-email route.
+    # Keep it with the provider-backed consumer, even if it names a contact.
+    if classification.get("reason_code") == "affiliate_network_automated_invitation":
+        return "other_affiliate_response"
     if AFFILIATE_APPLICATION_INVITATION_RE.search(text):
         return "auto_process_application_invitation"
     if AFFILIATE_APPROVAL_ACCEPTANCE_RE.search(text):
@@ -1348,7 +1352,8 @@ CREATE TABLE IF NOT EXISTS future_send_policy(
 CREATE TABLE IF NOT EXISTS inbox_runs(
   run_id TEXT PRIMARY KEY, started_at TEXT NOT NULL, finished_at TEXT,
   discovered_count INTEGER NOT NULL DEFAULT 0, persisted_count INTEGER NOT NULL DEFAULT 0,
-  duplicate_count INTEGER NOT NULL DEFAULT 0, classified_count INTEGER NOT NULL DEFAULT 0,
+  duplicate_count INTEGER NOT NULL DEFAULT 0, non_inbound_count INTEGER NOT NULL DEFAULT 0 CHECK(non_inbound_count>=0),
+  classified_count INTEGER NOT NULL DEFAULT 0,
   decision_queued_count INTEGER NOT NULL DEFAULT 0, suppressed_count INTEGER NOT NULL DEFAULT 0,
   quarantined_count INTEGER NOT NULL DEFAULT 0, outbound_send_count INTEGER NOT NULL DEFAULT 0,
   provider_draft_count INTEGER NOT NULL DEFAULT 0, provider_mutation_count INTEGER NOT NULL DEFAULT 0,
@@ -1423,6 +1428,9 @@ class Ledger:
         for name, sql_type in additions.items():
             if name not in columns:
                 self.conn.execute(f"ALTER TABLE inbox_classifications ADD COLUMN {name} {sql_type}")
+        run_columns = {str(row[1]) for row in self.conn.execute("PRAGMA table_info(inbox_runs)")}
+        if "non_inbound_count" not in run_columns:
+            self.conn.execute("ALTER TABLE inbox_runs ADD COLUMN non_inbound_count INTEGER NOT NULL DEFAULT 0 CHECK(non_inbound_count>=0)")
         unique_event_action = False
         for index in self.conn.execute("PRAGMA index_list(mailbox_actions)"):
             if int(index[2]) != 1:
@@ -5678,6 +5686,7 @@ def poll_gmail_api(ledger: Ledger, mailbox: dict[str, Any], run_id: str, bootstr
         token = next_token
     persisted = 0
     sent_only_skipped = 0
+    draft_only_skipped = 0
     last_message_at = None
     for item in selected:
         mid = str(item["id"])
@@ -5686,6 +5695,12 @@ def poll_gmail_api(ledger: Ledger, mailbox: dict[str, Any], run_id: str, bootstr
         # Defensive backstop if Gmail search semantics drift or a provider
         # fixture ignores q=. Message labels are message-specific; inbound
         # messages must never carry the SENT system label.
+        if "DRAFT" in labels:
+            # A discovered unsent draft is neither persisted inbound mail nor
+            # a duplicate. Explicit closure preserves the coverage equation
+            # without emitting cards, storing draft bodies or excluding replies.
+            draft_only_skipped += 1
+            continue
         if "SENT" in labels:
             sent_only_skipped += 1
             continue
@@ -5704,7 +5719,8 @@ def poll_gmail_api(ledger: Ledger, mailbox: dict[str, Any], run_id: str, bootstr
         "mailbox_id": mailbox["mailbox_id"], "status": "pass", "profile_match": True,
         "discovered": len(seen_message_ids), "selected_unseen": len(selected),
         "persisted": persisted, "duplicates": duplicate,
-        "sent_only_skipped": sent_only_skipped,
+        "sent_only_skipped": sent_only_skipped, "draft_only_skipped": draft_only_skipped,
+        "non_inbound_skipped": sent_only_skipped + draft_only_skipped,
         "provider_duplicate_ids": provider_duplicate_ids, "deferred_unseen": deferred_unseen,
         "pages_traversed": pages_traversed, "pagination_complete": token is None,
         "provider_mutations": 0, "external_sends": 0,
@@ -6299,6 +6315,7 @@ def run_poll(
         "discovered": sum(int(row.get("discovered") or 0) for row in results),
         "persisted": sum(int(row.get("persisted") or 0) for row in results),
         "duplicates": sum(int(row.get("duplicates") or 0) for row in results),
+        "non_inbound_skipped": sum(int(row.get("non_inbound_skipped") or 0) for row in results),
     }
     projection_result = project_kael_daily_audits(ledger)
     affiliate_exception_repair = ledger.repair_affiliate_exception_outbox()
@@ -6319,12 +6336,12 @@ def run_poll(
     private_json(receipt_path, receipt)
     with ledger.conn:
         ledger.conn.execute(
-            """UPDATE inbox_runs SET finished_at=?,discovered_count=?,persisted_count=?,duplicate_count=?,
+            """UPDATE inbox_runs SET finished_at=?,discovered_count=?,persisted_count=?,duplicate_count=?,non_inbound_count=?,
             classified_count=?,decision_queued_count=(SELECT COUNT(*) FROM notification_outbox WHERE purpose='operator_decision'),
             suppressed_count=(SELECT COUNT(*) FROM inbox_classifications WHERE route='silent'),
             quarantined_count=(SELECT COUNT(*) FROM inbox_events WHERE state='quarantined'),outbound_send_count=0,
             provider_draft_count=0,provider_mutation_count=0,exit_status=?,receipt_path=? WHERE run_id=?""",
-            (receipt["finished_at"], counts["discovered"], counts["persisted"], counts["duplicates"], counts["persisted"], status, str(receipt_path), run_id),
+            (receipt["finished_at"], counts["discovered"], counts["persisted"], counts["duplicates"], counts["non_inbound_skipped"], counts["persisted"], status, str(receipt_path), run_id),
         )
     ledger.audit("poll_completed", "inbox_run", run_id, {"status": status, "counts": counts, "daily_audit_projection": {"status": projection_result["status"], "projected": projection_result["projected"], "existing": projection_result["existing"], "invalid_count": len(projection_result["invalid"])}, "outbound_send_count": 0, "provider_draft_count": 0, "provider_mutation_count": 0})
     return receipt
@@ -6383,6 +6400,12 @@ def restore_test(backup_path: Path) -> dict[str, Any]:
     return {"status": "pass" if integrity == "ok" and not foreign_keys else "fail", "integrity_check": integrity, "foreign_key_failures": len(foreign_keys), "events": events, "audits": audits, "production_provider_touched": False, "external_send": False}
 
 
+def observe_glp125_external_sent(db_path: Path = DB_PATH, *, apply: bool = False) -> dict[str, Any]:
+    """Receive the retained external SENT effect without composing or sending."""
+    from inbox_control_plane.external_sent import observe
+    return observe(db_path, apply=apply)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", type=Path, default=DB_PATH)
@@ -6400,7 +6423,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--decision-message-id")
     parser.add_argument("--card-message-id")
     parser.add_argument("--limit", type=int, default=250)
+    parser.add_argument("--observe-glp125-external-sent", action="store_true")
+    parser.add_argument("--apply-external-observation", action="store_true")
     args = parser.parse_args(argv)
+    if args.apply_external_observation and not args.observe_glp125_external_sent:
+        parser.error("--apply-external-observation requires --observe-glp125-external-sent")
+    if args.observe_glp125_external_sent:
+        if any((args.init, args.poll, args.bootstrap, args.dispatch, args.decision_sync,
+                args.status, args.backup, args.restore_test, args.resolve_externally)):
+            parser.error("external SENT observation cannot be combined with monitor mutations")
+        try:
+            output = observe_glp125_external_sent(args.db, apply=args.apply_external_observation)
+        except Exception as exc:
+            # Provider failures can contain URLs/credentials; do not echo them.
+            output = {"status": "blocked", "recorded": False, "error_class": type(exc).__name__,
+                      "reason": str(exc) if isinstance(exc, ValueError) and str(exc).startswith("external_sent_") else "external_sent_verification_failed",
+                      "provider_mutations": 0, "outbound_send": False}
+        print(json.dumps(output, indent=2, sort_keys=True))
+        return 0 if output.get("status") == "pass" else 2
     if args.resolve_externally and bool(args.decision_message_id) != bool(args.card_message_id):
         parser.error("resolved-externally bindings require both --decision-message-id and --card-message-id, or neither")
     registry = load_registry()

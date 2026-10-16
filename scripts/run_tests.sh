@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export PYTHONPATH="${PWD}/scripts:${PWD}/tests${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="${PWD}:${PWD}/scripts:${PWD}/tests${PYTHONPATH:+:$PYTHONPATH}"
 export SEAT_AUTODISPATCH_TEST_SOURCE="${PWD}/scripts/seat_autodispatch.py"
 # Host-only suites depend on live bridge configuration, a bound capture and
 # absolute /home/ubuntu/business paths. Run them on the host, never pretend a
@@ -13,11 +13,12 @@ suites+=(tests/test_glp_ship_publication.py tests/test_source_lock_owner.py)
 suites+=(tests/test_therapeutic_taxonomy_refresh.py)
 suites+=(tests/test_glp44_weekly_gsc_aggregate.py tests/test_glp44_gsc_only_consumer.py tests/test_glp44_weekly_neutral_adapters.py)
 suites+=(tests/test_glp44_bridge_source_admission.py tests/test_glp44_bridge_fence_successor.py)
-suites+=(tests/test_glp44_strategy_report.py tests/test_glp44_strategy_sync.py)
+suites+=(tests/test_glp44_strategy_report.py tests/test_glp44_strategy_sync.py tests/test_glp44_weekly_keyword_budget.py)
 suites+=(tests/test_glp44_weekly_pin_adoption.py)
 suites+=(tests/test_glp75_weekly_producer_repairs.py)
 suites+=(tests/test_f07_registered_weekly_entry.py tests/test_glp44_reporting_source_pin_pair.py tests/test_glp44_scoped_adoption.py tests/test_glp333_reporting_generation.py tests/test_glp333_glp44_current_generation.py)
 suites+=(tests/test_glp334_conversion_reconciliation.py)
+suites+=(tests/test_glp334_native_financial_intake.py)
 suites+=(tests/test_pr148_reporting_followups.py tests/test_api_collectors_partnerstack_admitad.py tests/test_api_collectors_refersion.py tests/test_api_collectors_clickbank_healthtrader.py tests/test_api_collectors_wiring.py tests/test_api_collectors_smoke.py)
 suites+=(tests/test_api_collectors_everflow.py)
 suites+=(tests/test_glp345_a4_adoption.py)
@@ -36,6 +37,7 @@ suites+=(tests/test_glp193_capture_source_binding.py)
 suites+=(tests/test_pipeline_tool_contracts.py)
 suites+=(tests/test_glp196_price_index_contract.py tests/test_current_release_acceptance.py)
 suites+=(tests/test_fable_parent_handoff.py)
+suites+=(ventures/boring-ai/holistic-machine/tests/test_bridge_authority_guard.py)
 suites+=(tests/test_fable_mention_recovery.py tests/test_glp73_scoped_reviewer_routing.py)
 suites+=(tests/test_glp324_unassigned_commission_preflight.py)
 suites+=(tests/test_glp186_binding_diagnostics.py)
@@ -47,7 +49,9 @@ suites+=(tests/test_glp_maxbounty_fresh_probe.py)
 suites+=(tests/test_glp328_cold_wal.py)
 suites+=(tests/test_glp_sponsor_followup_notifications.py)
 suites+=(tests/test_glp_sponsor_nuimage_reply.py tests/test_glp_sponsor_current_receiving.py tests/test_glp_sponsor_packet_successor.py tests/test_glp_sponsor_site_payment.py tests/test_glp_sponsor_paypal_attestation.py tests/test_glp_sponsor_technical_receiving.py tests/test_glp_sponsor_public_custody.py)
-suites+=(tests/test_glp328_outreach_policy.py tests/test_glp328_readonly_evidence.py tests/test_glp328_disabled_reply_connection.py tests/test_glp_sponsor_campaign.py tests/test_glp_sponsor_boundary_repairs.py tests/test_glp_sponsor_continuation.py tests/test_glp_sponsor_paypal.py)
+suites+=(tests/test_glp328_outreach_policy.py tests/test_glp328_readonly_evidence.py tests/test_glp328_disabled_reply_connection.py tests/test_glp_sponsor_campaign.py tests/test_glp_sponsor_boundary_repairs.py tests/test_glp_sponsor_continuation.py tests/test_glp_sponsor_paypal.py tests/test_glp_sponsor_firecrawl_supply.py tests/test_glp_firecrawl_jobs.py)
+suites+=(tests/test_glp_sponsor_discovery.py tests/test_glp_sponsor_discovery_integration.py)
+suites+=(tests/test_glp_sponsor_firecrawl_booking.py)
 suites+=(tests/test_glp76_updater_publication_date.py)
 suites+=(tests/test_glp73_current_pointer_consumer.py tests/test_glp73_weekly_actual_entry.py tests/test_glp73_builder_current_base.py)
 suites+=(tests/test_glp110_prepared_authority_cache.py tests/test_repin_reports_archiver_dependents.py)
@@ -75,10 +79,14 @@ suites+=(tests/test_glp343_topic_first_party_scoring.py tests/test_glp343_integr
 suites+=(tests/test_monday_discovery_background.py tests/test_reddit_fractional_clock.py tests/test_reddit_skill_repair.py)
 suites+=(tests/test_affiliate_catalog_batch.py tests/test_j2_maxbounty_catalog.py tests/test_j3_partnerstack_catalog.py tests/test_j4_refersion_catalog.py)
 suites+=(tests/test_j4_partnerize_partial_catalog.py)
+suites+=(tests/test_f01_catalog_dependent_copins.py)
 suites+=(tests/test_capacity_reset_policy.py)
+suites+=(tests/test_glp_affiliate_postback_n8n_sync.py)
+suites+=(tests/test_glp_g6_traction_freshness.py)
 suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
 suites+=(tests/test_glp109_scheduler_health.py tests/test_glp320_host_failure_sensor.py)
 suites+=(tests/test_pro_route.py tests/test_pro_route_backlog.py tests/test_pro_route_consumer.py tests/test_pro_picker_family.py tests/test_pro_dispatch.py)
 suites+=(tests/test_linear_audit.py::test_obsolete_pending_delivery_does_not_poison_distinct_audit tests/test_subscription_capacity_monitor.py::test_s7_meter_resolves_package_transport_without_ops_path tests/test_subscription_capacity_monitor.py::test_s7_notification_upgrade_emits_once_preserving_day)
 suites+=(tests/test_discord_rate_rejection.py)
+suites+=(tests/test_ci_source_isolation.py)
 python3 -m pytest -q "${suites[@]}"

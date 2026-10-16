@@ -251,11 +251,15 @@ def firecrawl_fetch(url: str, api_key: str, proxy: str = 'basic') -> dict[str, A
     result = body.get("data") or body.get("result") or body
     text = result.get("markdown") if isinstance(result, dict) else ""
     text = text if isinstance(text, str) else ""
+    metadata = result.get("metadata") or {} if isinstance(result, dict) else {}
+    source_status = metadata.get("statusCode", response.status_code)
+    if body.get('success') is False or not isinstance(source_status, int) or not 200 <= source_status < 400:
+        text = ""
     return {
         "method": f"firecrawl_rendered_{proxy}_fallback",
         "requested_url": url,
         "final_url": (result.get("metadata") or {}).get("url", url) if isinstance(result, dict) else url,
-        "http_status": response.status_code,
+        "http_status": source_status,
         "bytes": len(response.content),
         "text_sha256": sha(text),
         "text": text,
@@ -269,7 +273,7 @@ def fetch_source(browser: Any, url: str, program_id: str, firecrawl_key: str | N
         lambda: browser_fetch(browser, url, program_id) if browser is not None else (_ for _ in ()).throw(RuntimeError("playwright_unavailable")),
         lambda: requests_fetch(url),
         lambda: firecrawl_fetch(url, firecrawl_key, 'basic') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
-        lambda: firecrawl_fetch(url, firecrawl_key, 'enhanced') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
+        lambda: firecrawl_fetch(url, firecrawl_key, 'auto') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
     )):
         try:
             result = fetcher()
@@ -279,7 +283,7 @@ def fetch_source(browser: Any, url: str, program_id: str, firecrawl_key: str | N
         except Exception as exc:
             errors.append(type(exc).__name__)
             # A dispatched Firecrawl effect with no result is uncertain. Only
-            # an explicit completed response permits basic-to-enhanced fallback.
+            # an explicit completed response permits basic-to-auto fallback.
             if attempt >= 2:
                 break
     return {

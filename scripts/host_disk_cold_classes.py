@@ -25,6 +25,9 @@ PROTECTED.update({'.enzyme','.ssh','.aws','.gnupg','.azure','.config','financial
 # Sealed release toolchains (site-system/toolchains/**) are deploy custody, never cache.
 PROTECTED.add('toolchains')
 
+# Only retained private approved-program registry; never cold candidate payload.
+APPROVED_REGISTRY_ROOT=Path('/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912')
+
 LIVE_HOME=Path('/home/ubuntu/.hermes')
 TMP_ROOT=Path('/tmp')
 
@@ -34,14 +37,16 @@ def live_symlink_targets(home=None,max_depth=3):
     Never follow directory symlinks while discovering. Permission/scan failures
     propagate: incomplete live-target inventory cannot authorize any effects.
     """
-    home=Path(home or LIVE_HOME);stack=[(home,0)];targets=set()
-    while stack:
-        p,depth=stack.pop()
+    home=Path(home or LIVE_HOME);targets=set()
+    def walk(p,depth):
         if p.is_symlink():
-            targets.add(p.resolve(strict=False));continue
-        if depth>=max_depth or not p.is_dir():continue
-        with os.scandir(p) as es:
-            stack.extend((Path(e.path),depth+1) for e in es)
+            targets.add(p.resolve(strict=False));return
+        if depth>=max_depth or not p.is_dir():return
+        with os.scandir(p) as entries:
+            for entry in entries:
+                if entry.is_symlink() or entry.is_dir(follow_symlinks=False):
+                    walk(Path(entry.path),depth+1)
+    walk(home,0)
     return targets
 
 def existing_pins(pins):
@@ -62,10 +67,15 @@ def existing_pins(pins):
 
 def custody_pins(pins):
     from host_disk_custody import collect
-    live=existing_pins(set(pins)|collect())
-    # Resolve current alias chains again at every gate, not from cached prose.
-    live.update(p.resolve(strict=False) for p in tuple(live))
-    return tuple(live)+tuple(live_symlink_targets())
+    from itertools import chain
+    live=set()
+    for value in chain(pins,collect()):
+        p=Path(value)
+        try:p.lstat()
+        except FileNotFoundError:continue
+        live.add(p);live.add(p.resolve(strict=False))
+    live.update(live_symlink_targets())
+    return tuple(live)
 
 _PIN_CACHE={}
 
@@ -75,10 +85,11 @@ def protected(p, pins=()):
     key=id(pins)
     cached=_PIN_CACHE.get(key)
     if cached is None or cached[0] is not pins:
+        if len(_PIN_CACHE)>=32:_PIN_CACHE.clear()
         cached=(pins,frozenset(map(str,pins))); _PIN_CACHE[key]=cached
     pinset=cached[1]
     referenced=any(str(a) in pinset for a in [p,*p.parents])
-    return (referenced or p.name.endswith('.tar.zst.partial') or
+    return (p==APPROVED_REGISTRY_ROOT or APPROVED_REGISTRY_ROOT in p.parents or referenced or p.name.endswith('.tar.zst.partial') or
             p.suffix.lower() in {'.db','.sqlite','.sqlite3','.duckdb','.db-wal','.db-shm','.db-journal','.sqlite-wal','.sqlite-shm','.sqlite-journal','.sqlite3-wal','.sqlite3-shm','.zst','.tar','.tgz','.gz'} or
             any(re.search(r'(^|[^a-z0-9])r8([^a-z0-9]|$)',n.lower()) or n in PROTECTED or n.startswith(('.env','tmux-','.org.chromium.',
                 'browser-profile','chrome-profile','chromium-profile','sealed','seal-'))
@@ -125,13 +136,14 @@ def dirty_worktree(p):
 def inactive(api,p):
     return not api.path_is_active_privileged(p)
 
-def inventory(root,pins,cutoff,deadline,*,hashes):
+def inventory(root,pins,cutoff,deadline,*,hashes,protection=None):
     """Select only cold files; no directory traversal through symlinks/protection."""
     root=Path(root); rows=[]; skipped=[]; stack=[root]; device=root.lstat().st_dev
+    protect=protection or protected
     while stack:
         if time.monotonic()>deadline: raise TimeoutError('inventory')
         p=stack.pop()
-        if protected(p,pins): skipped.append(str(p)); continue
+        if protect(p,pins): skipped.append(str(p)); continue
         s=p.lstat()
         if s.st_dev!=device: raise ValueError('cross-device')
         if stat.S_ISDIR(s.st_mode):
@@ -232,31 +244,46 @@ def verified_duplicates(api,targets,manifest,*,pins=(),dry_run=True,deadline):
     No mutable-source hardlinks. File identities, SHA256 and live references are
     rechecked before removal; unknown ownership/age/database cases stay.
     """
-    groups={}; rows=[]; cutoff=time.time()-7*86400; pins=custody_pins(pins)
-    for target in targets:
-        p=Path(target)
-        if time.monotonic()>deadline:raise TimeoutError('duplicates')
-        if p.is_symlink() or protected(p,pins) or dirty_worktree(p):continue
-        s=p.lstat()
-        if not stat.S_ISREG(s.st_mode) or s.st_mode & 0o222 or s.st_nlink!=1 or max(s.st_mtime,s.st_ctime)>cutoff:continue
-        fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NOATIME)
-        with os.fdopen(fd,'rb') as f:
-            header=f.read(16)
-            if header==b'SQLite format 3\0' or header[8:12]==b'DUCK':continue
-        sig=signature(p); digest=sha(p); key=(s.st_size,digest)
-        if key not in groups:groups[key]=(p,sig);continue
-        keep,keep_sig=groups[key]
-        row={'rule':'verified_cold_duplicate','path':str(p),'retained_copy':str(keep),
-             'sha256':digest,'bytes_freed':0}
-        if (protected(p,custody_pins(pins)) or not inactive(api,p) or not inactive(api,keep) or signature(p)!=sig
-            or signature(keep)!=keep_sig or sha(keep)!=digest or sha(p)!=digest):
-            rows.append(dict(row,status='REFUSED'));continue
-        if dry_run:row.update(status='ELIGIBLE',eligible_bytes=s.st_blocks*512)
-        else:
-            # Intent manifest is durable before the unlink, not merely a summary.
-            write_json(manifest,rows+[dict(row,status='VERIFIED_REMOVAL_INTENT')])
-            p.unlink();row.update(status='REMOVED',bytes_freed=s.st_blocks*512)
-        rows.append(row)
+    groups={}; rows=[]; cutoff=time.time()-7*86400
+    def expired():
+        # Only our own cooperative clock check becomes a partial result. Never
+        # catch custody/hash/unlink failures or replace an uncertain intent.
+        if time.monotonic()<=deadline:return False
+        rows.append({'rule':'verified_cold_duplicate','status':'TIME_BUDGET_PARTIAL',
+                     'reason':'duplicates','partial':True,'ok':False,'bytes_freed':0})
+        return True
+    if not expired():
+        pins=custody_pins(pins)
+        if not expired():
+            for target in targets:
+                if expired():break
+                p=Path(target)
+                if p.is_symlink() or protected(p,pins) or dirty_worktree(p):continue
+                s=p.lstat()
+                if not stat.S_ISREG(s.st_mode) or s.st_mode & 0o222 or s.st_nlink!=1 or max(s.st_mtime,s.st_ctime)>cutoff:continue
+                fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NOATIME)
+                with os.fdopen(fd,'rb') as f:
+                    header=f.read(16)
+                    if header==b'SQLite format 3\0' or header[8:12]==b'DUCK':continue
+                sig=signature(p); digest=sha(p); key=(s.st_size,digest)
+                if key not in groups:groups[key]=(p,sig);continue
+                keep,keep_sig=groups[key]
+                row={'rule':'verified_cold_duplicate','path':str(p),'retained_copy':str(keep),
+                     'sha256':digest,'bytes_freed':0}
+                changed=(protected(p,custody_pins(pins)) or not inactive(api,p) or not inactive(api,keep) or signature(p)!=sig
+                    or signature(keep)!=keep_sig or sha(keep)!=digest or sha(p)!=digest)
+                if expired():break
+                if changed:
+                    rows.append(dict(row,status='REFUSED'));continue
+                if dry_run:row.update(status='ELIGIBLE',eligible_bytes=s.st_blocks*512)
+                else:
+                    # Intent is durable before the unlink. Expiry here is still
+                    # certain zero effect; an actual unlink failure propagates
+                    # with this intent intact, never finalized as zero/PASS.
+                    write_json(manifest,rows+[dict(row,status='VERIFIED_REMOVAL_INTENT')])
+                    if expired():break
+                    p.unlink();row.update(status='REMOVED',bytes_freed=s.st_blocks*512)
+                rows.append(row)
     if not dry_run:write_json(manifest,rows)
     return rows
 
@@ -358,17 +385,26 @@ def cleanup_abandoned_archives(api, prune_root, *, source_roots, dry_run, deadli
     return result
 
 
-def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=7,min_bytes=0,reserve_bytes=0,min_net_bytes=None,archive_destination=None,max_archive_input_bytes=None):
+def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=7,min_bytes=0,reserve_bytes=0,min_net_bytes=None,archive_destination=None,max_archive_input_bytes=None,remote_authority=None):
     """Compress explicit cold members, preserve protected leaves and directory skeletons."""
     root=Path(root); dest=Path(destination); pins=custody_pins(pins)
-    if archive_destination is not None and cold_days<30:
+    protect=protected
+    authority=None
+    if remote_authority is not None:
+        authority=remote_authority.admit(root,cold_days)
+        if not isinstance(authority,dict) or authority.get('scope')!='superseded_site':
+            raise ValueError('explicit site retirement authority missing')
+        if archive_destination is not None:raise ValueError('ambiguous remote authority')
+        archive_destination=remote_authority
+        protect=remote_authority.protect
+    if archive_destination is not None and cold_days<30 and authority is None:
         raise ValueError('remote archive requires 30d cold scope')
     row={'rule':'cold_evidence_archive','path':str(root),'bytes_freed':0}
-    if root.is_symlink() or root.resolve()!=root.absolute() or protected(root,pins):
+    if root.is_symlink() or root.resolve()!=root.absolute() or protect(root,pins):
         return dict(row,status='REFUSED',reason='scope/protection')
     if dirty_worktree(root) or not inactive(api,root):
         return dict(row,status='REFUSED',reason='dirty/active')
-    rows,skipped=inventory(root,pins,time.time()-cold_days*86400,deadline,hashes=False)
+    rows,skipped=inventory(root,pins,time.time()-cold_days*86400,deadline,hashes=False,protection=protect)
     # Reclaim a shared inode only when every original link is in this selection.
     links={};blocks={}
     for r in rows:
@@ -452,7 +488,7 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
         archive_sha=sha(tmp)
         # Verification is complete before publishing the archive or retiring originals.
         fresh_pins=custody_pins(pins)
-        if any(protected(root/r['name'],fresh_pins) for r in rows): raise ValueError('new live symlink custody')
+        if any(protect(root/r['name'],fresh_pins) for r in rows): raise ValueError('new live symlink custody')
         if not inactive(api,root) or dirty_worktree(root): raise ValueError('new active/dirty reference')
         if any(signature(root/r['name'])!=r['signature'] for r in rows): raise ValueError('source changed before retire')
         verify={'archive_sha256':archive_sha,'manifest_sha256':sha(manifest),
@@ -488,12 +524,16 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
                 scopes.update(p for p in (root/member['name']).parents if p==root or root in p.parents)
             if any(p.is_symlink() or p.resolve()!=p.absolute() for p in scopes):
                 raise ValueError('source symlink/scope drift after upload')
-            if any(protected(root/r['name'],fresh_pins) for r in rows):
+            if any(protect(root/r['name'],fresh_pins) for r in rows):
                 raise ValueError('new custody after remote attempt')
             if not inactive(api,root) or dirty_worktree(root):
                 raise ValueError('new active/dirty after remote attempt')
             if any(signature(root/r['name'])!=r['signature'] for r in rows):
                 raise ValueError('source drift after remote attempt')
+            if authority is not None:
+                remote_authority.admit(root,cold_days)
+                if not remote:
+                    return dict(row,status='REMOTE_REQUIRED_ORIGINALS_RETAINED')
             if remote:
                 verify['remote']=remote
                 write_json(verified,verify)
