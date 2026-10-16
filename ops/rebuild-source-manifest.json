@@ -1460,7 +1460,7 @@
         "hermes:a0d5cb0609b9"
       ],
       "kind": "script",
-      "sha256": "f460253c7f86153c9b0c319dd823e287b58f4a2add4071906ad5af8776d30d09"
+      "sha256": "199007b44dad8bcbab072423c4181f1a1465312146d7e8f6076342d607c32b12"
     },
     "ops/hermes-cron-scripts/higgsfield_auth_keepalive.py": {
       "callers": [
@@ -7775,7 +7775,7 @@
       "callers": [
         "GLP349 authenticated archive source cohort"
       ],
-      "sha256": "3685ba1acac0916e7c53cabae6fe710b52fd4d46d8b2a054be9f97ad5d6a4757"
+      "sha256": "3d3b02d81a322d2858926915a8452b72376bb71da66531eb51c21d8d60df03eb"
     },
     "ops/systemd/hermes-state-archive-weekly.service": {
       "kind": "repository_control",

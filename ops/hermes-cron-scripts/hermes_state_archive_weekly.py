@@ -8,7 +8,7 @@ import json
 import subprocess
 import sys
 PIN_FILE = Path('/home/ubuntu/business/scripts/hermes_state_archive/weekly-pins.json')
-PIN_HASH = '3685ba1acac0916e7c53cabae6fe710b52fd4d46d8b2a054be9f97ad5d6a4757'
+PIN_HASH = '3d3b02d81a322d2858926915a8452b72376bb71da66531eb51c21d8d60df03eb'
 def main():
     try:
         if hashlib.sha256(PIN_FILE.read_bytes()).hexdigest() != PIN_HASH:
