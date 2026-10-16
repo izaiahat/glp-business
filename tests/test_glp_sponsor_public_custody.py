@@ -31,6 +31,19 @@ def extract_and_validate(markup,url='https://procompounding.com/about',address='
  return contacts,c.public_business_contact(host,org,at,exact_email=address)
 
 
+def test_valueless_style_is_empty_css_not_missing_role_evidence():
+ assert c.public_page_hits('<div style>Published business card</div>')==([], 'Published business card')
+ _,card=retained_sales_page()
+ styled=card.replace('<div ', '<div style ',1)
+ assert c.public_page_hits(styled)==c.public_page_hits(card)
+ contacts,validated=extract_and_validate(styled)
+ assert [row['address'] for row in contacts]==['kate.kincaid@procompounding.com']
+ assert validated and validated['address']=='kate.kincaid@procompounding.com'
+ for hidden in ('hidden style', 'aria-hidden="true" style', 'style="display:none"', 'style="visibility:hidden"'):
+  contacts,validated=extract_and_validate(card.replace('<div ', '<div '+hidden+' ',1))
+  assert contacts==[] and validated is None
+
+
 @pytest.mark.parametrize('fragment',[False,True])
 def test_retained_named_marketing_sales_manager_recall(fragment,monkeypatch):
  import socket
