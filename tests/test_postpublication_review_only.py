@@ -415,6 +415,211 @@ def test_blocked_history_requires_authenticated_predecessor(tmp_path, monkeypatc
         assert not output.exists()
 
 
+def corrected_pass_fixture(tmp_path, monkeypatch):
+    """Real sealed nine-subject job plus synthetic fixed-DB native persistence."""
+    import argparse, sqlite3
+    from datetime import datetime, timezone
+    import hermes_sol_article_review as native
+    import article_health_acceptance as health
+    import review_transports
+    root, entry, original, output, db, options = successor_fixture(tmp_path, monkeypatch)
+    # Canonical author IDs retain actual model exclusions in this fixture.
+    with sqlite3.connect(db) as c:
+        c.execute("update sessions set model='gpt-6-astra-900k' where id in ('writer','successor-writer')")
+    recovery.prepare_review_only(entry, original, output,
+        'hermes-openai-codex-sol61-independent', root=root, session_db=db, **options)
+    job_path = output/'job.json'; job = recovery.read(job_path)
+    history = Path(job['history_dir']); history.mkdir()
+    manifest, mp = loop.seal_subjects(job, 1, history)
+    context = loop.build_context_bundle(job, manifest, 1, history)
+    route = review_transports.transport(job['review_transport'])
+    prompt = history/'round-01-review-prompt.md'; prompt.write_text('Synthetic PASS, not clinical evidence.')
+    args = argparse.Namespace(prompt=None, prompt_file=str(prompt),
+        context_file=[str(context)], json_schema_file=str(loop.REVIEW_SCHEMA),
+        max_context_chars=100000, max_total_chars=200000, model=route['model'],
+        provider=route['provider'], effort='high', disable_tools=True)
+    captured = {}; payload = native.build_payload(args, captured, native.load_schema(args, captured))
+    inputs = native.review_input(args, payload, captured)
+    result = dict(summary='Synthetic fixture', verdict='PASS_OPUS_SEO_DRAFT', round=1,
+        subject_manifest_sha256=manifest['manifest_sha256'], findings=[],
+        gates=[dict(gate=g, status='PASS', findings=[]) for g in 'ABCDE'])
+    response = json.dumps(result); start = health.timestamp(loop.now()) + 1
+    with sqlite3.connect(db) as c:
+        c.execute('insert into sessions values(?,?,?,?,?,?,?,?,?)', ('corrected-reviewer', route['model'],
+            start, start+3, json.dumps({'reasoning_config': {'effort': 'high'}, 'max_iterations': 1}),
+            native.SYSTEM_BRIEF, route['provider'], 1, 0))
+        for mid, role, content, stamp in [(20,'user',payload,start+1),(21,'assistant',response,start+2)]:
+            c.execute('insert into messages values(?,?,?,?,?,?,?)', (mid,'corrected-reviewer',role,None,content,stamp,None))
+    custody = native.authenticate_result('corrected-reviewer',payload,response,
+        model=route['model'],provider=route['provider'],effort='high',session_db=db)
+    runtime = {k: inputs[k] for k in ('provider','model','effort','api_mode','transport_id','speed','service_tier')}
+    runtime.update(session_id='corrected-reviewer',tool_count=0,tool_calls=0,fallback_provider_count=0,
+                   model_turns=1,context_isolated=True,result_custody=custody)
+    raw = dict(session_id='corrected-reviewer',result=response,review_input=inputs,
+               hermes_runtime=runtime,modelUsage={route['model']: {'outputTokens':50}})
+    rp = history/'round-01-sol-raw.json'; rp.write_text(json.dumps(raw))
+    receipt = dict(schema='glp-opus-seo-round-receipt-v1', status=result['verdict'],
+        reviewed_at_utc=datetime.fromtimestamp(start+5, timezone.utc).isoformat(),
+        job_id=job['job_id'],topic_id=job['topic_id'],round=1,review_transport=route['transport_id'],
+        provider=route['provider'],model=route['model'],effort=route['effort'],tools_disabled=True,
+        effects={k:0 for k in ('publishes','deployments','cache_purges','gsc_submissions')},
+        subject_manifest_path=str(mp),subject_manifest_sha256=recovery.sha(mp),raw_review_path=str(rp),
+        raw_review_sha256=recovery.sha(rp),gates=result['gates'],findings=[])
+    receipt['receipt_sha256'] = loop.payload_hash(receipt,'receipt_sha256')
+    (history/'round-01-receipt.json').write_text(json.dumps(receipt))
+    loop.reserve_review_only_intent(history,job,recovery.sha(mp))
+    # The controller's consumed execution binds the exact raw native result.
+    (history/'round-01-review-execution.json').write_text(json.dumps({
+        'job_id': job['job_id'], 'round': 1, 'exit_code': 0,
+        'subject_manifest_sha256': recovery.sha(mp), 'raw_review_sha256': recovery.sha(rp)}))
+    monkeypatch.setattr(native,'SESSION_DB',db); monkeypatch.setattr(health,'SESSION_DB',db)
+    return root, entry, job_path, db
+
+
+def test_corrected_successor_refuses_replacement_native_session(tmp_path, monkeypatch):
+    """A second authentic synthetic session cannot reuse the consumed intent."""
+    import sqlite3
+    from datetime import datetime, timezone
+    import hermes_sol_article_review as native
+    root, entry, job_path, db = corrected_pass_fixture(tmp_path, monkeypatch)
+    job = recovery.read(job_path); packet = Path(job['packet_dir']); history = Path(job['history_dir'])
+    raw_path = history/'round-01-sol-raw.json'; receipt_path = history/'round-01-receipt.json'
+    raw = recovery.read(raw_path); receipt = recovery.read(receipt_path)
+    preserved = {p: p.read_bytes() for p in (history/'native-review-intent.json',
+        history/'round-01-subject-manifest.json', history/'round-01-review-execution.json')}
+    assert recovery.corrected_successor_documents(entry, history, packet, job_path, root=root)
+    old_sid = raw['session_id']; new_sid = 'unauthorized-retry-fixture'
+    response = json.loads(raw['result']); response['summary'] = 'Later ungranted native session fixture'
+    response = json.dumps(response)
+    with sqlite3.connect(db) as c:
+        session = list(c.execute('select * from sessions where id=?', (old_sid,)).fetchone())
+        session[0] = new_sid; session[2] += 10; session[3] += 10
+        c.execute('insert into sessions values(?,?,?,?,?,?,?,?,?)', session)
+        for row in c.execute('select * from messages where session_id=? order by id', (old_sid,)).fetchall():
+            row = list(row); row[0] += 100; row[1] = new_sid; row[5] += 10
+            if row[2] == 'assistant':
+                row[4] = response
+            else:
+                payload = row[4]
+            c.execute('insert into messages values(?,?,?,?,?,?,?)', row)
+    raw['session_id'] = new_sid; raw['result'] = response; raw['hermes_runtime']['session_id'] = new_sid
+    raw['hermes_runtime']['result_custody'] = native.authenticate_result(new_sid, payload, response,
+        model=raw['hermes_runtime']['model'], provider=raw['hermes_runtime']['provider'], effort='high', session_db=db)
+    raw_path.write_text(json.dumps(raw))
+    receipt.update(raw_review_sha256=recovery.sha(raw_path),
+        reviewed_at_utc=datetime.fromtimestamp(session[3]+5, timezone.utc).isoformat())
+    receipt['receipt_sha256'] = loop.payload_hash(receipt, 'receipt_sha256')
+    receipt_path.write_text(json.dumps(receipt))
+    assert native.validate_result_custody(raw, manifest=recovery.read(history/'round-01-subject-manifest.json'),
+        packet=packet)['session_id'] == new_sid
+    with pytest.raises(ValueError, match='corrected_successor_consumed_execution'):
+        recovery.corrected_successor_documents(entry, history, packet, job_path, root=root)
+    assert all(p.read_bytes() == data for p, data in preserved.items())
+
+
+@pytest.mark.parametrize('dependency', ['context_files', 'prompt_file', 'json_schema_file'])
+def test_corrected_successor_refuses_postauth_captured_dependency_drift(tmp_path, monkeypatch, dependency):
+    import hermes_sol_article_review as native
+    root, entry, job_path, db = corrected_pass_fixture(tmp_path, monkeypatch)
+    job = recovery.read(job_path); packet = Path(job['packet_dir']); history = Path(job['history_dir'])
+    accepted = recovery.corrected_successor_documents(entry, history, packet, job_path, root=root)
+    raw = accepted['raw']; captured = raw['review_input'][dependency]
+    captured = captured[0] if dependency == 'context_files' else captured
+    target = Path(captured['path'])
+    real = native.validate_result_custody
+    def validate_then_drift(raw, **kwargs):
+        custody = real(raw, **kwargs)
+        if custody['session_id'] == 'corrected-reviewer':
+            target.write_text(target.read_text() + '\n ')
+        return custody
+    monkeypatch.setattr(native, 'validate_result_custody', validate_then_drift)
+    with pytest.raises(ValueError, match='recovery_artifact_drift'):
+        observed = recovery.corrected_successor_documents(entry, history, packet, job_path, root=root)
+        # Exported pins must also cover the complete captured native input set.
+        for value in observed['authenticated_inputs']:
+            recovery.checked(value)
+    with pytest.raises(RuntimeError, match='captured review input changed'):
+        real(raw, manifest=accepted['manifest'], packet=packet)
+
+
+@pytest.mark.parametrize('field,value', [
+    ('schema', 'wrong-schema'), ('provider', 'unregistered-provider'), ('model', 'wrong-model'),
+    ('effort', 'low'), ('tools_disabled', False), ('tools_disabled', 1),
+    ('effects', {'publishes': 99}), ('effects', None),
+    *[('effects', {k: (value if k == 'publishes' else 0)
+                  for k in ('publishes', 'deployments', 'cache_purges', 'gsc_submissions')})
+      for value in (1, False, 0.0)],
+    ('effects', {k: 0 for k in ('publishes', 'deployments', 'cache_purges', 'gsc_submissions', 'extra')}),
+])
+def test_corrected_successor_refuses_contradictory_receipt_contract(tmp_path, monkeypatch, field, value):
+    root, entry, job_path, db = corrected_pass_fixture(tmp_path, monkeypatch)
+    job = recovery.read(job_path); packet = Path(job['packet_dir']); history = Path(job['history_dir'])
+    assert recovery.corrected_successor_documents(entry, history, packet, job_path, root=root)
+    path = history/'round-01-receipt.json'; receipt = recovery.read(path)
+    original_raw = (history/'round-01-sol-raw.json').read_bytes()
+    receipt[field] = value
+    receipt['receipt_sha256'] = loop.payload_hash(receipt, 'receipt_sha256')
+    path.write_text(json.dumps(receipt))
+    error = 'corrected_successor_review_binding' if field == 'schema' else 'corrected_successor_receipt_contract'
+    with pytest.raises(ValueError, match=error):
+        recovery.corrected_successor_documents(entry, history, packet, job_path, root=root)
+    assert (history/'round-01-sol-raw.json').read_bytes() == original_raw
+
+
+def test_corrected_successor_consumer_authenticates_nine_subject_job(tmp_path, monkeypatch):
+    root, entry, job_path, db = corrected_pass_fixture(tmp_path, monkeypatch)
+    job = recovery.read(job_path); packet = Path(job['packet_dir']); history = Path(job['history_dir'])
+    before = {p:p.read_bytes() for p in root.rglob('*') if p.is_file()}
+    result = recovery.corrected_successor_documents(entry, history, packet, job_path, root=root)
+    assert result['receipt']['status'] == 'PASS_OPUS_SEO_DRAFT'
+    assert len(result['manifest']['subject_files']) == 9
+    assert result['custody']['session_id'] == 'corrected-reviewer'
+    assert not (packet/recovery.PUBLICATION_CONTEXT).exists()
+    assert before == {p:p.read_bytes() for p in root.rglob('*') if p.is_file()}
+
+
+@pytest.mark.parametrize('fault,reason', [
+    ('intent', 'corrected_successor_single_native_intent'),
+    ('deployed', 'corrected_successor_job_binding'),
+    ('author-model', 'same model'),
+    ('native-result', 'reviewer_result_custody_refused:runtime input/response differs'),
+    ('alias', 'review_only_successor_alias_drift'),
+    ('draft', 'review_only_successor_source_drift'),
+    ('tenth-subject', 'review_only_exact_subject_set')])
+def test_corrected_successor_consumer_cannot_rehash_or_bypass_custody(tmp_path, monkeypatch, fault, reason):
+    import sqlite3
+    root, entry, job_path, db = corrected_pass_fixture(tmp_path, monkeypatch)
+    job = recovery.read(job_path); packet = Path(job['packet_dir']); history = Path(job['history_dir'])
+    if fault == 'intent':
+        path = history/'native-review-intent.json'; value = recovery.read(path)
+        value['job_id'] = 'another-job'; path.write_text(json.dumps(value))
+    elif fault == 'deployed':
+        job['postpublication_binding']['review_subject'] = 'published'
+        job_path.write_text(json.dumps(job))
+    elif fault == 'author-model':
+        with sqlite3.connect(db) as c:
+            c.execute("update sessions set model='gpt-6.1-sol' where id='successor-writer'")
+    elif fault == 'native-result':
+        with sqlite3.connect(db) as c:
+            c.execute("update messages set content='forged' where id=21")
+    elif fault == 'alias':
+        del job['postpublication_binding']['successor']['original_aliases']['01-evidence-ledger.json']
+        job_path.write_text(json.dumps(job))
+    elif fault == 'draft':
+        (packet/'04-draft.md').write_text('unreviewed')
+    else:
+        mp = history/'round-01-subject-manifest.json'; manifest = recovery.read(mp)
+        manifest['subject_files'].append({'path':'09-publication-context.json','sha256':'0'*64})
+        manifest['manifest_sha256'] = loop.payload_hash(manifest,'manifest_sha256')
+        mp.write_text(json.dumps(manifest))
+        rp = history/'round-01-receipt.json'; receipt = recovery.read(rp)
+        receipt['subject_manifest_sha256'] = recovery.sha(mp)
+        receipt['receipt_sha256'] = loop.payload_hash(receipt,'receipt_sha256')
+        rp.write_text(json.dumps(receipt))
+    with pytest.raises((ValueError,RuntimeError), match=reason):
+        recovery.corrected_successor_documents(entry, history, packet, job_path, root=root)
+
+
 def test_preparation_binds_corrected_successor_not_deployed_subject(tmp_path, monkeypatch):
     import review_transports
     root, entry, original, output, db, options = successor_fixture(tmp_path, monkeypatch)

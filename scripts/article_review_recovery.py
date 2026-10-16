@@ -488,6 +488,121 @@ def successor_documents(entry_path, history, packet, *, root=ROOT,
     return doc
 
 
+def corrected_successor_documents(entry_path, history, packet, job_path, *, root=ROOT):
+    """Authenticate a consumed corrected-review-only job, not deployed health.
+
+    Reuse the native binding/blocked-history, compiler/QA and fixed-DB readers.
+    Never extend its nine subjects, invoke transport, or issue a recovery seal.
+    """
+    import opus_review_loop as loop
+    import review_transports
+    import hermes_sol_article_review as native
+    from article_health_acceptance import packet_authors, author_session, timestamp
+    job_spec = spec(job_path)
+    job = read(checked(job_spec))
+    loop.validate_review_only_job(job, apply=False, review_only_once=True)
+    binding = job.get('postpublication_binding') or {}
+    require(job.get('artifact_role') == 'postpublication_review_only_job'
+            and job.get('materialization_reason') == 'corrected_successor_review_only'
+            and binding.get('review_subject') == 'corrected_successor'
+            and Path(job['packet_dir']).resolve(strict=True) == packet
+            and Path(job['history_dir']).resolve(strict=True) == history
+            and checked(binding['entry']) == entry_path.resolve(strict=True),
+            'corrected_successor_job_binding')
+    require(list(history.glob('round-*-receipt.json')) == [history/'round-01-receipt.json'],
+            'exact_single_review_required')
+    receipt_spec = spec(history/'round-01-receipt.json')
+    receipt = read(checked(receipt_spec))
+    manifest_spec = {'path': receipt['subject_manifest_path'], 'sha256': receipt['subject_manifest_sha256']}
+    raw_spec = {'path': receipt['raw_review_path'], 'sha256': receipt['raw_review_sha256']}
+    manifest_path, raw_path = checked(manifest_spec), checked(raw_spec)
+    require(manifest_path == history/'round-01-subject-manifest.json'
+            and raw_path == history/'round-01-sol-raw.json', 'corrected_successor_history_paths')
+    manifest, raw = read(manifest_path), read(raw_path)
+    require(receipt.get('schema') == 'glp-opus-seo-round-receipt-v1'
+            and receipt['receipt_sha256'] == loop.payload_hash(receipt, 'receipt_sha256')
+            and manifest.get('schema') == 'glp-opus-seo-subject-manifest-v1'
+            and manifest.get('status') == 'SEALED_FOR_OPUS_REVIEW'
+            and manifest['manifest_sha256'] == loop.payload_hash(manifest, 'manifest_sha256')
+            and receipt['round'] == manifest['round'] == 1
+            and all(receipt[k] == manifest[k] == job[k] for k in ('job_id', 'topic_id')),
+            'corrected_successor_review_binding')
+    require(len(manifest['subject_files']) == 9
+            and {r['path'] for r in manifest['subject_files']} == SUBJECTS | {CANDIDATE},
+            'review_only_exact_subject_set')
+    route = review_transports.transport(job['review_transport'])
+    require(raw['hermes_runtime']['transport_id'] == receipt['review_transport'] == route['transport_id'],
+            'corrected_successor_native_route')
+    validate_review_only_binding(job, route, root=root)
+    entry = read(checked(binding['entry']))
+    import compile_review_packet_article as compiler
+    derivation = successor_contract(entry_path.parent/'packet', packet, entry['packet_files'], manifest,
+                                    compile_packet=compiler.compile_packet, root=root)
+    payload = loop.parse_result(raw)
+    loop.validate_review(payload, raw, manifest, 1)
+    require(payload['verdict'] == receipt['status'] == 'PASS_OPUS_SEO_DRAFT'
+            and payload['gates'] == receipt['gates'] and payload['findings'] == receipt['findings'] == []
+            and [g['gate'] for g in receipt['gates']] == list('ABCDE')
+            and all(g['status'] == 'PASS' and not g['findings'] for g in receipt['gates']),
+            'fresh_review_not_PASS')
+    # Mirror the maintained downstream receipt bar; a valid raw runtime cannot
+    # launder contradictory receipt metadata into the staged source bytes.
+    effects = receipt.get('effects')
+    require(all(receipt.get(key) == route[key] for key in ('provider', 'model', 'effort'))
+            and receipt.get('tools_disabled') is True
+            and isinstance(effects, dict)
+            and set(effects) == {'publishes', 'deployments', 'cache_purges', 'gsc_submissions'}
+            and all(type(value) is int and value == 0 for value in effects.values()),
+            'corrected_successor_receipt_contract')
+    execution_spec = spec(history/'round-01-review-execution.json')
+    execution = read(checked(execution_spec))
+    custody = native.validate_result_custody(raw, manifest=manifest, packet=packet)
+    # The fixed DB proves this exact raw session/input/result is authentic; the
+    # retained execution marker selects WHICH authentic result consumed the sole
+    # intent. Chronology alone would also admit a later, ungranted native retry.
+    require(execution.get('raw_review_sha256') == raw_spec['sha256'],
+            'corrected_successor_consumed_execution')
+    intent_spec = spec(history/'native-review-intent.json')
+    intent = read(checked(intent_spec))
+    require(intent.get('schema') == 'glp-native-review-only-intent-v1'
+            and intent['job_id'] == job['job_id']
+            and intent['subject_manifest_sha256'] == manifest_spec['sha256']
+            and intent.get('retry_allowed') is False and intent.get('publication_authorized') is False
+            and timestamp(manifest['sealed_at_utc']) <= timestamp(intent['created_at_utc'])
+            <= custody['started_at'] <= custody['ended_at'] <= timestamp(receipt['reviewed_at_utc']),
+            'corrected_successor_single_native_intent')
+    # Check ACTUAL reviewer model/session, not only the configured proposed route.
+    runtime = raw['hermes_runtime']
+    reviewer = {'model': runtime['model'], 'runtime': {'native_session_id': runtime['session_id']}}
+    sealed = timestamp(manifest['sealed_at_utc'])
+    original = read(checked(binding['original_job']))
+    successor = binding['successor']
+    groups = [([Path(original['packet_dir'])/n for n in CORE[:6]], binding['original_source_authors']),
+              ([checked(successor['sources'][n]) for n in CORE[:6]], successor['source_authors'])]
+    authors = []
+    for paths, expected in groups:
+        found = packet_authors(native.SESSION_DB, paths, reviewer, sealed)
+        require(found == expected, 'review_only_native_author_drift')
+        authors.extend(found)
+    for name in sorted(set(CORE[:6]) - set(successor['original_aliases'])):
+        packet_authors(native.SESSION_DB, [checked(successor['sources'][name])], reviewer, sealed)
+    for sid in {a['session_id'] for a in authors}:
+        author_session(native.SESSION_DB, sid, reviewer, sealed)
+    inputs = [job_spec, binding['entry'], receipt_spec, manifest_spec, raw_spec, intent_spec, execution_spec]
+    # Preserve the native reader's captured digests, not fresh snapshots taken
+    # after authentication. Context/prompt/schema are dependencies, not extra
+    # clinical subjects, and must survive custody through the final writer CAS.
+    captured = raw['review_input']
+    inputs += [row for row in [*captured['context_files'], captured.get('prompt_file'),
+                              captured.get('json_schema_file')] if row is not None]
+    inputs += [{'path': str(packet/r['path']), 'sha256': r['sha256']} for r in manifest['subject_files']]
+    for value in inputs:
+        checked(value)
+    return {'receipt': receipt, 'raw': raw, 'manifest': manifest, 'custody': custody,
+            'job': job, 'authenticated_inputs': inputs, 'successor_authors': authors,
+            'document': {'entry': binding['entry'], 'review': receipt_spec, 'successor': derivation}}
+
+
 def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
          source_author_packet=None, source_author_review=None, review_only_job_path=None):
     doc = successor_documents(entry_path, history, packet, root=root,
