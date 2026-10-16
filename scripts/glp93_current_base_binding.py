@@ -10,6 +10,10 @@ import subprocess
 
 BUILDER = 'scripts/build_glp_affiliate_wirein_incremental_v2.py'
 HELPER = 'scripts/glp_review_editorial_projection.py'
+WORKER = 'scripts/glp_affiliate_wire_backlog_worker.py'
+HISTORICAL_WORKER_HEAD = '440f03781ccb9e9e003144cf23a9e3442dd06ecd'
+HISTORICAL_WORKER_SHA256 = '16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108'
+WORKER_SHA256 = '4e10f7d1557aaa33f7351ce97f5a1dcf9dc396bb4027ea8dfa8660fff2bb3ca2'
 HISTORICAL_HEAD = 'b455e4a9d99b7d393c719204489a59cb65cfc293'
 HISTORICAL_BUILDER = 'a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432'
 CURRENT_BINDINGS = {
@@ -44,6 +48,14 @@ def validate_current_base(root):
 def historical_dependency_bytes(root, name):
     """Fixture input, not a production fallback or permission to run old code."""
     validate_current_base(root)
+    if name == WORKER:
+        path = Path(root) / name
+        if path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != WORKER_SHA256:
+            raise RuntimeError('current_worker_drift')
+        body = subprocess.check_output(['git', '-C', str(root), 'show', HISTORICAL_WORKER_HEAD + ':' + name])
+        if hashlib.sha256(body).hexdigest() != HISTORICAL_WORKER_SHA256:
+            raise RuntimeError('historical_worker_drift')
+        return body
     if name != BUILDER:
         return (Path(root) / name).read_bytes()
     body = subprocess.check_output(['git', '-C', str(root), 'show', HISTORICAL_HEAD + ':' + name])
@@ -73,4 +85,16 @@ def current_carrier_bytes(historical_current_base):
         if current.count(previous) != 1:
             raise RuntimeError('current_capture_carrier_preimage_drift')
         current = current.replace(previous, replacement)
+    old_worker = ("  ['/home/ubuntu/business/" + WORKER + "']='" + HISTORICAL_WORKER_SHA256 + "'").encode()
+    new_worker = ("  ['/home/ubuntu/business/" + WORKER + "']='" + WORKER_SHA256 + "'").encode()
+    if current.count(old_worker) != 1:
+        raise RuntimeError('current_worker_carrier_preimage_drift')
+    current = current.replace(old_worker, new_worker)
+    dry_args = b'  wire_args=(--values "$fixture_root/sheet-values.json" --captures "$fixture_root/captures" --recursive-captures --fail-on-stuck)\n'
+    extra = (b'  if [[ -d "$fixture_root/additional-captures" ]]; then\n'
+             b'    wire_args+=(--additional-captures "$fixture_root/additional-captures")\n'
+             b'  fi\n')
+    if current.count(dry_args) != 1:
+        raise RuntimeError('current_dry_capture_preimage_drift')
+    current = current.replace(dry_args, dry_args + extra)
     return current

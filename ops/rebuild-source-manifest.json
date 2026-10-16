@@ -1269,7 +1269,7 @@
       ],
       "kind": "script",
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "15fbbde76a0bc6441ad80311004eb14dbb9c9c243d171fa40d31122d1eeb80cc"
+      "sha256": "5f932a12122900ba1502e8ab15b95613709b248859ab7133c384893a14fd7add"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
@@ -2525,14 +2525,14 @@
         "tests/test_glp331_carrier_closure.py",
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "73f4e0ce5b9bde9bcfdfa5237fc438c03e372c2773b467fe09d37b6d4bf6ebae"
+      "sha256": "6d0be4951f6c27d9b971d2c5a3820878f263d89d9f46ffec43b08bead9697044"
     },
     "tests/test_glp93_capture_roots.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "95ab6c5f662d177d16c1f8d0389e652b3d0b9403a9cc77cc1b28ddaf52761eb5"
+      "sha256": "274a5168d3a0d870629aad0c04cc283d04788203bf9913c203fe24496cfdf14d"
     },
     "tests/test_glp93_current_base_binding.py": {
       "kind": "test",
@@ -2975,7 +2975,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108"
+      "sha256": "4e10f7d1557aaa33f7351ce97f5a1dcf9dc396bb4027ea8dfa8660fff2bb3ca2"
     },
     "scripts/glp_affiliati_postback_ship.py": {
       "callers": [
@@ -6948,7 +6948,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "3899ab324e84afea27e5afe20cd6feb9857d7c3515c3688d33e6a1bbf62f0feb"
+      "sha256": "a25dae325bbca7e4ac242a66fee3fda91ef4a74000552227bee16e390a0a224b"
     },
     "tests/test_recurrence_batch_rail_identity_20260827.py": {
       "callers": [
@@ -8006,6 +8006,13 @@
       ],
       "kind": "test",
       "sha256": "195c85388a18fc0d40890ef8937611b6b958d908658312aa7a5a3c235cd23aba"
+    },
+    "reports/glp-clinic-scout/affiliate-machine/reconciliation/20261015-glp93/DISPOSITIONS.json": {
+      "kind": "report",
+      "callers": [
+        "GLP-93 independent review"
+      ],
+      "sha256": "11af2dbe4560880668f29cfd5cb5e18b18f0c89b292cbc7f1e586b912591d16f"
     }
   },
   "omitted_runtime_inputs": [
@@ -8016,5 +8023,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1172
+  "tracked_count": 1173
 }
