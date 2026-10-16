@@ -145,3 +145,9 @@ metadata. A separate opt-in `GLP334_RETAINED_FIXTURE_ROOT` offline test can copy
 real retained dependencies into a disposable post-receiving tree; it never
 reads installed job records or writes the source/profile fixture root. It is
 skipped when private retained inputs are unavailable, not passed synthetically.
+With `GLP334_EFFECT_DENIAL=1`, tests deny network sockets and every subprocess
+except a fixed read-only Git command set. The full local rehearsal additionally
+runs under bubblewrap: host filesystem read-only, network namespace isolated,
+and only the disposable scratch directory writable. Source projection reaches
+17 selected paths / zero drifts before the copied offline enrollment; neither
+check is live receiving or permission for a subsequent job run.

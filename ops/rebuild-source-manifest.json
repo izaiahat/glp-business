@@ -13,7 +13,7 @@
       "callers": [
         "GLP334 paired enrollment regression"
       ],
-      "sha256": "5ee90c0be7119961d1f70eb41dd4138013b9eaee08ff8854211e12ea587d1a5c"
+      "sha256": "55a435dcd266614cb4565b28374b378d9d6fa03d05f118b9dbecc30cd1457e7e"
     },
     "tests/test_glp_release_review543.py": {
       "kind": "test",
@@ -724,7 +724,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source_control",
-      "sha256": "babb9ccd0a105aa9d463353030ba09a0ac6e9bb60aae92e45806bd259d9b7a2c"
+      "sha256": "64e2bd725772e111133afd321807b15e046d24ee4d4d8c121d27e704ac214b1a"
     },
     "ops/glp/analytics-brain-control.json": {
       "callers": [

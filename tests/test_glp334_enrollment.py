@@ -34,7 +34,7 @@ def effects_denied(monkeypatch):
     popen = subprocess.Popen
     def read_only_git(argv, *args, **kwargs):
         assert isinstance(argv, (list, tuple)) and argv[:2] == ['git', '-C']
-        assert argv[3] in {'show', 'diff', 'ls-tree', 'merge-base', 'rev-parse', 'ls-files'}
+        assert argv[3] in {'show', 'diff', 'ls-tree', 'merge-base', 'rev-parse', 'ls-files', 'cat-file'}
         return popen(argv, *args, **kwargs)
     monkeypatch.setattr(subprocess, 'Popen', read_only_git)
 
