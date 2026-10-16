@@ -253,7 +253,7 @@ def retained_fixture(tmp_path):
 
 @pytest.mark.parametrize('fault', ['success', 'contention', 'wrapper1-before', 'wrapper1-after',
     'wrapper2-before', 'wrapper2-after', 'native-before', 'native-after', 'record1', 'record2',
-    'restoration', 'inherited', 'foreign', 'closed', 'thread'])
+    'restoration', 'inherited', 'foreign', 'closed', 'thread', 'entry'])
 def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch, fault):
     """Real kernel contention and maintained switch; only scheduling is private."""
     import fcntl
@@ -302,11 +302,19 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
         events.append(edge)
     class Scheduler:
         saves = 0
+        fires = set()
         def _current_cron_store(self): return SimpleNamespace(jobs_file=reg)
         def _jobs_lock_file(self): return reg.parent / '.jobs.lock'
         @contextmanager
         def _fire_job_lock(self, jid):
-            with lock(home / 'cron' / ('fire-' + jid + '.lock')): yield True
+            assert held(cleanup), 'cleanup must precede native fire acquisition'
+            if jid in self.fires:
+                yield True
+                return
+            with lock(home / 'cron' / ('fire-' + jid + '.lock')):
+                self.fires.add(jid)
+                try: yield True
+                finally: self.fires.remove(jid)
         @contextmanager
         def _jobs_lock(self, *, require_cross_process):
             assert require_cross_process
@@ -321,6 +329,8 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
     scheduler = Scheduler()
     class Backend:
         root = live; hermes = home
+        def __init__(self, *a): pass
+        def scheduler(self): return scheduler
         def job(self, jid): return copy.deepcopy(pair.job_record(reg, jid)[0])
         def paused(self, entry, prior): return self.job(entry['id'])['enabled'] is False
         def inflight(self, entries): return []
@@ -346,6 +356,7 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
             return {'state': 'closed'}
     monkeypatch.setattr(mw, 'MaintenanceWindow', Window)
     replace = cohort.os.replace
+    monkeypatch.setattr(mw, 'LinuxBackend', Backend)
     triggered = False
     def checked_replace(src, dst, *a, **kw):
         nonlocal triggered
@@ -370,6 +381,8 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
     before = reg.read_bytes()
     source = {p: pair.read_regular(live / p) for p in GLP334_PATHS + (pair.syncer.STATE,)}
     def run(owner=None):
+        if fault == 'entry':
+            return ship.apply_generation(ROOT, live, home, spec, generation, review, tmp_path)
         return ship._apply_and_run(ROOT, live, home, spec, generation, review, tmp_path,
                                    journal, Backend(), scheduler, _cleanup_owner=owner)
     with ExitStack() as stack:
@@ -399,7 +412,7 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
             if fault == 'closed':
                 with pytest.raises(RuntimeError, match='cleanup'):
                     with pair.cleanup_session(home, owner): pass
-        elif fault == 'success':
+        elif fault in ('success', 'entry'):
             result = run()
             assert result['runs'] == [] and scheduler.saves == 1
             assert {'wrapper1', 'wrapper2', 'native-save', 'window-exit', 'window-readback'} <= set(events)
