@@ -45,11 +45,16 @@ class GitGeneration:
 
     def verify(self, checkout):
         from glp_ship_provenance import derive_pins
+        if self.kind == 'reporting-enrollment':
+            from glp_ship_registry import enrollment_hashes
+            if enrollment_hashes(checkout) != self.hashes:
+                raise RuntimeError('ship_generation_moved')
+            return
         if derive_pins(checkout, self.source, self.paths) != self.hashes:
             raise RuntimeError('ship_generation_moved')
 
     def authorize(self, review, root, hermes, window):
-        tiers = {'reporting': 'B', 'retention': 'A', 'discovery': 'A'}
+        tiers = {'reporting': 'B', 'reporting-enrollment': 'A', 'retention': 'A', 'discovery': 'A'}
         if self.kind not in tiers or self.proposal.get('tier') != tiers[self.kind]:
             raise RuntimeError('ship_registered_tier_moved')
         validate_review(self.proposal, review)

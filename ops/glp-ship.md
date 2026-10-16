@@ -15,7 +15,8 @@ commit. No force flag, arbitrary path list, or caller-selected review tier exist
 | Job | Runtime | Tier | Install window |
 | --- | --- | --- | --- |
 | `GLP44` | Registered hourly analytics bridge command | B | Existing maintenance window |
-| `GLP333` / `aadf6677c7f0` | Weekly reporting wrapper | B | Existing maintenance window |
+| `GLP333` | Legacy base weekly reporting wrapper | B | Existing maintenance window |
+| `aadf6677c7f0` / `2ca359464bfa` | Exact paired J7 + retained consumer enrollment; no execution | A | Existing maintenance window |
 | `GLP73` / either F12/F13 native ID | Paired retention wrappers | A | Existing maintenance window |
 | `F01` / `58202b06bdc0` | Discovery wrapper | A | No window; existing consumer locks and owner exclusion |
 
@@ -96,3 +97,40 @@ retains its own log redirection, so its shared log must not be mistaken for an
 isolated per-run transcript. Fixture tests prove the mechanics, not live output.
 
 This tool's PR is itself Tier A. Merge only after independent exact-head review.
+
+## GLP334 exact enrollment exception: no runtime admission
+
+Either literal ID `aadf6677c7f0` or `2ca359464bfa` selects the same two-target,
+Tier A, enrollment-only contract. No GLP334 alias, arbitrary ID, path or hash is
+accepted. Legacy named reporting generations retain their original contract.
+The wrapper/native predecessor bytes are authenticated against immutable
+`ebd64f331d3ae825f1fc10de19d260321688accb` plus the authenticated IDs,
+J7/consumer script identities, workdir, no-agent mode, timeouts and schedules.
+The entire current record is then review-bound and CAS checked, not reconstructed.
+
+The 14 paths accepted in PR554 at
+`b34c5de8fddcbd0bb8b9ecf1ebc04959064b4f4f` must **already** be installed with
+matching modes and genuine sync baselines under separate receiving authority.
+This route does not install/heal source, create baselines, use later-main payloads
+or broaden the cohort. Projection verifies the retained inputs and unchanged
+leaves. A later main commit, including PR550, is not a substitute 14-path payload.
+The reviewed producer itself is authenticated against the new merged installer
+head; its immutable payload source remains PR554. Missing/drifted data refuses.
+
+After separate source review, merge, receiving authorization and normal custody,
+prepare via the existing `glp_ship.py <literal-ID> --merge-sha <installer-merge>`
+without `--apply`. Independent Astra must review the fresh exact live proposal
+before separately authorized `--apply --review <receipt>`. The existing window
+must drain both jobs and all affected readers; source/cleanup/fire/jobs locks,
+same-thread supported editor, full-record CAS, custody and uncertainty seals
+remain mandatory. Only these two external wrappers and native hash fields
+change; schedules are restored unchanged. The route returns zero runs and
+`ENROLLMENT_ONLY_NO_EXECUTION`. Existing durable attempts and predecessor checks
+prevent replay. Provider reads, cursors, money, sends, fleet repinning and any
+producer/consumer execution remain separately authorized work.
+
+Portable CI uses genuine Git predecessor/successor blobs and nonsecret native
+metadata. A separate opt-in `GLP334_RETAINED_FIXTURE_ROOT` offline test can copy
+real retained dependencies into a disposable post-receiving tree; it never
+reads installed job records or writes the source/profile fixture root. It is
+skipped when private retained inputs are unavailable, not passed synthetically.
