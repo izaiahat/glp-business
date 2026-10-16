@@ -108,7 +108,7 @@ def test_self_authenticated_payment_and_relationship_never_count_as_evidence():
  assert ready.relationship('example.invalid',{'provider_host':'example.invalid','status':'approved','network':'Invented','program_id':'P1','captured_at_utc':helpers.SEND_SLOT.isoformat(),'evidence_sha256':'a'*64},helpers.SEND_SLOT)['variant']=='cold'
 
 @pytest.mark.parametrize('elapsed',[0,2])
-def test_real_apollo_recipient_freshness_is_rechecked_after_send_auth(tmp_path,monkeypatch,elapsed):
+def test_verified_apollo_only_stock_is_refused_before_send_auth(tmp_path,monkeypatch,elapsed):
  import glp_sponsor_readiness as ready
  real_recipients=m.recipients
  config,client,_=helpers.offline_campaign(tmp_path,monkeypatch);client.fail=None
@@ -128,18 +128,18 @@ def test_real_apollo_recipient_freshness_is_rechecked_after_send_auth(tmp_path,m
  shared.write_text(json.dumps({'email_hash':ready.email_hash(evidence['email']),'event':'verify_email',
                               'http_status':200,'provider_status':'deliverable','send_eligible':True,
                               'blockers':[],'ts':helpers.SEND_SLOT.isoformat()})+'\n')
- assert real_recipients(sheet,discovery,local)['recipients'][0]['contact_source']=='apollo'
+ assert not real_recipients(sheet,discovery,local)['recipients']
  def auth(mode='read'):
-  if mode=='send':clock[0]+=dt.timedelta(seconds=elapsed)
+  if mode=='send':pytest.fail('NO SEND AUTH FOR NONPUBLIC STOCK')
+  clock[0]+=dt.timedelta(seconds=elapsed)
   return client
  monkeypatch.setattr(m,'service',auth)
  result=m.run(config)
- assert result['sent']==(1 if elapsed==0 else 0)
- if elapsed:
-  assert client.deliveries==[]
-  assert result['send_boundary_exclusions']==[{'host':'example.com','reason':'boundary_professional_contact_expired'}]
-  ledger=m.STATE/'ledger.json'
-  assert not ledger.exists() or 'claimed' not in m.load(ledger).get(evidence['email'],{})
+ assert result['sent']==0 and client.deliveries==[]
+ stored=m.load(m.ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json')
+ assert stored['organizations']['example.com']['professional_contacts'][0]['stock_status']=='HELD_NOT_PUBLIC'
+ ledger=m.STATE/'ledger.json'
+ assert not ledger.exists() or 'claimed' not in m.load(ledger).get(evidence['email'],{})
 
 
 def test_documented_professional_source_and_existing_bouncer_job_path(tmp_path,monkeypatch):
