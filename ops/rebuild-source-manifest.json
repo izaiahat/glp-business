@@ -1892,7 +1892,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "601b83a6a2dcb8aba00e8996152fbc6f34cd886978c8053126aef4e2fc5cedf9"
+      "sha256": "ed4bdfb7dca4f8851b416b556c5869f6e286b8cb1f9ff2b2f8dc0a36f0d46989"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -6550,7 +6550,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "90caa3ded34ea191ff05cda676556b7475b64fb738a6d3cdcb33e2ab4f3aef5c"
+      "sha256": "18374284956895c9c2fb52a1bcd0cab0cb2ccc3c22f86250beb0a365915b11e0"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [
@@ -7050,7 +7050,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "22cdb5fe84aad1c3ca37fcf9dcd65e20f7bc6cca62862bdc166ae124649f4c9d"
+      "sha256": "4d6075fe7dd34689e4bf55d4ca34e709c1789b4f2920b6660c5981df06c8cbd9"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -7918,7 +7918,7 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "df8832489b14c31a668dc60b9cb8e69cf467870e1c5a62576bf951fc98c0da73"
+      "sha256": "df57f2e6b1022ac0ba24df479e6ff86941d8f16b807137be3deeaf5413032592"
     },
     "scripts/host_disk_relay_custody.py": {
       "kind": "script",
