@@ -101,8 +101,10 @@ This tool's PR is itself Tier A. Merge only after independent exact-head review.
 ## GLP334 exact enrollment exception: no runtime admission
 
 Either literal ID `aadf6677c7f0` or `2ca359464bfa` selects the same two-target,
-Tier A, enrollment-only contract. No GLP334 alias, arbitrary ID, path or hash is
-accepted. Legacy named reporting generations retain their original contract.
+Tier A, enrollment-only contract, including uppercase/mixed-case literal forms:
+identity is lowercased **before** tier dispatch, never through the legacy alias.
+No GLP334 alias, arbitrary ID, path or hash is accepted. The intentionally named
+`GLP333` legacy base-wrapper route retains its original contract.
 The wrapper/native predecessor bytes are authenticated against immutable
 `ebd64f331d3ae825f1fc10de19d260321688accb` plus the authenticated IDs,
 J7/consumer script identities, workdir, no-agent mode, timeouts and schedules.
@@ -139,6 +141,20 @@ change; schedules are restored unchanged. The route returns zero runs and
 `ENROLLMENT_ONLY_NO_EXECUTION`. Existing durable attempts and predecessor checks
 prevent replay. Provider reads, cursors, money, sends, fleet repinning and any
 producer/consumer execution remain separately authorized work.
+
+Enrollment acquires the **existing** `runstate/host-disk-cleanup.lock` via the
+producer's nonblocking exclusive flock, before native fire/source/window/jobs
+locks. Contention refuses without dispatch, waiting or releasing another lease.
+The ship caller holds it continuously through both wrapper replacements, native
+save/readback, exact source verification and window restoration/readback, then
+releases on success or exception. Nested adopter calls join only with an opaque
+live same-process/thread/home owner from `cleanup_session`; raw descriptors,
+expired owners and other threads refuse. A direct adopter acquires the singleton
+itself for its effects; a caller doing its own later restoration must wrap the
+whole lifecycle in `cleanup_session` and pass that owner as `_cleanup_owner`.
+A merely externally held lock is not an authenticated inherited lease and fails
+closed rather than deadlocking. No new approval store, global maintenance-lock
+expansion or hostile-writer namespace guarantee is introduced.
 
 Portable CI uses genuine Git predecessor/successor blobs and nonsecret native
 metadata. A separate opt-in `GLP334_RETAINED_FIXTURE_ROOT` offline test can copy

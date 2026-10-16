@@ -132,6 +132,9 @@ def enrollment_hashes(checkout):
 
 
 def registered_job(job_id):
+    # Canonicalize literal IDs before choosing a tier; never fall through to
+    # the deliberately named legacy base-wrapper contract via alias casing.
+    job_id = job_id.lower()
     if job_id in tuple(row[0] for row in GLP334_JOBS):
         return Job('GLP334', 'reporting-enrollment', 'A', GLP334_PATHS,
                    tuple(row[0] for row in GLP334_JOBS), tuple(row[1] for row in GLP334_JOBS), True)

@@ -78,6 +78,16 @@ def test_real_registered_target_selects_paired_j7_and_retained_consumer(job_id):
     assert spec.window
 
 
+def test_literal_identity_is_normalized_before_tier_dispatch():
+    for jid, *_ in GLP334_JOBS:
+        for value in (jid, jid.upper(), ''.join(c.upper() if i % 2 else c for i, c in enumerate(jid))):
+            assert registered_job(value) == registered_job(jid)
+            assert registered_job(value).kind == 'reporting-enrollment'
+            assert registered_job(value).tier == 'A'
+    assert registered_job('GLP333').kind == 'reporting'
+    assert registered_job('GLP333').wrappers == ('glp_affiliate_weekly_reporting.sh',)
+
+
 def test_finite_union_of_both_authenticated_owned_path_lists():
     analytics = json.loads(blob(GLP334_SOURCE, 'ops/glp/reporting-v2/glp334-install-cohort.json'))['selected_paths']
     # The PR550 owned source diff excludes only its packaging manifest.
@@ -239,6 +249,176 @@ def retained_fixture(tmp_path):
     generation = ship.prepare(ROOT, live, home, spec,
         subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(), {}, 'offline-preparer')
     return live, home, registry, spec, generation
+
+
+@pytest.mark.parametrize('fault', ['success', 'contention', 'wrapper1-before', 'wrapper1-after',
+    'wrapper2-before', 'wrapper2-after', 'native-before', 'native-after', 'record1', 'record2',
+    'restoration', 'inherited', 'foreign', 'closed', 'thread'])
+def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch, fault):
+    """Real kernel contention and maintained switch; only scheduling is private."""
+    import fcntl
+    import threading
+    from contextlib import ExitStack
+    import maintenance_window as mw
+    import maintenance_cohort as cohort
+    live, home, reg, spec, generation = retained_fixture(tmp_path)
+    old = json.loads(reg.read_bytes())['jobs']
+    paused = copy.deepcopy(old)
+    for row in paused[:2]: row.update(enabled=False, state='paused')
+    reg.write_text(json.dumps({'jobs': paused}))
+    journal = tmp_path / 'window.json'
+    journal.write_text(json.dumps({'schema': 'glp44-glp73-maintenance-window-v1', 'entries': [
+        {'entry': {'kind': 'hermes', 'id': row['id']}, 'prior': {'fields': {
+            k: row[k] for k in mw.CONTROL_FIELDS if k in row}, 'script_sha256': row['script_sha256']}}
+        for row in old[:2]]}))
+    cleanup = home / 'runstate/host-disk-cleanup.lock'
+    cleanup.parent.mkdir(exist_ok=True)
+    tid = threading.get_ident()
+    events = []
+    def held(path):
+        if not path.exists(): return False
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            try: fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError: return True
+        finally:
+            os.close(fd)
+        return False
+    @contextmanager
+    def lock(path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('a+') as h:
+            fcntl.flock(h, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            yield h
+    locks = mw.default_locks(live, home)
+    wrappers = [home / 'scripts' / name for name in spec.wrappers]
+    def witness(edge, native=True):
+        assert threading.get_ident() == tid
+        assert held(cleanup), 'cleanup singleton absent at ' + edge
+        assert held(live) and all(held(p) for p in locks)
+        if native:
+            assert held(home / 'cron/.jobs.lock')
+            assert all(held(home / 'cron' / ('fire-' + jid + '.lock')) for jid in spec.jobs)
+        events.append(edge)
+    class Scheduler:
+        saves = 0
+        def _current_cron_store(self): return SimpleNamespace(jobs_file=reg)
+        def _jobs_lock_file(self): return reg.parent / '.jobs.lock'
+        @contextmanager
+        def _fire_job_lock(self, jid):
+            with lock(home / 'cron' / ('fire-' + jid + '.lock')): yield True
+        @contextmanager
+        def _jobs_lock(self, *, require_cross_process):
+            assert require_cross_process
+            with lock(reg.parent / '.jobs.lock'): yield
+        def _record_load_stamp(self, _): pass
+        def _save_jobs_unlocked(self, jobs):
+            witness('native-save')
+            self.saves += 1
+            if fault == 'native-before': raise OSError('native-before')
+            reg.write_text(json.dumps({'jobs': jobs}))
+            if fault == 'native-after': raise OSError('native-after')
+    scheduler = Scheduler()
+    class Backend:
+        root = live; hermes = home
+        def job(self, jid): return copy.deepcopy(pair.job_record(reg, jid)[0])
+        def paused(self, entry, prior): return self.job(entry['id'])['enabled'] is False
+        def inflight(self, entries): return []
+    active = mw.ActiveWindow(journal, Backend())
+    monkeypatch.setattr(mw, 'locks_verified', lambda _: all(held(p) for p in locks))
+    @contextmanager
+    def active_window(*a):
+        try:
+            yield active
+            active.finish(True)
+        except BaseException:
+            active.finish(False)
+            raise
+    monkeypatch.setattr(mw, 'require_active_window', active_window)
+    class Window:
+        def __init__(self, *a): pass
+        def enter(self): witness('window-enter', False)
+        def exit(self):
+            witness('window-exit', False)
+            if fault == 'restoration': raise OSError('restoration')
+        def status(self):
+            witness('window-readback', False)
+            return {'state': 'closed'}
+    monkeypatch.setattr(mw, 'MaintenanceWindow', Window)
+    replace = cohort.os.replace
+    triggered = False
+    def checked_replace(src, dst, *a, **kw):
+        nonlocal triggered
+        if Path(dst) not in wrappers: return replace(src, dst, *a, **kw)
+        index = wrappers.index(Path(dst)) + 1
+        witness('wrapper' + str(index))
+        selected = not triggered and fault.startswith('wrapper' + str(index))
+        if selected:
+            triggered = True
+            if fault.endswith('before'): raise OSError(fault)
+        result = replace(src, dst, *a, **kw)
+        if fault == 'record' + str(index):
+            rows = json.loads(reg.read_bytes()); rows['jobs'][1]['extra_field'] = 'drift'
+            reg.write_text(json.dumps(rows))
+        if selected and fault.endswith('after'): raise OSError(fault)
+        return result
+    monkeypatch.setattr(cohort.os, 'replace', checked_replace)
+    review = {'schema': 'glp-ship-review-v1', 'prepared_by': 'offline-preparer',
+              'reviewer': 'independent-fixture', 'decision': 'ACCEPT_EXACT_PROPOSAL',
+              'proposal_sha256': json_sha(generation.proposal)}
+    preimages = {p: pair.read_regular(p) for p in wrappers}
+    before = reg.read_bytes()
+    source = {p: pair.read_regular(live / p) for p in GLP334_PATHS + (pair.syncer.STATE,)}
+    def run(owner=None):
+        return ship._apply_and_run(ROOT, live, home, spec, generation, review, tmp_path,
+                                   journal, Backend(), scheduler, _cleanup_owner=owner)
+    with ExitStack() as stack:
+        for path in locks: stack.enter_context(lock(path))
+        if fault in ('contention', 'foreign'):
+            foreign = stack.enter_context(lock(cleanup))
+            with pytest.raises(RuntimeError, match='cleanup'):
+                if fault == 'foreign':
+                    with pair.cleanup_session(home, foreign): pass
+                else: run()
+            assert held(cleanup) and not foreign.closed
+            assert not events and scheduler.saves == 0 and reg.read_bytes() == before
+        elif fault in ('inherited', 'closed', 'thread'):
+            with pair.cleanup_session(home) as owner:
+                if fault == 'inherited':
+                    result = run(owner)
+                    assert result['runs'] == [] and held(cleanup)
+                elif fault == 'thread':
+                    errors = []
+                    def other():
+                        try:
+                            with pair.cleanup_session(home, owner): pass
+                        except RuntimeError as exc: errors.append(str(exc))
+                    thread = threading.Thread(target=other); thread.start(); thread.join(3)
+                    assert not thread.is_alive() and len(errors) == 1
+                    assert held(cleanup)
+            if fault == 'closed':
+                with pytest.raises(RuntimeError, match='cleanup'):
+                    with pair.cleanup_session(home, owner): pass
+        elif fault == 'success':
+            result = run()
+            assert result['runs'] == [] and scheduler.saves == 1
+            assert {'wrapper1', 'wrapper2', 'native-save', 'window-exit', 'window-readback'} <= set(events)
+        else:
+            with pytest.raises((RuntimeError, OSError)): run()
+            assert 'window-exit' in events
+            if fault.startswith('wrapper'):
+                assert scheduler.saves == 0 and reg.read_bytes() == before
+                assert {p: pair.read_regular(p) for p in wrappers} == preimages
+            if fault.startswith('native') or fault.startswith('record'):
+                sw = mw.read_journal(journal)['source_switch']
+                assert sw['commit_started'] and sw['state'] == 'commit_uncertain'
+                assert all(p.stat().st_mode & 0o777 == 0 for p in wrappers)
+                saves = scheduler.saves
+                with pytest.raises((RuntimeError, OSError)): run()
+                assert scheduler.saves == saves
+                with pytest.raises(RuntimeError, match='external_commit'): cohort.recovery_proposal(journal)
+    assert not held(cleanup), 'cleanup lease leaked on return/exception'
+    assert {p: pair.read_regular(live / p) for p in source} == source
 
 
 def test_genuine_complete_offline_enrollment_and_source_unchanged(tmp_path, monkeypatch):

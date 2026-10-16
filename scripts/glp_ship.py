@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare or install one registered Git generation. See ops/glp-ship.md."""
 import argparse
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, nullcontext
 import getpass
 import json
 import os
@@ -176,20 +176,25 @@ def apply_generation(checkout, root, hermes, spec, generation, review, output):
     # Native fire fences are reentrant. Keep them through restoration and the
     # manual run so a due occurrence cannot slip into the restore/run gap.
     with ExitStack() as fences:
+        # Cleanup's producer acquires this singleton before its fire fences.
+        import glp44_scoped_adoption as pair
+        cleanup_owner = fences.enter_context(pair.cleanup_session(hermes)) if spec.kind == 'reporting-enrollment' else None
         for jid in sorted(spec.jobs):
             if not fences.enter_context(scheduler._fire_job_lock(jid)):
                 raise RuntimeError('ship_native_fire_fence_unavailable:' + jid)
         return _apply_and_run(checkout, root, hermes, spec, generation, review, output,
-                              journal, backend, scheduler)
+                              journal, backend, scheduler, _cleanup_owner=cleanup_owner)
 
 
-def _apply_and_run(checkout, root, hermes, spec, generation, review, output, journal, backend, scheduler):
+def _apply_and_run(checkout, root, hermes, spec, generation, review, output, journal, backend, scheduler, *, _cleanup_owner=None):
     from maintenance_window import MaintenanceWindow, default_locks, require_active_window
     from glp_ship_runtime import run_registered
     # One maintained root-inode writer lock spans installation, custody, native
     # commit, exact readback and restoration. Explicit live leases let nested
     # previews join it without releasing or reacquiring the non-reentrant flock.
-    with syncer.source_lock(root) as owner:
+    import glp44_scoped_adoption as pair
+    cleanup = pair.cleanup_session(hermes, _cleanup_owner) if spec.kind == 'reporting-enrollment' else nullcontext()
+    with cleanup as cleanup_owner, syncer.source_lock(root) as owner:
         if spec.window:
             window = MaintenanceWindow(backend, journal, default_locks(root, hermes))
             window.enter()
@@ -200,8 +205,9 @@ def _apply_and_run(checkout, root, hermes, spec, generation, review, output, jou
                     import glp44_scoped_adoption as adopter
                 else:
                     import glp73_paired_adoption as adopter
+                cleanup_args = {'_cleanup_owner': cleanup_owner} if spec.kind == 'reporting-enrollment' else {}
                 result = adopter.adopt(checkout, root, hermes, review, scheduler=scheduler,
-                                       window=journal, generation=generation, _source_owner=owner)
+                                       window=journal, generation=generation, _source_owner=owner, **cleanup_args)
                 zero_diff(checkout, root, hermes, generation, spec, _source_owner=owner)
             finally:
                 # The existing exit refuses uncertain commits; never override it.

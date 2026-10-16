@@ -6,7 +6,7 @@ active maintenance window. A preview is read-only, not an apply authorization.
 """
 import argparse
 import copy
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, nullcontext
 import fcntl
 import hashlib
 import json
@@ -15,6 +15,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import stat
 
 import sync_from_repo as syncer
 from maxbounty_pin_release import read_regular, preserve_custody
@@ -30,6 +32,50 @@ PATHS = (
 SNAPSHOT = 'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh'
 WRAPPER = 'glp_affiliate_weekly_reporting.sh'
 JOB = 'aadf6677c7f0'
+
+# Same singleton/inode and nonblocking flock as host_disk_cleanup_large_unit.
+_CLEANUP_OWNERS = {}
+
+
+@contextmanager
+def cleanup_session(hermes, owner=None):
+    """Acquire before source/fire/window locks; outer owner spans restoration.
+
+    Join only an opaque live same-process/thread/home lease, never a raw fd or
+    claimed PID. Joining never unlocks/closes the outer descriptor. Cooperative
+    custody, not exclusion of hostile namespace replacement or hostile code.
+    """
+    home = Path(hermes).resolve(strict=True)
+    path = home / 'runstate/host-disk-cleanup.lock'
+    if owner is not None:
+        held = _CLEANUP_OWNERS.get(owner)
+        if held is None or held[0] != home or held[2:] != (os.getpid(), threading.get_ident()):
+            raise RuntimeError('cleanup_owner_invalid')
+        previous, current = os.fstat(held[1]), path.lstat()
+        if not stat.S_ISREG(current.st_mode) or (previous.st_dev, previous.st_ino) != (current.st_dev, current.st_ino):
+            raise RuntimeError('cleanup_lock_inode_changed')
+        yield owner
+        return
+    path.parent.mkdir(exist_ok=True)
+    if path.parent.is_symlink():
+        raise RuntimeError('cleanup_lock_parent_symlink')
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise RuntimeError('cleanup_lock_not_regular')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError('cleanup_busy') from exc
+        lease = object()
+        _CLEANUP_OWNERS[lease] = (home, fd, os.getpid(), threading.get_ident())
+        try:
+            with cleanup_session(home, lease):
+                yield lease
+        finally:
+            del _CLEANUP_OWNERS[lease]
+    finally:
+        os.close(fd)
 
 # One named successor, not a caller-supplied path/hash set or force migration.
 PR119_GENERATION = 'pr119-reporting-20261001'
@@ -635,14 +681,15 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     return proposal, adopted, before, state, wrapper_before, registry
 
 
-def adopt(checkout, root, hermes, review, *, scheduler, window=None, generation='pr71', _source_owner=None):
+def adopt(checkout, root, hermes, review, *, scheduler, window=None, generation='pr71', _source_owner=None, _cleanup_owner=None):
     if window is None:
         raise RuntimeError('active_maintenance_window_required')
     from maintenance_window import require_active_window
     if _git_generation(generation):
         # Retain one kernel source-writer exclusion through every preflight,
         # custody, switch, native save and active-window acknowledgement.
-        with syncer.source_session(root, _source_owner) as owner:
+        cleanup = cleanup_session(hermes, _cleanup_owner) if _enrollment(generation) else nullcontext()
+        with cleanup, syncer.source_session(root, _source_owner) as owner:
             with require_active_window(window, root, hermes) as active:
                 return _adopt_in_window(checkout, root, hermes, review, scheduler=scheduler,
                                         window=active, generation=generation, _source_owner=owner)
