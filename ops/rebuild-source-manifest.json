@@ -1,6 +1,26 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/hermes_maintenance_window.py": {
+      "kind": "script",
+      "callers": ["source-only offline maintenance; live entry DISABLED; NOT registered"],
+      "sha256": "ee21010963084b5460ac5de141747e0fb823bbde08665318c0db567e037acc55"
+    },
+    "tests/test_hermes_maintenance_window.py": {
+      "kind": "test",
+      "callers": ["glp110-maintenance-window:offline-maintenance-contract"],
+      "sha256": "a3a090974404fe3280a6d177c0346551ef2a5f9f45a6a18a67a719ffd3447861"
+    },
+    ".github/workflows/glp110-maintenance-window.yml": {
+      "kind": "repository_control",
+      "callers": ["GitHub exact-head scratch-only maintenance CI"],
+      "sha256": "aedb40363fad1181f519c7355692f969a4b4cc9a0faa1244c1c0e5a6884e9846"
+    },
+    "ops/hermes-maintenance-window.md": {
+      "kind": "documentation",
+      "callers": ["parent maintenance planning; LIVE DISABLED"],
+      "sha256": "09eb203fc77159a2a30347afc8334fd562e25812f8caf27cc093b986b96bed65"
+    },
     "tests/test_postpublication_review_only.py": {
       "kind": "test",
       "callers": [
@@ -459,7 +479,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6cf5e341fef7b05fa67bb4c54cccfa0af3d6efa63da3e719ec2d3a475dd148c8"
+      "sha256": "85354869bd0ae0a12bb3e9711358f60fc298ba4232a4f9ed5142dcae14d08ddb"
     },
     ".hermes.md": {
       "callers": [],
@@ -7973,5 +7993,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1166
+  "tracked_count": 1170
 }
