@@ -466,7 +466,7 @@
       ],
       "kind": "workflow",
       "scope": "J8 account-only typed role/receipt diagnostic; financial acceptance oracle unchanged.",
-      "sha256": "67b1a142b38ffa0b2e1b672e56dab437eba6bdaa41cda99190fa9cd014eb5a92"
+      "sha256": "7a5fecb4f2037d4338273589e787e876876f4a4df6b588ac86513930977796a1"
     },
     ".github/workflows/maintenance-pause-cursor-race.yml": {
       "callers": [
@@ -8041,6 +8041,34 @@
         "GLP-334 conversion reconciliation review"
       ],
       "sha256": "60da87053e685b7c39cf3e29e9c13f4f801272c1f32743128afa39634c957a3b"
+    },
+    "scripts/glp334_pin_closure.py": {
+      "kind": "script",
+      "callers": [
+        "GLP-334 read-only projected receiving preflight"
+      ],
+      "sha256": "a2e611e80feb879ffc2b52f158796fb76e0a26333b717197cea14e0093a1e59a"
+    },
+    "tests/test_glp334_pin_closure.py": {
+      "kind": "test",
+      "callers": [
+        "j7-reporting:exact-head-regression"
+      ],
+      "sha256": "ba84591ffdabc40dec0f98390a982ee9a9b54951aae17562bff9af26b50f6348"
+    },
+    "ops/glp/reporting-v2/glp334-install-cohort.json": {
+      "kind": "operations",
+      "callers": [
+        "scripts/glp334_pin_closure.py"
+      ],
+      "sha256": "292fff79d8326ffbdf9a7def7964b0921a18cb684c5e55ee8d3bc6dfcdeea9b6"
+    },
+    "ops/linear/GLP334-PIN-CLOSURE.md": {
+      "kind": "operations",
+      "callers": [
+        "GLP-334 source-only receiving review"
+      ],
+      "sha256": "1bee582bfcb0cf782488cd7f1d702b2e1c9ad93f93a9698d1ef925cb3bcc9510"
     }
   },
   "omitted_runtime_inputs": [
@@ -8051,5 +8079,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1177
+  "tracked_count": 1181
 }
