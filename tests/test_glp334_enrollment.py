@@ -306,7 +306,7 @@ def retained_fixture(tmp_path):
 @pytest.mark.parametrize('fault', ['success', 'contention', 'wrapper1-before', 'wrapper1-after',
     'wrapper2-before', 'wrapper2-after', 'native-before', 'native-after', 'record1', 'record2',
     'restoration', 'inherited', 'foreign', 'closed', 'thread', 'entry',
-    'mode-reviewed', 'mode-custody', 'mode-switch', 'full-record-reviewed'])
+    'mode-reviewed', 'mode-custody', 'mode-switch', 'owner-custody', 'owner-switch', 'owner-open', 'full-record-reviewed'])
 def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch, fault):
     """Real kernel contention and maintained switch; only scheduling is private."""
     import fcntl
@@ -315,6 +315,28 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
     import maintenance_window as mw
     import maintenance_cohort as cohort
     live, home, reg, spec, generation = retained_fixture(tmp_path)
+    # bwrap maps only one GID. Model a preservable supplementary-group drift at
+    # the exact stat/fstat/fchown seam; all bytes/modes/locks/saves remain real.
+    foreign_gid = os.getegid() + 1
+    changed_owners = {}
+    real_stat, real_fstat, real_fchown = Path.stat, os.fstat, os.fchown
+    def owner_stat(st):
+        if (st.st_dev, st.st_ino) not in changed_owners: return st
+        values = list(st); values[5] = foreign_gid
+        return os.stat_result(values, {k: getattr(st, k) for k in ('st_atime_ns', 'st_mtime_ns', 'st_ctime_ns')})
+    def drift_owner(path):
+        st = real_stat(path); changed_owners[st.st_dev, st.st_ino] = foreign_gid
+    def owner_chown(fd, uid, gid):
+        if gid == foreign_gid:
+            st = real_fstat(fd); changed_owners[st.st_dev, st.st_ino] = foreign_gid
+            gid = os.getegid()
+        return real_fchown(fd, uid, gid)
+    if fault.startswith('owner-'):
+        groups = os.getgroups()
+        monkeypatch.setattr(os, 'getgroups', lambda: groups + [foreign_gid])
+        monkeypatch.setattr(Path, 'stat', lambda p, **kw: owner_stat(real_stat(p, **kw)))
+        monkeypatch.setattr(os, 'fstat', lambda fd: owner_stat(real_fstat(fd)))
+        monkeypatch.setattr(os, 'fchown', owner_chown)
     old = json.loads(reg.read_bytes())['jobs']
     paused = copy.deepcopy(old)
     for row in paused[:2]: row.update(enabled=False, state='paused')
@@ -433,19 +455,28 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
         if selected and fault.endswith('after'): raise OSError(fault)
         return result
     monkeypatch.setattr(cohort.os, 'replace', checked_replace)
-    if fault == 'mode-custody':
+    if fault in ('mode-custody', 'owner-custody'):
         preserve = pair.preserve_custody
-        def drift_after_custody(*args):
-            result = preserve(*args)
-            wrappers[0].chmod(0o755)
+        def drift_after_custody(*args, **kwargs):
+            result = preserve(*args, **kwargs)
+            if fault == 'mode-custody': wrappers[0].chmod(0o755)
+            else: drift_owner(wrappers[0])
             return result
         monkeypatch.setattr(pair, 'preserve_custody', drift_after_custody)
-    elif fault == 'mode-switch':
+    if fault in ('mode-switch', 'owner-switch'):
         switch = active.switch_files
         def drift_at_switch(*args, **kwargs):
-            wrappers[0].chmod(0o755)
+            if fault == 'mode-switch': wrappers[0].chmod(0o755)
+            else: drift_owner(wrappers[0])
             return switch(*args, **kwargs)
         monkeypatch.setattr(active, 'switch_files', drift_at_switch)
+    if fault == 'owner-open':
+        opened = cohort.os.open
+        def drift_at_open(path, flags, *args, **kwargs):
+            if Path(path) == wrappers[0] and flags == os.O_RDONLY | os.O_NOFOLLOW:
+                drift_owner(wrappers[0])
+            return opened(path, flags, *args, **kwargs)
+        monkeypatch.setattr(cohort.os, 'open', drift_at_open)
     review = {'schema': 'glp-ship-review-v1', 'prepared_by': 'offline-preparer',
               'reviewer': 'independent-fixture', 'decision': 'ACCEPT_EXACT_PROPOSAL',
               'proposal_sha256': json_sha(generation.proposal)}
@@ -495,17 +526,23 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
             refusal = {'mode-reviewed': 'glp334_genuine_target_predecessor_required:',
                        'mode-custody': 'preimage_moved_after_custody',
                        'mode-switch': 'rollback_conflict_no_overwrite:source_cohort',
+                       'owner-custody': 'glp334_genuine_target_predecessor_required:',
+                       'owner-switch': 'cohort_owner_preimage_moved:',
+                       'owner-open': 'cohort_owner_preimage_moved:',
                        'full-record-reviewed': 'ship_job_preimage_moved:'}.get(fault)
             with pytest.raises((RuntimeError, OSError), match=refusal) as caught: run()
             if fault == 'mode-switch':
                 # The cohort first refuses its full mode CAS. The adopter then
                 # refuses to overwrite the foreign mode during inverse cleanup.
                 assert 'cohort_preimage_moved:' in str(caught.value.__context__)
+
             assert 'window-exit' in events
-            if fault.startswith('mode-') or fault == 'full-record-reviewed':
+            if fault.startswith(('mode-', 'owner-')) or fault == 'full-record-reviewed':
                 assert scheduler.saves == 0 and reg.read_bytes() == before
                 assert not any(e in events for e in ('wrapper1', 'wrapper2', 'native-save'))
                 assert [p.stat().st_mode & 0o7777 for p in wrappers] == ([0o755, 0o755] if fault.startswith('mode-') else [0o700, 0o755])
+                if fault.startswith('owner-'):
+                    assert wrappers[0].stat().st_gid == foreign_gid
             if fault.startswith('wrapper'):
                 assert scheduler.saves == 0 and reg.read_bytes() == before
                 assert {p: pair.read_regular(p) for p in wrappers} == preimages
@@ -544,8 +581,8 @@ def test_genuine_complete_offline_enrollment_and_source_unchanged(tmp_path, monk
             events.append(('intent', jid))
         def accept_file_updates(self, before, after):
             assert set(before) == {str((home / 'scripts' / name).resolve()) for _, name, *_ in GLP334_JOBS}
-        def switch_files(self, stage, before, commit=None):
-            return switch_files(journal, stage, before, lambda: [], commit=commit)
+        def switch_files(self, stage, before, commit=None, **kwargs):
+            return switch_files(journal, stage, before, lambda: [], commit=commit, **kwargs)
     window = Window()
     monkeypatch.setattr(mw, 'require_active_window', lambda *a: nullcontext(window))
     class Scheduler:

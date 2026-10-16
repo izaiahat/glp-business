@@ -738,6 +738,9 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
     for target_id, name, _ in targets:
         original[hermes / 'scripts' / name] = read_regular(hermes / 'scripts' / name)
     target_plans = proposal.get('enrollment_targets', {jid: proposal})
+    switch_args = {'expected_owners': {hermes / 'scripts' / name:
+        (target_plans[target_id]['wrapper_before_owner']['uid'], target_plans[target_id]['wrapper_before_owner']['gid'])
+        for target_id, name, _ in targets}} if enrollment else {}
     with ExitStack() as fire_fences:
         for target_id, _, _ in targets:
             if not fire_fences.enter_context(scheduler._fire_job_lock(target_id)):
@@ -818,7 +821,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
                 source_written = True  # the switch can publish before acknowledgement fails
                 if successor:
                     # Reuse the maintained F09 seal/intent/save/readback boundary.
-                    window.switch_files(stage, original, commit=commit)
+                    window.switch_files(stage, original, commit=commit, **switch_args)
                 else:
                     # Preserve the original PR71 source-only switch contract.
                     window.switch_files(stage, original)
@@ -837,7 +840,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
                     if current_files != original:
                         if current_files != staged_files:
                             raise RuntimeError('rollback_conflict_no_overwrite:source_cohort')
-                        window.switch_files({path: value[0] for path, value in original.items()}, staged_files)
+                        window.switch_files({path: value[0] for path, value in original.items()}, staged_files, **switch_args)
                 raise
     return {'applied': True, 'source': approved, 'proposal': proposal, 'custody': str(custody)}
 
