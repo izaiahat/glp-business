@@ -3429,7 +3429,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "71e2073dec508013cb07169fb3d18fd59f7a52ed41c864d768cb5837d17a4fb6"
+      "sha256": "0cabf6c6644fb065356ca2dc8a1522502a953e0c971d003bfe3e05f5c99a9b85"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -6440,7 +6440,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "8f8b25d20e37e71e8a574312458c20397786df3e8ab3a37c4c2cec41a3451b44"
+      "sha256": "71480cfb3cad46e7ff90d793a809499f937f391504bec0e910d243c3f191c81f"
     },
     "tests/test_glp_sponsor_site_payment.py": {
       "callers": [
@@ -7723,12 +7723,16 @@
     },
     "tests/fixtures/sponsor-procompounding-about.json": {
       "kind": "data",
-      "callers": ["tests/test_glp_sponsor_public_custody.py"],
+      "callers": [
+        "tests/test_glp_sponsor_public_custody.py"
+      ],
       "sha256": "b8f6a5407ca528bd6e61f9379f0c6c3ebf1319a28001f81545216496c32a8e60"
     },
     "tests/fixtures/sponsor-retained-membersupport.json": {
       "kind": "data",
-      "callers": ["tests/test_glp_sponsor_public_custody.py"],
+      "callers": [
+        "tests/test_glp_sponsor_public_custody.py"
+      ],
       "sha256": "4f600eff29de41daffd1875882e4c78aeaad08c053f8f69f1bd368a7101fb1ca"
     },
     "tests/fixtures/sponsor-retained-firstparty-leads.json": {

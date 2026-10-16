@@ -122,13 +122,15 @@ def _named_business_role_hits(markup):
 
  Use only the nearest closed structural block. Never borrow a role from a
  sibling/ancestor card, script, image alt, or a fixed page-text window. The
- person's heading must bind to the literal mailbox, and anchor text/mailto
- must agree. Ambiguity means no named-contact proof.
+ person's sole heading must bind to the literal mailbox; every qualifying
+ role paragraph must affirm that person's current role, not another person's.
+ Anchor text/mailto must agree. Ambiguity means no named-contact proof.
  """
  from html.parser import HTMLParser
  email=re.compile(r'[a-z0-9][a-z0-9._%+-]*@[a-z0-9.-]+\.[a-z]{2,}',re.I)
  role=re.compile(r'\b(?:marketing(?:\s+(?:and|&|/)\s+sales)?|sales\s+(?:and|&|/)\s+marketing)\s+manager\b',re.I)
- adverse=re.compile(r'patient|\bsupport\b|\bcare\b|\brecords?\b|billing|creator recruitment|personal journey|infrastructure',re.I)
+ adverse=re.compile(r'patient|\bsupport\b|\bcare\b|\brecords?\b|billing|creator recruitment|personal journey|infrastructure|privacy|data[- ]protection|\blegal\b|compliance',re.I)
+ qualified=re.compile(r"\b(?:no|not|never|former|formerly|previous|previously|ex)\b|\b\w+n['’]t\b",re.I)
  blocks={'div','article','li','td'}
  void={'area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'}
  class Cards(HTMLParser):
@@ -159,7 +161,7 @@ def _named_business_role_hits(markup):
   while block and block['tag'] not in blocks:block=block['parent']
   if not block or not block['closed']:continue
   context=text(block)
-  if len(context)>2000 or not role.search(context) or adverse.search(context):continue
+  if len(context)>2000 or not role.search(context) or adverse.search(context) or qualified.search(context):continue
   descendants=[]
   for node in page.nodes:
    parent=node['parent']
@@ -169,7 +171,17 @@ def _named_business_role_hits(markup):
   mailtos=[n['attrs'].get('href','')[7:].lower() for n in descendants if n['tag']=='a' and n['attrs'].get('href','').lower().startswith('mailto:')]
   if set(mailtos)!={address} or {m.lower() for m in email.findall(context)}!={address}:continue
   identity=re.sub('[^a-z]','',address.split('@')[0])
-  if not any(re.fullmatch(r'[A-Za-z]+(?:[ -][A-Za-z]+){1,3}',text(n)) and re.sub('[^a-z]','',text(n).lower())==identity for n in descendants if re.fullmatch('h[1-6]',n['tag'])):continue
+  headings=[n for n in descendants if re.fullmatch('h[1-6]',n['tag'])]
+  if len(headings)!=1 or not headings[0]['closed']:continue
+  owner=text(headings[0])
+  if not re.fullmatch(r'[A-Za-z]+(?:[ -][A-Za-z]+){1,3}',owner) or re.sub('[^a-z]','',owner.lower())!=identity:continue
+  # A flat card is not itself role ownership. Require an explicit
+  # "<mailbox owner> is [our/the] <role>" assertion in each role paragraph. All role
+  # occurrences must be covered, so a second person's role cannot lend proof.
+  paragraphs=[n for n in descendants if n['tag']=='p' and role.search(text(n))]
+  if sum(len(role.findall(text(n))) for n in paragraphs)!=len(role.findall(context)):continue
+  affirmative=re.compile(re.escape(owner)+r'\s+is\s+(?:(?:our|the)\s+)?'+role.pattern+r'(?:[.!]|$|\s+and\s+(?:services|serves|covers|manages)\b)',re.I)
+  if not paragraphs or any(not n['closed'] or len(role.findall(text(n)))!=1 or not affirmative.match(text(n)) for n in paragraphs):continue
   hits.append({'address':address,'how':'mailto','excerpt':context,'structural_business_role':True})
  return hits
 

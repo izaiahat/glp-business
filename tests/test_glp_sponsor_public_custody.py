@@ -77,6 +77,77 @@ def test_named_business_card_refuses_ambiguous_or_adverse_evidence(case):
  assert validated is None
 
 
+# RV548 retained reviewer counterexamples; identical mutations/assertions.
+@pytest.mark.parametrize('role',[
+ 'Former Marketing and Sales Manager',
+ 'Not the Marketing and Sales Manager',
+ 'Works with our Marketing and Sales Manager',
+ 'Staff member. Jane Doe is our Marketing and Sales Manager',
+])
+def test_requires_role_to_describe_mailbox_owner(role):
+ _,card=retained_sales_page()
+ card=card.replace('Marketing and Sales Manager',role)
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None, {'producer_admitted':bool(contacts),'final_admitted':bool(validated),'role':role}
+
+@pytest.mark.parametrize('purpose',['privacy','data protection'])
+def test_adverse_privacy_purpose_refused(purpose):
+ _,card=retained_sales_page()
+ card=card.replace('</div>',f'<p>Contact this address only for {purpose} inquiries.</p></div>')
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None, {'producer_admitted':bool(contacts),'final_admitted':bool(validated),'purpose':purpose}
+
+@pytest.mark.parametrize('purpose',['patient','support','care','records'])
+def test_existing_adverse_refusals(purpose):
+ _,card=retained_sales_page()
+ card=card.replace('</div>',f'<p>Contact this address only for {purpose} inquiries.</p></div>')
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None
+
+def test_flat_second_person_cannot_lend_role():
+ _,card=retained_sales_page()
+ card=card.replace('Marketing and Sales Manager','Staff Member').replace('</div>','<h3>Jane Doe</h3><p>Marketing and Sales Manager</p></div>')
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None, {'producer_admitted':bool(contacts),'final_admitted':bool(validated)}
+
+
+@pytest.mark.parametrize('role',[
+ 'Ex-Marketing and Sales Manager', 'Previous Marketing and Sales Manager',
+ 'Marketing and Sales Manager (former)', 'Marketing and Sales Manager, previously',
+ 'no longer Marketing and Sales Manager', 'not our sales contact; Marketing and Sales Manager',
+ 'Staff member; John Smith, Marketing and Sales Manager',
+ 'Marketing and Sales Manager. Jane Doe is our Marketing and Sales Manager',
+ 'Marketing and Sales Manager assistant',
+])
+def test_qualified_or_other_person_role_is_not_affirmative(role):
+ _,card=retained_sales_page()
+ contacts,validated=extract_and_validate(card.replace('Marketing and Sales Manager',role))
+ assert contacts==[] and validated is None
+
+
+@pytest.mark.parametrize('purpose',['legal','compliance','privacy requests only','data-protection'])
+def test_restricted_contact_purpose_is_not_business_stock(purpose):
+ _,card=retained_sales_page()
+ card=card.replace('</div>',f'<p>For {purpose} inquiries only.</p></div>')
+ contacts,validated=extract_and_validate(card)
+ assert contacts==[] and validated is None
+
+
+@pytest.mark.parametrize('purpose',['privacy','legal','compliance'])
+def test_restricted_named_mailbox_is_not_business_stock(purpose):
+ _,card=retained_sales_page()
+ card=card.replace('Kate Kincaid',purpose.title()+' Officer').replace('kate.kincaid',purpose+'.officer')
+ contacts,validated=extract_and_validate(card,address=purpose+'.officer@procompounding.com')
+ assert contacts==[] and validated is None
+
+
+def test_unrelated_privacy_footer_does_not_contaminate_role_card():
+ _,card=retained_sales_page()
+ contacts,validated=extract_and_validate(card+'<footer>For privacy requests only: privacy@procompounding.com</footer>')
+ assert [row['address'] for row in contacts]==['kate.kincaid@procompounding.com']
+ assert validated and validated['address']=='kate.kincaid@procompounding.com'
+
+
 def test_retained_patientcare_is_not_business_stock():
  page,_=retained_sales_page()
  contacts,validated=extract_and_validate(page,address='patientcare@procompounding.com')
