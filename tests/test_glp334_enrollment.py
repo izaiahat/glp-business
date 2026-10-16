@@ -492,7 +492,15 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
             assert [p.stat().st_mode & 0o7777 for p in wrappers] == [0o700, 0o755]
             assert [(p.stat().st_uid, p.stat().st_gid) for p in wrappers] == [(os.geteuid(), os.getegid())] * 2
         else:
-            with pytest.raises((RuntimeError, OSError)): run()
+            refusal = {'mode-reviewed': 'glp334_genuine_target_predecessor_required:',
+                       'mode-custody': 'preimage_moved_after_custody',
+                       'mode-switch': 'rollback_conflict_no_overwrite:source_cohort',
+                       'full-record-reviewed': 'ship_job_preimage_moved:'}.get(fault)
+            with pytest.raises((RuntimeError, OSError), match=refusal) as caught: run()
+            if fault == 'mode-switch':
+                # The cohort first refuses its full mode CAS. The adopter then
+                # refuses to overwrite the foreign mode during inverse cleanup.
+                assert 'cohort_preimage_moved:' in str(caught.value.__context__)
             assert 'window-exit' in events
             if fault.startswith('mode-') or fault == 'full-record-reviewed':
                 assert scheduler.saves == 0 and reg.read_bytes() == before
@@ -501,6 +509,8 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
             if fault.startswith('wrapper'):
                 assert scheduler.saves == 0 and reg.read_bytes() == before
                 assert {p: pair.read_regular(p) for p in wrappers} == preimages
+                assert [p.stat().st_mode & 0o7777 for p in wrappers] == [0o700, 0o755]
+                assert [(p.stat().st_uid, p.stat().st_gid) for p in wrappers] == [(os.geteuid(), os.getegid())] * 2
             if fault.startswith('native') or fault.startswith('record'):
                 sw = mw.read_journal(journal)['source_switch']
                 assert sw['commit_started'] and sw['state'] == 'commit_uncertain'
