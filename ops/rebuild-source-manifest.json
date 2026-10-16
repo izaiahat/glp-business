@@ -5506,7 +5506,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "a39e252c04b3079ae3a1e7b584ae842ab28c307097f41c9623470ebf8b49475a"
+      "sha256": "3c547f40e4b36dfcc504b9b721bdba21cfc3b9ea3797b29d4643b4ec0d8ba379"
     },
     "tests/test_glp331_program_withdrawal.py": {
       "callers": [
@@ -5578,7 +5578,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "7611ceef6abf5ff1f0a7bc2103252246ac557dd364484e2e644a00cbbd7a444e"
+      "sha256": "28396f99b5c5ee26dd8a9a1c9a232c10577dbf77c1b503cd0617b4a0d6f7b88a"
     },
     "tests/test_glp337_shared_bridge_migration.py": {
       "callers": [
