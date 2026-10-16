@@ -140,6 +140,87 @@ def test_secrets_scan(tmp_path):
         rm.secrets_scan(tmp_path)
 
 
+def test_main_acceptance_recovery_keeps_exact_tree_guard():
+    calls = []
+    def gh(*args):
+        calls.append(args)
+        if args[:2] == ('pr', 'list') and args[args.index('--state') + 1] == 'merged':
+            return [{'number':119,'url':'u119','headRefOid':'stale',
+                     'mergeCommit':{'oid':'main'}}]
+        if args[:2] == ('pr', 'list'): return []
+        if args[:2] == ('api', 'repos/izaiahat/glp-site-candidate/commits/main'):
+            return {'commit':{'tree':{'sha':'integrated'}}}
+        if args[:2] == ('api', 'repos/izaiahat/glp-site-candidate/commits/stale'):
+            return {'commit':{'tree':{'sha':'old'}}}
+        if 'git/matching-refs' in args[1]: return []
+        if 'git/trees' in args[1]: return {'sha':'proposal-tree'}
+        if args[1].endswith('/git/commits'): return {'sha':'proposal-head'}
+        if args[1].endswith('/git/refs'): return {}
+        if args[1].endswith('/pulls'): return {'html_url':'u120'}
+        raise AssertionError(args)
+    out = rm.ensure_main_acceptance('main', gh=gh)
+    assert out['status'] == 'DEFERRED_MAIN_ACCEPTANCE'
+    assert out['previous_head'] == 'stale'
+    assert out['main_tree'] == 'integrated'
+    assert any('tree[][path]=data/main-release-acceptance.json' in a for a in calls)
+    assert not any(a[:2] == ['pr','merge'] for a in calls)
+    with pytest.raises(RuntimeError, match='main_tree_differs'):
+        rm.merged_pr_for('main', gh=gh)
+
+
+@pytest.mark.parametrize('defect', ['pending', 'parent', 'marker', 'scope', 'green'])
+def test_main_acceptance_existing_proposal_never_bypasses_ci_or_scope(defect):
+    import base64
+    calls, state = [], {'merged':False}
+    marker = json.dumps({'schema':'glp-main-integration-acceptance-v1', 'source_main_sha':'M',
+                         'source_main_tree':'T', 'previous_pr':'u119', 'previous_head':'OLD'},
+                        sort_keys=True, indent=2) + '\n'
+    def gh(*args):
+        calls.append(args)
+        if args[:2] == ('pr','list'):
+            if args[args.index('--state')+1] == 'merged':
+                return [{'number':120,'url':'u120','headRefOid':'H','mergeCommit':{'oid':'M2'}}] if state['merged'] else [
+                    {'number':119,'url':'u119','headRefOid':'OLD','mergeCommit':{'oid':'M'}}]
+            return [{'number':120,'url':'u120','headRefOid':'H','state':'OPEN',
+                     'statusCheckRollup':[] if defect=='pending' else [
+                         {'name':n,'status':'COMPLETED','conclusion':'SUCCESS'} for n in rm.ACCEPTANCE_CHECKS.values()]}]
+        endpoint = args[1].split('glp-site-candidate/')[1]
+        if endpoint.startswith('actions/runs?'):
+            return {'total_count':3,'workflow_runs':[
+                {'id':i,'run_number':1,'run_attempt':1,'path':w,'head_sha':'H',
+                 'event':'pull_request','head_repository':{'full_name':'izaiahat/glp-site-candidate'},
+                 'pull_requests':[{'number':120,'head':{'sha':'H'}}],
+                 'status':'completed','conclusion':'success'}
+                for i,w in enumerate(rm.ACCEPTANCE_CHECKS)]}
+        if endpoint.startswith('actions/runs/'):
+            i=int(endpoint.split('/')[2])
+            return {'total_count':1,'jobs':[{'name':list(rm.ACCEPTANCE_CHECKS.values())[i],
+                'run_id':i,'head_sha':'H','status':'completed','conclusion':'success'}]}
+        if endpoint == 'git/commits/H':
+            return {'parents':[{'sha':'WRONG' if defect=='parent' else 'M'}]}
+        if endpoint.startswith('contents/'):
+            return {'content':base64.b64encode(('wrong' if defect=='marker' else marker).encode()).decode()}
+        if endpoint.startswith('compare/'):
+            return {'files':[{'filename':'bad' if defect=='scope' else 'data/main-release-acceptance.json'}]}
+        if endpoint == 'pulls/120/merge':
+            state['merged'] = True
+            assert 'sha=H' in args
+            return {'merged':True}
+        if endpoint.startswith('commits/'):
+            ref = endpoint.split('/')[-1]
+            return {'sha':'M2' if state['merged'] else 'M',
+                    'commit':{'tree':{'sha':{'M':'T','OLD':'OLD-T','H':'T2','M2':'T2','main':'T'}[ref]}}}
+        raise AssertionError(args)
+    if defect in ('parent','marker','scope'):
+        with pytest.raises(RuntimeError, match='drift'):
+            rm.ensure_main_acceptance('M', gh=gh)
+        assert not state['merged']
+    else:
+        out = rm.ensure_main_acceptance('M', gh=gh)
+        assert state['merged'] == (defect == 'green')
+        assert out['status'] == ('ACCEPTED' if defect=='green' else 'DEFERRED_MAIN_ACCEPTANCE')
+
+
 def test_merged_pr_for_requires_exact_merge_and_tree():
     trees = {'H': 'T', 'M': 'T', 'H2': 'T2'}
 

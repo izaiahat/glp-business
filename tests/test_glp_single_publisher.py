@@ -58,6 +58,7 @@ def test_f03_merge_handoff_is_selected_by_hourly_release(tmp_path, monkeypatch):
     selected = release.merged_pr_for(merged, gh=gh)
     monkeypatch.setattr(release, 'ROOT', tmp_path)
     monkeypatch.setattr(release, 'RUNS', tmp_path / 'hourly')
+    monkeypatch.setattr(release, 'build_storage_status', lambda: {'blocked': False})
     monkeypatch.setattr(release, 'merged_pr_for', lambda sha: selected)
     monkeypatch.setattr(release, 'pointer_head', lambda: ('old', 'old-dep'))
     pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
@@ -89,7 +90,11 @@ def _already_current(tmp_path, monkeypatch):
     head, merged = 'a' * 40, 'b' * 40
     monkeypatch.setattr(release, 'ROOT', tmp_path)
     monkeypatch.setattr(release, 'RUNS', tmp_path / 'hourly')
+    monkeypatch.setattr(release, 'build_storage_status', lambda: {'blocked': False})
     monkeypatch.setattr(release, 'merged_pr_for', lambda sha: {'url': 'u', 'headRefOid': head})
+    config = tmp_path/'config.json'
+    config.write_text('{}')
+    monkeypatch.setattr(job, 'CONFIG', config)
     monkeypatch.setattr(release, 'pointer_head', lambda: (head, 'dep-1'))
     pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
     pointer.parent.mkdir(parents=True)
@@ -117,6 +122,8 @@ def test_already_current_prepare_only_never_notifies(tmp_path, monkeypatch, caps
 
 def test_already_current_ordinary_run_keeps_notification_reconciliation(tmp_path, monkeypatch, capsys):
     merged, calls = _already_current(tmp_path, monkeypatch)
+    monkeypatch.setattr(release, 'try_identical_inputs', lambda *a: {
+        'status':'SKIPPED_IDENTICAL_INPUTS','deployment_id':'dep-1'})
     assert release.main(['--sha', merged]) == 0
     assert calls == [tmp_path / 'old']
     out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])

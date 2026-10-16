@@ -38,6 +38,7 @@ def run(argv,*,cwd=ROOT,log=None):
 
 
 def namespace(config,source,report):
+    from glp_release_inputs import path_digest
     argv=list(config['base_argv']); ns=config['namespace']
     for i,t in enumerate(argv):
         if t=='--bind':
@@ -45,8 +46,15 @@ def namespace(config,source,report):
             if destination==ns:argv[i+1]=str(source)
             else:
                 target=report/('bind-'+str(i))
+                # Non-source writable mounts are inputs, not an ungoverned
+                # cache. Never silently reuse a dirty/preexisting build seed.
+                if target.exists() and path_digest(target)!=path_digest(argv[i+1]):
+                    raise ValueError('effective_writable_bind_preexisting_drift:'+destination)
                 if not target.exists():shutil.copytree(argv[i+1],target,symlinks=True)
                 argv[i+1]=str(target)
+    # Runtime-only mapping shared with input capture; never persist host paths
+    # as the cross-run identity, and never mutate the declared recipe.
+    config['_effective_base_argv']=list(argv)
     return argv
 
 

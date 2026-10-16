@@ -227,6 +227,27 @@ def _bound_event_time(receipt: dict[str, Any], deployment_id: str,
         return None
     if receipt.get("deployment_id") not in (None, deployment_id):
         return None
+    if receipt.get("schema") == "glp-main-identical-inputs-receipt-v1":
+        pointer = receipt.get("terminal_pointer")
+        if not isinstance(pointer, dict):
+            return None
+        try:
+            spec = pointer['final_receipt']
+            raw = Path(spec['path']).read_bytes()
+            terminal = json.loads(raw)
+            if (hashlib.sha256(raw).hexdigest() != spec['sha256']
+                    or pointer.get('schema') != 'glp-opus-current-content-base-v1'
+                    or pointer.get('status') != 'PASS'
+                    or pointer.get('deployment_id') != deployment_id
+                    or pointer.get('release_root') != release_root
+                    or not pointer.get('site_head')
+                    or terminal.get('status') != 'PASS_PRODUCTION_TERMINAL'
+                    or terminal.get('site_head') != pointer['site_head']
+                    or terminal.get('deployment', {}).get('deployment_id') != deployment_id):
+                return None
+            return _utc_time(pointer.get('reminted_at_utc'))
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
     if receipt.get("schema") == "glp-enrichment-production-deployment-receipt-v1":
         stage = deploy.get("latest_stage")
         apply = receipt.get("apply")

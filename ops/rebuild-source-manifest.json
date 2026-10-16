@@ -1,6 +1,42 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_glp_release_review543.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci:GLP349-release-health"
+      ],
+      "sha256": "6ca58353b6b7efe7200169532bee89b2fbf782f1bad7b0e669a33724963cce78"
+    },
+    "tests/test_glp_release_boundaries.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci:GLP349-release-health"
+      ],
+      "sha256": "4d48c7dc21da06a5a152a1afc1958fc27c31d17625fbe83dc0823fe507d222ae"
+    },
+    "ops/linear/GLP349-RELEASE-HEALTH.md": {
+      "kind": "operations",
+      "callers": [
+        "GLP-349 release input/recovery contract"
+      ],
+      "sha256": "e5def58f87a257669a1054887e85e744edb5800143d4f1e7e2dbe8889faa4b1f"
+    },
+    "scripts/glp_release_inputs.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:415ec5eba194",
+        "scripts/glp_release_main.py"
+      ],
+      "sha256": "f3f4a37058335ea6918ab5eb9d47f731e8501b4b6090784cee45424c054a94bc"
+    },
+    "tests/test_glp_release_inputs.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci:GLP349-release-health"
+      ],
+      "sha256": "5da86b966d9c0c8273975f174586dec43678f920ed7c0c53d627548bb840c295"
+    },
     "tests/test_postpublication_review_only.py": {
       "kind": "test",
       "callers": [
@@ -285,7 +321,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "f17fb796f8da00d46d982a2b4aa39c59ffbfa9e1837072dfed67ec48e15c4a4a"
+      "sha256": "a2802fa0e2ebe01d08d1765632596c8733f0232176442c501405c819c935cf70"
     },
     ".codex-task/RESULT.md": {
       "callers": [
@@ -297,7 +333,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5516761e09c09d596f6bf8b66c21b00d6d0c43cf0cee18c2c686adab98b4460d"
+      "sha256": "51f748f9abf92ad80466bc768d5e5e96841f81340295ae25280b93832fc81c8c"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -2866,7 +2902,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "66e2b56373e99b0e90727ed3132033933788bef334bc92438d37bb9c1431e628"
+      "sha256": "be0d9e20a5784ba815c9a290e48422c07a9ac523a6e965b2de5e9520826a290f"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -3040,7 +3076,7 @@
         "scripts/glp_deploy_completeness_sensor.py"
       ],
       "kind": "script",
-      "sha256": "4320ab776d3a16a866e2bb785a889be6a2a02daf93addc7eb3c7be7e2ec7ba4d"
+      "sha256": "48d8095adcc9b219bd656b78168d70dc06e72954bbdc4a86817abb614bb4187d"
     },
     "scripts/glp_digital_pr_weekly.py": {
       "callers": [
@@ -3275,7 +3311,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "b2f89df3b10d62479e8033b795cb7d3c20f8def09ad37e900d0c13f834ffdb5a"
+      "sha256": "ec984ed0d80d775a567df01473d8bd88fcc6e53d7f185e527dcfdf9a425f90dc"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [
@@ -6253,7 +6289,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "9154d917951db79da5a537cd48e7241e247cfd354945fb20f25d3c24b5524114"
+      "sha256": "d317f2d37af0e4f3a42c5e11fc1d8103de369226bf079400362f88485fd1e24f"
     },
     "tests/test_glp_research_autowire.py": {
       "callers": [
@@ -6640,13 +6676,6 @@
       ],
       "kind": "test",
       "sha256": "899697bd07fc2afab8b30025b3c1868e080fc62680f9f0772f8531e4e293c03e"
-    },
-    "tests/test_closure_preflight.py": {
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "kind": "test",
-      "sha256": "195c85388a18fc0d40890ef8937611b6b958d908658312aa7a5a3c235cd23aba"
     },
     "tests/test_linear_close.py": {
       "callers": [],
@@ -7970,6 +7999,13 @@
       ],
       "kind": "test",
       "sha256": "d67500ba664e4ea299560cdee6ef934f70363314563220c6033ae9db8ca354e1"
+    },
+    "tests/test_closure_preflight.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "195c85388a18fc0d40890ef8937611b6b958d908658312aa7a5a3c235cd23aba"
     }
   },
   "omitted_runtime_inputs": [
@@ -7980,5 +8016,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1167
+  "tracked_count": 1172
 }
