@@ -79,6 +79,19 @@ def test_postpublication_job_requires_single_effect_free_mode(tmp_path):
     assert loop.validate_review_only_job(job, apply=False, review_only_once=True) is None
 
 
+def test_registered_standard_route_not_fast_only(tmp_path, monkeypatch):
+    import review_transports
+    root, entry, original, output, db = producer_fixture(tmp_path, monkeypatch)
+    route = review_transports.transport('hermes-openai-codex-astra-independent')
+    # Registry calls standard speed 'normal'; do not mutate it to Fast.
+    assert route['speed'] == 'normal' and route['service_tier'] == 'default'
+    monkeypatch.setitem(route, 'wrapper', root/'systems/seo-blog-machine/scripts/review-wrapper.py')
+    path = recovery.prepare_review_only(entry, original, output, route['transport_id'], root=root, session_db=db)
+    recovery.validate_review_only_binding(recovery.read(path), route, root=root, session_db=db)
+    with pytest.raises(ValueError, match='registered_native_route'):
+        recovery.validate_review_only_binding(recovery.read(path), {**route, 'speed': 'fast'}, root=root, session_db=db)
+
+
 def test_review_only_intent_is_exclusive_and_never_replayed(tmp_path):
     loop.reserve_review_only_intent(tmp_path, {'job_id': 'fixture'}, 'sealed-hash')
     path = tmp_path / 'native-review-intent.json'
@@ -200,6 +213,279 @@ def producer_fixture(tmp_path, monkeypatch, fault=None):
     return root, entry_path, original_path, reports/'prepared', db
 
 
+def retained_blocked_history(root, entry, original, deployed, db, monkeypatch):
+    """Synthetic native rows for an actual retained predecessor; never a model call."""
+    import argparse
+    import sqlite3
+    import hermes_sol_article_review as native
+    import opus_review_loop as loop
+    import review_transports
+    packet = root/'reports/predecessor/packet'
+    packet.mkdir(parents=True)
+    origin = recovery.read(original)
+    for name in recovery.CORE:
+        (packet/name).write_bytes((Path(origin['packet_dir'])/name).read_bytes())
+    (packet/'08-candidate-guide.html').write_bytes(deployed.read_bytes())
+    history = packet.parent/'history'; history.mkdir()
+    route = review_transports.transport('hermes-openai-codex-astra-independent')
+    job = {'schema': 'glp-opus-seo-review-job-v1', 'artifact_role': 'postpublication_review_only_job',
+           'job_id': 'retained-predecessor', 'topic_id': origin['topic_id'], 'max_rounds': 1,
+           'packet_dir': str(packet), 'history_dir': str(history),
+           'review_transport': route['transport_id'], 'subject_files': sorted(p.name for p in packet.iterdir()),
+           'postpublication_binding': {'entry': recovery.spec(entry), 'original_job': recovery.spec(original),
+                                      'deployed_candidate': recovery.spec(deployed)}}
+    (packet.parent/'job.json').write_text(json.dumps(job))
+    with monkeypatch.context() as m:
+        m.setattr(loop, 'now', lambda: '2026-10-01T00:00:00Z')
+        manifest, mp = loop.seal_subjects(job, 1, history)
+    context = loop.build_context_bundle(job, manifest, 1, history)
+    args = argparse.Namespace(prompt='Synthetic prior review, not clinical evidence.', prompt_file=None,
+        context_file=[str(context)], json_schema_file=str(loop.REVIEW_SCHEMA), max_context_chars=100000, max_total_chars=200000,
+        model=route['model'], provider=route['provider'], effort='high', disable_tools=True)
+    captured = {}; schema = native.load_schema(args, captured)
+    payload = native.build_payload(args, captured, schema)
+    inputs = native.review_input(args, payload, captured)
+    finding = {'id': 'prior-fixture', 'gate': 'B', 'severity': 'BLOCKING', 'file': '04-draft.md',
+               'related_files': [], 'line_start': 1, 'line_end': 1,
+               'issue': 'Synthetic fixture finding', 'required_fix': 'Synthetic fixture repair'}
+    result = {'summary': 'Synthetic blocked prior review', 'verdict': 'BLOCKED_OPUS_SEO_DRAFT',
+              'round': 1, 'subject_manifest_sha256': manifest['manifest_sha256'], 'findings': [finding],
+              'gates': [{'gate': g, 'status': 'FAIL' if g == 'B' else 'PASS',
+                         'findings': ['prior-fixture'] if g == 'B' else []} for g in 'ABCDE']}
+    response = json.dumps(result)
+    # Fixture native persistence is expanded below; production remains read-only.
+    return _retained_blocked_native(db, native, route, payload, response, inputs, job, mp, history, result)
+
+
+def _retained_blocked_native(db, native, route, payload, response, inputs, job, mp, history, result):
+    import sqlite3
+    import opus_review_loop as loop
+    from datetime import datetime
+    start = datetime.fromisoformat('2026-10-01T00:00:01+00:00').timestamp()
+    with sqlite3.connect(db) as c:
+        for column in ('model_config text', 'system_prompt text', 'billing_provider text',
+                       'api_call_count integer', 'tool_call_count integer'):
+            c.execute('alter table sessions add column '+column)
+        c.execute('alter table messages add column tool_calls text')
+        c.execute('insert into sessions values(?,?,?,?,?,?,?,?,?)',
+                  ('prior-reviewer', route['model'], start, start+3,
+                   json.dumps({'reasoning_config': {'effort': 'high'}, 'max_iterations': 1}),
+                   native.SYSTEM_BRIEF, route['provider'], 1, 0))
+        for mid, role, content, stamp in [(10, 'user', payload, start+1), (11, 'assistant', response, start+2)]:
+            c.execute('insert into messages values(?,?,?,?,?,?,?)',
+                      (mid, 'prior-reviewer', role, None, content, stamp, None))
+    custody = native.authenticate_result('prior-reviewer', payload, response,
+        model=route['model'], provider=route['provider'], effort='high', session_db=db)
+    runtime = {k: inputs[k] for k in ('provider', 'model', 'effort', 'api_mode', 'transport_id', 'speed', 'service_tier')}
+    runtime.update(session_id='prior-reviewer', tool_count=0, tool_calls=0, fallback_provider_count=0,
+                   model_turns=1, context_isolated=True, result_custody=custody)
+    raw = {'session_id': 'prior-reviewer', 'result': response, 'review_input': inputs, 'hermes_runtime': runtime,
+           'modelUsage': {route['model']: {'outputTokens': 50}}}
+    rp = history/'round-01-sol-raw.json'; rp.write_text(json.dumps(raw))
+    receipt = {'schema': 'glp-opus-seo-round-receipt-v1', 'status': result['verdict'],
+               'reviewed_at_utc': '2026-10-01T00:00:10Z', 'job_id': job['job_id'], 'topic_id': job['topic_id'],
+               'round': 1, 'provider': route['provider'], 'model': route['model'], 'effort': route['effort'],
+               'review_transport': route['transport_id'], 'tools_disabled': True,
+               'subject_manifest_path': str(mp), 'subject_manifest_sha256': recovery.sha(mp),
+               'raw_review_path': str(rp), 'raw_review_sha256': recovery.sha(rp),
+               'gates': result['gates'], 'findings': result['findings']}
+    receipt['receipt_sha256'] = loop.payload_hash(receipt, 'receipt_sha256')
+    blocked = history/'round-01-receipt.json'; blocked.write_text(json.dumps(receipt))
+    (history/'native-review-intent.json').write_text(json.dumps({
+        'schema': 'glp-native-review-only-intent-v1', 'job_id': job['job_id'],
+        'subject_manifest_sha256': recovery.sha(mp), 'retry_allowed': False, 'publication_authorized': False,
+        'created_at_utc': '2026-10-01T00:00:00.500000Z'}))
+    return blocked
+
+
+def successor_fixture(tmp_path, monkeypatch):
+    import sqlite3
+    import compile_review_packet_article as compiler
+    root, entry, original, output, db = producer_fixture(tmp_path, monkeypatch)
+    successor = root/'reports/corrected'; successor.mkdir()
+    origin = Path(recovery.read(original)['packet_dir'])
+    for name in recovery.CORE[:6]:
+        (successor/name).write_bytes((origin/name).read_bytes())
+    (successor/'04-draft.md').write_text('corrected successor draft, not the published draft')
+    candidate = root/'reports/corrected-candidate.html'
+    candidate.write_text('<html>corrected successor, not deployed</html>')
+
+    with __import__('sqlite3').connect(db) as c:
+        c.execute('insert into sessions values(?,?,?,?)', ('successor-writer', 'astra', 4, 6))
+        c.execute('insert into messages values(2,?,?,?,?,?)', ('successor-writer','tool','patch',
+            json.dumps({'verified': True, 'files_modified': [str(successor/'04-draft.md')]}),5))
+    deployed = root/'reports/release/public/guides/fixture/index.html'
+    blocked = retained_blocked_history(root, entry, original, deployed, db, monkeypatch)
+    # Explicit deterministic fixture compiler/QA, not clinical evidence.
+    monkeypatch.setattr(compiler, 'compile_packet', lambda p: {
+        'draft': (p/'04-draft.md').read_text(),
+        'render_contract': {'schema': 'glp-accepted-guide-render-v1'}})
+    validator = root/'systems/seo-blog-machine/scripts/validate_opus_article_packet.py'
+    validator.write_text('''import json,sys,hashlib
+from pathlib import Path
+p=Path(sys.argv[sys.argv.index('--packet')+1])
+a={'draft':(p/'04-draft.md').read_text(),'render_contract':{'schema':'glp-accepted-guide-render-v1'}}
+(p/'06-article.json').write_text(json.dumps(a,indent=2,sort_keys=True)+'\\n')
+arts={n:{'sha256':hashlib.sha256((p/n).read_bytes()).hexdigest()} for n in %r}
+(p/'07-qa-receipt.json').write_text(json.dumps({'status':'PASS','failures':[], 'checks':{'fixture':True},'checked_at_utc':'2026-01-01T00:00:00Z','artifacts':arts}))
+''' % list(recovery.CORE[:-1]))
+    options = dict(successor_packet=successor, successor_candidate=candidate,
+                   candidate_sha256=recovery.sha(candidate), draft_sha256=recovery.sha(successor/'04-draft.md'),
+                   blocked_review=blocked)
+    return root, entry, original, output, db, options
+
+
+@pytest.mark.parametrize('phase', ['preparation', 'invocation'])
+def test_every_changed_successor_source_requires_native_writer(tmp_path, monkeypatch, phase):
+    import sqlite3
+    import review_transports
+    root, entry, original, output, db, options = successor_fixture(tmp_path, monkeypatch)
+    orphan = options['successor_packet']/'03-editorial-brief.md'
+    orphan.write_text('independently changed source without any authenticated native writer')
+    route = review_transports.transport('hermes-openai-codex-sol61-independent')
+    if phase == 'invocation':
+        with sqlite3.connect(db) as c:
+            c.execute('insert into messages(id,session_id,role,tool_name,content,timestamp) values(3,?,?,?,?,?)', ('successor-writer', 'tool', 'patch',
+                json.dumps({'verified': True, 'files_modified': [str(orphan)]}), 5))
+        path = recovery.prepare_review_only(entry, original, output, route['transport_id'],
+                                          root=root, session_db=db, **options)
+        job = recovery.read(path)
+        with sqlite3.connect(db) as c:
+            c.execute('delete from messages where id=3')
+        # Rehashing the aggregate author list cannot lend 04's custody to 03.
+        job['postpublication_binding']['successor']['source_authors'] = [
+            row for row in job['postpublication_binding']['successor']['source_authors'] if row['message_id'] != 3]
+    before = {p: p.read_bytes() for p in (root/'reports').rglob('*') if p.is_file()}
+    with pytest.raises(ValueError, match='writer edits missing'):
+        if phase == 'preparation':
+            recovery.prepare_review_only(entry, original, output, route['transport_id'],
+                                         root=root, session_db=db, **options)
+        else:
+            recovery.validate_review_only_binding(job, route, root=root, session_db=db, for_invocation=True)
+    assert all(p.read_bytes() == data for p, data in before.items())
+    assert not (output/'history').exists()
+    if phase == 'preparation':
+        assert not output.exists()
+
+
+@pytest.mark.parametrize('phase', ['preparation', 'invocation'])
+@pytest.mark.parametrize('fault', ['status-only', 'unrelated-job', 'unsealed-subject', 'native-result', 'native-missing'])
+def test_blocked_history_requires_authenticated_predecessor(tmp_path, monkeypatch, phase, fault):
+    import sqlite3
+    import review_transports
+    root, entry, original, output, db, options = successor_fixture(tmp_path, monkeypatch)
+    route = review_transports.transport('hermes-openai-codex-sol61-independent')
+    if phase == 'invocation':
+        path = recovery.prepare_review_only(entry, original, output, route['transport_id'],
+                                          root=root, session_db=db, **options)
+        job = recovery.read(path)
+    blocked = options['blocked_review']; receipt = recovery.read(blocked)
+    if fault == 'status-only':
+        receipt = {'status': 'BLOCKED_OPUS_SEO_DRAFT'}
+    elif fault == 'unrelated-job':
+        prior_path = blocked.parent.parent/'job.json'
+        prior = recovery.read(prior_path)
+        prior['postpublication_binding']['original_job'] = recovery.spec(entry)
+        prior_path.write_text(json.dumps(prior))
+    elif fault == 'unsealed-subject':
+        (blocked.parent.parent/'packet/03-editorial-brief.md').write_text('not the prior native subject')
+    elif fault == 'native-result':
+        raw_path = Path(receipt['raw_review_path']); raw = recovery.read(raw_path)
+        result = json.loads(raw['result']); result['summary'] = 'fabricated blocked review'
+        raw['result'] = json.dumps(result); raw_path.write_text(json.dumps(raw))
+        receipt['raw_review_sha256'] = recovery.sha(raw_path)
+    else:
+        with sqlite3.connect(db) as c:
+            c.execute('delete from messages where session_id=?', ('prior-reviewer',))
+    if fault != 'status-only':
+        receipt['receipt_sha256'] = loop.payload_hash(receipt, 'receipt_sha256')
+    blocked.write_text(json.dumps(receipt))
+    if phase == 'invocation':
+        job['postpublication_binding']['successor']['blocked_review'] = recovery.spec(blocked)
+    before = {p: p.read_bytes() for p in (root/'reports').rglob('*') if p.is_file()}
+    with pytest.raises((ValueError, RuntimeError), match='blocked_history|reviewer_result_custody'):
+        if phase == 'preparation':
+            recovery.prepare_review_only(entry, original, output, route['transport_id'],
+                                         root=root, session_db=db, **options)
+        else:
+            recovery.validate_review_only_binding(job, route, root=root, session_db=db, for_invocation=True)
+    assert all(p.read_bytes() == data for p, data in before.items())
+    assert not (output/'history').exists()
+    if phase == 'preparation':
+        assert not output.exists()
+
+
+def test_preparation_binds_corrected_successor_not_deployed_subject(tmp_path, monkeypatch):
+    import review_transports
+    root, entry, original, output, db, options = successor_fixture(tmp_path, monkeypatch)
+    before = {p: p.read_bytes() for p in (root/'reports').rglob('*') if p.is_file()}
+    route = review_transports.transport('hermes-openai-codex-sol61-independent')
+    path = recovery.prepare_review_only(entry, original, output, route['transport_id'], root=root, session_db=db, **options)
+    job = recovery.read(path); packet = Path(job['packet_dir']); binding = job['postpublication_binding']
+    assert (packet/recovery.CANDIDATE).read_bytes() == options['successor_candidate'].read_bytes()
+    assert (packet/'04-draft.md').read_bytes() == (options['successor_packet']/'04-draft.md').read_bytes()
+    assert recovery.sha(packet/recovery.CANDIDATE) != binding['deployed_candidate']['sha256']
+    assert binding['review_subject'] == 'corrected_successor'
+    assert binding['successor']['blocked_review'] == recovery.spec(options['blocked_review'])
+    assert set(binding['successor']['original_aliases']) == set(recovery.CORE[:6]) - {'04-draft.md'}
+    assert 'corrected successor' in job['prompt_intro'] and 'byte-exact deployed page' not in job['prompt_intro']
+    recovery.validate_review_only_binding(job, route, root=root, session_db=db, for_invocation=True)
+    assert not (output/'history').exists()
+    assert all(p.read_bytes() == data for p, data in before.items())
+
+
+@pytest.mark.parametrize('fault,reason', [
+    ('candidate_sha', 'exact_bytes'), ('draft_sha', 'exact_bytes'),
+    ('partial', 'successor_inputs'), ('original_author', 'same model'),
+    ('successor_model', 'same model'), ('successor_session', 'same model or session'),
+    ('incomplete_author', 'not completed'), ('unauthenticated_author', 'writer edits missing'),
+    ('identity', 'identity_subject_changed'), ('alias_writer', 'same model')])
+def test_successor_fail_closed_before_preparation(tmp_path, monkeypatch, fault, reason):
+    import sqlite3
+    import review_transports
+    root, entry, original, output, db, options = successor_fixture(tmp_path, monkeypatch)
+    route = review_transports.transport('hermes-openai-codex-sol61-independent')
+    if fault == 'candidate_sha': options['candidate_sha256'] = '0'*64
+    if fault == 'draft_sha': options['draft_sha256'] = '0'*64
+    if fault == 'partial': options.pop('blocked_review')
+    if fault == 'identity': (options['successor_packet']/'00-authority.json').write_text('different identity')
+    with sqlite3.connect(db) as c:
+        if fault == 'original_author':
+            c.execute('update sessions set model=? where id=?', (route['model'], 'writer'))
+        if fault == 'successor_model':
+            c.execute('update sessions set model=? where id=?', (route['model'], 'successor-writer'))
+        if fault == 'alias_writer':
+            c.execute('insert into sessions(id,model,started_at,ended_at) values(?,?,?,?)', ('alias-editor', route['model'], 4, 6))
+            c.execute('insert into messages(id,session_id,role,tool_name,content,timestamp) values(3,?,?,?,?,?)', ('alias-editor','tool','patch',
+                json.dumps({'verified': True, 'files_modified': [str(options['successor_packet']/'03-editorial-brief.md')]}),5))
+        if fault == 'successor_session':
+            c.execute('update sessions set id=? where id=?', ('NOT_YET_INVOKED', 'successor-writer'))
+            c.execute('update messages set session_id=? where session_id=?', ('NOT_YET_INVOKED', 'successor-writer'))
+        if fault == 'incomplete_author':
+            c.execute('update sessions set ended_at=null where id=?', ('successor-writer',))
+        if fault == 'unauthenticated_author': c.execute('delete from messages where id=2')
+    with pytest.raises(ValueError, match=reason):
+        recovery.prepare_review_only(entry, original, output, route['transport_id'], root=root, session_db=db, **options)
+    assert not output.exists()
+
+
+@pytest.mark.parametrize('target', ['draft', 'candidate', 'alias', 'original', 'qa', 'blocked'])
+def test_successor_rechecked_at_admission(tmp_path, monkeypatch, target):
+    import review_transports
+    root, entry, original, output, db, options = successor_fixture(tmp_path, monkeypatch)
+    route = review_transports.transport('hermes-openai-codex-sol61-independent')
+    path = recovery.prepare_review_only(entry, original, output, route['transport_id'], root=root, session_db=db, **options)
+    job = recovery.read(path); packet = Path(job['packet_dir'])
+    changed = {'draft': packet/'04-draft.md', 'candidate': packet/recovery.CANDIDATE,
+               'alias': options['successor_packet']/'03-editorial-brief.md',
+               'original': Path(recovery.read(original)['packet_dir'])/'03-editorial-brief.md',
+               'qa': packet/'06-article.json', 'blocked': options['blocked_review']}[target]
+    changed.write_text('{}')
+    with pytest.raises(ValueError):
+        recovery.validate_review_only_binding(job, route, root=root, session_db=db, for_invocation=True)
+    assert not (output/'history').exists()
+
+
 @pytest.mark.parametrize('fault,reason', [(None, None), ('author', 'same model'),
     ('strategy', 'current_weekly_strategy'), ('source', 'published_original_article'),
     ('qa', 'current_deterministic_qa_failed')])
@@ -257,7 +543,11 @@ def test_supplement_keeps_historical_source_and_full_deployed_bytes(tmp_path, mo
         assert not recovery.recovery_path(entry, root).exists()
 
 
-def test_prepared_role_cli_reaches_offline_boundary_once(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize('successor,transport_id', [
+    (False, 'hermes-openai-codex-sol61-independent'),
+    (True, 'hermes-openai-codex-sol61-independent'),
+    (True, 'hermes-openai-codex-astra-independent')])
+def test_prepared_role_cli_reaches_offline_boundary_once(tmp_path, monkeypatch, capsys, successor, transport_id):
     """Actual producer/controller __main__; synthetic inputs, no native invocation.
 
     Only fixture paths/DB/authority and the external transport boundary differ.
@@ -267,7 +557,14 @@ def test_prepared_role_cli_reaches_offline_boundary_once(tmp_path, monkeypatch, 
     """
     import runpy
     import subprocess
-    root, entry, original, output, db = producer_fixture(tmp_path, monkeypatch)
+    import review_transports
+    if successor:
+        root, entry, original, output, db, options = successor_fixture(tmp_path, monkeypatch)
+    else:
+        root, entry, original, output, db = producer_fixture(tmp_path, monkeypatch)
+        options = {}
+    monkeypatch.setitem(review_transports.transport(transport_id), 'wrapper',
+                        root/'systems/seo-blog-machine/scripts/review-wrapper.py')
     before = {p: p.read_bytes() for p in entry.parent.rglob('*') if p.is_file()}
     preparer = ROOT/'scripts/article_review_recovery.py'
     controller = ROOT/'systems/seo-blog-machine/scripts/opus_review_loop.py'
@@ -307,9 +604,10 @@ def test_prepared_role_cli_reaches_offline_boundary_once(tmp_path, monkeypatch, 
         finally:
             sys.settrace(prior)
 
+    successor_args = [part for k, v in options.items() for part in ('--'+k.replace('_', '-'), v)]
     cli(preparer, ['--prepare-review-only', '--entry', entry,
                   '--original-job', original, '--output', output, '--review-transport',
-                  'hermes-openai-codex-sol61-independent'], exits=False)
+                  transport_id, *successor_args], exits=False)
     prepared = json.loads(capsys.readouterr().out)
     assert prepared['status'] == 'PREPARED_REVIEW_ONLY_NOT_INVOKED'
     assert prepared['native_calls'] == 0 and prepared['publication_authorized'] is False
