@@ -73,9 +73,12 @@ def test_current_base_worker_successor_copin_and_historical_custody():
     predecessor = '59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05'
     successor = '16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108'
     assert release.GLP331_DEPENDENCY_BINDINGS[name] == (legacy, successor)
-    assert p.sha_bytes((ROOT/name).read_bytes()) == successor
-    manifest = json.loads((ROOT/'ops/rebuild-source-manifest.json').read_text())
+    from glp93_current_base_binding import historical_dependency_bytes, HISTORICAL_WORKER_HEAD
+    assert p.sha_bytes(historical_dependency_bytes(ROOT, name)) == successor
+    manifest = json.loads(p.git(ROOT, 'show', HISTORICAL_WORKER_HEAD+':ops/rebuild-source-manifest.json'))
     assert manifest['files'][name]['sha256'] == successor
+    current_manifest = json.loads((ROOT/'ops/rebuild-source-manifest.json').read_text())
+    assert current_manifest['files'][name]['sha256'] == p.sha_bytes((ROOT/name).read_bytes())
     # Immutable predecessor producer/source remain reproducible, not relabeled
     # as approval of this new dependency. The accepted seven source blobs stay
     # at their historical source_head (also checked by the literal scope test).

@@ -70,3 +70,50 @@ def test_every_successor_b2_pin_equals_exact_maintained_dependency():
             assert pin == uncurated[rel]
         else:
             assert hashlib.sha256((ROOT / rel).read_bytes()).hexdigest() == pin
+
+
+def paid_event_functions(root):
+    """Execute the maintained pure gate without the worker's host-only builders."""
+    import json
+    from typing import Any, Iterable
+    names = {'read_json', 'normalize_network', 'load_exact_paid_event_policy',
+             'exact_paid_event_gate'}
+    tree = ast.parse((ROOT / 'scripts/glp_affiliate_wire_backlog_worker.py').read_text())
+    selected = ast.Module(body=[node for node in tree.body
+                               if isinstance(node, ast.FunctionDef) and node.name in names],
+                          type_ignores=[])
+    namespace = {'Path': Path, 'Any': Any, 'Iterable': Iterable, 'json': json, 're': re,
+                 'BUSINESS': root, 'EXACT_PAID_EVENT_POLICY': root / 'policy.json',
+                 'B2Error': type('B2Error', (RuntimeError,), {})}
+    exec(compile(selected, 'glp_affiliate_wire_backlog_worker.py', 'exec'), namespace)
+    return namespace
+
+
+def test_missing_other_rail_evidence_does_not_abort_current_rail(tmp_path):
+    import json
+    (tmp_path / 'valid.txt').write_text('Synthetic published paid-event policy evidence')
+    policy = {'schema': 'glp.exact-paid-event-publication-policy.v1', 'networks': {
+        'trackdesk': {'publication_mode': 'never_publishes_exact_paid_event',
+                      'evidence': 'missing.txt'},
+        'affiliati': {'publication_mode': 'publishes_exact_paid_event',
+                     'evidence': 'valid.txt'}}}
+    (tmp_path / 'policy.json').write_text(json.dumps(policy))
+    functions = paid_event_functions(tmp_path)
+    gate = functions['exact_paid_event_gate']
+    with pytest.raises(RuntimeError, match='evidence_missing:trackdesk'):
+        functions['load_exact_paid_event_policy']()
+    assert gate('Affiliati', [{'exact_paid_event': 'Initial paid sale'}])['status'] == 'PASS_PUBLISHED'
+    blocked = gate('Trackdesk', [])
+    assert blocked['status'] == 'BLOCK'
+    assert blocked['reason'] == 'exact_paid_event_policy_evidence_missing:trackdesk'
+    assert blocked['risk_acceptance'] is None
+    assert gate('Affiliati', [])['status'] == 'BLOCK'
+    assert gate('Affiliati', [{'paid_event': 'sale'}, {'paid_event': 'lead'}])['status'] == 'BLOCK'
+    # Missing field plus no policy, missing evidence, and invalid modes block.
+    assert gate('Unclassified', [])['status'] == 'BLOCK'
+    (tmp_path / 'valid.txt').unlink()
+    assert gate('Affiliati', [{'paid_event': 'sale'}])['status'] == 'BLOCK'
+    policy['networks']['trackdesk']['publication_mode'] = 'unknown'
+    (tmp_path / 'policy.json').write_text(json.dumps(policy))
+    with pytest.raises(RuntimeError, match='publication_mode_invalid'):
+        gate('Affiliati', [{'paid_event': 'sale'}])

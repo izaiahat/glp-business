@@ -293,7 +293,12 @@ def route_matrix(data: dict[str, Any],
     # The SAME timestamp the payload stamps below — episode ages are measured
     # against the run's own clock so fixture runs stay deterministic.
     now_utc = data.get("generated_at_utc") or utc_now()
-    sitemap = sorted({canonical_route(route) for route in data.get("sitemap_routes") or []})
+    observed_sitemap = {canonical_route(route) for route in data.get("sitemap_routes") or []}
+    released_sitemap = ({canonical_route(route) for route in data["released_sitemap_routes"]}
+                        if "released_sitemap_routes" in data else None)
+    released_only = sorted((released_sitemap or set()) - observed_sitemap)
+    census_only = sorted(observed_sitemap - released_sitemap) if released_sitemap is not None else []
+    sitemap = sorted(observed_sitemap | (released_sitemap or set()))
     static_by_route = {
         canonical_route(row.get("path")): row for row in data.get("static_routes") or []
         if isinstance(row, dict) and row.get("path")
@@ -318,7 +323,8 @@ def route_matrix(data: dict[str, Any],
     # means every sitemap route is live, not that the crawl found nothing else.
     obligations = data.get("affiliate_route_obligations")
     missing_obligated_routes = sorted(set(obligations or {}) - (set(sitemap) | set(static_by_route)))
-    route_inventory_equal = set(sitemap) <= set(observed_200) and not missing_obligated_routes
+    route_inventory_equal = (set(sitemap) <= set(observed_200) and not missing_obligated_routes
+                             and not released_only and not census_only)
     routes: list[dict[str, Any]] = []
     for path in sorted(set(sitemap) | set(static_by_route)):
         static = static_by_route.get(path) or {}
@@ -504,6 +510,10 @@ def route_matrix(data: dict[str, Any],
         "instrumented_route_count": sum(row["static_instrumentation_pass"] for row in routes),
         "uninstrumented_route_count": sum(not row["static_instrumentation_pass"] for row in routes),
         "route_inventory_equal": route_inventory_equal,
+        "released_sitemap_sha256": data.get("released_sitemap_sha256"),
+        "observed_sitemap_route_count": len(observed_sitemap),
+        "released_only_routes": released_only,
+        "census_only_routes": census_only,
         "missing_obligated_routes": missing_obligated_routes,
         "route_cap": None,
         "sitemap_complete": data.get("sitemap_complete") is True,
@@ -766,7 +776,9 @@ def _hard_failure(health: dict[str, Any], matrix: dict[str, Any], reconciliation
 
     if (not matrix.get("sitemap_complete") or matrix["sitemap_route_count"] == 0
             or matrix.get("route_inventory_equal") is not True):
-        return "FAIL_ROUTE_COVERAGE", matrix.get("missing_obligated_routes") or ["sitemap_incomplete_or_empty"]
+        return "FAIL_ROUTE_COVERAGE", (matrix.get("missing_obligated_routes")
+            or matrix.get("released_only_routes") or matrix.get("census_only_routes")
+            or ["sitemap_incomplete_or_empty"])
     route_failures = [row["path"] for row in matrix["routes"]
                       if not row["static_instrumentation_pass"] or not row["probe_pass"]]
     if route_failures:

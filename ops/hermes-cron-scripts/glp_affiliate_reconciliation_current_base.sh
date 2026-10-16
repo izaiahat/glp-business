@@ -78,6 +78,9 @@ wire_args=(--apply --fit-manifest "$wire_fit_manifest" --captures /home/ubuntu/b
 if [[ $dry_run -eq 1 ]]; then
   wire_report_dir="$offline_output/scanner"
   wire_args=(--values "$fixture_root/sheet-values.json" --captures "$fixture_root/captures" --recursive-captures --fail-on-stuck)
+  if [[ -d "$fixture_root/additional-captures" ]]; then
+    wire_args+=(--additional-captures "$fixture_root/additional-captures")
+  fi
 fi
 set +e
 wire_output="$(timeout --kill-after=10s 600s python3 \
@@ -100,7 +103,7 @@ declare -A b2_pins=(
   ['/home/ubuntu/business/scripts/katalys_generate_tracking_links.py']='7bad1d2ea2084004f98aefd85b5785f15771cebe61237d76c7884d1a293a2cd6'
   ['/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py']='aef4747d1e9ca683df5bf0edc31c4be12d6769f28a9fe438f439f09e83bfefe3'
   ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_daily.py']='948a6c1bb6fb41fc8ad11ba4b9d236d5ea50823a1cff423fc3887012fe3c8b21'
-  ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_worker.py']='16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108'
+  ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_worker.py']='4e10f7d1557aaa33f7351ce97f5a1dcf9dc396bb4027ea8dfa8660fff2bb3ca2'
   ['/home/ubuntu/business/scripts/glp_provider_cardinality_test_refresh.py']='83cb9e73eeeeb184043ff9bf53f68265c22c51e104bb7aeb76eb9cae1e98d6aa'
   ['/home/ubuntu/business/scripts/glp_price_index_source_rebind.mjs']='5342eabc650b351b5d3c7a2dd1329cf013a7445dbc30260f5240f6606cae021c'
   ['/home/ubuntu/business/scripts/glp_provider_dynamic_profile_activation.mjs']='598a7d4c9b1a261471569e9c69df6ae45d6fb6572807f801ccd958f6f0acd5a0'
