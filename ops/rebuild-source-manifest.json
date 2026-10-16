@@ -824,7 +824,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "a57e75e22c6de26d111af292b91e1cdb9f159ad8db0e19a5481b4af80884f6f4"
+      "sha256": "623bca6a5b3175ae2fe1d86dc408c355147006b618120fff9e8ab04b1dd9c027"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -1305,7 +1305,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "43926fd713b3200ccbdbdca26ccd73a7d88f4ab182b56e9ee38a9aa7f9ae853e"
+      "sha256": "debdfe9fc7bb3591b76d3e3891869cedf6f24c65cbc37132aa11178c71818087"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2223,7 +2223,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes.",
-      "sha256": "a35c160ece80de3cdc8fa718b065cce09613bc13f191ceb10408d01a731d7ac8"
+      "sha256": "d557a2b657ca5a94f7b5be172e6134c3196ba99c8580e019700c595bb6134470"
     },
     "scripts/affiliate_niche_geo_filter.py": {
       "callers": [
@@ -2945,7 +2945,7 @@
       ],
       "kind": "registered_producer",
       "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
-      "sha256": "3400a912789ba25f85931622bcdec4d1fc744c8386b637900ef7de1839983777"
+      "sha256": "9613dffc4eec4e0ac5a8eac989f3ac90ce92807e16fd8aa911d7fb70d115d473"
     },
     "scripts/glp_affiliate_weekly_reporting_j7_job.py": {
       "callers": [
@@ -8020,6 +8020,27 @@
       ],
       "kind": "test",
       "sha256": "195c85388a18fc0d40890ef8937611b6b958d908658312aa7a5a3c235cd23aba"
+    },
+    "scripts/affiliate_cj_checkpoint.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_affiliate_weekly_reporting_j7.py"
+      ],
+      "sha256": "8d0bf9f5fd2aaf1a62df4d08424d7471948c509254a161f179d361c773f45c36"
+    },
+    "tests/test_j7_cj_continuation.py": {
+      "kind": "test",
+      "callers": [
+        "j7-reporting:exact-head-regression"
+      ],
+      "sha256": "76b6c3e487497d13f25b30e75b4f55cbc2d513f47a6a4583c002c6d721711342"
+    },
+    "ops/linear/GLP334-CJ-CONTINUATION.md": {
+      "kind": "operations",
+      "callers": [
+        "GLP-334 conversion reconciliation review"
+      ],
+      "sha256": "60da87053e685b7c39cf3e29e9c13f4f801272c1f32743128afa39634c957a3b"
     }
   },
   "omitted_runtime_inputs": [
@@ -8030,5 +8051,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1174
+  "tracked_count": 1177
 }
