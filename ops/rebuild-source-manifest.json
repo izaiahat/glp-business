@@ -3429,7 +3429,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "0fb87bb0f3289caee45ed63b8a67f2d15be8e34e99b09914a5bd3352e58eef7e"
+      "sha256": "950582b2d5dccff874074023b133c9890266cdc44b11280d8299cabbb3d4bf6f"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -6440,7 +6440,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "dbba504e6a2f7c85b4d2236b99ce02f79ef3396a653429bb570dcae7df59e406"
+      "sha256": "1767163f4ea4ab73b00e87bbe46728c9c2ad6c283447a992c3a83d4964f91e98"
     },
     "tests/test_glp_sponsor_site_payment.py": {
       "callers": [

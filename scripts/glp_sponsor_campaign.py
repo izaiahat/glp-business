@@ -136,8 +136,10 @@ def _named_business_role_hits(markup):
  class Cards(HTMLParser):
   def __init__(self):super().__init__(convert_charrefs=True);self.stack=[];self.nodes=[]
   def handle_starttag(self,tag,attrs):
+   # Inspect every style before dict normalization can erase a hiding value.
+   styles=[value or '' for name,value in attrs if name=='style']
    attrs=dict(attrs);parent=self.stack[-1] if self.stack else None
-   hidden=(parent and parent['hidden']) or tag in ('script','style','template','noscript') or 'hidden' in attrs or attrs.get('aria-hidden')=='true' or bool(re.search(r'display\s*:\s*none|visibility\s*:\s*hidden',attrs.get('style') or '',re.I))
+   hidden=(parent and parent['hidden']) or tag in ('script','style','template','noscript') or 'hidden' in attrs or attrs.get('aria-hidden')=='true' or any(re.search(r'display\s*:\s*none|visibility\s*:\s*hidden',style,re.I) for style in styles)
    node={'tag':tag,'attrs':attrs,'parent':parent,'hidden':hidden,'text':[],'closed':tag in void}
    self.nodes.append(node)
    if tag not in void:self.stack.append(node)

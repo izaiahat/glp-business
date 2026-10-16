@@ -44,6 +44,19 @@ def test_valueless_style_is_empty_css_not_missing_role_evidence():
   assert contacts==[] and validated is None
 
 
+@pytest.mark.parametrize('css',['display:none','visibility:hidden'])
+@pytest.mark.parametrize('duplicate',['style','style=""','style="display:block;visibility:visible"'])
+@pytest.mark.parametrize('reverse',[False,True])
+def test_duplicate_style_cannot_erase_hidden_role_card(css,duplicate,reverse):
+ _,card=retained_sales_page()
+ attributes=[f'style="{css}"',duplicate]
+ if reverse:attributes.reverse()
+ markup=card.replace('<div ', '<div '+' '.join(attributes)+' ',1)
+ contacts,validated=extract_and_validate(markup)
+ assert (contacts,validated)==([],None)
+ assert not any(hit.get('structural_business_role') for hit in c.public_page_hits(markup)[0])
+
+
 @pytest.mark.parametrize('fragment',[False,True])
 def test_retained_named_marketing_sales_manager_recall(fragment,monkeypatch):
  import socket
