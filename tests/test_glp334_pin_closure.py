@@ -17,7 +17,7 @@ COHORT = ROOT / 'ops/glp/reporting-v2/glp334-install-cohort.json'
 def fixture_root(tmp_path):
     """Portable CI tree. Retained non-source report bytes are explicitly synthetic."""
     cohort = json.loads(COHORT.read_text())
-    paths = set(cohort['selected_paths'])
+    paths = set(cohort['selected_paths']) | {'ops/glp/reporting-v2/glp334-install-cohort.json'}
     for manifest in ('source-manifest.json', 'source-manifest-j5.json',
                      'source-manifest-j6.json', 'source-manifest-j7.json'):
         pins = json.loads((ROOT/'ops/glp/reporting-v2'/manifest).read_text())['files']
@@ -26,6 +26,13 @@ def fixture_root(tmp_path):
         text = (ROOT/wrapper).read_text()
         for path, expected in re.findall(r'^check_source (\S+) ([a-f0-9]{64})$', text, re.M):
             paths.add(path)
+    intake_pairs = [('xentraffic-intake', 'xentraffic-sha256'),
+                    ('eden-intake', 'eden-intake-sha256'),
+                    ('statement-intake', 'statement-sha256')]
+    j7 = (ROOT/'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh').read_text()
+    for flag, _ in intake_pairs:
+        path = re.search(r'--'+flag+r' (\S+)', j7).group(1)
+        paths.add(str(Path(path).relative_to('/home/ubuntu/business')))
     for path in paths:
         target = tmp_path/path
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -39,6 +46,12 @@ def fixture_root(tmp_path):
         for path, expected in re.findall(r'^check_source (\S+) ([a-f0-9]{64})$', text, re.M):
             if path.startswith('reports/'):
                 text = text.replace(expected, hashlib.sha256((tmp_path/path).read_bytes()).hexdigest())
+        for flag, hashflag in intake_pairs:
+            if '--'+flag+' ' in text:
+                path = re.search(r'--'+flag+r' (\S+)', text).group(1)
+                expected = re.search(r'--'+hashflag+r' ([a-f0-9]{64})', text).group(1)
+                data = (tmp_path/Path(path).relative_to('/home/ubuntu/business')).read_bytes()
+                text = text.replace(expected, hashlib.sha256(data).hexdigest())
         wrapper.write_text(text)
     return tmp_path
 
@@ -78,6 +91,111 @@ def test_missing_or_drifted_dependency_is_not_repaired_or_ignored(tmp_path, path
     assert result['status'] == 'BLOCKED_PROJECTED_PINS'
     assert any(d['path'] == path for d in result['drifts'])
     assert target.read_bytes() == before
+
+
+@pytest.mark.parametrize('flag', ['xentraffic-intake', 'eden-intake', 'statement-intake'])
+@pytest.mark.parametrize('condition', ['missing', 'tampered'])
+@pytest.mark.parametrize('selected_intake', [False, True])
+def test_every_retained_intake_pin_checks_projected_bytes(tmp_path, flag, condition, selected_intake):
+    tree = fixture_root(tmp_path/'checkout')
+    installed = fixture_root(tmp_path/'installed')
+    wrapper = tree/'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh'
+    path = re.search(r'--'+flag+r' (\S+)', wrapper.read_text()).group(1)
+    path = str(Path(path).relative_to('/home/ubuntu/business'))
+    cohort = json.loads(COHORT.read_text())
+    selected = cohort['selected_paths'] + ([path] if selected_intake else [])
+    target = (tree if selected_intake else installed)/path
+    if condition == 'missing':
+        target.unlink()
+    else:
+        target.write_bytes(b'tampered synthetic intake')
+    result = load_checker().project(tree, installed, cohort, selected)
+    assert result['status'] == 'BLOCKED_PROJECTED_PINS', result
+    assert any(d['path'] == path and d['selected'] == selected_intake for d in result['drifts'])
+
+
+WRAPPERS = ['ops/hermes-cron-scripts/glp_affiliate_weekly_reporting'+s+'.sh'
+            for s in ('', '_j5', '_j6', '_j7')]+[
+                'ops/hermes-cron-scripts/glp334_live_reconciliation.sh']
+
+
+@pytest.mark.parametrize('wrapper', WRAPPERS)
+@pytest.mark.parametrize('condition', ['missing', 'empty', 'directory', 'invalid_utf8'])
+def test_expected_wrapper_refuses_explicitly(tmp_path, wrapper, condition):
+    tree = fixture_root(tmp_path)
+    target = tree/wrapper
+    if condition in ('missing', 'directory'):
+        target.unlink()
+        if condition == 'directory':
+            target.mkdir()
+    else:
+        target.write_bytes(b'' if condition == 'empty' else b'\xff')
+    result = load_checker().project(tree, tree, json.loads(COHORT.read_text()))
+    assert result['status'] == 'BLOCKED_PROJECTED_PINS', result
+    assert any(d['path'] == wrapper and d.get('reason') for d in result['drifts'])
+
+
+@pytest.mark.parametrize('wrapper', WRAPPERS)
+def test_expected_wrapper_cannot_disappear_from_cohort_declaration(tmp_path, wrapper):
+    tree = fixture_root(tmp_path)
+    (tree/wrapper).unlink()
+    cohort = json.loads(COHORT.read_text())
+    cohort['selected_paths'].remove(wrapper)
+    result = load_checker().project(tree, tree, cohort)
+    assert result['status'] == 'BLOCKED_PROJECTED_PINS', result
+    assert any(d['path'] == wrapper for d in result['drifts'])
+
+
+def mandatory_declarations():
+    for wrapper in WRAPPERS:
+        text = (ROOT/wrapper).read_text()
+        if wrapper == WRAPPERS[-1]:
+            yield wrapper, re.search(r'^source_path=.*$', text, re.M).group(0)
+            yield wrapper, re.search(r'== ([a-f0-9]{64})', text).group(1)
+            continue
+        for line in re.findall(r'^check_source .*$', text, re.M):
+            yield wrapper, line
+        for flag in ['source-manifest', 'manifest-sha256'] + (
+                ['xentraffic-intake', 'xentraffic-sha256', 'eden-intake',
+                 'eden-intake-sha256', 'statement-intake', 'statement-sha256']
+                if wrapper.endswith('_j7.sh') else []):
+            yield wrapper, re.search(r'--'+flag+r' [^\s()]+', text).group(0)
+
+
+@pytest.mark.parametrize('wrapper,declaration', list(mandatory_declarations()))
+@pytest.mark.parametrize('condition', ['removed', 'malformed', 'duplicate'])
+def test_mandatory_wrapper_pin_declarations_refuse_explicitly(tmp_path, wrapper, declaration, condition):
+    tree = fixture_root(tmp_path)
+    target = tree/wrapper
+    # Fixture-only report pins differ; locate the corresponding declaration by
+    # its path/flag, never restore a real intake pin into synthetic source.
+    if declaration.startswith('check_source'):
+        declaration = re.search(r'^'+re.escape(' '.join(declaration.split()[:2]))+r' .*$', target.read_text(), re.M).group(0)
+    elif declaration.startswith('--'):
+        flag = declaration.split()[0]
+        declaration = re.search(re.escape(flag)+r' [^\s()]+', target.read_text()).group(0)
+    replacement = {'removed': '', 'malformed': declaration+'INVALID',
+                   'duplicate': declaration+'\n'+declaration}[condition]
+    target.write_text(target.read_text().replace(declaration, replacement))
+    result = load_checker().project(tree, tree, json.loads(COHORT.read_text()))
+    assert result['status'] == 'BLOCKED_PROJECTED_PINS', result
+    assert any(d.get('reason') for d in result['drifts']), result
+
+
+@pytest.mark.parametrize('wrapper', WRAPPERS)
+@pytest.mark.parametrize('condition', ['missing', 'empty'])
+def test_actual_checker_cli_refuses_missing_or_empty_wrapper(tmp_path, wrapper, condition):
+    tree = fixture_root(tmp_path)
+    target = tree/wrapper
+    target.unlink() if condition == 'missing' else target.write_bytes(b'')
+    run = subprocess.run([sys.executable, '-B', str(ROOT/'scripts/glp334_pin_closure.py'),
+                          '--checkout', str(tree), '--installed-root', str(tree)],
+                         capture_output=True, text=True)
+    assert run.returncode == 2, run.stdout+run.stderr
+    result = json.loads(run.stdout)
+    assert result['status'] == 'BLOCKED_PROJECTED_PINS'
+    assert any(d['path'] == wrapper for d in result['drifts'])
+    assert not run.stderr
 
 
 def test_consumer_copin_must_travel_with_successor(tmp_path):

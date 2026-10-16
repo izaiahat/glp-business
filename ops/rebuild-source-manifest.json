@@ -8047,14 +8047,14 @@
       "callers": [
         "GLP-334 read-only projected receiving preflight"
       ],
-      "sha256": "d4c33e879e9088661ed406786233e57e54ca84fadffcee2f1986d42dfda8dd75"
+      "sha256": "a2e611e80feb879ffc2b52f158796fb76e0a26333b717197cea14e0093a1e59a"
     },
     "tests/test_glp334_pin_closure.py": {
       "kind": "test",
       "callers": [
         "j7-reporting:exact-head-regression"
       ],
-      "sha256": "71947e2e813efab0c8f9bc62305d1169592cd7af7c0145adc0470a4d997864aa"
+      "sha256": "ba84591ffdabc40dec0f98390a982ee9a9b54951aae17562bff9af26b50f6348"
     },
     "ops/glp/reporting-v2/glp334-install-cohort.json": {
       "kind": "operations",
