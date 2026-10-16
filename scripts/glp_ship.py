@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 """Prepare or install one registered Git generation. See ops/glp-ship.md."""
+import sys
+# Read-only inspection includes import-time artifacts, even without caller -B.
+sys.dont_write_bytecode = True
+
 import argparse
 from contextlib import contextmanager, ExitStack, nullcontext
 import getpass
@@ -7,7 +11,6 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import sys
 import tempfile
 
 import sync_from_repo as syncer

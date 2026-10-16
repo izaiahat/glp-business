@@ -17,7 +17,9 @@ committed `checkout=`; missing closure/planning errors create no intent.
 Legacy `started` intents remain exclusive: no deletion, reset, old proposal/apply
 replay, inferred terminal success, or new approval store. The supported diagnostic
 is read-only and prints to stdout, without preparation, fetching, locks, window
-entry, scheduler calls or original evidence writes:
+entry, scheduler calls or original evidence writes. The CLI disables Python
+bytecode generation before imports, so a cold invocation needs no caller `-B`
+or bytecode environment setting:
 
 ```sh
 python3 scripts/glp_ship.py aadf6677c7f0 --merge-sha ORIGINAL_SOURCE \

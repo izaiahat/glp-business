@@ -1,6 +1,10 @@
 """No retrospective terminal state may be inferred from absence/equality."""
 import hashlib
 import json
+import os
+import shutil
+import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,6 +57,45 @@ def case(tmp_path, monkeypatch):
 def inspect(c, evidence=True):
     return ship.inspect_attempt(c.root, c.root, c.home, c.spec, c.proposal,
                                 c.evidence if evidence else None, c.review if evidence else None)
+
+
+def test_cold_documented_inspection_cli_has_zero_filesystem_writes(tmp_path, monkeypatch):
+    c = case(tmp_path, monkeypatch)
+    cold = tmp_path / 'cold/scripts'
+    shutil.copytree(Path(ship.__file__).parent, cold,
+                    ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '*.pyo'))
+    assert not list(cold.rglob('__pycache__'))
+    assert not list(cold.rglob('*.pyc'))
+    ready = tmp_path / 'ready.json'
+    ready.write_text(json.dumps({'proposal': c.proposal}))
+    # These are private synthetic old-attempt/native records, never live data.
+    for path in (c.attempt, c.home / 'cron/jobs.json', c.leaf, ready):
+        path.chmod(0o444)
+    argv = [sys.executable, str(cold / 'glp_ship.py'), 'aadf6677c7f0',
+            '--merge-sha', c.source, '--root', str(c.root), '--hermes', str(c.home),
+            '--checkout', str(cold.parent), '--inspect-attempt', '--proposal', str(ready)]
+    env = {k: v for k, v in os.environ.items()
+           if k not in {'PYTHONDONTWRITEBYTECODE', 'PYTHONPYCACHEPREFIX', 'PYTHONPATH'}}
+    env['HOME'] = str(c.home)
+
+    def snapshot():
+        # Include directory mtimes too: create-then-delete is not read-only.
+        return {str(p.relative_to(tmp_path)):
+                (p.stat().st_mode, p.stat().st_mtime_ns,
+                 hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None)
+                for p in (tmp_path, *tmp_path.rglob('*'))}
+
+    before = snapshot()
+    child = subprocess.run(argv, cwd=tmp_path, env=env, capture_output=True,
+                           text=True, timeout=30)
+    assert child.returncode == 0, child.stderr
+    result = json.loads(child.stdout)
+    assert result['assessment'] == 'UNRESOLVED_NO_REVIEWED_BOUNDARY_EVIDENCE'
+    assert result['state'] == 'started'
+    assert result['transition_performed'] is False and result['replay_permitted'] is False
+    after = snapshot()
+    assert after == before, 'READ_ONLY_CLI_WRITES: ' + repr(sorted(
+        path for path in before.keys() | after.keys() if before.get(path) != after.get(path)))
 
 
 def test_started_attempt_inspection_preserves_original_and_never_enables_replay(tmp_path, monkeypatch):
