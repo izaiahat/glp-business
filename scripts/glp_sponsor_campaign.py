@@ -346,6 +346,27 @@ def sponsor_rows(discovery, registry_rows, local, campaign, at):
     return out
 
 
+def reconcile_public_stock(discovery,at):
+ """Label retained stock; never delete evidence or grant delivery permission.
+
+ Caller persists under the existing campaign run.lock. Each address must bind
+ its own first-party public evidence; another published address is not proof.
+ """
+ held=set()
+ for host,org in discovery.get('organizations',{}).items():
+  d=org.get('discovery') or {};seen=set()
+  rows=list(org.get('professional_contacts') or [])+[d,d.get('contact_evidence') or {}]+list(d.get('candidates') or [])
+  for row in rows:
+   if not isinstance(row,dict) or id(row) in seen:continue
+   seen.add(id(row));email=str(row.get('email') or row.get('address') or row.get('contact_email') or '').lower()
+   if not email:continue
+   if not public_business_contact(host,org,at,exact_email=email):
+    row['stock_status']='HELD_NOT_PUBLIC';held.add((host,email))
+   elif row.get('stock_status')=='HELD_NOT_PUBLIC':
+    row['stock_status']='PUBLIC_EVIDENCE_PRESENT' # not send eligibility
+ return len(held)
+
+
 def recipients(values,discovery,local):
  """Census every registry row; only public business-purpose contacts survive.
 
@@ -379,26 +400,24 @@ def recipients(values,discovery,local):
  import glp_sponsor_readiness as readiness
  for h,rs in sorted(organizations.items()):
   organization=discovery.get('organizations',{}).get(h,{})
-  professional=readiness.professional_contact(h,organization.get('professional_contacts',[]),now())
   reason='';d=organization.get('discovery',{});email=str(d.get('contact_email') or '').lower();ev=d.get('contact_evidence') or {}
-  public=None if professional else public_business_contact(h,organization,now())
-  if professional:
-   email=professional['email'].lower();ev=professional
-  elif public:email=public['address'];ev=public
+  # Professional enrichment is research only; it cannot substitute for literal
+  # first-party public role/context evidence, even with a deliverable mailbox.
+  public=public_business_contact(h,organization,now())
+  if public:email=public['address'];ev=public
   if not local['suppression']['complete']:reason='suppression_ledger_incomplete'
   elif any(same(h,x['domain']) for x in local['suppression']['entries']):reason='suppressed_organization'
   elif any(same(h,x['domain']) for x in local['conversations']):reason='existing_legacy_conversation'
   elif h in ('nuimage.com','nuimagemedical.com') or re.search(r'nu\s*image',rs[0]['program'],re.I):reason='nu_image_warm_conversation_excluded'
-  elif not professional and (not email or not BUSINESS_LOCALS.fullmatch(email.split('@')[0]) or not same(email.split('@')[-1],h)):reason='no_verified_business_purpose_contact'
-  elif not professional and ev.get('tier',d.get('contact_tier')) not in ('partnerships','named_on_partnerships_page'):reason='contact_purpose_unverified'
-  elif not professional and (not ev.get('page_sha256') or not ev.get('found_on') or ev.get('address','').lower()!=email or not ev.get('captured_at_utc') or ev.get('how') not in ('mailto','cloudflare_obfuscated','visible_text','published_text')):reason='contact_evidence_incomplete'
-  elif not professional and not public:reason='public_source_or_role_evidence_unknown'
-  if reason:exclusions.append({'host':h,'rows':[r['row'] for r in rs],'reason':reason});continue
+  elif not public:reason='public_source_or_role_evidence_unknown'
+  if reason:
+   exclusions.append({'host':h,'rows':[r['row'] for r in rs],'reason':reason,
+                      **({'status':'HELD_NOT_PUBLIC'} if not public else {})});continue
   if any(same(h,c['host']) or email==c['email'] for c in candidates):
    exclusions.append({'host':h,'reason':'organization_contact_deduplicated'});continue
   candidates.append({'organization':rs[0]['program'],'host':h,'email':email,'rows':[r['row'] for r in rs],'population':'approved' if any(r['population']=='approved' for r in rs) else 'pending','contact_evidence':ev,'purpose':'relevant US-provider sponsorship proposal; no patient data','consent_basis':'published business-purpose contact; operator campaign approval still required'})
   relation=readiness.relationship(h,organization.get('relationship_evidence',{}),now())
-  candidates[-1].update(contact_source='apollo' if professional else 'published_business_contact',relationship=relation,verification=readiness.bouncer_readiness(email,ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl',now()))
+  candidates[-1].update(contact_source='published_business_contact',relationship=relation,verification=readiness.bouncer_readiness(email,ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl',now()))
  return {'registry_rows':len(rows),'candidate_rows':sum(r['eligible'] for r in rows),'recipients':candidates,'exclusions':exclusions,'send_enabled':False}
 
 def footer(config):
@@ -1008,11 +1027,14 @@ def run(config,dry_run=False,*,transport_preflight=False,preflight_at=None):
   if enabled:require_sponsor_send_window(at)
   would_send=0;admitted=[]
   values=read_values();discovery=load(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json');local=read_local()
+  reconcile_public_stock(discovery,at)
+  if not dry_run and not transport_preflight:save(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json',discovery)
   plan=recipients(values,discovery,local)
   sourcing_readiness=refresh_apollo_sources(plan,at) if not transport_preflight and config.get('apollo_read_only_discovery') is True else {'status':'not_requested','email_verification':'unknown','enrichment_debits':0}
   if enabled and not transport_preflight:
    sourcing_readiness['professional']=refresh_professional_sources(plan,discovery,at,config)
    if sourcing_readiness['professional']['status']!='disabled_pending_approval':
+    reconcile_public_stock(discovery,at)
     save(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json',discovery)
     plan=recipients(values,discovery,local)
   import glp_sponsor_readiness as readiness
