@@ -319,6 +319,8 @@ def _adopt_successor_locked(workspace, entry_path, packet, history, *, expected_
                  'review': recovery.checked(doc['review'])}
     expected = {'article': pins['06-article.json'], 'qa': pins['07-qa-receipt.json'],
                 'review': doc['review']['sha256']}
+    reviewed_subject_specs = {packet/name: digest for name, digest in pins.items()}
+    reviewed_subject_specs[originals['review']] = expected['review']
     content = {key: original.read_bytes() for key, original in originals.items()}
     recovery.require(all(hashlib.sha256(content[key]).hexdigest() == expected[key] for key in content),
                      'successor_source_reviewed_bytes_drift')
@@ -334,13 +336,23 @@ def _adopt_successor_locked(workspace, entry_path, packet, history, *, expected_
     recovery.require(entry_path.read_bytes() == entry_bytes
                      and (review_only_job or context_path.read_bytes() == context_bytes),
                      'successor_source_authenticated_input_drift')
-    for value in validated.get('authenticated_inputs', []):
-        recovery.checked(value)
+    # Git reads are also handoff seams: check every authenticated dependency
+    # AFTER them, immediately before entering the first source-write loop.
     if (source.run(['git', 'rev-parse', 'HEAD'], cwd=workspace).strip() != expected_head
         or source.run(['git', 'status', '--porcelain'], cwd=workspace).strip()):
         raise RuntimeError('successor_source_checkout_drift')
+    recovery.require(entry_path.read_bytes() == entry_bytes
+                     and (review_only_job or context_path.read_bytes() == context_bytes),
+                     'successor_source_authenticated_input_drift')
     recovery.require(all(not path.is_symlink() and path.read_bytes() == data
                          for path, data in preimages.items()), 'successor_source_preimage_drift')
+    recovery.require(all(not path.is_symlink() and path.is_file() and source.digest(path) == digest
+                         for path, digest in reviewed_subject_specs.items()),
+                     'successor_source_reviewed_bytes_drift')
+    recovery.require(all(not Path(value['path']).is_symlink() and Path(value['path']).is_file()
+                         and source.digest(Path(value['path'])) == value['sha256']
+                         for value in validated.get('authenticated_inputs', [])),
+                     'successor_source_authenticated_input_drift')
     for key, original in originals.items():
         target = workspace / specs[key]['path']
         if not target.exists():

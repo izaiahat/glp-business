@@ -545,7 +545,23 @@ def corrected_successor_documents(entry_path, history, packet, job_path, *, root
             and [g['gate'] for g in receipt['gates']] == list('ABCDE')
             and all(g['status'] == 'PASS' and not g['findings'] for g in receipt['gates']),
             'fresh_review_not_PASS')
+    # Mirror the maintained downstream receipt bar; a valid raw runtime cannot
+    # launder contradictory receipt metadata into the staged source bytes.
+    effects = receipt.get('effects')
+    require(all(receipt.get(key) == route[key] for key in ('provider', 'model', 'effort'))
+            and receipt.get('tools_disabled') is True
+            and isinstance(effects, dict)
+            and set(effects) == {'publishes', 'deployments', 'cache_purges', 'gsc_submissions'}
+            and all(type(value) is int and value == 0 for value in effects.values()),
+            'corrected_successor_receipt_contract')
+    execution_spec = spec(history/'round-01-review-execution.json')
+    execution = read(checked(execution_spec))
     custody = native.validate_result_custody(raw, manifest=manifest, packet=packet)
+    # The fixed DB proves this exact raw session/input/result is authentic; the
+    # retained execution marker selects WHICH authentic result consumed the sole
+    # intent. Chronology alone would also admit a later, ungranted native retry.
+    require(execution.get('raw_review_sha256') == raw_spec['sha256'],
+            'corrected_successor_consumed_execution')
     intent_spec = spec(history/'native-review-intent.json')
     intent = read(checked(intent_spec))
     require(intent.get('schema') == 'glp-native-review-only-intent-v1'
@@ -572,7 +588,13 @@ def corrected_successor_documents(entry_path, history, packet, job_path, *, root
         packet_authors(native.SESSION_DB, [checked(successor['sources'][name])], reviewer, sealed)
     for sid in {a['session_id'] for a in authors}:
         author_session(native.SESSION_DB, sid, reviewer, sealed)
-    inputs = [job_spec, binding['entry'], receipt_spec, manifest_spec, raw_spec, intent_spec]
+    inputs = [job_spec, binding['entry'], receipt_spec, manifest_spec, raw_spec, intent_spec, execution_spec]
+    # Preserve the native reader's captured digests, not fresh snapshots taken
+    # after authentication. Context/prompt/schema are dependencies, not extra
+    # clinical subjects, and must survive custody through the final writer CAS.
+    captured = raw['review_input']
+    inputs += [row for row in [*captured['context_files'], captured.get('prompt_file'),
+                              captured.get('json_schema_file')] if row is not None]
     inputs += [{'path': str(packet/r['path']), 'sha256': r['sha256']} for r in manifest['subject_files']]
     for value in inputs:
         checked(value)
