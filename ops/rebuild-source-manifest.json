@@ -85,7 +85,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"
       ],
       "kind": "script",
-      "sha256": "e4ef2fb18d546f8acd5ab715c4ba7adc2dd49830cde14f8f07c74a2854f70bf8"
+      "sha256": "51d72c648656fe4f012545f2317a2c23d01478bd29fb89d1c094837c1583b2c4"
     },
     "tests/test_glp_sponsor_firecrawl_supply.py": {
       "callers": [
@@ -94,7 +94,7 @@
         "firecrawl-integration"
       ],
       "kind": "test",
-      "sha256": "eb0a7d7df66e551ef30c528c7d6c7fb035fdfffd2753c28ce5f82e4c0168effa"
+      "sha256": "c767794967c62b11a6fac3813157bb41385d30278cf9a42bd5f154e1d152841c"
     },
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {
       "callers": [
@@ -297,7 +297,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e62c832e7252c64583b3b93625f738af3945d289ca4e1451d085f7db594ffcc2"
+      "sha256": "5516761e09c09d596f6bf8b66c21b00d6d0c43cf0cee18c2c686adab98b4460d"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3393,7 +3393,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "9c16013724141268572fbd93a71be7ed72147a8bf05d4f0dd1a100e2e63371c4"
+      "sha256": "e418db999382d58423a7667ac51567b1f9d2594029d5ecc45344ad8318997413"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -6347,14 +6347,14 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "fbe723e06f3d25117e8f6cd10d3016ebbf20ef65ab4e0343e74c8201022234ea"
+      "sha256": "66cc965d5b3183a18d0505d4dee4911fce5eaea0e910b92069af312708d15005"
     },
     "tests/test_glp_sponsor_campaign.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "4e6c8b426b88b2e18d68a750f43993f0f986e5482a729059aefdd2795d299885"
+      "sha256": "ca2ec0410357147611912d4f08a6ebae50488151bf650e2a5f2e0dcac64bd9b3"
     },
     "tests/test_glp_sponsor_followup_notifications.py": {
       "callers": [
@@ -7173,7 +7173,7 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "e42591a9b78c32d0fceab8ca0aca0e33718e23a17962723776c122499618d72b"
+      "sha256": "ffb9593bab63743d5f5dc72c9b4b7562c7e2a7df1a5b08245d922d9316bcdc43"
     },
     "tests/test_glp_sponsor_unattended.py": {
       "kind": "test",
@@ -7187,7 +7187,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "5174fe5af6bd4d292b9a77d40f3b1c7c0ea6b5e7bab8efb2eb70180a6850cfc8"
+      "sha256": "7253c29ec9df6b9cde506472e21b01d7e309ced58633ade1b3ed5fa9d090731f"
     },
     "scripts/glp_surface_unification.py": {
       "kind": "script",

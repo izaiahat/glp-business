@@ -904,6 +904,7 @@ class Producer:
                     added['scope_rows'] += len(rows)
                     added['contacts'] += len(contacts)
                 added['hosts'] += 1
+            self.c.reconcile_public_stock(disc, now())
             self.c.save(self.discovery, disc)
         finally:
             lock.close()
@@ -1014,6 +1015,7 @@ class Producer:
                     out['qualified'].append(host)
                 except (RuntimeError, OSError, ValueError, KeyError, TypeError):
                     out['unknown'] += 1
+            self.c.reconcile_public_stock(disc, now())
             self.c.save(self.discovery, disc)
         finally:
             lock.close()

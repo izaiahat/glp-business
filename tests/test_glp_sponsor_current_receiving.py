@@ -158,6 +158,11 @@ def test_source_only_packet_refresh_preserves_outward_bytes(tmp_path, monkeypatc
         path=tmp_path/name; path.parent.mkdir(parents=True,exist_ok=True)
         path.write_bytes(blobs[name])
     (tmp_path/'scripts/glp_sponsor_campaign.py').write_bytes(b'reviewed successor sender')
+    readiness='scripts/glp_sponsor_readiness.py'
+    reviewed=b'exact reviewed readiness successor'
+    monkeypatch.setattr(r,'READINESS_RENEWAL',
+        (hashlib.sha256(blobs[readiness]).hexdigest(),hashlib.sha256(reviewed).hexdigest()),raising=False)
+    (tmp_path/readiness).write_bytes(reviewed)
     before=packet.read_bytes()
     out=tmp_path/'proposal.zip'
     r.refresh_source_packet(c,c.digest(packet),out)
@@ -165,13 +170,59 @@ def test_source_only_packet_refresh_preserves_outward_bytes(tmp_path, monkeypatc
     with zipfile.ZipFile(out) as z:
         assert set(z.namelist())==set(blobs)
         for name,blob in blobs.items():
-            if name not in (r.MANIFEST,'scripts/glp_sponsor_campaign.py'):
+            if name not in (r.MANIFEST,'scripts/glp_sponsor_campaign.py',readiness):
                 assert z.read(name)==blob
+        assert z.read(readiness)==reviewed
+    (tmp_path/readiness).write_bytes(b'unreviewed readiness')
+    with pytest.raises(RuntimeError,match='source_packet_readiness_drift'):
+        r.refresh_source_packet(c,c.digest(packet),tmp_path/'unreviewed.zip')
+    assert not (tmp_path/'unreviewed.zip').exists()
+    (tmp_path/readiness).write_bytes(reviewed)
     with pytest.raises(RuntimeError,match='source_packet_output_exists'):
         r.refresh_source_packet(c,c.digest(packet),out)
     (tmp_path/r.COPY).write_bytes(b'unauthorized changed copy')
     with pytest.raises(RuntimeError,match='source_packet_nontechnical_drift'):
         r.refresh_source_packet(c,c.digest(packet),tmp_path/'bad.zip')
+
+
+def test_source_refresh_archives_the_validated_readiness_buffer(tmp_path, monkeypatch):
+    import zipfile
+    import glp_sponsor_current_receiving as r
+    monkeypatch.setattr(c, 'ROOT', tmp_path)
+    blobs = {name: name.encode() for name in set(r.SOURCE_PATHS)|set(r.ASSETS)|{r.REVIEW,r.SUPPLY,r.ASSET_REVIEW}}
+    blobs[r.MANIFEST] = json.dumps({name:hashlib.sha256(blob).hexdigest()
+                                  for name,blob in blobs.items()}).encode()
+    packet = tmp_path/r.PACKET; packet.parent.mkdir(parents=True)
+    with zipfile.ZipFile(packet, 'w') as archive:
+        for name,blob in blobs.items(): archive.writestr(name,blob)
+    for name in r.SOURCE_PATHS:
+        path = tmp_path/name; path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_bytes(blobs[name])
+    target = tmp_path/r.READINESS_PATH
+    reviewed = b'exact reviewed readiness successor'
+    unreviewed = b'unreviewed successor introduced after first read'
+    monkeypatch.setattr(r, 'READINESS_RENEWAL',
+        (hashlib.sha256(blobs[r.READINESS_PATH]).hexdigest(),hashlib.sha256(reviewed).hexdigest()))
+    target.write_bytes(reviewed)
+    real_read = Path.read_bytes
+    observed = []
+    def change_after_read(path):
+        data = real_read(path)
+        if path == target:
+            observed.append(data)
+            if len(observed) == 1:
+                target.write_bytes(unreviewed)
+        return data
+    monkeypatch.setattr(Path, 'read_bytes', change_after_read)
+    output = tmp_path/'race-candidate.zip'
+    result = r.refresh_source_packet(c, c.digest(packet), output)
+    assert result['status'] == 'UNRECEIVED_SOURCE_ONLY_PACKET'
+    with zipfile.ZipFile(output) as archive:
+        consumed = archive.read(r.READINESS_PATH)
+        assert consumed == reviewed  # Never archive unchecked replacement bytes.
+        assert json.loads(archive.read(r.MANIFEST))[r.READINESS_PATH] == hashlib.sha256(reviewed).hexdigest()
+    assert observed == [reviewed]  # The validated buffer is captured only once.
+    assert real_read(target) == unreviewed  # A real scratch-path replacement occurred.
 
 
 def test_receive_renewal_requires_exact_predecessor_and_archives(tmp_path, monkeypatch):
@@ -251,14 +302,16 @@ def test_source_acceptance_binds_installed_bytes(tmp_path, monkeypatch):
     monkeypatch.setattr(c,'ROOT',tmp_path)
     pins={'campaign_sender_sha256':'scripts/glp_sponsor_campaign.py',
           'current_receiver_sha256':'scripts/glp_sponsor_current_receiving.py',
-          'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py'}
+          'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py',
+          'readiness_sha256':'scripts/glp_sponsor_readiness.py'}
     accepted=dict(status='PASS',reviewer='synthetic independent reviewer',reviewed_source_head='a'*40)
     for key,name in pins.items():
         path=tmp_path/name;path.parent.mkdir(exist_ok=True);path.write_text(name)
         accepted[key]=c.digest(path)
     c.save(tmp_path/r.SOURCE_REVIEW,accepted)
     assert r.reviewed_source_head(c)=='a'*40
-    for change in ({'status':'PENDING'},{'reviewer':'S1'},{'nuimage_sender_sha256':'b'*64}):
+    for change in ({'status':'PENDING'},{'reviewer':'S1'},{'nuimage_sender_sha256':'b'*64},
+                   {'readiness_sha256':'b'*64}):
         c.save(tmp_path/r.SOURCE_REVIEW,dict(accepted,**change))
         with pytest.raises(RuntimeError,match='independent_installed_source_review_required'):
             r.reviewed_source_head(c)
@@ -308,7 +361,8 @@ def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypa
         for key,name in {'campaign_sender_sha256':'scripts/glp_sponsor_campaign.py',
                          'current_receiver_sha256':'scripts/glp_sponsor_current_receiving.py',
                          'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py',
-                         'sponsor_replies_sha256':'inbox_control_plane/sponsor_replies.py'}.items():
+                         'sponsor_replies_sha256':'inbox_control_plane/sponsor_replies.py',
+                         'readiness_sha256':'scripts/glp_sponsor_readiness.py'}.items():
             accepted[key]=c.digest(tmp_path/name)
         review_path=r.SUCCESSOR_SOURCE_REVIEW
         if recorded_operator:
@@ -322,7 +376,10 @@ def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypa
         c.save(tmp_path/review_path,accepted)
         installed=tmp_path/r.PACKET; installed.parent.mkdir(parents=True,exist_ok=True)
         old=dict(blobs); old['scripts/glp_sponsor_campaign.py']=b'predecessor source'
-        old_manifest=dict(manifest,**{'scripts/glp_sponsor_campaign.py':hashlib.sha256(b'predecessor source').hexdigest()})
+        old[r.READINESS_PATH]=b'predecessor readiness'
+        monkeypatch.setattr(r,'READINESS_RENEWAL',
+            (hashlib.sha256(old[r.READINESS_PATH]).hexdigest(),manifest[r.READINESS_PATH]),raising=False)
+        old_manifest={name:hashlib.sha256(blob).hexdigest() for name,blob in old.items() if name!=r.MANIFEST}
         old[r.MANIFEST]=json.dumps(old_manifest).encode()
         (tmp_path/r.MANIFEST).write_bytes(old[r.MANIFEST])
         with zipfile.ZipFile(installed,'w') as z:
@@ -330,6 +387,8 @@ def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypa
         previous=dict(schema=r.SCHEMA,packet_sha256=c.digest(installed))
         c.save(c.STATE/r.RECEIPT,previous); c.save(c.STATE/'approval.json',previous)
         c.save(c.STATE/'activation.json',dict(send_enabled=True,packet_sha256=c.digest(installed)))
+        packet=tmp_path/'supported-refresh.zip'
+        r.refresh_source_packet(c,c.digest(installed),packet)
         result=r.receive(c,c.digest(packet),'a'*40,tmp_path/'receiving.json',successor_packet=packet,
                          replace_receipt_sha256=c.digest(c.STATE/r.RECEIPT),recorded_operator=recorded_operator)
         assert result['status']=='CURRENT_PACKET_RECEIVED'

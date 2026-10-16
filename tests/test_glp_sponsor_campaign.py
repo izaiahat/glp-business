@@ -184,13 +184,40 @@ def test_apollo_search_is_read_only_and_unrevealed_email_unknown():
  assert result['enrichment_debits']==0
 
 
+def test_existing_stock_without_public_proof_is_held_and_persisted(tmp_path):
+ import copy
+ sheet,discovery,local=inputs()
+ org=discovery['organizations']['example.com']
+ public=copy.deepcopy(org['discovery']['contact_evidence'])
+ apollo={'email':'unpublished@example.com','source':'apollo','person_id':'p1'}
+ org['professional_contacts']=[apollo]
+ before=copy.deepcopy(org['discovery'])
+ assert m.reconcile_public_stock(discovery,NOW)==1
+ assert apollo['stock_status']=='HELD_NOT_PUBLIC'
+ assert org['discovery']['contact_evidence']==public
+ assert org['discovery']['_markup']==before['_markup']
+ p=tmp_path/'discovery.json';m.save(p,discovery)
+ assert m.load(p)['organizations']['example.com']['professional_contacts'][0]['stock_status']=='HELD_NOT_PUBLIC'
+ # A valid published contact remains available; an enriched email never wins.
+ result=m.recipients(sheet,discovery,local)
+ assert [x['email'] for x in result['recipients']]==[public['address']]
+ org['discovery']['_markup']=[]
+ assert m.reconcile_public_stock(discovery,NOW)==2
+ assert org['discovery']['contact_evidence']['stock_status']=='HELD_NOT_PUBLIC'
+ assert not m.recipients(sheet,discovery,local)['recipients']
+ org['discovery']={'contact_email':'legacy@example.com'}
+ m.reconcile_public_stock(discovery,NOW)
+ assert org['discovery']['stock_status']=='HELD_NOT_PUBLIC'
+
+
 def test_professional_contact_and_relationship_require_exact_current_evidence():
  import glp_sponsor_readiness as ready
  sheet,discovery,local=inputs();discovery['organizations']['example.com']['discovery']={}
  professional={'email':'izaiah@example.com','country':'US','title':'Head of Partnerships','organization_domain':'example.com','source':'apollo','person_id':'p1','captured_at_utc':NOW.isoformat(),'evidence_sha256':'b'*64}
  discovery['organizations']['example.com']['professional_contacts']=[professional]
  result=m.recipients(sheet,discovery,local)
- assert len(result['recipients'])==1
+ assert not result['recipients']
+ assert result['exclusions'][-1]['status']=='HELD_NOT_PUBLIC'
  professional['title']='Patient Support';assert not m.recipients(sheet,discovery,local)['recipients']
  evidence={'provider_host':'example.com','network':'Impact','program_id':'p1','status':'approved','captured_at_utc':NOW.isoformat(),'evidence_sha256':'c'*64}
  assert ready.relationship('example.com',evidence,NOW)['variant']=='cold' # caller-created digest is not authenticated network custody
