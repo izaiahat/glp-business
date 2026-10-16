@@ -2,8 +2,8 @@
 """GLP-110/349 default-profile offline maintenance. PREPARED, not registered.
 
 No arguments means refusal. --dry-run observes and writes only its report.
-Live entry requires --execute --registered-unit NAME.service, launched by that
-user systemd job (not from Hermes/TUI). No cron registration is performed here.
+Live entry is disabled: no maintained all-writer drain/admission lease exists.
+No registration, acknowledgement flag or caller receipt can enable it.
 """
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ CHANNEL = '1487300132054765629'
 UNIT = 'hermes-gateway.service'
 REPORT = ROOT / 'reports/ops/maintenance-20261015/RUN.json'
 PLAN = [
+    'DISABLED: missing authenticated all-writer/child drain and continuous writer/browser admission lease',
     'START via scripts/post_discord_message.py to ops-alerts (live only)',
     'Require free bytes >= ceil(1.5 * state.db bytes) + 2 GiB',
     'Refuse recent delegation logs; bind default-profile literal PID/start/argv',
@@ -100,6 +101,8 @@ def proc(pid):
     argv = (p / 'cmdline').read_bytes().rstrip(b'\0').decode().split('\0')
     env = dict(x.split('=', 1) for x in (p / 'environ').read_bytes().decode().split('\0') if '=' in x)
     return {'pid': int(pid), 'start': stat[19], 'state': stat[0], 'ppid': int(stat[1]),
+            'uid': p.stat().st_uid,
+            'parent_start': (Path('/proc') / stat[1] / 'stat').read_text().rsplit(')', 1)[1].split()[19],
             'argv': argv, 'cwd': str((p / 'cwd').readlink()),
             'default_profile': default_scope(env, argv),
             'cgroup': (p / 'cgroup').read_text().strip()}
@@ -132,8 +135,10 @@ def census():
 def same_process(row):
     try:
         current = proc(row['pid'])
-        return all(current[k] == row[k] for k in ('start', 'argv', 'cwd'))
-    except FileNotFoundError:
+        return (row.get('default_profile') is True and row.get('uid') == os.getuid() and current.get('default_profile') is True
+                and all(k in row and k in current and current[k] == row[k]
+                        for k in ('start', 'argv', 'cwd', 'uid', 'ppid', 'parent_start', 'cgroup')))
+    except (OSError, ValueError, IndexError):
         return False
 
 
@@ -238,8 +243,29 @@ def verified_backup(db, directory):
     with target.open('rb') as f:
         if hashlib.file_digest(f, 'sha256').hexdigest() != digest:
             raise Refusal('backup_sha256_readback_failed')
+    fsync_directory(directory)
+    fsync_directory(directory.parent)  # persist this new invocation's name
     return {'path': str(target), 'bytes': target.stat().st_size,
             'sha256': digest, 'integrity_check': 'ok'}
+
+
+def fsync_directory(directory):
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def prepare_backup_root(directory):
+    missing, parent = [], directory
+    while not parent.exists():
+        missing.append(parent)
+        parent = parent.parent
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    for created in reversed(missing):
+        fsync_directory(created)
+        fsync_directory(created.parent)
 
 
 def vacuum(db):
@@ -294,6 +320,7 @@ def preflight():
             return value
         except (OSError, Refusal, ValueError, subprocess.SubprocessError) as e:
             blockers.append(name + ':' + (str(e) if isinstance(e, Refusal) else type(e).__name__))
+    check('offline_custody', require_offline_custody)
     db = HOME / 'state.db'
     size = check('state_bytes', lambda: db.stat().st_size)
     free = check('free_bytes', lambda: shutil.disk_usage(HOME).free)
@@ -348,7 +375,24 @@ def _require(condition, reason):
     return True
 
 
+def require_offline_custody():
+    """Fail closed; snapshots/log age cannot supply continuous exclusion.
+
+    Maintained gateway drain covers gateway turns, not every TUI/cron/direct DB
+    writer. Host/delegate admission locks protect child reservations only. No
+    new private flock can make uncooperative writers honour offline custody.
+    Keep this refusal until that runtime primitive is independently implemented.
+    """
+    raise Refusal('offline_custody_unavailable:authenticated_all_writer_child_drain_and_'
+                  'continuous_writer_browser_admission_lease_missing;live_path_disabled')
+
+
 def execute(report, report_path, unit):
+    try:
+        require_offline_custody()
+    except Refusal as exc:
+        report.update(failure=str(exc), rc=2)
+        return 2  # no START/END, service command, signal or DB access
     registered_context(unit)
     db = HOME / 'state.db'
     masked, stopped, frozen = False, [], []
@@ -370,11 +414,34 @@ def execute(report, report_path, unit):
     def post(text):
         return json.loads(command([sys.executable, ROOT / 'scripts/post_discord_message.py',
                                    '--channel', CHANNEL, '--message', text]))
+    def recover(name, fn):
+        # Safety recovery precedes evidence I/O and each action is independent.
+        nonlocal rc
+        entry = {'step': name, 'status': 'STARTED'}
+        report['steps'].append(entry)
+        try:
+            entry.update(result=fn(), status='OK')
+        except BaseException as exc:
+            entry.update(status='FAILED', error=str(exc) if isinstance(exc, Refusal) else type(exc).__name__)
+            report.setdefault('recovery_failures', []).append(dict(entry))
+            rc = 1
+        try:
+            save_report(report_path, report)
+        except BaseException as exc:
+            report.setdefault('recovery_reporting_failures', []).append(type(exc).__name__)
+            rc = 1
     def quiet():
         _require(not recent_delegates(HOME / 'cache/delegation/live', time.time()), 'active_delegates')
         _require(has_space(db.stat().st_size, shutil.disk_usage(HOME).free), 'insufficient_headroom')
         _require(not protected_browser_descendants(census()), 'chrome_cdp_in_shutdown_tree_do_not_touch')
         return True
+    def signal_if_quiet(row, sig):
+        quiet()  # after STARTED receipt: reject late Chrome, never signal it
+        literal_signal(row, sig)
+    def offline(fn):
+        quiet()
+        _require(not holders(db), 'late_state_db_holder_do_not_touch')
+        return fn()
     try:
         step('START', lambda: post('START GLP-110/349 offline Hermes maintenance; verified backup before shrink; reclaim UNKNOWN.'))
         current = step('preflight', preflight)
@@ -384,15 +451,15 @@ def execute(report, report_path, unit):
         for parent in current['tui_parents']:
             step('quiet_before_freeze_' + str(parent['pid']), quiet)
             frozen.append(parent)
-            step('freeze_tui_parent_' + str(parent['pid']), lambda p=parent: literal_signal(p, signal.SIGSTOP))
+            step('freeze_tui_parent_' + str(parent['pid']), lambda p=parent: signal_if_quiet(p, signal.SIGSTOP))
         # Mask only the exact gateway unit's automatic Restart=always ingress.
+        masked = True  # conservative intent: timeout/lost acknowledgement must recover too
         step('mask_gateway_restart', lambda: command(['systemctl', '--user', '--runtime', 'mask', UNIT]))
-        masked = True
         for row in current['processes']:
             # Recheck immediately before EVERY literal PID stop, including after disk/service work.
             step('quiet_before_term_' + str(row['pid']), quiet)
             stopped.append(row)
-            step('term_' + str(row['pid']), lambda r=row: literal_signal(r, signal.SIGTERM))
+            step('term_' + str(row['pid']), lambda r=row: signal_if_quiet(r, signal.SIGTERM))
         deadline = time.monotonic() + 60
         while any(same_process(r) and proc(r['pid'])['state'] != 'Z' for r in stopped):
             if time.monotonic() >= deadline:
@@ -402,13 +469,13 @@ def execute(report, report_path, unit):
         step('quiet_before_backup', quiet)
         backup_root = BACKUPS
         _require(not backup_root.is_symlink(), 'backup_root_alias_refused')
-        backup_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-        backup = step('verified_backup', lambda: verified_backup(db, backup_root / report['run_id']))
+        prepare_backup_root(backup_root)
+        backup = step('verified_backup', lambda: offline(lambda: verified_backup(db, backup_root / report['run_id'])))
         report['backup'] = backup
         step('offline_before_vacuum', lambda: _require(not holders(db), 'new_state_db_holder'))
         # VACUUM may need twice the original DB size in temporary disk space.
         step('vacuum_headroom', lambda: _require(shutil.disk_usage(HOME).free >= 2 * db.stat().st_size + 2 * 1024**3, 'insufficient_vacuum_headroom_after_backup'))
-        step('vacuum', lambda: vacuum(db))
+        step('vacuum', lambda: offline(lambda: vacuum(db)))
         report['after_bytes'] = db.stat().st_size
         report['measured_reclaim_bytes'] = report['before_bytes'] - report['after_bytes']
         step('fork_update', lambda: update_fork(FORK))
@@ -417,16 +484,12 @@ def execute(report, report_path, unit):
         report['failure'] = str(e) if isinstance(e, Refusal) else type(e).__name__
     finally:
         # Restore even after a refused/failed backup or update; never restore old DB bytes automatically.
-        try:
-            if masked:
-                step('unmask_gateway', lambda: command(['systemctl', '--user', '--runtime', 'unmask', UNIT]))
-                step('start_original_gateway_unit', lambda: command(['systemctl', '--user', 'start', UNIT]))
-        except BaseException as e:
-            report['gateway_restore_failure'] = type(e).__name__
-            rc = 1
+        if masked:
+            recover('unmask_gateway', lambda: command(['systemctl', '--user', '--runtime', 'unmask', UNIT]))
+            recover('start_original_gateway_unit', lambda: command(['systemctl', '--user', 'start', UNIT]))
         for parent in frozen:
             try:
-                step('resume_tui_parent_' + str(parent['pid']), lambda p=parent: literal_signal(p, signal.SIGCONT))
+                recover('resume_tui_parent_' + str(parent['pid']), lambda p=parent: literal_signal(p, signal.SIGCONT))
             except BaseException as e:
                 report.setdefault('tui_restore_failures', []).append({'pid': parent['pid'], 'error': type(e).__name__})
                 rc = 1
@@ -444,7 +507,7 @@ def execute(report, report_path, unit):
                         if time.monotonic() >= deadline:
                             raise Refusal('restart_exact_argv_readback_failed_operator_recovery_needed')
                         time.sleep(1)
-                step('restart_exact_argv_readback', readback)
+                recover('restart_exact_argv_readback', readback)
             except BaseException as e:
                 report['restart_failure'] = str(e) if isinstance(e, Refusal) else type(e).__name__
                 rc = 1
@@ -478,6 +541,7 @@ def main(argv=None):
         print(json.dumps(report, indent=2))
         return report['rc']
     registered_context(args.registered_unit)
+    require_offline_custody()  # before creating even the private singleton lock
     lock = os.open(HOME / 'cache/hermes-maintenance-window.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

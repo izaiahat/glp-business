@@ -3,13 +3,13 @@
   "files": {
     "scripts/hermes_maintenance_window.py": {
       "kind": "script",
-      "callers": ["parent-registered offline maintenance only; NOT registered"],
-      "sha256": "e0d5520d89c5cf2dc52d66c244c0bdefe287657b5cf147f9f01a5ffbfc856d75"
+      "callers": ["source-only offline maintenance; live entry DISABLED; NOT registered"],
+      "sha256": "ee21010963084b5460ac5de141747e0fb823bbde08665318c0db567e037acc55"
     },
     "tests/test_hermes_maintenance_window.py": {
       "kind": "test",
       "callers": ["glp110-maintenance-window:offline-maintenance-contract"],
-      "sha256": "094d42595d2b5151844d38b5363a2ed3ef0b5b7f61209beb51f7c75030e091dc"
+      "sha256": "a3a090974404fe3280a6d177c0346551ef2a5f9f45a6a18a67a719ffd3447861"
     },
     ".github/workflows/glp110-maintenance-window.yml": {
       "kind": "repository_control",
@@ -18,8 +18,8 @@
     },
     "ops/hermes-maintenance-window.md": {
       "kind": "documentation",
-      "callers": ["parent maintenance scheduler; PREPARED ONLY"],
-      "sha256": "4b5f2ddb515413685a95978322e75265f4c6dbe29a0b4700b82db22090f3320e"
+      "callers": ["parent maintenance planning; LIVE DISABLED"],
+      "sha256": "09eb203fc77159a2a30347afc8334fd562e25812f8caf27cc093b986b96bed65"
     },
     "tests/test_postpublication_review_only.py": {
       "kind": "test",
