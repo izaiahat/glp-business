@@ -28,14 +28,14 @@
         "hermes:415ec5eba194",
         "scripts/glp_release_main.py"
       ],
-      "sha256": "f3f4a37058335ea6918ab5eb9d47f731e8501b4b6090784cee45424c054a94bc"
+      "sha256": "32acfd5df2c674385f85841fdd0823d665eab1c5d19731d56265cd723823f00e"
     },
     "tests/test_glp_release_inputs.py": {
       "kind": "test",
       "callers": [
         "business-source-ci:GLP349-release-health"
       ],
-      "sha256": "5da86b966d9c0c8273975f174586dec43678f920ed7c0c53d627548bb840c295"
+      "sha256": "eae0462088f41cb2c96141841208312553ec50933e64cd3e526f566a82a9a915"
     },
     "tests/test_postpublication_review_only.py": {
       "kind": "test",
@@ -2902,7 +2902,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "be0d9e20a5784ba815c9a290e48422c07a9ac523a6e965b2de5e9520826a290f"
+      "sha256": "fd061926391279b5115b21872b4f0eb25b63ab1a47684ba72c3308b8b485c59a"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -3311,7 +3311,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "ec984ed0d80d775a567df01473d8bd88fcc6e53d7f185e527dcfdf9a425f90dc"
+      "sha256": "0ee34008033828c53b7ec53f9e9a177c537a028d63b5280608750c06a1e5ef26"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [
