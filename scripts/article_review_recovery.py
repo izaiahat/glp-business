@@ -504,6 +504,70 @@ def seal(entry_path, history, packet, binding_path, snapshot, *, root=ROOT,
     return path
 
 
+def authenticate_blocked_history(blocked_spec, entry_spec, original_spec, *, root, session_db=None):
+    """Read retained predecessor/native custody; a stable BLOCKED hash is not history."""
+    from datetime import datetime
+    import hermes_sol_article_review as native
+    import opus_review_loop as loop
+    receipt_path = checked(blocked_spec)
+    receipt = read(receipt_path)
+    require(receipt.get('schema') == 'glp-opus-seo-round-receipt-v1'
+            and receipt.get('status') == 'BLOCKED_OPUS_SEO_DRAFT'
+            and receipt.get('receipt_sha256') == loop.payload_hash(receipt, 'receipt_sha256'),
+            'review_only_blocked_history_receipt')
+    history = receipt_path.parent
+    require(history.name == 'history' and receipt_path.name == 'round-01-receipt.json'
+            and history.is_relative_to((Path(root)/'reports').resolve()), 'review_only_blocked_history_path')
+    prior = read(history.parent/'job.json')
+    origin = read(checked(original_spec))
+    binding = prior.get('postpublication_binding') or {}
+    require(prior.get('schema') == 'glp-opus-seo-review-job-v1'
+            and prior.get('artifact_role') == 'postpublication_review_only_job'
+            and prior.get('max_rounds') == 1 and not prior.get('publish') and not prior.get('repair')
+            and Path(prior.get('history_dir', '')).resolve() == history
+            and binding.get('entry') == entry_spec and binding.get('original_job') == original_spec
+            and prior.get('topic_id') == origin['topic_id'], 'review_only_blocked_history_predecessor')
+    packet = Path(prior['packet_dir']).resolve(strict=True)
+    manifest_path = checked({'path': receipt['subject_manifest_path'], 'sha256': receipt['subject_manifest_sha256']})
+    raw_path = checked({'path': receipt['raw_review_path'], 'sha256': receipt['raw_review_sha256']})
+    require(manifest_path == history/'round-01-subject-manifest.json'
+            and raw_path == history/'round-01-sol-raw.json', 'review_only_blocked_history_artifacts')
+    manifest, raw = read(manifest_path), read(raw_path)
+    require(manifest.get('schema') == 'glp-opus-seo-subject-manifest-v1'
+            and manifest.get('status') == 'SEALED_FOR_OPUS_REVIEW'
+            and manifest.get('manifest_sha256') == loop.payload_hash(manifest, 'manifest_sha256')
+            and all(receipt.get(k) == manifest.get(k) == prior.get(k) for k in ('job_id', 'topic_id'))
+            and receipt.get('round') == manifest.get('round') == 1, 'review_only_blocked_history_manifest')
+    rows = manifest['subject_files']
+    require(sorted(row['path'] for row in rows) == sorted([*CORE, CANDIDATE])
+            and sorted(prior['subject_files']) == sorted([*CORE, CANDIDATE]), 'review_only_blocked_history_subjects')
+    for row in rows:
+        path = packet/row['path']
+        require(path.is_file() and not path.is_symlink() and sha(path) == row['sha256']
+                and path.stat().st_size == row['bytes']
+                and len(loop.physical_lines(path.read_bytes())) == row['lines'], 'review_only_blocked_history_sealed_bytes')
+    require(all(sha(packet/n) == sha(Path(origin['packet_dir'])/n) for n in CORE[:6])
+            and sha(packet/CANDIDATE) == binding['deployed_candidate']['sha256'], 'review_only_blocked_history_original_subject')
+    # Existing validation authenticates the exact in-band packet and completed
+    # native no-tools turn. No receipt hash or alleged model is authority.
+    result = loop.parse_result(raw)
+    loop.validate_review(result, raw, manifest, 1)
+    custody = native.validate_result_custody(raw, manifest=manifest, packet=packet, session_db=session_db)
+    require(receipt['status'] == result['verdict']
+            and all(receipt.get(k) == result[k] for k in ('gates', 'findings'))
+            and receipt.get('tools_disabled') is True
+            and receipt.get('review_transport') == prior.get('review_transport') == raw['hermes_runtime']['transport_id']
+            and all(receipt.get(k) == raw['hermes_runtime'][k] for k in ('model', 'provider', 'effort')),
+            'review_only_blocked_history_native_result')
+    intent = read(history/'native-review-intent.json')
+    stamp = lambda value: datetime.fromisoformat(str(value).replace('Z', '+00:00')).timestamp()
+    require(intent.get('schema') == 'glp-native-review-only-intent-v1'
+            and intent.get('job_id') == prior['job_id'] and intent.get('subject_manifest_sha256') == sha(manifest_path)
+            and intent.get('retry_allowed') is False and intent.get('publication_authorized') is False
+            and stamp(manifest['sealed_at_utc']) <= stamp(intent['created_at_utc']) <= custody['started_at']
+            <= custody['ended_at'] <= stamp(receipt['reviewed_at_utc']), 'review_only_blocked_history_intent')
+
+
 def review_only_successor_inputs(origin, packet, candidate, candidate_sha256,
                                  draft_sha256, blocked_review, *, root):
     """Pin explicit corrected bytes; original aliases/verdict are history, not subjects."""
@@ -632,6 +696,13 @@ def validate_review_only_binding(job, route, *, root=ROOT, session_db=None, for_
     if successor:
         validate_review_only_successor(checked(binding['entry']), original, packet, successor,
                                       root=Path(root), clock=datetime.now(timezone.utc).isoformat())
+        authenticate_blocked_history(successor['blocked_review'], binding['entry'], binding['original_job'],
+                                     root=root, session_db=session_db)
+        # Aggregate writers retain alias exclusions, but cannot prove coverage
+        # of an independently changed source. Recheck each path at invocation.
+        for name in sorted(set(CORE[:6]) - set(successor['original_aliases'])):
+            packet_authors(session_db or SESSION_DB,
+                [checked(successor['sources'][name])], proposed, clock)
         successor_authors = packet_authors(session_db or SESSION_DB,
             [checked(successor['sources'][n]) for n in CORE[:6]], proposed, clock)
         require(successor_authors == successor['source_authors'], 'review_only_native_successor_author_drift')
@@ -706,8 +777,11 @@ def prepare_review_only(entry_path, original_job, output, transport_id, *, root=
         successor = review_only_successor_inputs(origin, *supplied, root=root)
         changed = sorted(set(CORE[:6]) - set(successor['original_aliases']))
         require(changed, 'review_only_successor_source_repair_required')
-        packet_authors(session_db or SESSION_DB,
-            [checked(successor['sources'][n]) for n in changed], proposed, clock)
+        for name in changed:
+            packet_authors(session_db or SESSION_DB,
+                [checked(successor['sources'][name])], proposed, clock)
+        authenticate_blocked_history(successor['blocked_review'], spec(entry_path), spec(original_job),
+                                     root=root, session_db=session_db)
         # A byte-identical alias does not erase genuine edits at its successor path.
         successor['source_authors'] = packet_authors(session_db or SESSION_DB,
             [checked(successor['sources'][n]) for n in CORE[:6]], proposed, clock)
