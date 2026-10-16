@@ -46,6 +46,49 @@ def sha256_of(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def sync_archive_candidate(root: Path, changed):
+    """Refresh the source-only archive co-pins and curated manifest, never live.
+
+    Explicit checkout/changed paths only. No installed wrapper, jobs, receipt or
+    systemd mutation. The archive dependency set and every unrelated pin stay.
+    """
+    root = Path(root).resolve(strict=True)
+    if root == Path('/home/ubuntu/business') or not (root / '.git').exists():
+        raise ValueError('isolated source checkout required')
+    changed = set(changed)
+    for relative in changed:
+        if Path(relative).is_absolute() or '..' in Path(relative).parts or (root / relative).resolve() != root / relative:
+            raise ValueError('unsafe candidate pin path')
+    pin_name = 'scripts/hermes_state_archive/weekly-pins.json'
+    launcher_name = 'ops/hermes-cron-scripts/hermes_state_archive_weekly.py'
+    pins_path, launcher_path = root / pin_name, root / launcher_name
+    pins = json.loads(pins_path.read_text())
+    text = launcher_path.read_text()
+    old = sha256_of(pins_path)
+    if text.count("PIN_HASH = '" + old + "'") != 1:
+        raise ValueError('candidate outer pin preimage mismatch')
+    for relative in changed:
+        absolute = '/home/ubuntu/business/' + relative
+        if absolute in pins['files']:
+            pins['files'][absolute] = sha256_of(root / relative)
+    pin_bytes = (json.dumps(pins, indent=2) + '\n').encode()
+    text = text.replace("PIN_HASH = '" + old + "'",
+                        "PIN_HASH = '" + hashlib.sha256(pin_bytes).hexdigest() + "'")
+    manifest_path = root / 'ops/rebuild-source-manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    changed |= {pin_name, launcher_name}
+    if not changed <= manifest['files'].keys():
+        raise ValueError('candidate file outside curated manifest')
+    # Compute/validate everything before touching the candidate outputs.
+    for relative in changed:
+        raw = pin_bytes if relative == pin_name else text.encode() if relative == launcher_name else (root / relative).read_bytes()
+        manifest['files'][relative]['sha256'] = hashlib.sha256(raw).hexdigest()
+    pins_path.write_bytes(pin_bytes)
+    launcher_path.write_text(text)
+    manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+    return sorted(changed)
+
+
 def covered(text: str) -> list[tuple[str, str, int, int]]:
     """All (absolute path, hash, hash-start, hash-end) enforcement occurrences.
 

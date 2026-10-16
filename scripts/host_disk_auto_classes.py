@@ -214,7 +214,13 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
     from host_disk_payload_guard import reject_database_payloads
     row = {'rule': rule, 'path': str(p), 'bytes_freed': 0}
     protect = protection or m.protected
+    from contextlib import ExitStack
+    from host_disk_tmp_custody import declared_reference_lease
+    leases = ExitStack()
+    admission = None
     try:
+        if rule == 'stale_tmp_24h' and p.name.startswith('aeo-declared-'):
+            leases.enter_context(declared_reference_lease())
         if p.is_symlink() or p.resolve() != p.absolute() or protect(p, pins):
             raise ValueError('scope/protection')
         if extra_check:
@@ -235,7 +241,7 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
         if not lsof_inactive(p) or not m.inactive(api, p) or snapshot(p, deadline)[0] != before:
             raise ValueError('reference/identity')
         if extra_check:
-            extra_check(p)
+            admission = extra_check(p)
             if not lsof_inactive(p) or not m.inactive(api, p) or snapshot(p, deadline)[0] != before:
                 raise ValueError('reference/identity after custody scan')
             for r in before:
@@ -243,15 +249,25 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
                 if cutoff is not None and max(s.st_mtime, s.st_ctime,
                         s.st_atime if check_atime and stat.S_ISREG(s.st_mode) else 0) > cutoff:
                     raise ValueError('young descendant after custody scan')
+        if admission:
+            admission()
         row['eligible_bytes'] = amount
         if dry_run:
             row['status'] = 'ELIGIBLE'
+        elif rule == 'stale_tmp_24h' and p.name.startswith('aeo-declared-'):
+            retired = api.remove_disposable(p, deadline=deadline, expected=before, admission=admission)
+            if isinstance(retired, dict):
+                row.update(retired)
+            else:
+                row['status'] = 'PARTIAL_UNKNOWN'
         elif api.remove_disposable(p, deadline=deadline) and not p.exists():
             row.update(status='REMOVED', bytes_freed=amount)
         else:
             row['status'] = 'PARTIAL_UNKNOWN'
     except (OSError, ValueError, TimeoutError, AttributeError, IndexError, UnicodeError, RuntimeError) as e:
         row.update(status='REFUSED', reason=str(e))
+    finally:
+        leases.close()
     return row
 
 
@@ -291,7 +307,7 @@ def stale_tmp(api, m, *, pins, deadline, dry_run=True, root=TMP, min_age=86400, 
         if p.name.startswith('aeo-declared-'):
             if not declared_directory(p, root):
                 raise ValueError('scope/protection')
-            require_unreferenced(p, deadline)
+            return require_unreferenced(p, deadline)
     rows = []
     # Largest first; entries under the floor are not worth a /proc + lsof veto pass each.
     du = subprocess.run(['du', '-x', '-B1', '-d', '1', str(root)], capture_output=True, text=True, timeout=600)

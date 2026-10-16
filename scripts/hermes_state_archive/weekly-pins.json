@@ -3,7 +3,7 @@
     "/home/ubuntu/business/scripts/hermes_state_archive/archive.py": "d00b8e73b0647bc7635d818a6371df871e5eb48ff38cee8b9a2a6637d10853b2",
     "/home/ubuntu/business/scripts/hermes_state_archive/weekly.py": "b765cfac44b12522ff7a74a306bbad258d66f2d8604e70da93f08a9e84b15a37",
     "/home/ubuntu/business/scripts/disk_retention.py": "f0cdcaceaf8b7e33c14db9c87035e30da4ad7b294ac74b0bba0d7a02c790ad23",
-    "/home/ubuntu/business/scripts/host_disk_pruner.py": "4d41c66db16e37dda4660cd3f26cb5066a50a64ed636f9fa38ed1427f8b40c80",
+    "/home/ubuntu/business/scripts/host_disk_pruner.py": "8f47018564d1e7b9cbc08683a675fab6ac61c57e74b7c244eebff649c52ce30c",
     "/home/ubuntu/.config/systemd/user/hermes-state-archive-weekly.service": "b523fe7a326b413d5c6b33cc38174ba8cc5775fc262c48a4123987dfc08ea3df",
     "/home/ubuntu/business/scripts/bounded_pruner.py": "1df97930f018b8d81119996f5aac1efc952417bf00093b227df31648263118f6",
     "/home/ubuntu/business/ops/discord_fmt.py": "e6e0ed7231282b2f222a435d8879ca22cfe2317900f6cbb122f48a83e9263acc"

@@ -493,14 +493,19 @@ def remove_worktree(record: WorktreeRecord, *, dry_run: bool) -> dict[str, Any]:
             'skipped': 'tracked_worktree_requires_operator_decision', 'bytes_freed': 0}
 
 
-def remove_disposable(path: Path, *, deadline=None, as_root=False) -> bool:
+def remove_disposable(path: Path, *, deadline=None, as_root=False, expected=None, admission=None):
     """Delete one already-validated allowlisted object, bounded, no shell/globs.
 
     A subprocess timeout is unknown/partial and earns no removal credit; no
-    detached worker survives. This legacy pathname API does NOT provide the
-    expected-member/reference exclusion contract required for GLP-354 acceptance.
-    The child only uses shutil's symlink-safe rmtree.
+    detached worker survives. Expected-member callers receive an own-effect
+    receipt from the descriptor-based retirement path. Neither path supplies
+    reference-writer exclusion; callers must retain their custody guards.
     """
+    if expected is not None:
+        from host_disk_tmp_custody import retire_expected
+        if as_root:
+            raise ValueError('expected retirement requires the privileged caller')
+        return retire_expected(path, expected, deadline, admission)
     # Absence is not this invocation's retirement. In particular, an original
     # renamed away between admission and this helper must never earn byte credit.
     try:

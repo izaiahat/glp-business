@@ -46,8 +46,20 @@ class FixtureAPI:
     def path_is_active_privileged(self, path):
         return False
 
-    def remove_disposable(self, path, *, deadline):
+    def remove_disposable(self, path, *, deadline, expected=None, admission=None):
         assert path.parent == self.root
+        if expected is not None:
+            # The actual maintained boundary, compiled without CLI import effects.
+            import ast
+            source = CANDIDATE / 'scripts/host_disk_pruner.py'
+            node = next(n for n in ast.parse(source.read_bytes()).body
+                        if isinstance(n, ast.FunctionDef) and n.name == 'remove_disposable')
+            namespace = dict(Path=Path)
+            exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
+            result = namespace['remove_disposable'](path, deadline=deadline, expected=expected, admission=admission)
+            if result['status'] == 'REMOVED':
+                self.removed.append(path)
+            return result
         self.removed.append(path)
         shutil.rmtree(path)
         return True
@@ -92,6 +104,32 @@ class DeclaredTmpTests(unittest.TestCase):
                                    'bytes': asset.stat().st_size,
                                    'sha256': hashlib.sha256(asset.read_bytes()).hexdigest()}]}
             (directory / 'manifest.json').write_text(json.dumps(manifest))
+        # Small private contract fixture, explicitly NOT historical authority.
+        import hashlib
+        self.predecessor = self.base / 'predecessor'
+        shutil.copytree(self.rebuild_source, self.predecessor)
+        provenance = {'schema': 'glp-page-content-provenance-v1', 'pages': {
+            '/how-we-rate/': {'lastmod': '2026-08-19'},
+            '/reviews/orderlymeds/': {'lastmod': '2026-08-19'}}}
+        (self.predecessor / 'data/page-content-provenance.json').write_text(json.dumps(provenance))
+        for route in ('how-we-rate', 'reviews/orderlymeds'):
+            page = self.predecessor / 'public' / route / 'index.html'
+            page.parent.mkdir(parents=True)
+            page.write_text('private predecessor page')
+        self.base_manifest = self.base / 'deployment-manifest.json'
+        self.base_receipt = self.base / 'final-receipt.json'
+        self.base_pointer = self.base / 'current-content-base.json'
+        rows = [{'path': str(p.relative_to(self.predecessor)),
+                 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()}
+                for p in sorted(self.predecessor.rglob('*')) if p.is_file()]
+        self.base_manifest.write_text(json.dumps({'release_root': str(self.predecessor), 'release_rows': rows}))
+        self.base_receipt.write_text(json.dumps({'status': 'PASS_PRODUCTION_TERMINAL',
+                                               'deployment': {'deployment_id': 'private-test-deployment'}}))
+        self.base_pointer.write_text(json.dumps({'schema': 'glp-opus-current-content-base-v1', 'status': 'PASS',
+            'deployment_id': 'private-test-deployment', 'release_root': str(self.predecessor),
+            'manifest': {'path': str(self.base_manifest), 'sha256': hashlib.sha256(self.base_manifest.read_bytes()).hexdigest()},
+            'final_receipt': {'path': str(self.base_receipt), 'sha256': hashlib.sha256(self.base_receipt.read_bytes()).hexdigest()}}))
+        self.enterContext(patch.object(custody, 'DECLARED_CONTENT_BASE', self.base_pointer))
         self.enterContext(patch.object(custody, 'DECLARED_REBUILD_ROOT', self.rebuild_source, create=True))
         self.api = FixtureAPI(self.tmp)
         self.links = self.base / 'links'
@@ -100,6 +138,11 @@ class DeclaredTmpTests(unittest.TestCase):
         self.schedules.mkdir()
         self.jobs = self.base / 'jobs.json'
         self.jobs.write_text('{"jobs": []}')
+        (self.jobs.parent / '.jobs.lock').touch()
+        base_lock = self.base / 'publication.lock'
+        base_lock.touch()
+        self.enterContext(patch.object(custody, 'DECLARED_BUSINESS_ROOT', self.base))
+        self.enterContext(patch.object(custody, 'DECLARED_BASE_LOCK', base_lock))
         self.proc = self.base / 'proc'
         self.process = self.proc / '1'
         (self.process / 'fd').mkdir(parents=True)
@@ -134,6 +177,84 @@ class DeclaredTmpTests(unittest.TestCase):
         self.assertFalse(self.candidate.exists())
         self.assertEqual(self.api.removed, [self.candidate])
 
+    def test_final_snapshot_root_replacement_reaches_real_helper_but_is_retained(self):
+        original = large.snapshot
+        calls = 0
+        saved = self.base / 'retained-original'
+        def swap(path, deadline):
+            nonlocal calls
+            value = original(path, deadline)
+            calls += 1
+            if calls == 5:
+                path.rename(saved)
+                path.mkdir()
+                (path / 'payload.txt').write_text('unreviewed young replacement')
+            return value
+        with patch.object(large, 'snapshot', side_effect=swap):
+            row = self.run_candidate(dry_run=False)
+        self.assertEqual(calls, 5)
+        self.assertEqual(row['status'], 'REFUSED', row)
+        self.assertEqual(row['bytes_freed'], 0)
+        self.assertTrue((saved / 'payload.txt').exists())
+        self.assertEqual((self.candidate / 'payload.txt').read_text(), 'unreviewed young replacement')
+
+    def test_late_lsof_native_hold_is_revalidated_at_handoff(self):
+        calls = 0
+        def lsof(path):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                self.jobs.write_text(json.dumps({'command': str(self.candidate / 'payload.txt')}))
+            return True
+        with patch.object(large, 'lsof_inactive', side_effect=lsof):
+            row = self.assert_kept()
+        self.assertEqual(calls, 2)
+        self.assertIn('inventory changed', row['reason'])
+
+    def test_native_writer_lock_is_held_through_actual_member_unlink(self):
+        import fcntl
+        unlink = os.unlink
+        attempted = []
+        def observe(path, **kwargs):
+            if path == 'member':
+                with (self.jobs.parent / '.jobs.lock').open('rb') as writer:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(writer, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                attempted.append(path)
+            return unlink(path, **kwargs)
+        with patch.object(os, 'unlink', side_effect=observe):
+            row = self.run_candidate(dry_run=False)
+        self.assertEqual(row['status'], 'REMOVED', row)
+        self.assertEqual(attempted, ['member'])
+        with (self.jobs.parent / '.jobs.lock').open('rb') as writer:
+            fcntl.flock(writer, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_source_and_pointer_writers_excluded_through_unlink(self):
+        import fcntl
+        unlink = os.unlink
+        seen = []
+        def observe(path, **kwargs):
+            if path == 'member':
+                from sync_from_repo import source_lock
+                with self.assertRaisesRegex(ValueError, 'source_import_busy'):
+                    with source_lock(self.base):
+                        self.fail('source writer admitted during retirement')
+                with custody.DECLARED_BASE_LOCK.open('rb') as writer:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(writer, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                seen.append(path)
+            return unlink(path, **kwargs)
+        with patch.object(os, 'unlink', side_effect=observe):
+            row = self.run_candidate(dry_run=False)
+        self.assertEqual(row['status'], 'REMOVED', row)
+        self.assertEqual(seen, ['member'])
+
+    def test_busy_native_writer_refuses_before_effect(self):
+        import fcntl
+        with (self.jobs.parent / '.jobs.lock').open('rb') as writer:
+            fcntl.flock(writer, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.assert_kept()
+
     def test_synthetic_421_exact_mkdtemp_names_are_eligible_without_deletion(self):
         # The original 421-target identity manifest is not retained. Historical
         # receipts retain only 405 names, all mkdtemp's six ASCII alphanumerics.
@@ -153,6 +274,30 @@ class DeclaredTmpTests(unittest.TestCase):
         self.assertEqual(sum(row['bytes_freed'] for row in rows), 0)
         self.assertTrue(all((target / 'payload.txt').is_file() for target in targets))
         self.assertFalse(self.api.removed)
+
+    def test_missing_real_pointer_contract_refuses_before_removal(self):
+        self.base_pointer.unlink()
+        self.assertIn('rebuild source', self.assert_kept()['reason'])
+
+    def test_changed_predecessor_manifest_refuses_before_removal(self):
+        self.base_manifest.write_text('{}')
+        self.assertIn('predecessor digest', self.assert_kept()['reason'])
+
+    def test_changed_predecessor_receipt_refuses_before_removal(self):
+        self.base_receipt.write_text('{}')
+        self.assertIn('predecessor digest', self.assert_kept()['reason'])
+
+    def test_missing_predecessor_page_refuses_before_removal(self):
+        (self.predecessor / 'public/how-we-rate/index.html').unlink()
+        self.assert_kept()
+
+    def test_predecessor_page_changed_during_process_scan_refuses(self):
+        original = custody._process_scan
+        def change(*args):
+            original(*args)
+            (self.predecessor / 'public/how-we-rate/index.html').write_text('changed predecessor')
+        with patch.object(custody, '_process_scan', side_effect=change):
+            self.assert_kept()
 
     def test_missing_rebuild_source_refuses_both_tmp_entries(self):
         self.rebuild_source.joinpath('tests/lastmod-declared-routes.test.mjs').unlink()
@@ -589,6 +734,92 @@ class DisposableHelperTests(unittest.TestCase):
         self.target = self.base / 'target'
         self.target.mkdir()
         (self.target / 'payload').write_text('owned disposable fixture\n' * 100)
+
+    def test_expected_root_replacement_is_retained_without_credit(self):
+        expected, _ = large.snapshot(self.target, time.monotonic() + 10)
+        saved = self.base / 'original'
+        self.target.rename(saved)
+        self.target.mkdir()
+        (self.target / 'payload').write_text('unreviewed replacement')
+        result = self.remove(self.target, expected=expected, deadline=time.monotonic() + 10)
+        self.assertEqual(result['bytes_freed'], 0)
+        self.assertEqual(result['status'], 'REFUSED')
+        self.assertEqual((self.target / 'payload').read_text(), 'unreviewed replacement')
+        self.assertTrue((saved / 'payload').exists())
+
+    def test_expected_member_replacement_is_retained_without_credit(self):
+        expected, _ = large.snapshot(self.target, time.monotonic() + 10)
+        original = self.target / 'payload'
+        original.rename(self.base / 'original-payload')
+        original.write_text('unreviewed member')
+        result = self.remove(self.target, expected=expected, deadline=time.monotonic() + 10)
+        self.assertEqual(result['bytes_freed'], 0)
+        self.assertEqual(result['status'], 'REFUSED')
+        self.assertEqual(original.read_text(), 'unreviewed member')
+        self.assertTrue((self.base / 'original-payload').exists())
+
+    def test_expected_present_tree_has_own_retirement_accounting(self):
+        (self.target / 'nested').mkdir()
+        (self.target / 'nested/second').write_bytes(b'owned second payload' * 500)
+        expected, amount = large.snapshot(self.target, time.monotonic() + 10)
+        result = self.remove(self.target, expected=expected, deadline=time.monotonic() + 10)
+        self.assertEqual(result['status'], 'REMOVED', result)
+        self.assertEqual(result['bytes_freed'], amount)
+        self.assertEqual(result['retired_members'], len(expected))
+        self.assertFalse(self.target.exists())
+
+    def test_expected_external_link_is_retired_without_allocation_credit(self):
+        os.link(self.target / 'payload', self.base / 'external')
+        expected, _ = large.snapshot(self.target, time.monotonic() + 10)
+        result = self.remove(self.target, expected=expected, deadline=time.monotonic() + 10)
+        self.assertEqual(result['status'], 'REMOVED', result)
+        self.assertEqual(result['bytes_freed'], 0)
+        self.assertTrue((self.base / 'external').exists())
+
+    def test_root_replacement_inside_capture_is_restored_without_unlink(self):
+        expected, _ = large.snapshot(self.target, time.monotonic() + 10)
+        rename = os.rename
+        saved = self.base / 'original'
+        def replace(source, destination, **kwargs):
+            if source == self.target.name:
+                rename(self.target, saved)
+                self.target.mkdir()
+                (self.target / 'payload').write_text('replacement at rename')
+            return rename(source, destination, **kwargs)
+        with patch.object(os, 'rename', side_effect=replace):
+            result = self.remove(self.target, expected=expected, deadline=time.monotonic() + 10)
+        self.assertEqual(result['status'], 'REFUSED', result)
+        self.assertEqual(result['bytes_freed'], 0)
+        self.assertEqual((self.target / 'payload').read_text(), 'replacement at rename')
+        self.assertTrue((saved / 'payload').exists())
+
+    def test_member_replacement_inside_capture_is_restored_without_unlink(self):
+        expected, _ = large.snapshot(self.target, time.monotonic() + 10)
+        rename = os.rename
+        saved = self.base / 'original-payload'
+        def replace(source, destination, **kwargs):
+            if source == 'payload':
+                rename(source, saved, src_dir_fd=kwargs['src_dir_fd'])
+                fd = os.open(source, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                             0o600, dir_fd=kwargs['src_dir_fd'])
+                try:
+                    os.write(fd, b'replacement at member rename')
+                finally:
+                    os.close(fd)
+            return rename(source, destination, **kwargs)
+        with patch.object(os, 'rename', side_effect=replace):
+            result = self.remove(self.target, expected=expected, deadline=time.monotonic() + 10)
+        self.assertEqual(result['status'], 'REFUSED', result)
+        self.assertEqual(result['bytes_freed'], 0)
+        self.assertEqual((self.target / 'payload').read_text(), 'replacement at member rename')
+        self.assertTrue(saved.exists())
+
+    def test_internal_hardlinks_earn_one_last_link_allocation(self):
+        os.link(self.target / 'payload', self.target / 'second')
+        expected, amount = large.snapshot(self.target, time.monotonic() + 10)
+        result = self.remove(self.target, expected=expected, deadline=time.monotonic() + 10)
+        self.assertEqual(result['status'], 'REMOVED', result)
+        self.assertEqual(result['bytes_freed'], amount)
 
     def test_real_child_retires_present_fixture(self):
         self.assertTrue(self.remove(self.target, deadline=time.monotonic() + 10))

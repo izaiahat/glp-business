@@ -4,6 +4,8 @@ Run only inside the cleanup singleton. These checks authorize no deletion:
 callers retain their age, payload, policy, open-file and inode rechecks.
 """
 import fnmatch
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
@@ -46,6 +48,78 @@ DECLARED_REBUILD_FILES = (
     'data/llms-priority.json',
 )
 DECLARED_REBUILD_DIRS = ('scripts', 'src', 'data', 'public')
+DECLARED_CONTENT_BASE = Path('/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-content-base.json')
+DECLARED_BUSINESS_ROOT = Path('/home/ubuntu/business')
+DECLARED_BASE_LOCK = Path('/home/ubuntu/.hermes/locks/glp-price-index-weekly.lock')
+
+
+def _predecessor_sources(candidate, deadline):
+    """External inputs read by the fixed producer's fixture/prepareLastmod.
+
+    These are the real pointer -> receipt/manifest -> predecessor contracts.
+    They authenticate the predecessor bytes, not the mutable producer/copy tree
+    itself. A complete known-good producer admission remains a separate duty.
+    """
+    inventory = {}
+
+    def read(path, digest=None):
+        path = Path(path)
+        if path.resolve(strict=True) != path or _overlaps(path, candidate):
+            raise ValueError('aliased/overlapping rebuild predecessor')
+        identity, actual, raw = _rebuild_content(path, deadline, retain_bytes=True)
+        if digest is not None and actual != digest:
+            raise ValueError('rebuild predecessor digest: ' + str(path))
+        inventory[path] = (identity, actual)
+        return raw
+
+    pointer = json.loads(read(DECLARED_CONTENT_BASE))
+    if pointer.get('schema') != 'glp-opus-current-content-base-v1' or pointer.get('status') != 'PASS':
+        raise ValueError('rebuild predecessor pointer status')
+    receipt = json.loads(read(pointer['final_receipt']['path'], pointer['final_receipt']['sha256']))
+    manifest = json.loads(read(pointer['manifest']['path'], pointer['manifest']['sha256']))
+    if (receipt.get('status') != 'PASS_PRODUCTION_TERMINAL' or
+            not pointer.get('deployment_id') or
+            receipt.get('deployment', {}).get('deployment_id') != pointer['deployment_id'] or
+            manifest.get('release_root') != pointer['release_root']):
+        raise ValueError('rebuild predecessor receipt/manifest binding')
+    root = Path(pointer['release_root'])
+    if not root.is_absolute() or root.resolve(strict=True) != root or _overlaps(root, candidate):
+        raise ValueError('rebuild predecessor root')
+    inventory[root] = _identity(root)
+    rows = {}
+    for row in manifest['release_rows']:
+        relative = row['path']
+        parts = relative.split('/')
+        if (not relative or Path(relative).is_absolute() or any(p in ('', '.', '..') for p in parts)
+                or relative in rows or not re.fullmatch('[0-9a-f]{64}', row['sha256'])):
+            raise ValueError('rebuild predecessor manifest entry')
+        rows[relative] = row['sha256']
+
+    def verified(relative):
+        if relative not in rows:
+            raise ValueError('missing rebuild predecessor dependency: ' + str(relative))
+        return read(root / relative, rows[relative])
+
+    verified('scripts/postbuild-aeo-surface.mjs')
+    provenance = json.loads(verified('data/page-content-provenance.json'))
+    if provenance.get('schema') != 'glp-page-content-provenance-v1' or not isinstance(provenance.get('pages'), dict):
+        raise ValueError('rebuild predecessor provenance schema')
+    for route in ('/how-we-rate/', '/reviews/orderlymeds/'):
+        verified('public/' + route[1:] + 'index.html')
+        if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', provenance['pages'].get(route, {}).get('lastmod', '')):
+            raise ValueError('rebuild predecessor route date')
+    for slug in ('ezra-glp-1-reviews', 'top-rated-glp-1-providers'):
+        carrier = json.loads(verified('data/carrier-articles/' + slug + '/manifest.json'))
+        raw = verified(carrier['snapshot'])
+        if hashlib.sha256(raw).hexdigest() != carrier['html_sha256']:
+            raise ValueError('rebuild predecessor carrier snapshot')
+        for binding in carrier['bindings']:
+            verified(binding['path'])
+        for item in carrier['files']:
+            raw = verified(item['path'])
+            if len(raw) != item['bytes'] or hashlib.sha256(raw).hexdigest() != item['sha256']:
+                raise ValueError('rebuild predecessor carrier asset')
+    return inventory
 
 
 def declared_directory(path, root):
@@ -146,6 +220,7 @@ def _rebuild_sources(candidate, deadline):
                 identities[source] = _rebuild_content(source, deadline)
             else:
                 raise ValueError('invalid rebuild source: ' + str(source))
+        identities.update(_predecessor_sources(candidate, deadline))
     except (OSError, RuntimeError, KeyError, TypeError, UnicodeError) as error:
         raise ValueError('rebuild source unavailable or incomplete') from error
     return identities
@@ -375,3 +450,184 @@ def require_unreferenced(path, deadline):
     _process_scan(path, deadline, inodes)
     _validate_references(identities, deadline)
     _validate_rebuild(rebuild, deadline)
+    def validate():
+        _validate_references(identities, deadline)
+        _validate_rebuild(rebuild, deadline)
+    return validate
+
+
+@contextmanager
+def declared_reference_lease():
+    """Join the maintained importer, native saver and content-base CAS leases.
+
+    sync_from_repo.source_lock, cron.jobs._jobs_lock and the release carrier's
+    acquire_lock/atomic_pointer_cas are actual participants. This does not fence
+    direct site-tree edits, crontab restoration, systemd or symlink publishers.
+    """
+    from contextlib import ExitStack
+    from sync_from_repo import source_lock
+    with ExitStack() as handles:
+        handles.enter_context(source_lock(DECLARED_BUSINESS_ROOT))
+        for path in [*(jobs.parent / '.jobs.lock' for jobs in REQUIRED_FILES), DECLARED_BASE_LOCK]:
+            if path.resolve(strict=True) != path:
+                raise ValueError('aliased native reference lease')
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+            handles.callback(os.close, fd)
+            opened = os.fstat(fd)
+            if not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1:
+                raise ValueError('invalid native reference lease')
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if _identity(path)[:2] != (opened.st_dev, opened.st_ino):
+                raise ValueError('native reference lease changed')
+        yield
+
+
+def _member_signature(s):
+    return (s.st_dev, s.st_ino, s.st_mode, s.st_size,
+            s.st_mtime_ns, s.st_ctime_ns, s.st_nlink)
+
+
+def _restore_name(source_fd, source, destination_fd, destination):
+    """Linux no-replace rollback: never overwrite a newly published name."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.renameat2(source_fd, os.fsencode(source), destination_fd,
+                      os.fsencode(destination), 1) != 0:  # RENAME_NOREPLACE
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code))
+
+
+def retire_expected(path, expected, deadline, admission=None):
+    """Retire only captured expected inodes; preserve replacements and unknowns.
+
+    Rename into a private, same-filesystem namespace BEFORE each unlink. Holding
+    parent/file descriptors keeps a pathname replacement from redirecting it.
+    No recursive remover runs on a public name. A failed rollback retains its
+    exact recovery location. This is namespace ownership, NOT a writer lease:
+    open readers/source/reference publication remain separate admission duties.
+    """
+    from contextlib import ExitStack
+    import tempfile
+    from host_disk_large_classes import snapshot
+    result = dict(status='REFUSED', bytes_freed=0, retired_members=0)
+    stage = None
+    moved = False
+    pending = None
+    deadline = time.monotonic() + 20 if deadline is None else deadline
+    with ExitStack() as handles:
+        def opened(name, parent=None, directory=False, owner=handles):
+            fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK |
+                         (os.O_DIRECTORY if directory else 0), dir_fd=parent)
+            owner.callback(os.close, fd)
+            return fd
+
+        def matches(fd, row, *, renamed=False):
+            actual = _member_signature(os.fstat(fd))
+            want = tuple(row[1:])
+            # rename changes ctime itself, never inode/content/mode/links/mtime.
+            if (actual[:5] + actual[6:] if renamed else actual) != (
+                    want[:5] + want[6:] if renamed else want):
+                raise ValueError('expected member changed: ' + row[0])
+
+        try:
+            _budget(deadline)
+            if admission:
+                admission()
+            rows = {row[0]: tuple(row) for row in expected}
+            if len(rows) != len(expected) or '.' not in rows or not stat.S_ISDIR(rows['.'][3]):
+                raise ValueError('invalid expected member inventory')
+            for name in rows:
+                if Path(name).is_absolute() or '..' in Path(name).parts:
+                    raise ValueError('invalid expected member path')
+                if not (stat.S_ISREG(rows[name][3]) or stat.S_ISDIR(rows[name][3])):
+                    raise ValueError('non-regular expected member')
+            if path.resolve(strict=True) != path.absolute():
+                raise ValueError('aliased retirement path')
+            parent = opened(path.parent, directory=True)
+            root = opened(path.name, parent, directory=True)
+            matches(root, rows['.'])
+            if snapshot(path, deadline)[0] != list(expected):
+                raise ValueError('expected member inventory changed')
+            if admission:
+                admission()
+            stage = Path(tempfile.mkdtemp(prefix='.glp354-recovery-', dir=path.parent))
+            private = opened(stage, directory=True)
+            os.rename(path.name, 'tree', src_dir_fd=parent, dst_dir_fd=private)
+            moved = True
+            captured = os.stat('tree', dir_fd=private, follow_symlinks=False)
+            if (captured.st_dev, captured.st_ino) != (rows['.'][1], rows['.'][2]):
+                raise ValueError('root replaced during capture')
+            matches(root, rows['.'], renamed=True)
+            rows['.'] = ('.', *_member_signature(os.fstat(root)))
+            # Verify the complete captured tree before the first payload unlink.
+            if snapshot(stage / 'tree', deadline)[0] != sorted(rows.values()):
+                raise ValueError('member replaced during root capture')
+            directories = {'.': root}
+            for name in sorted(rows, key=lambda n: (len(Path(n).parts), n)):
+                if name == '.' or not stat.S_ISDIR(rows[name][3]):
+                    continue
+                fd = opened(Path(name).name, directories[str(Path(name).parent)], directory=True)
+                matches(fd, rows[name])
+                directories[name] = fd
+            # Children first; directory metadata changes caused by our own
+            # removals are tracked from the held parent descriptor.
+            file_handles = handles.enter_context(ExitStack())
+            for name in sorted(rows, key=lambda n: (len(Path(n).parts), n), reverse=True):
+                _budget(deadline)
+                file_handles.close()
+                row = rows[name]
+                is_dir = stat.S_ISDIR(row[3])
+                if not is_dir and not stat.S_ISREG(row[3]):
+                    raise ValueError('non-regular expected member')
+                source_parent = private if name == '.' else directories[str(Path(name).parent)]
+                source_name = 'tree' if name == '.' else Path(name).name
+                fd = directories[name] if is_dir else opened(source_name, source_parent, owner=file_handles)
+                matches(fd, row)
+                if is_dir and os.listdir(fd):
+                    raise ValueError('unexpected remaining directory member')
+                os.rename(source_name, 'member', src_dir_fd=source_parent, dst_dir_fd=private)
+                pending = (source_parent, source_name)
+                captured = os.stat('member', dir_fd=private, follow_symlinks=False)
+                if (captured.st_dev, captured.st_ino) != (row[1], row[2]):
+                    raise ValueError('member replaced during capture: ' + name)
+                matches(fd, row, renamed=True)
+                _budget(deadline)
+                before = os.fstat(fd)
+                if is_dir:
+                    os.rmdir('member', dir_fd=private)
+                else:
+                    os.unlink('member', dir_fd=private)
+                pending = None
+                after = os.fstat(fd)
+                result['retired_members'] += 1
+                # Only this successful last-link unlink earns file allocation.
+                # Directory allocation and external hardlinks remain uncredited.
+                if not is_dir and after.st_nlink == 0:
+                    result['bytes_freed'] += before.st_blocks * 512
+                if name == '.':
+                    moved = False
+                else:
+                    parent_name = str(Path(name).parent)
+                    rows[parent_name] = (parent_name, *_member_signature(os.fstat(source_parent)))
+                    # Another selected name may share this inode; only update
+                    # its link count/ctime for our own successful unlink.
+                    for other, previous in list(rows.items()):
+                        if other != name and previous[1:3] == row[1:3]:
+                            rows[other] = (other, *_member_signature(after))
+            result['status'] = 'REMOVED'
+        except (OSError, ValueError, TimeoutError) as error:
+            result['reason'] = str(error)
+            if result['retired_members']:
+                result['status'] = 'PARTIAL_UNKNOWN'
+        finally:
+            if stage is not None:
+                try:
+                    if pending:
+                        _restore_name(private, 'member', *pending)
+                    if moved:
+                        _restore_name(private, 'tree', parent, path.name)
+                    os.rmdir(stage)
+                except OSError:
+                    result['recovery_path'] = str(stage)
+                    result['status'] = 'PARTIAL_UNKNOWN'
+    return result

@@ -1460,7 +1460,7 @@
         "hermes:a0d5cb0609b9"
       ],
       "kind": "script",
-      "sha256": "199007b44dad8bcbab072423c4181f1a1465312146d7e8f6076342d607c32b12"
+      "sha256": "9c9221f10af5e92f808cd8a3130b46ea464156fac8207123b164a4afd0ad36e9"
     },
     "ops/hermes-cron-scripts/higgsfield_auth_keepalive.py": {
       "callers": [
@@ -3580,7 +3580,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "5883c985fb79db6113bb7169895577c71360afa9dee4d9e1ffe019d787d0aad0"
+      "sha256": "f50756b7e474048fe8a331899e2ba73802f91d9280a6482a6a6e39737754a2cf"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3594,7 +3594,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "e090b44ec0512db2b3a917445b116e52aaf0c0984dcb251f77b6579ea19ea54f"
+      "sha256": "50dddb5240902a35d2d3ec6e298351258a9ce7c9dfd2b7bc54429c3ea3df2c6c"
     },
     "scripts/host_disk_large_classes.py": {
       "callers": [
@@ -3622,7 +3622,7 @@
         "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py"
       ],
       "kind": "script",
-      "sha256": "4d41c66db16e37dda4660cd3f26cb5066a50a64ed636f9fa38ed1427f8b40c80"
+      "sha256": "8f47018564d1e7b9cbc08683a675fab6ac61c57e74b7c244eebff649c52ce30c"
     },
     "scripts/host_disk_reference_guard.py": {
       "callers": [
@@ -4042,7 +4042,7 @@
         "GLP331 all enforcement occurrences"
       ],
       "kind": "script",
-      "sha256": "6cea7d1781edbe31ad19ba40ac44070cef1041732563a6ec0d57ea4e3a029f6f"
+      "sha256": "8ebd971a8b7b799a8bb9b729cacbf20327da2ca7dc5bde1460eafee73602fc82"
     },
     "scripts/xentraffic_fresh_catalog.py": {
       "callers": [
@@ -7775,7 +7775,7 @@
       "callers": [
         "GLP349 authenticated archive source cohort"
       ],
-      "sha256": "3d3b02d81a322d2858926915a8452b72376bb71da66531eb51c21d8d60df03eb"
+      "sha256": "8fc8dc4d37f4fa3dae5f0e63a0ec2ce829e71c6994e736aad6a58ff051f41737"
     },
     "ops/systemd/hermes-state-archive-weekly.service": {
       "kind": "repository_control",
@@ -7789,7 +7789,7 @@
       "callers": [
         "GLP349 effects-denied source review"
       ],
-      "sha256": "2114bb9956da1ac62c0245812059e51375224de29f20391eb9cc3d912c3fd101"
+      "sha256": "9f8eb10492c2ef7221637e1c650a93fd28e75e53153bb429ff4b3aaae8f8a7a9"
     },
     ".github/workflows/glp349-archive-source.yml": {
       "kind": "repository_control",
@@ -7855,14 +7855,14 @@
         "scripts/host_disk_auto_classes.py"
       ],
       "kind": "script",
-      "sha256": "31893edc6fb9ff002a5aadef9ee7b516c8c0ae327a26dc34bad9c019839a1af0"
+      "sha256": "99c35ac4684421324165239808726cb6fd00912a80d00aff4fa1a64c29d9f3ce"
     },
     "tests/test_host_disk_tmp_custody.py": {
       "callers": [
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "8d8578926203409a6ef78d5695938b15cc007e71d1d78bdf198bf523aa20ce8b"
+      "sha256": "d9a2fc1b32487e6131c844ed5ed8ead7d3cb37ebff9e30ae44b29901aa887639"
     },
     "tests/test_host_disk_reference_refresh.py": {
       "kind": "test",

@@ -198,15 +198,21 @@ def idle_scratch(api,targets,*,pins=(),dry_run=True,deadline):
     """Scratch or explicit browser/aeo tmp classes >24h idle with live custody vetoes."""
     from host_disk_large_classes import snapshot,lsof_inactive
     from host_disk_tmp_custody import declared_directory,require_unreferenced
+    from contextlib import ExitStack
+    from host_disk_tmp_custody import declared_reference_lease
     out=[]; cutoff=time.time()-86400; pins=custody_pins(pins)
     for target in targets:
         p=Path(target); row={'rule':'idle_scratch_tmp','path':str(p),'bytes_freed':0}
+        leases=ExitStack()
+        admission=None
         try:
             declared=declared_directory(p,TMP_ROOT)
             allowed=(p.parent==Path('/home/ubuntu/.hermes/cache/scratch') or
                      (p.parent==TMP_ROOT and p.name.startswith('glp-ultracode-browser-nowrite-')) or declared)
             if not allowed or protected(p,pins) or p.is_symlink() or p.resolve()!=p.absolute():raise ValueError('scope/protection')
-            if declared:require_unreferenced(p,deadline)
+            if declared:
+                leases.enter_context(declared_reference_lease())
+                require_unreferenced(p,deadline)
             # Directory atime moves whenever any scanner (including this pruner)
             # lists it; only regular-file atime is a use signal.
             if max(p.lstat().st_mtime,p.lstat().st_ctime,p.lstat().st_atime if p.is_file() else 0)>cutoff:raise ValueError('young/used')
@@ -222,7 +228,7 @@ def idle_scratch(api,targets,*,pins=(),dry_run=True,deadline):
             if any(protected(p/r[0],fresh_pins) for r in before): raise ValueError('new live symlink custody')
             if not lsof_inactive(p) or not inactive(api,p) or snapshot(p,deadline)[0]!=before:raise ValueError('reference/identity')
             if declared:
-                require_unreferenced(p,deadline)
+                admission=require_unreferenced(p,deadline)
                 # Reference scans may take time. Recheck every member's use and
                 # identity after the final scan, before handing off removal.
                 for r in before:
@@ -231,10 +237,16 @@ def idle_scratch(api,targets,*,pins=(),dry_run=True,deadline):
                         raise ValueError('young/used after custody scan')
                 if not lsof_inactive(p) or not inactive(api,p) or snapshot(p,deadline)[0]!=before:
                     raise ValueError('reference/identity after custody scan')
+            if admission:admission()
             if dry_run:row.update(status='ELIGIBLE',eligible_bytes=amount)
+            elif declared:
+                retired=api.remove_disposable(p,deadline=deadline,expected=before,admission=admission)
+                if isinstance(retired,dict):row.update(retired)
+                else:row['status']='PARTIAL_UNKNOWN'
             elif api.remove_disposable(p,deadline=deadline) and not p.exists():row.update(status='REMOVED',bytes_freed=amount)
             else:row['status']='PARTIAL_UNKNOWN'
         except (OSError,ValueError,TimeoutError,AttributeError,IndexError,UnicodeError,RuntimeError) as e:row.update(status='REFUSED',reason=str(e))
+        finally:leases.close()
         out.append(row)
     return out
 
