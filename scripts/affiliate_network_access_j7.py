@@ -4,8 +4,46 @@ import time
 import affiliate_network_access_j6 as prior
 
 
-def weekly_collectors(names,transport,*,eden_intake=None,eden_sha256=None):
+def weekly_collectors(names,transport,*,eden_intake=None,eden_sha256=None,cj_resume_root=None):
     collectors=prior.weekly_collectors(names,transport)
+    if 'cj' in names and cj_resume_root is not None:
+        def cj(window,deadline,max_requests,*,sink):
+            import hashlib,json
+            from pathlib import Path
+            from marketplace_adapters import cj as api
+            from glp_affiliate_weekly_reporting_j7 import collect_cj
+            try:
+                secret,account,_=api._secret()
+            except (OSError,ValueError,KeyError):
+                return collectors_without_cj(window,deadline,max_requests,sink=sink)
+            out=[];remaining=max_requests
+            for label,start,end in [('closed_month',window['last_closed_month_start'],window['last_closed_month_end']),
+                                    ('closed_week',window['week_start'],window['end_exclusive']),
+                                    ('lookback',window['lookback_start'],window['end_exclusive'])]:
+                # Exact partition identity survives moving week/lookback windows.
+                key=hashlib.sha256(json.dumps([account,start,end]).encode()).hexdigest()
+                read_transport=prior.ReadTransport(transport,deadline=deadline,max_requests=remaining)
+                pages=collect_cj(read_transport,secret,account,start,end,deadline=deadline,
+                                 max_requests=remaining,resume_path=Path(cj_resume_root)/(key+'.json'))
+                remaining-=pages[-1]['request_count']
+                summary=pages[-1]
+                projection=[row for p in pages[:-1] if p.get('payload_complete') for row in p.get('accounting_projection',[])]
+                row=dict(summary,period_purpose=label,capability='conversions_earnings',
+                    coverage='COMPLETE' if summary['payload_complete'] else 'PARTIAL',
+                    status='SUPPORTED', records=projection, returned_row_count=len(projection),
+                    declared_row_count=summary['record_count'],
+                    account_binding='request:publisher:'+account,
+                    reason='ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN' if summary['payload_complete']
+                           else 'COUNT_PAGINATION_OR_PERIOD_PROOF_INCOMPLETE',
+                    receipts=[{'http_status':p.get('http_status'),'response_sha256':p.get('response_sha256'),
+                               'query_sha256':p.get('query_sha256'),'start_inclusive':p['start_inclusive'],
+                               'end_exclusive':p['end_exclusive']} for p in pages[:-1]])
+                sink(row);out.append(row)
+                if summary['authentication_blocked'] or remaining<=0 or time.monotonic()>=deadline:
+                    break
+            return out
+        collectors_without_cj=collectors['cj']
+        collectors['cj']=cj
     if 'everflow' in names:
         from affiliate_reporting_eden_portal_j7 import collector as portal_reader
         portal=portal_reader(eden_intake,eden_sha256) if eden_intake else None

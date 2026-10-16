@@ -287,3 +287,172 @@ def test_missing_or_unbounded_inputs_cannot_form_a_skip_key(tmp_path):
     config['base_argv'] += ['--ro-bind',str(tmp_path/'missing'),'/evidence']
     with pytest.raises(FileNotFoundError):
         inputs.capture(config, source_tree='T', source_revision='H', sheet_sha256='S')
+
+
+@pytest.mark.parametrize('mutation', ['effective', 'seed', 'generated-only'])
+def test_tiny_gate_retains_input_drift_in_existing_failure(tmp_path, monkeypatch, mutation):
+    """Promoted retained fixture: real capture/namespace, unchanged nested gate AST.
+
+    No build, namespace executable, network or subprocess is run. Compiler and
+    producer identities are synthetic constants, not native release evidence.
+    """
+    import ast
+    import hashlib
+    import os
+    import socket
+    import subprocess
+    import types
+    import glp_release_inputs as inputs
+    import glp_affiliate_sync_job as namespace_owner
+    root = Path(__file__).resolve().parents[1]
+    tree = ast.parse((root / 'scripts/glp_release_main.py').read_text())
+    main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+    gated = next(n for n in ast.walk(main) if isinstance(n, ast.FunctionDef) and n.name == 'gated')
+    # Exercise the actual existing FAILURE writer too, not a test serializer of
+    # the new diagnostics. Its final bare raise is replaced only by the caller.
+    failure = next(n for n in ast.walk(main) if isinstance(n, ast.ExceptHandler)
+                   and any(isinstance(c, ast.Constant) and c.value == 'FAILURE.json' for c in ast.walk(n)))
+    failure_code = compile(ast.fix_missing_locations(ast.Module(body=failure.body[:-1], type_ignores=[])),
+                           '<native-failure-writer>', 'exec')
+    source, seed, report = (tmp_path / name for name in ('source', 'seed', 'report'))
+    for directory in (source, seed / 'npm-cache/_logs', report / 'registry'):
+        directory.mkdir(parents=True)
+    (seed / 'npm-cache/_logs/old.log').write_text('fixture-old-log')
+    (seed / 'npm-cache/_cacache').mkdir()
+    (seed / 'npm-cache/_cacache/input.bin').write_text('genuine-cache-input')
+    (report / 'registry/sheet-snapshot.json').write_text('{"fixture":true}')
+    tool = tmp_path / 'namespace-tool'
+    tool.write_text('fixture executable identity; NEVER RUN')
+    tool.chmod(0o755)
+    config = {'namespace': '/site', 'base_argv': [str(tool), '--clearenv', '--unshare-all', '--cap-drop', 'ALL',
+              '--bind', str(source), '/site', '--bind', str(seed), '/home/test']}
+    now = dt.datetime(2026, 10, 16, 2, 36, tzinfo=dt.timezone.utc)
+    real_capture = inputs.capture
+    def capture(*args, **kwargs):
+        return real_capture(*args, **kwargs, now=now)
+    def save(path, value):
+        Path(path).write_text(json.dumps(value, sort_keys=True))
+    def sha(path):
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    job = types.SimpleNamespace(namespace=namespace_owner.namespace, save=save, sha=sha,
+        run=lambda argv, **kw: 'fixture-tree' if argv[1:3] == ['rev-parse', 'HEAD^{tree}'] else '')
+    def original_gate(source, rep, config, head):
+        namespace_owner.namespace(config, source, rep)
+        before = json.loads((rep / 'BUILD-INPUTS.json').read_text())
+        (source / 'public').mkdir()
+        (source / 'public/index.html').write_text('fixture generated source output')
+        assert capture(config, source_tree='fixture-tree', source_revision=head,
+                       sheet_sha256=sha(rep / 'registry/sheet-snapshot.json')) == before
+        effective = Path(config['_effective_base_argv'][-2])
+        if mutation == 'effective':
+            (effective / 'npm-cache/_logs/old.log').unlink()
+            (effective / 'npm-cache/_logs/new.log').write_text('fixture npm log rotation')
+        elif mutation == 'seed':
+            (seed / 'npm-cache/_cacache/input.bin').write_text('mutated genuine input')
+    def deny(*args, **kwargs):
+        raise AssertionError('network/subprocess forbidden in this fixture')
+    monkeypatch.setattr(inputs, 'producer_closure', lambda *a: {'fixture': 'constant-producer'})
+    monkeypatch.setattr(inputs, 'capture', capture)
+    monkeypatch.setattr(socket, 'socket', deny)
+    monkeypatch.setattr(subprocess, 'Popen', deny)
+    env = {'job': job, 'original_gate': original_gate, 'log': lambda row: None, 'Path': Path,
+           'secrets_scan': lambda path: {'fixture': 'not-a-real-scan'}, 'os': os, 'SCOPE': 'fixture',
+           'report': report}
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[gated], type_ignores=[])), '<native-gated>', 'exec'), env)
+    if mutation == 'generated-only':
+        env['gated'](source, report, config, 'fixture-head')
+        assert not (report / 'FAILURE.json').exists()
+        return
+    with pytest.raises(ValueError, match='^main_build_inputs_changed_during_build$') as error:
+        env['gated'](source, report, config, 'fixture-head')
+    env['exc'] = error.value
+    exec(failure_code, env)
+    saved = json.loads((report / 'FAILURE.json').read_text())
+    assert saved['status'] == 'FAIL' and saved['error'] == 'main_build_inputs_changed_during_build'
+    drift = saved['input_drift']
+    assert drift['before'] == json.loads((report / 'BUILD-INPUTS.json').read_text())
+    assert drift['after'] == capture(config, source_tree='fixture-tree', source_revision='fixture-head',
+                                     sheet_sha256=sha(report / 'registry/sheet-snapshot.json'))
+    paths = {row['path'] for row in drift['differing_fields']}
+    field = 'sha256' if mutation == 'effective' else 'seed_sha256'
+    assert paths == {'/sha256', '/mounts/0/' + field}
+    for row in drift['differing_fields']:
+        assert row['before'] != row['after']
+    timing = drift['timing']
+    stamps = [timing['before']['started'], timing['before']['finished'], timing['gate']['started'],
+              timing['gate']['finished'], timing['after']['started'], timing['after']['finished']]
+    assert [s['monotonic_ns'] for s in stamps] == sorted(s['monotonic_ns'] for s in stamps)
+    assert all(dt.datetime.fromisoformat(s['utc']).tzinfo for s in stamps)
+    entries = drift['differing_entries']
+    assert {r['role'] for r in entries} == {mutation}
+    assert all(r['destination'] == '/home/test' for r in entries)
+    names = {r['path'] for r in entries}
+    assert names == ({'npm-cache/_logs/old.log', 'npm-cache/_logs/new.log'} if mutation == 'effective'
+                     else {'npm-cache/_cacache/input.bin'})
+    assert drift['writer'] == 'UNKNOWN'
+    # Diagnostic metadata must not participate in equality or hide any input.
+    diagnostics = {}
+    plain = capture(config, source_tree='fixture-tree', source_revision='fixture-head', sheet_sha256='S')
+    assert capture(config, source_tree='fixture-tree', source_revision='fixture-head', sheet_sha256='S',
+                   diagnostics=diagnostics) == plain
+    with pytest.raises(ValueError, match='effective_writable_bind_preexisting_drift'):
+        namespace_owner.namespace(config, source, report)
+
+
+def test_diagnostic_leaf_hashes_and_json_pointer_fields_are_exact(tmp_path):
+    import hashlib
+    import glp_release_inputs as inputs
+    root = tmp_path / 'tmp'
+    root.mkdir()
+    file = root / 'genuine-cache-input'
+    file.write_bytes(b'input bytes')
+    file.chmod(0o640)
+    (root / 'link').symlink_to('/not-mounted/private')
+    entries = {}
+    old = inputs.path_digest(root, entries=entries)
+    assert inputs.path_digest(root) == old
+    assert entries['genuine-cache-input'] == ['file', 0o640, 11, hashlib.sha256(b'input bytes').hexdigest()]
+    assert entries['link'] == ['link', 0o777, '/not-mounted/private']
+    assert entries['.'] == ['dir', root.stat().st_mode & 0o7777]
+    file.write_bytes(b'real mutation')
+    assert inputs.path_digest(root) != old  # /tmp/cache names do not exempt inputs
+    file.write_bytes(b'input bytes')
+    file.chmod(0o600)
+    assert inputs.path_digest(root) != old
+    fields = inputs.differing_fields({'a/b~': [None, 'old'], 'gone': None}, {'a/b~': [None, 'new']})
+    assert fields == [{'path': '/a~1b~0/1', 'before': 'old', 'after': 'new'},
+                      {'path': '/gone', 'before': None, 'after': None,
+                       'before_present': True, 'after_present': False}]
+
+
+def test_runtime_outputs_use_only_supported_private_dev_and_are_fingerprinted(tmp_path):
+    import hashlib
+    import glp_release_inputs as inputs
+    import glp_affiliate_sync_job as job
+    source = tmp_path / 'source'
+    source.mkdir()
+    plain = {'namespace': '/site', 'base_argv': ['/bin/true', '--clearenv', '--unshare-all',
+             '--cap-drop', 'ALL', '--bind', str(source), '/site']}
+    assert inputs.build_environment_argv(plain) == plain['base_argv']
+    config = {**plain, 'base_argv': plain['base_argv'] + ['--dev', '/dev']}
+    raw = list(config['base_argv'])
+    projected = inputs.build_environment_argv(config)
+    expected = {'npm_config_logs_dir': '/dev/shm/glp-build-runtime/npm-logs',
+                'NODE_COMPILE_CACHE': '/dev/shm/glp-build-runtime/node-compile-cache'}
+    assert config['base_argv'] == raw
+    assert projected[-6:] == ['--setenv', 'npm_config_logs_dir', expected['npm_config_logs_dir'],
+                              '--setenv', 'NODE_COMPILE_CACHE', expected['NODE_COMPILE_CACHE']]
+    report = tmp_path / 'report'
+    report.mkdir()
+    assert job.namespace(config, source, report) == projected
+    snapshot = inputs.capture(config, source_tree='T', source_revision='H', sheet_sha256='S')
+    assert snapshot['namespace_argv_sha256'] != inputs.capture(plain, source_tree='T', source_revision='H',
+                                                             sheet_sha256='S')['namespace_argv_sha256']
+    assert snapshot['environment_sha256'] == {k: hashlib.sha256(v.encode()).hexdigest() for k, v in expected.items()}
+    config['_effective_base_argv'][-1] = '/tmp/not-a-private-output'
+    with pytest.raises(ValueError, match='effective_namespace_recipe_drift'):
+        inputs.capture(config, source_tree='T', source_revision='H', sheet_sha256='S')
+    for suffix in (['--bind', str(source), '/dev/shm'], ['--ro-bind', str(source), '/dev'],
+                   ['--symlink', '/home/test', '/dev/shm'], ['--tmpfs', '/dev/../dev/shm']):
+        unsupported = {**plain, 'base_argv': raw + suffix}
+        assert inputs.build_environment_argv(unsupported) == unsupported['base_argv']

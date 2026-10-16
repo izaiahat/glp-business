@@ -616,8 +616,127 @@ def test_api_issued_direct_review_class_is_not_redirect_authority(synthetic_rele
         0 if case in {"direct", "comparison"} else 2 if case in {"ended", "network-hold"} else 1)
 
 
+def _seal_route_sitemap(fixture, routes):
+    body = ('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + ''.join(
+        f'<url><loc>https://glpclinicscout.com{path}</loc></url>' for path in routes) + '</urlset>').encode()
+    path = fixture.release / "public/sitemap.xml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+    manifest = json.loads(fixture.manifest.read_text())
+    manifest['release_rows'].append({'path': 'public/sitemap.xml', 'sha256': sha(body)})
+    write_json(fixture.manifest, manifest)
+    pointer = json.loads(fixture.pointer.read_text())
+    pointer['manifest']['sha256'] = sha(fixture.manifest.read_bytes())
+    write_json(fixture.pointer, pointer)
+    return path
+
+
+def test_cached_census_cannot_omit_a_new_released_sitemap_route(synthetic_release, monkeypatch):
+    """Actual collection entry, stopping before providers; synthetic sealed release only."""
+    fixture = synthetic_release
+    _seal_route_sitemap(fixture, ['/about/', '/guides/newly-released/'])
+    data = {'sitemap_complete': True, 'sitemap_routes': ['/about/'], 'sources': {},
+            'static_routes': [{'path': '/about/', 'http_status': 200,
+                'ga4_static_present': True, 'gtm_static_present': True,
+                'posthog_static_present': True, 'csp_present': True,
+                'csp_gtm_allowed': True, 'csp_posthog_allowed': True,
+                'consent_default_denied_present': True}]}
+    monkeypatch.setattr(collector, '_load_cache', lambda _: data)
+    monkeypatch.setattr(collector, '_rail_module', Mock(side_effect=RuntimeError('provider_boundary')))
+    with pytest.raises(RuntimeError, match='provider_boundary'):
+        collector.collect_live(fixture.control, 'weekly', fixture.release / 'unused-cache.json')
+    import analytics_brain as brain
+    # Isolate route inventory from the independent synthetic commercial permissions.
+    matrix = brain.route_matrix({**data, 'affiliate_route_obligations': {}})
+    assert matrix['route_inventory_equal'] is False
+    assert matrix['sitemap_route_count'] == 2
+    assert matrix['released_only_routes'] == ['/guides/newly-released/']
+    failure, reasons = brain._hard_failure({'sources': []}, matrix, {'duplicate_cs_click_ids': {}}, data)
+    assert failure == 'FAIL_ROUTE_COVERAGE'
+    assert reasons == ['/guides/newly-released/']
+    assert not (fixture.release / 'unused-cache.json').exists()
+
+
+@pytest.mark.parametrize('case', ['equal', 'deleted', 'missing-seal', 'changed-bytes',
+    'duplicate-seal', 'foreign-host', 'go-path', 'query', 'fragment', 'http',
+    'empty', 'duplicate-route', 'sitemap-index', 'switched-release', 'manifest-drift'])
+def test_released_sitemap_seal_and_inventory_are_fail_closed(synthetic_release, case):
+    fixture = synthetic_release
+    routes = ['/about/'] if case != 'duplicate-route' else ['/about/', '/about/']
+    if case == 'empty':
+        routes = []
+    path = _seal_route_sitemap(fixture, routes)
+    if case in {'foreign-host', 'go-path', 'query', 'fragment', 'http', 'sitemap-index'}:
+        raw = path.read_text()
+        replacement = {
+            'foreign-host': ('glpclinicscout.com', 'foreign.invalid'),
+            'go-path': ('/about/', '/go/never-follow'),
+            'query': ('/about/', '/about/?x=1'),
+            'fragment': ('/about/', '/about/#part'),
+            'http': ('https://', 'http://'),
+            'sitemap-index': ('urlset', 'sitemapindex'),
+        }[case]
+        path.write_text(raw.replace(*replacement))
+        manifest = json.loads(fixture.manifest.read_text())
+        next(row for row in manifest['release_rows'] if row['path'] == 'public/sitemap.xml')['sha256'] = sha(path.read_bytes())
+        write_json(fixture.manifest, manifest)
+    elif case in {'missing-seal', 'duplicate-seal'}:
+        manifest = json.loads(fixture.manifest.read_text())
+        row = next(row for row in manifest['release_rows'] if row['path'] == 'public/sitemap.xml')
+        if case == 'missing-seal':
+            manifest['release_rows'].remove(row)
+        else:
+            manifest['release_rows'].append(dict(row))
+        write_json(fixture.manifest, manifest)
+    pointer = json.loads(fixture.pointer.read_text())
+    pointer['manifest']['sha256'] = sha(fixture.manifest.read_bytes())
+    if case == 'switched-release':
+        pointer['release_root'] = str(fixture.release.parent / 'other-release')
+    write_json(fixture.pointer, pointer)
+    if case == 'manifest-drift':
+        fixture.manifest.write_text('{}')
+    if case == 'changed-bytes':
+        path.write_bytes(path.read_bytes() + b' ')
+    if case not in {'equal', 'deleted'}:
+        with pytest.raises(RuntimeError, match='affiliate_release_'):
+            collector._released_sitemap_inventory(fixture.release, fixture.control)
+    else:
+        bound = collector._released_sitemap_inventory(fixture.release, fixture.control)
+        import analytics_brain as brain
+        observed = ['/about/'] + (['/retired/'] if case == 'deleted' else [])
+        data = {**bound, 'sitemap_routes': observed, 'sitemap_complete': True,
+                'static_routes': [{'path': route, 'http_status': 200} for route in observed]}
+        matrix = brain.route_matrix(data)
+        assert matrix['route_inventory_equal'] is (case == 'equal')
+        assert matrix['census_only_routes'] == (['/retired/'] if case == 'deleted' else [])
+    fixture.http.assert_not_called()
+
+
+def test_phase_receipt_retains_route_diagnostics_without_live_fact_sinks(tmp_path, monkeypatch, capsys):
+    """Fixture entry with inert fact sinks; asserts real serialized receipt fields."""
+    fixture = tmp_path / 'input.json'
+    write_json(fixture, {'generated_at_utc': '2026-10-15T00:00:00Z',
+        'sitemap_routes': ['/about/'], 'released_sitemap_routes': ['/about/', '/guides/new/'],
+        'released_sitemap_sha256': 'a' * 64, 'sitemap_complete': True, 'sources': {},
+        'static_routes': [{'path': '/about/', 'http_status': 200}]})
+    monkeypatch.setattr(collector, 'apply_fact_model', Mock())
+    monkeypatch.setattr(collector, 'record_source_facts', Mock())
+    live_sink = Mock(side_effect=AssertionError('live_fact_sink_denied'))
+    monkeypatch.setattr(collector, 'record_d1_fact_model', live_sink)
+    assert collector.main(['--fixture', str(fixture), '--database', str(tmp_path / 'fixture.sqlite'),
+        '--control', str(tmp_path / 'inactive-control.json'), '--output-dir', str(tmp_path / 'outputs')]) == 2
+    receipt = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert receipt['status'] == 'FAIL_ROUTE_COVERAGE'
+    assert receipt['route_count'] == 2
+    assert receipt['route_coverage']['observed_sitemap_route_count'] == 1
+    assert receipt['route_coverage']['released_only_routes'] == ['/guides/new/']
+    assert '/guides/new/' in receipt['route_coverage']['failed_routes']
+    live_sink.assert_not_called()
+
+
 def test_hourly_synthetic_release_reaches_provider_boundary_only(synthetic_release, monkeypatch):
     fixture = synthetic_release
+    _seal_route_sitemap(fixture, ['/about/'])
     monkeypatch.setattr(collector, "_load_cache", lambda _: {})
     boundary = Mock(side_effect=RuntimeError("synthetic_provider_boundary"))
     monkeypatch.setattr(collector, "_rail_module", boundary)
