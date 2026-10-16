@@ -502,7 +502,17 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--sha', help='exact site main commit (default: current origin/main)')
     p.add_argument('--prepare-only', action='store_true')
+    owned = p.add_mutually_exclusive_group()
+    owned.add_argument('--prepare-owned-test', action='store_true', help='GET-only plan for fixed GLP-47 canonical cohort')
+    owned.add_argument('--apply-owned-test', type=Path, metavar='PLAN', help='one retained-byte owned_test adoption; no mail')
+    p.add_argument('--expected-owned-test-plan-sha256')
+    p.add_argument('--authorize-owned-test-adoption', action='store_true')
     a = p.parse_args(argv)
+    if ((a.prepare_owned_test or a.apply_owned_test) and (a.sha or a.prepare_only)
+            or a.prepare_owned_test and (a.authorize_owned_test_adoption or a.expected_owned_test_plan_sha256)
+            or not a.apply_owned_test and (a.authorize_owned_test_adoption or a.expected_owned_test_plan_sha256)
+            or a.apply_owned_test and (not a.authorize_owned_test_adoption or not a.expected_owned_test_plan_sha256)):
+        p.error('owned-test modes require separate exact-plan authority and cannot mix with ordinary release')
     import glp_affiliate_sync_job as job
     import glp_deploy_glp34_authority_v1 as carrier
     RUNS.mkdir(parents=True, exist_ok=True)
@@ -515,6 +525,16 @@ def main(argv=None):
         for intent in RUNS.glob('*/publish-intent.json'):
             if not (intent.parent / 'PUBLISH.json').exists() and not main_pre_effect_refusal(intent.parent):
                 raise RuntimeError('prior_publication_uncertain:' + str(intent))
+        import glp_owned_test_adoption as owned_test
+        if a.apply_owned_test:
+            out = owned_test.apply(RUNS, a.apply_owned_test, a.expected_owned_test_plan_sha256,
+                                   a.authorize_owned_test_adoption, ROOT)
+            print(json.dumps(out))
+            return 0
+        owned_test.assert_no_pending(RUNS)
+        if a.prepare_owned_test:
+            print(json.dumps(owned_test.prepare(RUNS)))
+            return 0
         main_sha = a.sha or site_main_sha()
         report = RUNS / ('main-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
         report.mkdir(parents=False, exist_ok=False)
