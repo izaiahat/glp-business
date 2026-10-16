@@ -91,6 +91,26 @@ class CaptureRootsTests(unittest.TestCase):
         self.assertIn(self.sha, plan.call_args.kwargs['captures']['_by_link_sha256'])
         self.assertTrue(all(value == 0 for value in result['effects'].values()))
 
+    def test_registered_dry_run_consumes_explicit_fixture_approval_chain(self):
+        carrier = (ROOT / 'ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh').read_text()
+        start = carrier.index('if [[ $dry_run -eq 1 ]]; then\n  wire_report_dir=')
+        block = carrier[start:carrier.index('\nset +e', start)]
+        extra = self.root / 'additional-captures'
+        extra.mkdir()
+        import shlex
+        script = ('dry_run=1\nwire_args=(--apply)\nfixture_root=' + shlex.quote(str(self.root))
+                  + '\noffline_output=' + shlex.quote(str(self.root / 'output')) + '\n'
+                  + block + '\nprintf "%s\\n" "${wire_args[@]}"\n')
+        run = subprocess.run(['bash', '-eu', '-c', script], capture_output=True, text=True, check=True)
+        args = run.stdout.splitlines()
+        self.assertNotIn('--apply', args)
+        self.assertEqual(args[args.index('--additional-captures') + 1], str(extra))
+        self.assertNotIn(producer.BUSINESS.as_posix(), args)
+        # Old fixture bundles stay isolated and continue to work unchanged.
+        extra.rmdir()
+        run = subprocess.run(['bash', '-eu', '-c', script], capture_output=True, text=True, check=True)
+        self.assertNotIn('--additional-captures', run.stdout.splitlines())
+
     def test_only_current_carrier_binds_exact_chain_root_and_scanner(self):
         carrier = (ROOT / 'ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh').read_text()
         self.assertIn('--additional-captures /home/ubuntu/business/reports/glp-affiliate-auto-reconciler/maxbounty-approval-chain', carrier)

@@ -437,8 +437,14 @@ def normalize_network(value: Any) -> str:
     return aliases.get(text, text)
 
 
-def load_exact_paid_event_policy(path: Path = EXACT_PAID_EVENT_POLICY) -> dict[str, Any]:
-    """Load the explicit per-network publication contract for one commercial field."""
+def load_exact_paid_event_policy(
+    path: Path = EXACT_PAID_EVENT_POLICY, *, evidence_network: str | None = None,
+) -> dict[str, Any]:
+    """Validate the document and the evidence consumed by the requested rail.
+
+    A missing sibling's evidence must not abort every independent row. The
+    default full-policy audit still validates every evidence path.
+    """
     document = read_json(Path(path))
     if document.get("schema") != "glp.exact-paid-event-publication-policy.v1":
         raise B2Error("exact_paid_event_publication_policy_schema_invalid")
@@ -451,6 +457,9 @@ def load_exact_paid_event_policy(path: Path = EXACT_PAID_EVENT_POLICY) -> dict[s
             raise B2Error(f"exact_paid_event_publication_policy_network_invalid:{network}")
         if record.get("publication_mode") not in allowed:
             raise B2Error(f"exact_paid_event_publication_mode_invalid:{network}")
+    for network, record in networks.items():
+        if evidence_network is not None and network != evidence_network:
+            continue
         evidence = BUSINESS / str(record.get("evidence") or "")
         try:
             evidence.resolve().relative_to(BUSINESS.resolve())
@@ -469,7 +478,15 @@ def exact_paid_event_gate(
 ) -> dict[str, Any]:
     """Apply the field gate without turning an unpublished field into a legality hold."""
     key = normalize_network(network)
-    policy = load_exact_paid_event_policy(policy_path)
+    try:
+        policy = load_exact_paid_event_policy(policy_path, evidence_network=key)
+    except B2Error as exc:
+        if str(exc) != f"exact_paid_event_policy_evidence_missing:{key}":
+            raise
+        return {
+            "status": "BLOCK", "reason": str(exc), "network": key,
+            "field": "exact_paid_event", "risk_acceptance": None,
+        }
     events = sorted({
         re.sub(r"[^a-z0-9]+", "_", str((offer or {}).get("exact_paid_event")
                                          or (offer or {}).get("paid_event") or "")
