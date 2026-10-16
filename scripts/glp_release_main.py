@@ -572,21 +572,26 @@ def main(argv=None):
         original_gate = job.build_gate
 
         def gated(source, rep, config, head):
-            from glp_release_inputs import capture
+            from glp_release_inputs import capture, input_drift, stamp
             # A fresh clone must have no hidden ignored/untracked inputs at the
             # build boundary. Its entire tracked source is the accepted Git tree.
             if job.run(['git', 'status', '--porcelain', '--untracked-files=all', '--ignored'], cwd=source):
                 raise ValueError('main_build_unsealed_source_inputs')
             tree = job.run(['git', 'rev-parse', 'HEAD^{tree}'], cwd=source)
             job.namespace(config, source, rep)  # seal actual, possibly materialized binds
+            pre, post = {}, {}
             before = capture(config, source_tree=tree, source_revision=head,
-                             sheet_sha256=job.sha(rep / 'registry/sheet-snapshot.json'))
+                             sheet_sha256=job.sha(rep / 'registry/sheet-snapshot.json'), diagnostics=pre)
             job.save(rep / 'BUILD-INPUTS.json', before)
+            gate_timing = {'started': stamp()}
             original_gate(source, rep, config, head)
+            gate_timing['finished'] = stamp()
             after = capture(config, source_tree=tree, source_revision=head,
-                            sheet_sha256=job.sha(rep / 'registry/sheet-snapshot.json'))
+                            sheet_sha256=job.sha(rep / 'registry/sheet-snapshot.json'), diagnostics=post)
             if before != after:
-                raise ValueError('main_build_inputs_changed_during_build')
+                exc = ValueError('main_build_inputs_changed_during_build')
+                exc.input_drift = input_drift(before, after, pre, post, gate_timing)
+                raise exc
             log({'secrets_scan': secrets_scan(Path(source) / 'public')})
         job.build_gate = gated
         import glp_affiliate_release as release
@@ -600,7 +605,8 @@ def main(argv=None):
                                  publish=not a.prepare_only, source_only=False)
         except Exception as exc:
             job.save(report / 'FAILURE.json', {'status': 'FAIL', 'scope': SCOPE, 'error': str(exc)[:2000],
-                                               'run_type': os.environ.get('GLP_RUN_TYPE', 'manual')})
+                                               'run_type': os.environ.get('GLP_RUN_TYPE', 'manual'),
+                                               **({'input_drift': exc.input_drift} if hasattr(exc, 'input_drift') else {})})
             raise
         out = {'status': result.get('status'), 'scope': SCOPE, 'site_main': main_sha, 'source_pr': pr['url'],
                'deployment_id': pointer_head()[1], 'predecessor_deployment_id': current_deployment, 'report': str(report)}
