@@ -59,7 +59,8 @@ def native_fixture(tmp_path):
     for jid, name, old, *_ in GLP334_JOBS:
         path = home / 'scripts' / name
         path.write_bytes(blob(GLP334_PREDECESSOR, 'ops/hermes-cron-scripts/' + name))
-        path.chmod(0o755)
+        # External receiving lstat, NOT Git's 100755 source snapshot mode.
+        path.chmod(0o700 if jid == 'aadf6677c7f0' else 0o755)
         assert pair.digest(path.read_bytes()) == old
     registry = home / 'cron/jobs.json'
     registry.write_text(json.dumps({'jobs': native_metadata() + [{'id': 'unrelated', 'schedule': 'retained'}]}))
@@ -124,13 +125,17 @@ def test_genuine_old_external_native_identities_and_reviewed_successors(tmp_path
         snap = 'ops/hermes-cron-scripts/' + name
         plan, before = pair._target_preimage(tmp_path, home, registry, None, jid, name, snap, ROOT)
         assert before[0] == blob(GLP334_PREDECESSOR, snap)
+        assert before[1] == (0o700 if jid == 'aadf6677c7f0' else 0o755)
+        assert plan['wrapper_before_mode'] == before[1]
+        assert plan['wrapper_before_owner'] == {'uid': os.geteuid(), 'gid': os.getegid()}
         assert plan['job_before']['script_sha256'] == old
         assert hashes[snap] == pair.digest(blob(GLP334_SOURCE, snap)) != old
     assert hashes['ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j7.sh'] == '9caf9e6ddec18de5dcec393377dda87bc5b27e4fed30abea736f804c8c53f602'
     assert hashes['ops/hermes-cron-scripts/glp334_live_reconciliation.sh'] == 'a9c71fbd7afa4971eca21436facad2a09eb20ff91de96a15ce4866a1b23194f8'
 
 
-@pytest.mark.parametrize('field,value', [('script', 'glp_affiliate_weekly_reporting.sh'),
+@pytest.mark.parametrize('field,value', [('id', 'aadf6677c7f1'),
+    ('script', 'glp_affiliate_weekly_reporting.sh'),
     ('workdir', '/unrelated'), ('no_agent', False), ('script_timeout_seconds', 301),
     ('schedule', {'kind': 'cron', 'expr': '0 0 * * *'}), ('running', True),
     ('fire_claim', {'owner': 'other'}), ('script_sha256', '0' * 64)])
@@ -144,6 +149,53 @@ def test_wrong_j7_or_native_identity_refuses_without_writes(tmp_path, field, val
     with pytest.raises(RuntimeError):
         pair._target_preimage(tmp_path, home, registry, None, jid, name,
                               'ops/hermes-cron-scripts/' + name, ROOT)
+    assert registry.read_bytes() == before
+
+
+@pytest.mark.parametrize('index,mode', [(0, m) for m in (0o755, 0o750, 0o600, 0o777, 0o4700, 0o2700, 0o1700)]
+                         + [(1, m) for m in (0o700, 0o750, 0o644, 0o777, 0o4755)])
+def test_exact_external_mode_contract_refuses_all_other_modes(tmp_path, index, mode):
+    home, registry = native_fixture(tmp_path)
+    jid, name, *_ = GLP334_JOBS[index]
+    wrapper = home / 'scripts' / name
+    wrapper.chmod(mode)  # Disposable copy only.
+    before = (registry.read_bytes(), pair.read_regular(wrapper), wrapper.lstat())
+    with pytest.raises(RuntimeError, match='glp334_genuine_target_predecessor_required:' + jid):
+        pair._target_preimage(tmp_path, home, registry, None, jid, name,
+                              'ops/hermes-cron-scripts/' + name, ROOT)
+    assert registry.read_bytes() == before[0] and pair.read_regular(wrapper) == before[1]
+    assert wrapper.lstat() == before[2]
+
+
+@pytest.mark.parametrize('fault', ['id', 'name', 'snapshot', 'uid', 'gid', 'hardlink'])
+def test_enrollment_target_tuple_and_owner_are_not_caller_waivers(tmp_path, monkeypatch, fault):
+    home, registry = native_fixture(tmp_path)
+    jid, name, *_ = GLP334_JOBS[0]
+    wrapper = home / 'scripts' / name
+    snap = 'ops/hermes-cron-scripts/' + name
+    if fault in ('uid', 'gid'):
+        lstat = Path.lstat
+        def changed_owner(path, *args, **kwargs):
+            observed = lstat(path, *args, **kwargs)
+            if path == wrapper:
+                fields = list(observed); fields[4 if fault == 'uid' else 5] += 1
+                return os.stat_result(fields)
+            return observed
+        monkeypatch.setattr(Path, 'lstat', changed_owner)
+    elif fault == 'hardlink': os.link(wrapper, home / 'extra-link')
+    else:
+        if fault == 'id':
+            document = json.loads(registry.read_bytes())
+            document['jobs'][0]['id'] = jid = 'aadf6677c7f1'
+            registry.write_text(json.dumps(document))
+        elif fault == 'name':
+            changed = 'other.sh'; wrapper.rename(home / 'scripts' / changed)
+            document = json.loads(registry.read_bytes()); document['jobs'][0]['script'] = changed
+            registry.write_text(json.dumps(document)); name = changed
+        else: snap = 'ops/hermes-cron-scripts/' + GLP334_JOBS[1][1]
+    before = registry.read_bytes()
+    with pytest.raises(RuntimeError, match='glp334_genuine_target_predecessor_required:' + jid):
+        pair._target_preimage(tmp_path, home, registry, None, jid, name, snap, ROOT)
     assert registry.read_bytes() == before
 
 
@@ -253,7 +305,8 @@ def retained_fixture(tmp_path):
 
 @pytest.mark.parametrize('fault', ['success', 'contention', 'wrapper1-before', 'wrapper1-after',
     'wrapper2-before', 'wrapper2-after', 'native-before', 'native-after', 'record1', 'record2',
-    'restoration', 'inherited', 'foreign', 'closed', 'thread', 'entry'])
+    'restoration', 'inherited', 'foreign', 'closed', 'thread', 'entry',
+    'mode-reviewed', 'mode-custody', 'mode-switch', 'owner-custody', 'owner-switch', 'owner-open', 'full-record-reviewed'])
 def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch, fault):
     """Real kernel contention and maintained switch; only scheduling is private."""
     import fcntl
@@ -262,6 +315,28 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
     import maintenance_window as mw
     import maintenance_cohort as cohort
     live, home, reg, spec, generation = retained_fixture(tmp_path)
+    # bwrap maps only one GID. Model a preservable supplementary-group drift at
+    # the exact stat/fstat/fchown seam; all bytes/modes/locks/saves remain real.
+    foreign_gid = os.getegid() + 1
+    changed_owners = {}
+    real_stat, real_fstat, real_fchown = Path.stat, os.fstat, os.fchown
+    def owner_stat(st):
+        if (st.st_dev, st.st_ino) not in changed_owners: return st
+        values = list(st); values[5] = foreign_gid
+        return os.stat_result(values, {k: getattr(st, k) for k in ('st_atime_ns', 'st_mtime_ns', 'st_ctime_ns')})
+    def drift_owner(path):
+        st = real_stat(path); changed_owners[st.st_dev, st.st_ino] = foreign_gid
+    def owner_chown(fd, uid, gid):
+        if gid == foreign_gid:
+            st = real_fstat(fd); changed_owners[st.st_dev, st.st_ino] = foreign_gid
+            gid = os.getegid()
+        return real_fchown(fd, uid, gid)
+    if fault.startswith('owner-'):
+        groups = os.getgroups()
+        monkeypatch.setattr(os, 'getgroups', lambda: groups + [foreign_gid])
+        monkeypatch.setattr(Path, 'stat', lambda p, **kw: owner_stat(real_stat(p, **kw)))
+        monkeypatch.setattr(os, 'fstat', lambda fd: owner_stat(real_fstat(fd)))
+        monkeypatch.setattr(os, 'fchown', owner_chown)
     old = json.loads(reg.read_bytes())['jobs']
     paused = copy.deepcopy(old)
     for row in paused[:2]: row.update(enabled=False, state='paused')
@@ -292,6 +367,10 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
             yield h
     locks = mw.default_locks(live, home)
     wrappers = [home / 'scripts' / name for name in spec.wrappers]
+    if fault == 'mode-reviewed': wrappers[0].chmod(0o755)
+    if fault == 'full-record-reviewed':
+        rows = json.loads(reg.read_bytes()); rows['jobs'][0]['last_status'] = 'drift'
+        reg.write_text(json.dumps(rows))
     def witness(edge, native=True):
         assert threading.get_ident() == tid
         assert held(cleanup), 'cleanup singleton absent at ' + edge
@@ -376,6 +455,28 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
         if selected and fault.endswith('after'): raise OSError(fault)
         return result
     monkeypatch.setattr(cohort.os, 'replace', checked_replace)
+    if fault in ('mode-custody', 'owner-custody'):
+        preserve = pair.preserve_custody
+        def drift_after_custody(*args, **kwargs):
+            result = preserve(*args, **kwargs)
+            if fault == 'mode-custody': wrappers[0].chmod(0o755)
+            else: drift_owner(wrappers[0])
+            return result
+        monkeypatch.setattr(pair, 'preserve_custody', drift_after_custody)
+    if fault in ('mode-switch', 'owner-switch'):
+        switch = active.switch_files
+        def drift_at_switch(*args, **kwargs):
+            if fault == 'mode-switch': wrappers[0].chmod(0o755)
+            else: drift_owner(wrappers[0])
+            return switch(*args, **kwargs)
+        monkeypatch.setattr(active, 'switch_files', drift_at_switch)
+    if fault == 'owner-open':
+        opened = cohort.os.open
+        def drift_at_open(path, flags, *args, **kwargs):
+            if Path(path) == wrappers[0] and flags == os.O_RDONLY | os.O_NOFOLLOW:
+                drift_owner(wrappers[0])
+            return opened(path, flags, *args, **kwargs)
+        monkeypatch.setattr(cohort.os, 'open', drift_at_open)
     review = {'schema': 'glp-ship-review-v1', 'prepared_by': 'offline-preparer',
               'reviewer': 'independent-fixture', 'decision': 'ACCEPT_EXACT_PROPOSAL',
               'proposal_sha256': json_sha(generation.proposal)}
@@ -419,12 +520,34 @@ def test_cleanup_singleton_covers_real_enrollment_effects(tmp_path, monkeypatch,
             result = run()
             assert result['runs'] == [] and scheduler.saves == 1
             assert {'wrapper1', 'wrapper2', 'native-save', 'window-exit', 'window-readback'} <= set(events)
+            assert [p.stat().st_mode & 0o7777 for p in wrappers] == [0o700, 0o755]
+            assert [(p.stat().st_uid, p.stat().st_gid) for p in wrappers] == [(os.geteuid(), os.getegid())] * 2
         else:
-            with pytest.raises((RuntimeError, OSError)): run()
+            refusal = {'mode-reviewed': 'glp334_genuine_target_predecessor_required:',
+                       'mode-custody': 'preimage_moved_after_custody',
+                       'mode-switch': 'rollback_conflict_no_overwrite:source_cohort',
+                       'owner-custody': 'glp334_genuine_target_predecessor_required:',
+                       'owner-switch': 'cohort_owner_preimage_moved:',
+                       'owner-open': 'cohort_owner_preimage_moved:',
+                       'full-record-reviewed': 'ship_job_preimage_moved:'}.get(fault)
+            with pytest.raises((RuntimeError, OSError), match=refusal) as caught: run()
+            if fault == 'mode-switch':
+                # The cohort first refuses its full mode CAS. The adopter then
+                # refuses to overwrite the foreign mode during inverse cleanup.
+                assert 'cohort_preimage_moved:' in str(caught.value.__context__)
+
             assert 'window-exit' in events
+            if fault.startswith(('mode-', 'owner-')) or fault == 'full-record-reviewed':
+                assert scheduler.saves == 0 and reg.read_bytes() == before
+                assert not any(e in events for e in ('wrapper1', 'wrapper2', 'native-save'))
+                assert [p.stat().st_mode & 0o7777 for p in wrappers] == ([0o755, 0o755] if fault.startswith('mode-') else [0o700, 0o755])
+                if fault.startswith('owner-'):
+                    assert wrappers[0].stat().st_gid == foreign_gid
             if fault.startswith('wrapper'):
                 assert scheduler.saves == 0 and reg.read_bytes() == before
                 assert {p: pair.read_regular(p) for p in wrappers} == preimages
+                assert [p.stat().st_mode & 0o7777 for p in wrappers] == [0o700, 0o755]
+                assert [(p.stat().st_uid, p.stat().st_gid) for p in wrappers] == [(os.geteuid(), os.getegid())] * 2
             if fault.startswith('native') or fault.startswith('record'):
                 sw = mw.read_journal(journal)['source_switch']
                 assert sw['commit_started'] and sw['state'] == 'commit_uncertain'
@@ -458,8 +581,8 @@ def test_genuine_complete_offline_enrollment_and_source_unchanged(tmp_path, monk
             events.append(('intent', jid))
         def accept_file_updates(self, before, after):
             assert set(before) == {str((home / 'scripts' / name).resolve()) for _, name, *_ in GLP334_JOBS}
-        def switch_files(self, stage, before, commit=None):
-            return switch_files(journal, stage, before, lambda: [], commit=commit)
+        def switch_files(self, stage, before, commit=None, **kwargs):
+            return switch_files(journal, stage, before, lambda: [], commit=commit, **kwargs)
     window = Window()
     monkeypatch.setattr(mw, 'require_active_window', lambda *a: nullcontext(window))
     class Scheduler:
@@ -488,7 +611,8 @@ def test_genuine_complete_offline_enrollment_and_source_unchanged(tmp_path, monk
     after = json.loads(registry.read_text())['jobs']
     assert after[2:] == current[2:]
     for index, (jid, name, *_rest) in enumerate(GLP334_JOBS):
-        assert pair.read_regular(home / 'scripts' / name)[0] == blob(GLP334_SOURCE, 'ops/hermes-cron-scripts/' + name)
+        assert pair.read_regular(home / 'scripts' / name) == (blob(GLP334_SOURCE, 'ops/hermes-cron-scripts/' + name),
+                                                            0o700 if jid == 'aadf6677c7f0' else 0o755)
         assert {k:v for k,v in after[index].items() if k != 'script_sha256'} == {k:v for k,v in current[index].items() if k != 'script_sha256'}
     assert events.count(('save', None)) == 1
     assert {jid for event,jid in events if event == 'fire'} == set(spec.jobs)

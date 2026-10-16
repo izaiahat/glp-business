@@ -49,7 +49,7 @@ def metadata(st):
     return {k: getattr(st, 'st_' + k) for k in ('dev', 'ino', 'uid', 'gid', 'size', 'mtime_ns')}
 
 
-def switch_files(journal, stage, before, drain, *, commit=None):
+def switch_files(journal, stage, before, drain, *, commit=None, expected_owners=None):
     """Optionally commit an external pin while sources/caches remain sealed.
 
     Once commit is entered, ANY failure retains the seal and custody, without
@@ -64,6 +64,11 @@ def switch_files(journal, stage, before, drain, *, commit=None):
     status = Path('/proc/self/status').read_text()
     caps = int(next(line.split()[1] for line in status.splitlines() if line.startswith('CapEff:')), 16)
     require(not caps & ((1 << 1) | (1 << 2)), 'cohort_dac_override_refused')
+    expected_owners = expected_owners or {}
+    require(set(expected_owners) <= set(stage) & set(before), 'cohort_owner_scope_moved')
+    for path, expected in expected_owners.items():
+        st = path.lstat()
+        require((st.st_uid, st.st_gid) == expected, 'cohort_owner_preimage_moved:' + str(path))
     data = read_journal(journal)
     previous = data.get('source_switch', {})
     files = previous.get('files', {})
@@ -99,6 +104,8 @@ def switch_files(journal, stage, before, drain, *, commit=None):
             fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
             stack.callback(os.close, fd)
             st = os.fstat(fd)
+            if path in expected_owners:
+                require((st.st_uid, st.st_gid) == expected_owners[path], 'cohort_owner_preimage_moved:' + str(path))
             require(stat.S_ISREG(st.st_mode) and st.st_uid == os.geteuid() and st.st_nlink == 1,
                     'cohort_owner_regular_single_link_required:' + str(path))
             require(st.st_gid in set(os.getgroups()) | {os.getegid()}, 'cohort_group_not_preservable')

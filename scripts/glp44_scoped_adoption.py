@@ -343,18 +343,31 @@ def _target_preimage(root, hermes, registry, window, jid, name, snapshot, enroll
             or job.get('script_sha256') != digest(before[0])
             or any(current.get(k) for k in ('fire_claim', 'run_claim', 'running'))):
         raise RuntimeError('reporting_job_not_idle_or_preimage_moved')
+    owner_fields = {}
     if enrollment:
         from glp_ship_registry import GLP334_JOBS, GLP334_PREDECESSOR
-        _, _, old_hash, timeout, cron = next(r for r in GLP334_JOBS if r[0] == jid)
+        contract = next((r for r in GLP334_JOBS if r[0] == jid), None)
+        if contract is None or (name, snapshot) != (contract[1], 'ops/hermes-cron-scripts/' + contract[1]):
+            raise RuntimeError('glp334_genuine_target_predecessor_required:' + jid)
+        _, _, old_hash, timeout, cron = contract
         prior = subprocess.check_output(['git', '-C', str(enrollment), 'show', GLP334_PREDECESSOR + ':' + snapshot])
-        if (digest(prior) != old_hash or before != (prior, 0o755)
+        # Authenticated external lstat contract, not Git's 100755 snapshot.
+        # The maintained switch preserves this mode on publish AND restoration;
+        # only its existing seal/uncertain boundary may temporarily remove access.
+        mode = {'aadf6677c7f0': 0o700, '2ca359464bfa': 0o755}[jid]
+        owner = wrapper.lstat()
+        if (digest(prior) != old_hash or before != (prior, mode)
+                or stat.S_IMODE(owner.st_mode) != mode
+                or (owner.st_uid, owner.st_gid) != (os.geteuid(), os.getegid()) or owner.st_nlink != 1
                 or job.get('workdir') != str(syncer.DEFAULT_ROOT) or job.get('no_agent') is not True
                 or job.get('script_timeout_seconds') != timeout
                 or job.get('schedule') != {'kind': 'cron', 'expr': cron, 'display': cron}):
             raise RuntimeError('glp334_genuine_target_predecessor_required:' + jid)
+        owner_fields['wrapper_before_owner'] = {'uid': owner.st_uid, 'gid': owner.st_gid}
     elif before[0] != read_regular(root / snapshot)[0]:
         raise RuntimeError('installed_wrapper_not_curated_predecessor')
     return {'job_before': job, 'job_window_before': current,
+            **owner_fields,
             'wrapper_before_sha256': digest(before[0]), 'wrapper_before_mode': before[1]}, before
 
 
@@ -725,6 +738,9 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
     for target_id, name, _ in targets:
         original[hermes / 'scripts' / name] = read_regular(hermes / 'scripts' / name)
     target_plans = proposal.get('enrollment_targets', {jid: proposal})
+    switch_args = {'expected_owners': {hermes / 'scripts' / name:
+        (target_plans[target_id]['wrapper_before_owner']['uid'], target_plans[target_id]['wrapper_before_owner']['gid'])
+        for target_id, name, _ in targets}} if enrollment else {}
     with ExitStack() as fire_fences:
         for target_id, _, _ in targets:
             if not fire_fences.enter_context(scheduler._fire_job_lock(target_id)):
@@ -805,7 +821,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
                 source_written = True  # the switch can publish before acknowledgement fails
                 if successor:
                     # Reuse the maintained F09 seal/intent/save/readback boundary.
-                    window.switch_files(stage, original, commit=commit)
+                    window.switch_files(stage, original, commit=commit, **switch_args)
                 else:
                     # Preserve the original PR71 source-only switch contract.
                     window.switch_files(stage, original)
@@ -824,7 +840,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
                     if current_files != original:
                         if current_files != staged_files:
                             raise RuntimeError('rollback_conflict_no_overwrite:source_cohort')
-                        window.switch_files({path: value[0] for path, value in original.items()}, staged_files)
+                        window.switch_files({path: value[0] for path, value in original.items()}, staged_files, **switch_args)
                 raise
     return {'applied': True, 'source': approved, 'proposal': proposal, 'custody': str(custody)}
 
