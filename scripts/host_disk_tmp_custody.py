@@ -32,9 +32,44 @@ UNIT_SUFFIXES = {'.service', '.socket', '.device', '.mount', '.automount',
                  '.swap', '.target', '.path', '.timer', '.slice', '.scope'}
 
 
+# One explicit rebuildable-payload entry, not a generic name/suffix heuristic.
+# Node fs.mkdtemp appends six ASCII alphanumerics. Only this producer and its
+# external, retained rebuild inputs are admitted; a candidate cannot vouch for
+# its own rebuildability. Existing age/process/payload/custody guards still apply.
+DECLARED_NAME = re.compile(r'aeo-declared-[A-Za-z0-9]{6}\Z')
+DECLARED_REBUILD_ROOT = Path('/home/ubuntu/business/site-system/flagship-v2/candidates/glp34-provider-families-20260912')
+DECLARED_REBUILD_FILES = (
+    'tests/lastmod-declared-routes.test.mjs',
+    'scripts/postbuild-aeo-surface.mjs',
+    'data/page-content-provenance.json',
+    'data/llms-priority.json',
+)
+DECLARED_REBUILD_DIRS = ('src', 'public')
+
+
 def declared_directory(path, root):
-    return (path.parent == root and path.name.startswith('aeo-declared-')
-            and path.name != 'aeo-declared-' and path.is_dir() and not path.is_symlink())
+    return (path.parent == root and DECLARED_NAME.fullmatch(path.name) is not None
+            and path.is_dir() and not path.is_symlink())
+
+
+def _rebuild_sources(candidate, deadline):
+    """Require fixed external rebuild inputs and retain identities for recheck."""
+    root = DECLARED_REBUILD_ROOT
+    identities = {}
+    paths = [(root, True)] + [(root / p, False) for p in DECLARED_REBUILD_FILES]
+    paths += [(root / p, True) for p in DECLARED_REBUILD_DIRS]
+    for source, directory in paths:
+        _budget(deadline)
+        try:
+            if source.resolve(strict=True) != source or _overlaps(source, candidate):
+                raise ValueError('aliased or overlapping rebuild source: ' + str(source))
+            identity = _identity(source)
+            if not (stat.S_ISDIR(identity[2]) if directory else stat.S_ISREG(identity[2])):
+                raise ValueError('invalid rebuild source: ' + str(source))
+            identities[source] = identity
+        except (OSError, RuntimeError) as error:
+            raise ValueError('rebuild source unavailable: ' + str(source)) from error
+    return identities
 
 
 def _budget(deadline):
@@ -245,8 +280,10 @@ def _process_scan(path, deadline, inodes):
 def require_unreferenced(path, deadline):
     """Missing, unreadable, changed or timed-out evidence always raises."""
     from host_disk_large_classes import snapshot
+    rebuild = _rebuild_sources(path, deadline)
     members, _ = snapshot(path, deadline)
     inodes = {(r[1], r[2]) for r in members}
     identities = _reference_scan(path, deadline, inodes)
     _process_scan(path, deadline, inodes)
     _validate_references(identities, deadline)
+    _validate_references(rebuild, deadline)

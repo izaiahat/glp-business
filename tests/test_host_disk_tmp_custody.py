@@ -60,9 +60,20 @@ class DeclaredTmpTests(unittest.TestCase):
         self.base = Path(self.fixture.name)
         self.tmp = self.base / 'tmp'
         self.tmp.mkdir()
-        self.candidate = self.tmp / 'aeo-declared-idle'
+        self.candidate = self.tmp / 'aeo-declared-Ab09xY'
         self.candidate.mkdir()
         (self.candidate / 'payload.txt').write_text('disposable fixture\n' * 100)
+        self.rebuild_source = self.base / 'rebuild-source'
+        # Private source-present seam; these are NOT fabricated live evidence.
+        for relative in ('tests/lastmod-declared-routes.test.mjs',
+                         'scripts/postbuild-aeo-surface.mjs',
+                         'data/page-content-provenance.json', 'data/llms-priority.json'):
+            source = self.rebuild_source / relative
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text('synthetic rebuild input\n')
+        for relative in ('src', 'public'):
+            (self.rebuild_source / relative).mkdir()
+        self.enterContext(patch.object(custody, 'DECLARED_REBUILD_ROOT', self.rebuild_source, create=True))
         self.api = FixtureAPI(self.tmp)
         self.links = self.base / 'links'
         self.links.mkdir()
@@ -103,6 +114,97 @@ class DeclaredTmpTests(unittest.TestCase):
         self.assertEqual(result['status'], 'REMOVED', result)
         self.assertFalse(self.candidate.exists())
         self.assertEqual(self.api.removed, [self.candidate])
+
+    def test_synthetic_421_exact_mkdtemp_names_are_eligible_without_deletion(self):
+        # The original 421-target identity manifest is not retained. Historical
+        # receipts retain only 405 names, all mkdtemp's six ASCII alphanumerics.
+        # This synthetic cohort mirrors that exact grammar, not live identities.
+        targets = []
+        for number in range(421):
+            target = self.tmp / f'aeo-declared-{number:06x}'
+            target.mkdir()
+            (target / 'payload.txt').write_text('rebuildable fixture\n' * 100)
+            targets.append(target)
+        rows = cold.idle_scratch(self.api, targets, pins=(), dry_run=True,
+                                 deadline=time.monotonic() + 30)
+        self.assertEqual(len(rows), 421)
+        self.assertTrue(all(row['status'] == 'ELIGIBLE' for row in rows),
+                        [row for row in rows if row['status'] != 'ELIGIBLE'][:3])
+        self.assertGreater(sum(row['eligible_bytes'] for row in rows), 0)
+        self.assertEqual(sum(row['bytes_freed'] for row in rows), 0)
+        self.assertTrue(all((target / 'payload.txt').is_file() for target in targets))
+        self.assertFalse(self.api.removed)
+
+    def test_missing_rebuild_source_refuses_both_tmp_entries(self):
+        self.rebuild_source.joinpath('tests/lastmod-declared-routes.test.mjs').unlink()
+        self.assertIn('rebuild source', self.assert_kept()['reason'])
+        import host_disk_auto_classes as auto
+        rows = auto.stale_tmp(self.api, cold, pins=(), deadline=time.monotonic() + 10,
+                              dry_run=False, root=self.tmp, min_bytes=0)
+        self.assertEqual(rows[0]['status'], 'REFUSED', rows)
+        self.assertIn('rebuild source', rows[0]['reason'])
+        self.assertFalse(self.api.removed)
+
+    def test_rebuild_source_alias_is_refused(self):
+        source = self.rebuild_source / 'scripts/postbuild-aeo-surface.mjs'
+        saved = self.rebuild_source / 'saved.mjs'
+        source.rename(saved)
+        source.symlink_to(saved)
+        self.assertIn('rebuild source', self.assert_kept()['reason'])
+
+    def test_rebuild_source_drift_during_process_scan_is_refused(self):
+        original = custody._process_scan
+        def changed(path, deadline, inodes):
+            original(path, deadline, inodes)
+            (self.rebuild_source / 'data/llms-priority.json').write_text('changed input')
+        with patch.object(custody, '_process_scan', changed):
+            self.assertIn('inventory changed', self.assert_kept()['reason'])
+
+    def test_source_lost_on_final_check_stays_protected(self):
+        original = custody.require_unreferenced
+        calls = []
+        def changed(path, deadline):
+            calls.append(path)
+            if len(calls) == 2:
+                self.rebuild_source.joinpath('scripts/postbuild-aeo-surface.mjs').unlink()
+            return original(path, deadline)
+        with patch.object(custody, 'require_unreferenced', changed):
+            self.assertIn('rebuild source', self.assert_kept()['reason'])
+        self.assertEqual(len(calls), 2)
+
+    def test_non_mkdtemp_declared_names_never_qualify(self):
+        original = self.candidate
+        for name in ('aeo-declared-', 'aeo-declared-idle', 'aeo-declared-abc12',
+                     'aeo-declared-abc1234', 'aeo-declared-abc_12',
+                     'aeo-declared-abc123.tar', 'aeo-declared-é12345'):
+            with self.subTest(name=name):
+                renamed = self.tmp / name
+                original.rename(renamed)
+                self.candidate = renamed
+                try:
+                    rows = cold.idle_scratch(self.api, [renamed], pins=(), dry_run=True,
+                                             deadline=time.monotonic() + 10)
+                    self.assertEqual(rows[0]['status'], 'REFUSED', rows)
+                    self.assertTrue((renamed / 'payload.txt').is_file())
+                finally:
+                    renamed.rename(original)
+                    self.candidate = original
+
+    def test_protected_roots_never_qualify_even_with_declared_child(self):
+        original = self.candidate
+        for name in ('tmux-1000', '.org.chromium.Chromium.fixture',
+                     'claude-1000', 'hermes-results'):
+            with self.subTest(name=name):
+                protected = self.tmp / name
+                protected.mkdir()
+                nested = protected / original.name
+                original.rename(nested)
+                rows = cold.idle_scratch(self.api, [protected, nested], pins=(),
+                                         dry_run=False, deadline=time.monotonic() + 10)
+                self.assertTrue(all(row['status'] == 'REFUSED' for row in rows), rows)
+                self.assertTrue((nested / 'payload.txt').is_file())
+                self.assertFalse(self.api.removed)
+                nested.rename(original)
 
     def test_runtime_user_unit_is_a_scheduler_source(self):
         self.assertTrue(custody._schedule(Path('/run/user/1000/systemd/user/reader.service')))
