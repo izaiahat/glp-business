@@ -5470,7 +5470,7 @@
         "GLP331 disposable native fixture; no live effects"
       ],
       "kind": "test",
-      "sha256": "fcc5175fa627621c8b53ecf1b0702aeba2340cf5161e71dba6c1ffc1595da90d"
+      "sha256": "92cf7bb10d8183f27516a18c5d3374e8802006e689a4c6bf9eaeb1e6ad927b59"
     },
     "tests/test_glp331_carrier_generation.py": {
       "callers": [
