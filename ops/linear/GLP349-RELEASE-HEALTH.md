@@ -17,6 +17,13 @@ merged-PR/tree-equality gate. An advanced base, mutated proposal, closed proposa
 non-green CI or uncertain ref never grants publication. Unrelated PR116 stays
 untouched. The proposal itself is not a release receipt.
 
+Marker recovery requires all three applicable data/** workflows: mirror-ci's
+Portable export contracts, glp80-qualified-projection's focused-exact-head, and
+price-refresh-evidence's exact-head job. Rollup names alone are insufficient:
+Actions run/attempt/job metadata must authenticate the candidate SHA, same repo,
+PR and terminal success. Missing, truncated or partial registration defers.
+These portable workflows are not the native release gate.
+
 ## Exact input reuse
 
 A successful publication now retains BUILD-INPUTS.json and SUCCESSFUL-INPUTS.json.
@@ -31,6 +38,14 @@ Namespace networking, capabilities and inherited environment remain closed.
 Nested symbolic links are interpreted in the namespace, not followed into
 unmounted host secrets; inaccessible entries retain their permission identity.
 No historical release is assigned invented input provenance.
+
+`namespace()` registers its effective argv in runtime-only config. Input capture
+hashes the materialized writable binds as well as their seed provenance, with
+stable cross-run identities rather than report-directory paths. Dirty preexisting
+binds refuse reuse. The gated pre-build boundary materializes/checks them before
+capturing; post-build capture rejects any non-source input mutation. Source
+public/artifacts are generated outputs, not exemptions for arbitrary bind input
+files. There is deliberately no blanket tmp/cache exclusion from the input key.
 
 The full native candidate is hash-sealed as the validation source because the
 sanitized package omits Functions source. Its actual deployed `public/` is
@@ -47,6 +62,13 @@ recorded, with no clone/build/package/deployment/pointer mutation. The registere
 shell receives its existing PASS_ALREADY_CURRENT compatibility status plus
 receipt_status=SKIPPED_IDENTICAL_INPUTS; the receipt keeps the precise status.
 UTC-day changes force a build; sub-day freshness controls are rerun, not cached.
+
+Skip uses the maintained strict raw sensor verifier (complete checks, live mode,
+hash, timestamp/event and canonical deployment equality). Its explicit no-op
+schema pins the exact terminal pointer/final receipt and remint event; the pointer
+and terminal evidence are reread at the final success boundary. Refused sensor
+receipts cannot reach skip-success or search notification. Existing caller
+schemas and refusal assertions are unchanged.
 
 Missing input history or any input difference requires a real build. STOP92 is
 checked before allocating a clone. Source-only fixture tests are not a live skip

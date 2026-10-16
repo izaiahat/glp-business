@@ -182,8 +182,20 @@ def test_main_acceptance_existing_proposal_never_bypasses_ci_or_scope(defect):
                 return [{'number':120,'url':'u120','headRefOid':'H','mergeCommit':{'oid':'M2'}}] if state['merged'] else [
                     {'number':119,'url':'u119','headRefOid':'OLD','mergeCommit':{'oid':'M'}}]
             return [{'number':120,'url':'u120','headRefOid':'H','state':'OPEN',
-                     'statusCheckRollup':[] if defect=='pending' else [{'status':'COMPLETED','conclusion':'SUCCESS'}]}]
+                     'statusCheckRollup':[] if defect=='pending' else [
+                         {'name':n,'status':'COMPLETED','conclusion':'SUCCESS'} for n in rm.ACCEPTANCE_CHECKS.values()]}]
         endpoint = args[1].split('glp-site-candidate/')[1]
+        if endpoint.startswith('actions/runs?'):
+            return {'total_count':3,'workflow_runs':[
+                {'id':i,'run_number':1,'run_attempt':1,'path':w,'head_sha':'H',
+                 'event':'pull_request','head_repository':{'full_name':'izaiahat/glp-site-candidate'},
+                 'pull_requests':[{'number':120,'head':{'sha':'H'}}],
+                 'status':'completed','conclusion':'success'}
+                for i,w in enumerate(rm.ACCEPTANCE_CHECKS)]}
+        if endpoint.startswith('actions/runs/'):
+            i=int(endpoint.split('/')[2])
+            return {'total_count':1,'jobs':[{'name':list(rm.ACCEPTANCE_CHECKS.values())[i],
+                'run_id':i,'head_sha':'H','status':'completed','conclusion':'success'}]}
         if endpoint == 'git/commits/H':
             return {'parents':[{'sha':'WRONG' if defect=='parent' else 'M'}]}
         if endpoint.startswith('contents/'):

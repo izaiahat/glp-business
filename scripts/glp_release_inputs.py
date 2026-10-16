@@ -115,7 +115,13 @@ def producer_closure(root, entrypoints):
 
 def capture(config, *, source_tree, source_revision, sheet_sha256, now=None):
     """An unsupported/open environment or unreadable input cannot yield a key."""
-    argv = list(config['base_argv'])
+    declared = list(config['base_argv'])
+    argv = list(config.get('_effective_base_argv', declared))
+    if len(argv) != len(declared):
+        raise ValueError('build_input_effective_namespace_shape_drift')
+    for index, (actual, original) in enumerate(zip(argv, declared)):
+        if actual != original and (index < 2 or declared[index-1] != '--bind'):
+            raise ValueError('build_input_effective_namespace_recipe_drift')
     if '--clearenv' not in argv:
         raise ValueError('build_inputs_require_clearenv')
     if not source_tree or not source_revision or not sheet_sha256:
@@ -142,7 +148,10 @@ def capture(config, *, source_tree, source_revision, sheet_sha256, now=None):
                 source_mounts += 1
             else:
                 mounts.append({'destination': destination, 'mode': token,
-                               'sha256': path_digest(origin, file_cache=file_cache)})
+                               'sha256': path_digest(origin, file_cache=file_cache),
+                               'seed_sha256': path_digest(declared[i+1], file_cache=file_cache)})
+                if token == '--bind':
+                    argv[i+1] = '<effective-writable-bind-%d>' % i
         elif token == '--setenv':
             environment[argv[i + 1]] = hashlib.sha256(argv[i + 2].encode()).hexdigest()
         i += 1 + arities[token]
@@ -161,7 +170,7 @@ def capture(config, *, source_tree, source_revision, sheet_sha256, now=None):
             'package_compiler': package_compiler,
             'sheet_sha256': sheet_sha256,
             'execution_identity': [os.geteuid(), os.getegid(), sorted(os.getgroups())],
-            'config_sha256': digest(config),
+            'config_sha256': digest({k:v for k,v in config.items() if k != '_effective_base_argv'}),
             'clock_contract': 'UTC_render_day_and_fresh_native_temporal_validation',
             'namespace_argv_sha256': digest(argv), 'namespace_tool_sha256': path_digest(tool),
             'environment_sha256': environment, 'mounts': mounts, 'producers': producers,

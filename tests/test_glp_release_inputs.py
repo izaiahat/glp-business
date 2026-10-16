@@ -153,7 +153,16 @@ def test_identical_inputs_skip_requires_success_binding_and_passing_sensor(tmp_p
     (root / 'content').write_text('deployed')
     report = tmp_path / 'new'
     report.mkdir()
-    pointer = {'site_head':'HEAD','release_root':str(root),'deployment_id':'DEP'}
+    import glp_deploy_glp34_authority_v1 as carrier
+    terminal = tmp_path/'terminal.json'
+    job.save(terminal, {'status':'PASS_PRODUCTION_TERMINAL', 'site_head':'HEAD',
+                       'deployment':{'deployment_id':'DEP'}})
+    pointer = {'schema':'glp-opus-current-content-base-v1', 'status':'PASS',
+               'site_head':'HEAD','release_root':str(root),'deployment_id':'DEP',
+               'reminted_at_utc':(dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=1)).isoformat(),
+               'final_receipt':{'path':str(terminal),'sha256':job.sha(terminal)}}
+    pointer_path = tmp_path/'pointer.json'; job.save(pointer_path, pointer)
+    monkeypatch.setattr(carrier, 'POINTER', pointer_path)
     key = {'sha256':'INPUTS','source_tree':'TREE'}
     source = base_report/'candidate'
     source.mkdir()
@@ -165,7 +174,18 @@ def test_identical_inputs_skip_requires_success_binding_and_passing_sensor(tmp_p
     calls = []
     monkeypatch.setattr(release, 'fresh_release_inputs', lambda *a: key)
     monkeypatch.setattr(release, 'validate_cached_release', lambda *a: calls.append('validated'))
-    monkeypatch.setattr(hook, 'attach_sensor_result', lambda *a, **k: {'status':'PASS','failure_count':0})
+    import glp_deploy_completeness_sensor as sensor
+    def sensor_raw(*a, **k):
+        checks = [{'check':name,'status':'PASS'} for name in hook.LIVE_CHECKS]
+        checks[-1].update(base_deployment_id='DEP',live_canonical_deployment_id='DEP')
+        return {'schema':'glp-deploy-completeness-sensor-v1','status':'PASS',
+                'release':root.name,'release_root':str(root),'live_programs':1,
+                'checks':checks,'failed_checks':[],'skipped_checks':[],
+                'failure_count':0,'failures':[],
+                'captured_at_utc':dt.datetime.now(dt.timezone.utc).isoformat()}
+    monkeypatch.setattr(sensor, 'run_sensor', sensor_raw)
+    monkeypatch.setattr(hook, 'MACHINE_DIR', tmp_path/'sensors')
+    attach = hook.attach_sensor_result
     out = release.try_identical_inputs({}, report, pointer, {'headRefOid':'HEAD','url':'PR'})
     assert out['status'] == 'SKIPPED_IDENTICAL_INPUTS'
     assert out['deployment_id'] == 'DEP' and calls == ['validated']
@@ -182,8 +202,17 @@ def test_identical_inputs_skip_requires_success_binding_and_passing_sensor(tmp_p
     job.save(base_report / 'SUCCESSFUL-INPUTS.json', baseline)
     sequence=iter([key, {**key,'sha256':'changed while validating'}])
     monkeypatch.setattr(release, 'fresh_release_inputs', lambda *a: next(sequence))
-    monkeypatch.setattr(hook, 'attach_sensor_result', lambda *a, **k: {'status':'PASS','failure_count':0})
+    monkeypatch.setattr(hook, 'attach_sensor_result', attach)
     assert release.try_identical_inputs({}, report, pointer, {'headRefOid':'HEAD','url':'PR'}) is None
+    monkeypatch.setattr(release, 'fresh_release_inputs', lambda *a:key)
+    job.save(pointer_path, {**pointer,'deployment_id':'OTHER'})
+    with pytest.raises(ValueError, match='current_pointer_changed|main_release_base_not_terminal'):
+        release.try_identical_inputs({}, report, pointer, {'headRefOid':'HEAD','url':'PR'})
+    job.save(pointer_path, pointer)
+    terminal.write_text('{}')
+    refused = release.try_identical_inputs({}, report, pointer, {'headRefOid':'HEAD','url':'PR'})
+    assert refused['status'] == 'REFUSED_IDENTICAL_INPUTS'
+    assert 'event missing' in refused['error']
 
 
 def test_cached_validation_keeps_raw_held_oracle_without_build(tmp_path, monkeypatch):

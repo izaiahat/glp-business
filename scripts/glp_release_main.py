@@ -119,7 +119,8 @@ def ensure_main_acceptance(main_sha, gh=gh_json):
             raise RuntimeError('main_acceptance_source_drift')
         result['acceptance_pr'] = pr['url']
         checks = pr.get('statusCheckRollup') or []
-        if not checks or any(c.get('status') != 'COMPLETED' or c.get('conclusion') != 'SUCCESS' for c in checks):
+        if (not checks or any(c.get('status') != 'COMPLETED' or c.get('conclusion') != 'SUCCESS' for c in checks)
+                or not acceptance_ci_complete(pr, gh)):
             return {**result, 'reason': 'required_exact_head_ci_not_green'}
         if gh('api', f'{api}/commits/main')['sha'] != main_sha:
             raise RuntimeError('main_acceptance_base_advanced_retry_next_run')
@@ -159,6 +160,49 @@ def ensure_main_acceptance(main_sha, gh=gh_json):
                   'before this PR can merge; production exact-head tree equality stays mandatory. '
                   'No held or unrelated PR is merged.')
     return {**result, 'acceptance_pr': proposal['html_url'], 'reason': 'proposed_fresh_exact_head_ci'}
+
+
+ACCEPTANCE_CHECKS = {
+    '.github/workflows/mirror-ci.yml': 'Portable export contracts (build NOT checked)',
+    '.github/workflows/glp80-qualified-projection.yml': 'focused-exact-head',
+    '.github/workflows/price-refresh-evidence.yml': 'price-refresh-evidence-exact-head',
+}
+
+
+def acceptance_ci_complete(pr, gh):
+    """The marker enrolls all three data/** workflows, not arbitrary green CI.
+
+    Authenticate Actions provenance and exact candidate SHA, including every
+    applicable job. Portable CI remains distinct from native release approval.
+    Missing/partial registration is deferral, never acceptance.
+    """
+    names = {c.get('name') for c in pr.get('statusCheckRollup', [])}
+    if not set(ACCEPTANCE_CHECKS.values()) <= names:
+        return False
+    api = 'repos/izaiahat/glp-site-candidate'
+    head = pr['headRefOid']
+    runs = gh('api', f'{api}/actions/runs?head_sha={head}&event=pull_request&per_page=100')
+    if runs.get('total_count', 101) > 100:
+        return False  # truncated evidence is unknown
+    for workflow, name in ACCEPTANCE_CHECKS.items():
+        applicable = [r for r in runs.get('workflow_runs', []) if r.get('path') == workflow]
+        if not applicable:
+            return False
+        run = max(applicable, key=lambda r: (r.get('run_number', 0), r.get('run_attempt', 0)))
+        if (run.get('head_sha') != head or run.get('event') != 'pull_request'
+                or run.get('head_repository', {}).get('full_name') != 'izaiahat/glp-site-candidate'
+                or not any(p.get('number') == pr['number'] and p.get('head', {}).get('sha') == head
+                           for p in run.get('pull_requests', []))
+                or run.get('status') != 'completed' or run.get('conclusion') != 'success'):
+            return False
+        jobs = gh('api', f'{api}/actions/runs/{run["id"]}/attempts/{run["run_attempt"]}/jobs?per_page=100')
+        rows = jobs.get('jobs', [])
+        if (jobs.get('total_count') != len(rows) or not rows
+                or sum(j.get('name') == name for j in rows) != 1
+                or any(j.get('head_sha') != head or j.get('run_id') != run['id']
+                       or j.get('status') != 'completed' or j.get('conclusion') != 'success' for j in rows)):
+            return False
+    return True
 
 
 def fresh_release_inputs(config, report, pr):
@@ -243,7 +287,7 @@ def try_identical_inputs(config, report, pointer, pr):
     """Reuse only a successful, intact release with a complete equal input key."""
     import glp_affiliate_sync_job as job
     from glp_release_inputs import path_digest
-    from glp_deploy_sensor_hook import attach_sensor_result
+    from glp_deploy_sensor_hook import attach_sensor_result, receipt_is_sensor_verified
     root = Path(pointer['release_root'])
     baseline_path = root.parents[1] / 'SUCCESSFUL-INPUTS.json'
     def miss(reason):
@@ -267,9 +311,11 @@ def try_identical_inputs(config, report, pointer, pr):
         raise ValueError('identical_inputs_release_tree_drift')
     try:
         validate_cached_release(config, report, root, pr, source)
-        out = {'status': 'CHECKING_IDENTICAL_INPUTS', 'scope': SCOPE,
+        out = {'schema': 'glp-main-identical-inputs-receipt-v1',
+               'status': 'CHECKING_IDENTICAL_INPUTS', 'scope': SCOPE,
                'source_pr': pr['url'], 'source_head': pr['headRefOid'],
                'deployment_id': pointer['deployment_id'], 'release_root': str(root),
+               'deployment': {'id': pointer['deployment_id']}, 'terminal_pointer': pointer,
                'inputs_sha256': current['sha256'], 'baseline': str(baseline_path),
                'build_executed': False, 'deployed': False, 'report': str(report),
                'run_type': os.environ.get('GLP_RUN_TYPE', 'manual')}
@@ -278,6 +324,12 @@ def try_identical_inputs(config, report, pointer, pr):
         sensor = attach_sensor_result(receipt, root, post_alert=False)
         if sensor.get('status') != 'PASS' or sensor.get('failure_count') != 0:
             raise ValueError('identical_inputs_deploy_completeness_sensor_nonpass')
+        out['sensor_result'] = sensor
+        verified, reason = receipt_is_sensor_verified(out)
+        if not verified:
+            out.update(status='REFUSED_IDENTICAL_INPUTS', error=reason)
+            job.save(receipt, out)
+            return out
         if path_digest(root) != baseline['release_tree_sha256']:
             raise ValueError('identical_inputs_release_tree_drift_during_validation')
         if path_digest(source) != baseline['validation_source_sha256']:
@@ -286,6 +338,14 @@ def try_identical_inputs(config, report, pointer, pr):
         recheck.mkdir(exist_ok=True)
         if fresh_release_inputs(config, recheck, pr) != current:
             return miss('inputs_changed_during_validation_build_fresh')
+        from glp_affiliate_release import main_release_base
+        import glp_deploy_glp34_authority_v1 as carrier
+        if main_release_base(carrier) != pointer:
+            raise ValueError('identical_inputs_current_pointer_changed')
+        # Reauthenticate raw evidence after the final input/pointer reads too.
+        verified, reason = receipt_is_sensor_verified(out)
+        if not verified:
+            raise ValueError('identical_inputs_sensor_evidence_changed:'+reason)
         out.update(status='SKIPPED_IDENTICAL_INPUTS', sensor_result=sensor)
         job.save(receipt, out)
         return out
@@ -485,6 +545,9 @@ def main(argv=None):
         if not a.prepare_only:
             skipped = try_identical_inputs(config, report, pointer, pr)
             if skipped:
+                if skipped['status'] != 'SKIPPED_IDENTICAL_INPUTS':
+                    print(json.dumps(skipped))
+                    return 2  # a refused sensor can never reach search/effects
                 from glp_release_search_notify import submit_deployment
                 skipped['search_submission'] = submit_deployment(pointer, Path(pointer['supersedes']['release_root']))
                 job.save(report / 'MAIN-RELEASE-RESULT.json', skipped)
@@ -515,6 +578,7 @@ def main(argv=None):
             if job.run(['git', 'status', '--porcelain', '--untracked-files=all', '--ignored'], cwd=source):
                 raise ValueError('main_build_unsealed_source_inputs')
             tree = job.run(['git', 'rev-parse', 'HEAD^{tree}'], cwd=source)
+            job.namespace(config, source, rep)  # seal actual, possibly materialized binds
             before = capture(config, source_tree=tree, source_revision=head,
                              sheet_sha256=job.sha(rep / 'registry/sheet-snapshot.json'))
             job.save(rep / 'BUILD-INPUTS.json', before)
