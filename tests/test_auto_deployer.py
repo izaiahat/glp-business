@@ -3,33 +3,77 @@ import copy
 import contextlib
 import io
 import importlib.util
+import hashlib
 import json
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/auto_deployer.py'
+FIXTURE_DIRS = []
+
+
+def documents(repo):
+    lane = 'lanes/' + repo.split('/')[1]
+    common = {'pr': f'https://github.com/{repo}/pull/7', 'head': 'a' * 40}
+    author = json.dumps(common)
+    receipt = json.dumps(dict(common, verdict='ACCEPT_SOURCE'))
+    custody = json.dumps(dict(common, coordinator_session_id='Kael', author_session_id='Sol', reviewer_session_id='Astra',
+                              author_result=lane + '/RESULT.json', author_result_sha256=hashlib.sha256(author.encode()).hexdigest(),
+                              receipt=lane + '/RV7/RESULT.json', receipt_sha256=hashlib.sha256(receipt.encode()).hexdigest()))
+    return [(lane + '/RESULT.json', author, 'Sol'), (lane + '/RV7/RESULT.json', receipt, 'Astra'),
+            (lane + '/custody.json', custody, 'Kael')]
 
 
 def load():
     spec = importlib.util.spec_from_file_location('auto_deployer', SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    # Synthetic runtime-owned DB and tool records; never read the real host DB.
+    module._fixture_dir = tempfile.TemporaryDirectory()
+    FIXTURE_DIRS.append(module._fixture_dir)
+    module.NATIVE_REVIEW_ROOT = root = Path(module._fixture_dir.name)
+    module.NATIVE_REVIEW_DB = root / 'state.db'
+    with sqlite3.connect(module.NATIVE_REVIEW_DB) as db:
+        db.executescript('CREATE TABLE sessions (id TEXT, parent_session_id TEXT, model TEXT, model_config TEXT, ended_at REAL, end_reason TEXT); '
+                         'CREATE TABLE messages (session_id TEXT, role TEXT, tool_calls TEXT, tool_call_id TEXT, tool_name TEXT, content TEXT, timestamp REAL);')
+        for sid in ('Kael', 'Sol', 'Astra'):
+            db.execute('INSERT INTO sessions VALUES (?,?,?,?,?,?)', (sid, None if sid == 'Kael' else 'Kael',
+                       'gpt-6-astra-900k' if sid == 'Astra' else 'gpt-6.1-sol', json.dumps({'_delegate_from': 'Kael'}), 5, 'agent_close'))
+        for repo in module.REPOS:
+            for index, (path, content, sid) in enumerate(documents(repo)):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content)
+                call_id = repo + str(index)
+                call = {'id': call_id, 'function': {'name': 'write_file', 'arguments': json.dumps({'path': str(target), 'content': content})}}
+                proof = {'verified': True, 'resolved_path': str(target), 'bytes_written': len(content.encode())}
+                db.execute('INSERT INTO messages VALUES (?,?,?,?,?,?,?)', (sid, 'assistant', json.dumps([call]), None, None, None, 1))
+                db.execute('INSERT INTO messages VALUES (?,?,?,?,?,?,?)', (sid, 'tool', None, call_id, 'write_file', json.dumps(proof), 2))
     return module
 
 
-def fixture():
+def fixture(repo='izaiahat/glp-site-candidate'):
     head = 'a' * 40
+    docs = documents(repo)
+    binding = '\nReceipt: ' + docs[1][0] + '\nReceipt-SHA256: ' + hashlib.sha256(docs[1][1].encode()).hexdigest()
+    binding += '\nCustody: ' + docs[2][0] + '\nCustody-SHA256: ' + hashlib.sha256(docs[2][1].encode()).hexdigest()
     return {
-        'number': 7, 'repo': 'izaiahat/glp-site-candidate', 'state': 'OPEN',
+        'number': 7, 'repo': repo, 'state': 'OPEN',
         'baseRefName': 'main', 'isDraft': False, 'headRefOid': head,
         'mergeStateStatus': 'CLEAN', 'body': 'fleet-ticket:GLP-358', 'labels': [],
         'headCommittedAt': '2026-10-16T01:00:00Z',
         'reviews': [{'id': 11, 'state': 'COMMENTED', 'commit_id': head,
                      'submitted_at': '2026-10-16T02:00:00Z',
-                     'body': 'ACCEPT\nHead: ' + head + '\nReviewer: Astra\nSource-author: Sol\nIndependent: true\nNon-author: true'}],
-        'checks': [{'name': 'ci', 'head_sha': head, 'status': 'completed', 'conclusion': 'success'}],
+                     'body': 'ACCEPT\nHead: ' + head + '\nReviewer: Astra\nSource-author: Sol\nIndependent: true\nNon-author: true' + binding}],
+        'checks': [{'name': 'ci', 'head_sha': head, 'status': 'completed', 'conclusion': 'success',
+                    'app': {'slug': 'github-actions'}, 'check_suite': {'id': 123}}],
+        'expected_workflows': [{'path': '.github/workflows/ci.yml', 'jobs': ['ci']}],
+        'statuses': [], 'required_contexts': [],
+        'workflow_runs': [{'path': '.github/workflows/ci.yml', 'head_sha': head, 'event': 'pull_request',
+                           'check_suite_id': 123, 'status': 'completed', 'conclusion': 'success'}],
     }
 
 
@@ -57,6 +101,150 @@ class FakeRemote:
 
 
 class AutoDeployerTests(unittest.TestCase):
+    def tearDown(self):
+        while FIXTURE_DIRS:
+            FIXTURE_DIRS.pop().cleanup()
+
+    def test_review_counterexample_cannot_self_assert_independent_identity(self):
+        m = load()
+        for login, author in [('untrusted', 'Sol'), ('izaiahat', 'imaginary-author')]:
+            with self.subTest(login=login), tempfile.TemporaryDirectory() as tmp:
+                pr = fixture()
+                pr['reviews'][0]['user'] = {'login': login}
+                pr['reviews'][0]['body'] = pr['reviews'][0]['body'].replace('Source-author: Sol', 'Source-author: ' + author)
+                pr['reviews'][0]['body'] = pr['reviews'][0]['body'].split('\nReceipt:')[0]
+                remote = FakeRemote(pr)
+                result = m.Deployer(Path(tmp), remote, notify=lambda _: None).process(pr)
+                self.assertEqual(result['status'], 'REFUSED')
+                self.assertEqual(remote.merges, [])
+                self.assertIn('review field Receipt', result['reason'])
+        # A real-looking file/hash is still author-controlled. Authentication must
+        # read successful writes and parent linkage from the separate runtime DB.
+        for attack in ('missing-db', 'author-wrote-custody', 'author-wrote-review', 'same-session',
+                       'unrelated-reviewer', 'running-reviewer', 'wrong-model', 'altered-receipt', 'forged-author'):
+            with self.subTest(attack=attack), tempfile.TemporaryDirectory() as tmp:
+                m = load()
+                pr = fixture()
+                if attack == 'missing-db':
+                    m.NATIVE_REVIEW_DB = Path(tmp) / 'absent.db'
+                elif attack == 'altered-receipt':
+                    (m.NATIVE_REVIEW_ROOT / documents(pr['repo'])[1][0]).write_text('{"verdict":"ACCEPT"}')
+                else:
+                    with sqlite3.connect(m.NATIVE_REVIEW_DB) as db:
+                        if attack == 'author-wrote-custody':
+                            db.execute("UPDATE messages SET session_id='Sol' WHERE session_id='Kael'")
+                        elif attack == 'author-wrote-review':
+                            db.execute("UPDATE messages SET session_id='Sol' WHERE session_id='Astra'")
+                        elif attack == 'same-session':
+                            pr['reviews'][0]['body'] = pr['reviews'][0]['body'].replace('Source-author: Sol', 'Source-author: Astra')
+                        elif attack == 'unrelated-reviewer':
+                            db.execute("UPDATE sessions SET parent_session_id='other' WHERE id='Astra'")
+                        elif attack == 'running-reviewer':
+                            db.execute("UPDATE sessions SET ended_at=NULL WHERE id='Astra'")
+                        elif attack == 'wrong-model':
+                            db.execute("UPDATE sessions SET model='gpt-6.1-sol' WHERE id='Astra'")
+                        elif attack == 'forged-author':
+                            db.execute("DELETE FROM messages WHERE session_id='Sol'")
+                remote = FakeRemote(pr)
+                result = m.Deployer(Path(tmp), remote, notify=lambda _: None).process(pr)
+                self.assertEqual(result['status'], 'REFUSED')
+                self.assertIn('custody', result['reason'])
+                self.assertEqual(remote.merges, [])
+
+    def test_ci_counterexample_successful_subset_and_legacy_status_refuse(self):
+        m = load()
+        for missing, status in [(True, None), (False, 'failure'), (False, 'pending')]:
+            with self.subTest(missing=missing, status=status), tempfile.TemporaryDirectory() as tmp:
+                pr = fixture()
+                if missing:
+                    pr['expected_workflows'].append({'path': '.github/workflows/business-source-ci.yml',
+                                                    'jobs': ['package-only-exact-head', 'python-tests']})
+                pr['statuses'] = [] if status is None else [{'context': 'legacy-ci', 'state': status,
+                    'url': f'https://api.github.com/repos/{pr["repo"]}/statuses/{pr["headRefOid"]}'}]
+                remote = FakeRemote(pr)
+                result = m.Deployer(Path(tmp), remote, notify=lambda _: None).process(pr)
+                self.assertEqual(result['status'], 'REFUSED')
+                self.assertIn('workflow' if missing else 'commit-status', result['reason'])
+                self.assertEqual(remote.merges, [])
+        for attack in ('missing-job', 'wrong-suite', 'wrong-app', 'pending-workflow', 'wrong-workflow-head',
+                       'empty-policy', 'missing-context', 'wrong-status-head'):
+            with self.subTest(attack=attack), tempfile.TemporaryDirectory() as tmp:
+                pr = fixture()
+                if attack == 'missing-job':
+                    pr['expected_workflows'][0]['jobs'].append('absent')
+                elif attack == 'wrong-suite':
+                    pr['checks'][0]['check_suite']['id'] = 999
+                elif attack == 'wrong-app':
+                    pr['checks'][0]['app']['slug'] = 'untrusted'
+                elif attack == 'pending-workflow':
+                    pr['workflow_runs'][0]['status'] = 'in_progress'
+                elif attack == 'wrong-workflow-head':
+                    pr['workflow_runs'][0]['head_sha'] = 'c' * 40
+                elif attack == 'empty-policy':
+                    pr['expected_workflows'] = []
+                elif attack == 'missing-context':
+                    pr['required_contexts'] = ['missing-legacy-context']
+                elif attack == 'wrong-status-head':
+                    pr['statuses'] = [{'context': 'legacy', 'state': 'success', 'sha': 'c' * 40}]
+                remote = FakeRemote(pr)
+                result = m.Deployer(Path(tmp), remote, notify=lambda _: None).process(pr)
+                self.assertEqual(result['status'], 'REFUSED')
+                self.assertEqual(remote.merges, [])
+        positive = fixture()
+        positive['statuses'] = [{'context': 'legacy-ci', 'state': 'success',
+            'url': f'https://api.github.com/repos/{positive["repo"]}/statuses/{positive["headRefOid"]}'}]
+        positive['required_contexts'] = ['legacy-ci']
+        self.assertEqual(m.admission(positive)['issue'], 'GLP-358')
+        workflows = SCRIPT.parent.parent / '.github/workflows'
+        core = (workflows / 'business-source-ci.yml').read_text()
+        filtered = (workflows / 'auto-deployer.yml').read_text()
+        self.assertEqual(m.workflow_jobs(core, ['README.md'], 'main'), ['package-only-exact-head', 'python-tests'])
+        self.assertEqual(m.workflow_jobs(filtered, ['scripts/auto_deployer.py'], 'main'), ['offline-exact-head'])
+        self.assertEqual(m.workflow_jobs(filtered, ['README.md'], 'main'), [])
+        self.assertTrue(m.path_match('tests/a.py', ['tests/**', '!tests/ignored/**']))
+        self.assertFalse(m.path_match('tests/ignored/a.py', ['tests/**', '!tests/ignored/**']))
+        # Deleting/weakening a workflow in the proposed head cannot erase base CI.
+        github = m.GitHub()
+        def policy_api(endpoint):
+            import base64
+            if '/git/trees/' in endpoint:
+                name = 'business-source-ci' if '/base?' in endpoint else 'auto-deployer'
+                return {'truncated': False, 'tree': [{'path': '.github/workflows/' + name + '.yml',
+                        'type': 'blob', 'mode': '100644', 'sha': name}]}
+            return {'content': base64.b64encode((core if endpoint.endswith('business-source-ci') else filtered).encode()).decode()}
+        github.api = policy_api
+        policy = github.expected_workflows(m.REPOS[0], 'base', 'head', ['scripts/auto_deployer.py'], 'main')
+        self.assertEqual(len(policy), 2)
+        # Exercise the actual snapshot transport: a failed legacy status must be
+        # queried, retained, and refused even with otherwise complete success.
+        pr = fixture()
+        endpoints = []
+        github = m.GitHub()
+        github.files = lambda *a: []
+        github.expected_workflows = lambda *a: pr['expected_workflows']
+        github.required_contexts = lambda *a: []
+        github.api = lambda endpoint: ({'head': {'sha': pr['headRefOid']}, 'base': {'sha': 'b' * 40, 'ref': 'main'},
+            'state': 'open', 'draft': False, 'body': pr['body'], 'changed_files': 0, 'labels': []}
+            if '/pulls/' in endpoint else {'commit': {'committer': {'date': pr['headCommittedAt']}}})
+        def pages(endpoint, field=None):
+            endpoints.append(endpoint)
+            if '/statuses?' in endpoint:
+                return [{'context': 'legacy-ci', 'state': 'failure',
+                         'url': f'https://api.github.com/repos/{pr["repo"]}/statuses/{pr["headRefOid"]}'}]
+            if '/check-runs?' in endpoint:
+                return pr['checks']
+            return pr['workflow_runs'] if '/actions/runs?' in endpoint else pr['reviews']
+        github.pages = pages
+        with patch.object(m, 'run', return_value=json.dumps({'headRefOid': pr['headRefOid'], 'mergeStateStatus': 'CLEAN'})):
+            observed = github.snapshot(pr['repo'], 7)
+        self.assertTrue(any('/statuses?' in endpoint for endpoint in endpoints))
+        with tempfile.TemporaryDirectory() as tmp:
+            remote = FakeRemote(observed)
+            result = m.Deployer(Path(tmp), remote, notify=lambda _: None).process(observed)
+            self.assertEqual(result['status'], 'REFUSED')
+            self.assertIn('commit-status', result['reason'])
+            self.assertEqual(remote.merges, [])
+
     def test_pagination_works_on_installed_gh_without_slurp_and_keeps_all_checks(self):
         m = load()
         remote = m.GitHub()
@@ -74,7 +262,7 @@ class AutoDeployerTests(unittest.TestCase):
                 visited.append(repo)
                 return [7]
             def snapshot(self, repo, number):
-                return dict(fixture(), repo=repo, changed_files=1)
+                return dict(fixture(repo), changed_files=1)
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()) as output:
             with patch.object(m, 'run', side_effect=AssertionError('no subprocess effects in fixture dry run')):
                 self.assertEqual(m.main(['--dry-run'], remote=Remote(fixture()), root=Path(tmp)), 0)
@@ -252,7 +440,7 @@ class AutoDeployerTests(unittest.TestCase):
 
     def test_business_process_dispatches_only_changed_runtime_after_merge(self):
         m = load()
-        pr = dict(fixture(), repo='izaiahat/glp-business', changed_files=1)
+        pr = dict(fixture('izaiahat/glp-business'), changed_files=1)
         remote = FakeRemote(pr)
         with tempfile.TemporaryDirectory() as tmp:
             deployer = m.Deployer(Path(tmp), remote, notify=lambda _: None)

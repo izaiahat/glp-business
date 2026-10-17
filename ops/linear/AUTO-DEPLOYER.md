@@ -5,9 +5,20 @@
 Receives source acceptance, never writes a GitHub review or a Linear status.
 Only `izaiahat/glp-business` and `izaiahat/glp-site-candidate`, open non-draft
 PRs to main, CLEAN, no HOLD/do-not-merge label, one literal body line
-`fleet-ticket:GLP-N`, and **every** exact-head check-run completed SUCCESS
-(nonempty, including previous check attempts; no neutral/skipped fallback).
-No branch protection is assumed. No auto repair loop or review bypass exists.
+`fleet-ticket:GLP-N`, and **complete** exact-head CI: derive applicable PR
+workflows/jobs from the union of base and head workflow sources, honoring branch
+and ordered path filters. Require every expected workflow completed SUCCESS and
+all its static jobs present as successful GitHub Actions check-runs bound by
+check-suite ID. Require every observed check-run and commit-status context on
+that head SUCCESS (including previous attempts; no neutral/skipped fallback),
+and all branch-protection required contexts present. The expected workflow/job
+set must be nonempty. Missing workflows/startup failures cannot disappear from
+admission. No branch protection is assumed; only an explicit `Branch not protected`
+404 means absent branch requirements; other API failures block. Workflow YAML
+uses the registered Hermes interpreter's existing PyYAML; missing parser,
+truncated trees, dynamic/matrix/conditional jobs or unsupported glob/trigger
+syntax fail closed for explicit receiving, never a successful-subset fallback.
+No auto repair loop or review bypass exists.
 One independent review, at most one author repair, then new exact-head review;
 review dispatch/repair remains the coordinator's responsibility, not this job's.
 
@@ -20,23 +31,59 @@ Use this body contract (full 40-character head in both GitHub commit_id and Head
 
 ```text
 ACCEPT_SOURCE
-Reviewer: Astra
-Source-author: Sol
+Reviewer: <native reviewer session ID>
+Source-author: <native implementation session ID>
 Independent: true
 Non-author: true
 Head: <40-character current head SHA>
+Receipt: lanes/<lane>/RV<N>/RESULT.json
+Receipt-SHA256: <SHA256 of exact reviewer receipt bytes>
+Custody: lanes/<lane>/review-custody.json
+Custody-SHA256: <SHA256 of exact coordinator custody bytes>
 Scope: independently reviewed source and scoped runtime installation
 <findings and test evidence>
 ```
 
-Reviewer and source-author are independent worker identities, NOT GitHub logins:
-this fleet uses a shared GitHub account. All five fields are mandatory, unique;
-reviewer and source-author must differ. This is a coordinator-submitted independent
-review attestation, not proof that a different GitHub account clicked a button.
-Never submit this attestation on your own implementation. Old heads, old clocks,
-ordinary PR comments, GitHub APPROVED reviews, self-review and free-form unbound
-acceptance cannot enter this receiver. Source-only acceptance does not authorize
-any business sends, ad mutations, spend, enrollment or new cron registration.
+Identity assertions and files/hashes alone grant **no** authority. The coordinator
+must write the custody document with the native `write_file` tool; the designated
+Astra reviewer must write the named `lanes/**/RV*/RESULT.json` with that tool.
+The implementation author must also have written a source RESULT on the current
+head with `write_file`. All three records contain `pr` (full GitHub PR URL) and
+`head` (exact current SHA); the reviewer record additionally has `verdict` equal
+to ACCEPT, ACCEPT_SOURCE or APPROVE_SOURCE_ONLY. The coordinator record adds:
+
+```json
+{
+  "pr": "https://github.com/izaiahat/<repo>/pull/<number>",
+  "head": "<40-character current head SHA>",
+  "coordinator_session_id": "<parent native session ID>",
+  "author_session_id": "<implementation child session ID>",
+  "reviewer_session_id": "<independent Astra child session ID>",
+  "author_result": "lanes/<lane>/RESULT.json",
+  "author_result_sha256": "<SHA256 of exact author RESULT bytes>",
+  "receipt": "lanes/<lane>/RV<N>/RESULT.json",
+  "receipt_sha256": "<SHA256 of exact reviewer RESULT bytes>"
+}
+```
+
+Paths are relative to `/home/ubuntu/business`, not the proposed checkout. The
+receiver opens `~/.hermes/state.db` read-only and authenticates exact-byte
+successful `write_file` calls/results in the three named sessions. Author and
+reviewer must be **different completed delegated children** of that coordinator
+(`parent_session_id`, `_delegate_from`, `agent_close`); reviewer must actually
+use `gpt-6-astra-900k`. Missing/pruned native records refuse. Reviewer/source-author
+fields must match those authenticated session IDs. An author cannot create a
+valid coordinator/reviewer binding by writing files or free-text identities in
+its own session. This reuses the runtime/coordinator provenance boundary in
+`linear_orchestrator.py` native-review custody, **not** an OS-isolated signature
+against someone able to edit Hermes' runtime database. No DB writes or fabricated
+custody are allowed. Shared GitHub login remains supported; another login is
+neither necessary nor sufficient.
+
+Old heads, old clocks, ordinary PR comments, GitHub APPROVED reviews, self-review
+and free-form/unbound acceptance cannot enter this receiver. Source-only
+acceptance does not authorize business sends, ad mutations, spend, enrollment
+or new cron registration.
 
 ## Execution and custody
 
