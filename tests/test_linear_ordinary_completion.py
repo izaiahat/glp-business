@@ -494,6 +494,126 @@ def test_protected_noncode_retained_receipts_use_existing_writer_without_fake_br
     assert writes == []
 
 
+@pytest.fixture(params=['protected_noncode_completion', 'protected_runtime_completion'])
+def operator_discord_completion(request, monkeypatch):
+    """Human Discord identity is independent of the shared Linear agent account."""
+    import linear_operator_acceptance as oa
+    target, path, data, writes, parent, *_ = request.getfixturevalue(request.param)
+    data['evidence'] = data['evidence'][:1]
+    evidence = data['evidence'][0]
+    # Synthetic evidence precedes the synthetic request/reply; no live authority.
+    import os
+    now = datetime.now(timezone.utc)
+    os.utime(evidence['path'], (now.timestamp() - 180, now.timestamp() - 180))
+    monkeypatch.setattr(oa, 'CONSUMED_DB', path.parent / 'consumed.sqlite3', raising=False)
+    request = {'id': '1560838185641050233', 'channel_id': oa.CHANNEL_ID,
+               'author': {'id': oa.REQUEST_BOT_ID, 'bot': True}, 'type': 0,
+               'content': ('• Evidence: reports/' + Path(evidence['path']).name +
+                           '\n• SHA256: ' + evidence['sha256'] +
+                           '\nACCEPT ' + target['identifier'] + ' ' + evidence['sha256'][:8]),
+               'timestamp': datetime.fromtimestamp(now.timestamp() - 120, timezone.utc).isoformat(),
+               'edited_timestamp': None}
+    reply = {'id': '1560839999999999999', 'channel_id': oa.CHANNEL_ID,
+             'author': {'id': oa.OPERATOR_ID}, 'type': 19,
+             'content': 'ACCEPT ' + target['identifier'] + ' ' + evidence['sha256'][:8],
+             'timestamp': datetime.fromtimestamp(now.timestamp() - 60, timezone.utc).isoformat(),
+             'edited_timestamp': None,
+             'message_reference': {'message_id': request['id'], 'channel_id': oa.CHANNEL_ID}}
+    rows = {request['id']: request, reply['id']: reply}
+    monkeypatch.setattr(oa, 'readback', lambda channel, message: rows[message])
+    binding = oa.capture(target['identifier'], data['evidence'], reply['id'])
+    data['author_id'] = parent['user']['id']
+    data['protected_review'] = {'discord': binding}
+    payload = digest(json.dumps({k: v for k, v in data.items() if k not in ('review', 'protected_review')},
+                                sort_keys=True, separators=(',', ':')))
+    parent['body'] = ('Acceptance verified by parent: retained evidence, no new effect.' +
+        '\nAccepted description SHA256: ' + data['description_sha256'] +
+        '\nAccepted protected evidence SHA256: ' + payload +
+        '\nExecution author Linear ID: ' + data['author_id'] +
+        '\nIndependent operator Discord acceptance SHA256: ' + oa.binding_sha256(binding))
+    data['review']['body_sha256'] = digest(parent['body'])
+    path.write_text(json.dumps(data))
+    return target, path, data, writes, parent, request, reply, rows
+
+
+@pytest.mark.parametrize('check_only', [True, False])
+def test_operator_discord_acceptance_with_shared_linear_identity(operator_discord_completion, capsys, check_only):
+    target, path, data, writes, *_ = operator_discord_completion
+    runtime = data['scope'] == 'protected-runtime'
+    lo.pass_issue(target, path, {'Done': 'done'}, protected_noncode=not runtime,
+                  protected_runtime=runtime, check_only=check_only)
+    if check_only:
+        assert json.loads(capsys.readouterr().out)['validated'] is True
+        assert writes == []
+    else:
+        receipt = json.loads(writes[0][2].split('```json')[1].split('```')[0])
+        assert receipt['independent_operator_acceptance'] == data['protected_review']['discord']
+        assert receipt['result_sha256'] == lo.sha(path)
+        assert [w[0] for w in writes] == ['comment', 'state']
+
+
+@pytest.mark.parametrize('defect', [
+    'forged_author', 'self_authored', 'wrong_issue', 'wrong_hash', 'edited_message', 'bot_author',
+    'webhook', 'wrong_channel', 'wrong_reference', 'edited_request', 'forged_request',
+    'wrong_request_hash', 'wrong_request_issue', 'wrong_request_path', 'copied_text',
+    'unbound_parent', 'forged_snapshot', 'missing_remote', 'changed_evidence',
+    'late_edit', 'legacy_refusal',
+])
+def test_operator_discord_forgery_refused_before_any_mutation(operator_discord_completion, monkeypatch, defect):
+    import linear_operator_acceptance as oa
+    target, path, data, writes, parent, request, reply, rows = operator_discord_completion
+    if defect == 'forged_author':
+        reply['author']['id'] = '392067741500309518'
+    elif defect == 'self_authored':
+        reply['author'] = {'id': oa.REQUEST_BOT_ID, 'bot': True}
+    elif defect == 'wrong_issue':
+        reply['content'] = reply['content'].replace(target['identifier'], 'GLP-125')
+    elif defect == 'wrong_hash':
+        reply['content'] = 'ACCEPT ' + target['identifier'] + ' 00000000'
+    elif defect == 'edited_message':
+        reply['edited_timestamp'] = '2026-10-17T02:16:00Z'
+    elif defect == 'bot_author':
+        reply['author']['bot'] = True
+    elif defect == 'webhook':
+        reply['webhook_id'] = oa.OPERATOR_ID
+    elif defect == 'wrong_channel':
+        reply['channel_id'] = '1487300132054765629'
+    elif defect == 'wrong_reference':
+        reply['message_reference']['channel_id'] = '1487300132054765629'
+    elif defect == 'edited_request':
+        request['edited_timestamp'] = '2026-10-17T02:14:00Z'
+    elif defect == 'forged_request':
+        request['author']['id'] = oa.OPERATOR_ID
+    elif defect == 'wrong_request_hash':
+        request['content'] = request['content'].replace(data['evidence'][0]['sha256'], '0' * 64)
+    elif defect == 'wrong_request_issue':
+        request['content'] = request['content'].replace(target['identifier'], 'GLP-125')
+    elif defect == 'wrong_request_path':
+        request['content'] = request['content'].replace('reports/', 'reports/other/')
+    elif defect == 'copied_text':
+        reply.pop('message_reference')
+    elif defect == 'unbound_parent':
+        parent['body'] = parent['body'].split('\nIndependent operator Discord')[0]
+        data['review']['body_sha256'] = digest(parent['body'])
+    elif defect == 'forged_snapshot':
+        data['protected_review']['discord']['approval']['author_id'] = 'forged'
+    elif defect == 'missing_remote':
+        rows.clear()
+    elif defect == 'changed_evidence':
+        Path(data['evidence'][0]['path']).write_text('changed')
+    elif defect == 'late_edit':
+        def late_edit(*a, **kw): reply['edited_timestamp'] = '2026-10-17T02:16:00Z'
+        monkeypatch.setattr(lo, '_lint_result', late_edit)
+    elif defect == 'legacy_refusal':
+        def legacy(*a, **kw): raise SystemExit('protected completion legacy refused')
+        monkeypatch.setattr(lo, '_lint_result', legacy)
+    path.write_text(json.dumps(data))
+    with pytest.raises(SystemExit, match='protected completion'):
+        runtime = data['scope'] == 'protected-runtime'
+        lo.pass_issue(target, path, {'Done': 'done'}, protected_noncode=not runtime, protected_runtime=runtime)
+    assert writes == []
+
+
 def refresh_protected_bindings(data, parent, independent):
     """Re-sign only synthetic offline comments when a test changes its approved payload."""
     payload = digest(json.dumps({k: v for k, v in data.items() if k not in ('review', 'protected_review')},

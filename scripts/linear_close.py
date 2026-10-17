@@ -14,6 +14,11 @@ pre-validates it with the unmodified linear_orchestrator ordinary validator, pos
 coordinator acceptance comment, runs `pass --ordinary --check-only` and, with --apply,
 the real `pass --ordinary`. No comment is posted for an issue the validator would refuse.
 Prints one line: issue, final state, typed RESULT path.
+
+Protected outcomes retain the typed protected validator. For shared Linear accounts,
+capture authenticated operator Discord acceptance with linear_operator_acceptance.py
+and use `linear_orchestrator.py pass ... --protected-noncode|--protected-runtime`.
+See ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md. This ordinary closer never infers it.
 """
 import sys
 # --check-only includes import-time artifacts: do not create __pycache__ files.
@@ -203,7 +208,8 @@ def build(ident, worker_path, iss, gh=gh_pr):
             raise Refused(str(exc)) from None
     elif effect:
         raise Refused('protected effect %s: needs independent acceptance via '
-                      'linear_orchestrator.py pass %s <RESULT> --protected-runtime' % (effect, ident))
+                      'linear_orchestrator.py pass %s <RESULT> --protected-runtime '
+                      '(authenticated operator Discord path: ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md)' % (effect, ident))
     pr = resolve_pr(worker, gh)
     runtime = any(worker.get(k) for k in ('install', 'live_run', 'receipt'))
     data = {'schema': 'linear-ordinary-completion-v1', 'issue': ident, 'status': 'COMPLETE',
