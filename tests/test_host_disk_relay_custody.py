@@ -1,10 +1,15 @@
 """Synthetic relay/open-issue custody; no host effects or network."""
 import json, sys, time
+import pytest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import host_disk_relay_custody as relay
 import host_disk_cold_classes as cold
+from host_disk_reference_guard import ReferenceGuardAPI
 from test_glp110_archive_admission import ep
+
+class API:
+    def path_is_active_privileged(self,path): return False
 
 class Reader:
     def __init__(self,description): self.description=description
@@ -148,7 +153,8 @@ def test_lane_namespace_absence_and_nested_discovery_are_bound(tmp_path):
     lane=root/'OWNER/nested/RESULT.json';lane.parent.mkdir(parents=True);lane.write_text('{}')
     pins=relay.collect(bus=tmp_path)
     for directory in (root,lane.parent.parent,lane.parent):
-        assert pins.identities[str(directory)]==relay.signature(directory)
+        assert pins.identities[str(directory)]==relay.discovery_signature(directory,'lane')
+        assert relay.matches(directory,pins.identities[str(directory)])
 
 
 def test_linear_failure_at_fresh_gate_retains_candidate(tmp_path,monkeypatch):
@@ -261,6 +267,136 @@ def test_internal_lane_directory_alias_is_bound_without_skipping_real_result(tmp
     assert proof in pins and alias in pins
     assert pins.identities[str(alias)]==relay.signature(alias)
     assert str(lane) in pins.identities
+
+
+@pytest.mark.parametrize('location,name', [('relay-queue','route-glp-109-098c70cde4148c4597686123.json'),
+    ('relay-deliveries','route-glp-132-0187689567703a50835a5e97.json'),
+    ('lane','CANONICAL-FINAL.json')])
+def test_unrelated_atomic_output_drift_during_collection_is_not_custody_drift(tmp_path, location, name):
+    bus=tmp_path/'business';bus.mkdir();jobs=bus/'ops/gpt6pro-relay/jobs'
+    job=jobs/'job';job.mkdir(parents=True);source=job/'JOB.json';source.write_text('{}')
+    directory=(bus/'lanes/ONBOARD/cohort' if location=='lane' else
+               bus/'ops/gpt6pro-relay/route'/location.removeprefix('relay-'))
+    directory.mkdir(parents=True);output=directory/name;output.write_text('old')
+    original=relay.signature(directory)
+    class MutatingReader(Reader):
+        def pages(self,*args):
+            pending=directory/('.'+name+'.tmp');pending.write_text('new');pending.replace(output)
+            return super().pages(*args)
+    pins=relay.collect(bus=bus,reader=MutatingReader(''))
+    assert relay.signature(directory)!=original  # actual installed failure mode
+    assert source in pins and directory not in pins
+    guard=ReferenceGuardAPI(API(),pins.identities)
+    assert not guard.path_is_active_privileged(tmp_path/'unrelated-candidate')
+    pending=directory/('.'+name+'.tmp');pending.write_text('later');pending.replace(output)
+    assert not guard.path_is_active_privileged(tmp_path/'unrelated-candidate')
+
+
+@pytest.mark.parametrize('location,name', [('relay','JOB.json'),('relay','ledger.jsonl'),('lane','RESULT.json')])
+def test_new_custody_source_during_collection_still_refuses(tmp_path, location, name):
+    bus=tmp_path/'business';bus.mkdir();job=bus/'ops/gpt6pro-relay/jobs/job';job.mkdir(parents=True)
+    source=job/'JOB.json';source.write_text('{}')
+    directory=bus/('ops/gpt6pro-relay/route/queue' if location=='relay' else 'lanes/ONBOARD/cohort')
+    directory.mkdir(parents=True)
+    class MutatingReader(Reader):
+        def pages(self,*args):
+            (directory/name).write_text('{}')
+            return super().pages(*args)
+    with pytest.raises(ValueError,match='discovery changed') as caught:
+        relay.collect(bus=bus,reader=MutatingReader(''))
+    assert caught.value.changed_source==str(directory)
+
+
+def test_relevant_membership_change_after_walk_before_snapshot_still_refuses(tmp_path,monkeypatch):
+    bus=tmp_path/'business';bus.mkdir();directory=bus/'lanes/BUILD/cohort';directory.mkdir(parents=True)
+    original=relay.os.walk
+    def walk(*args,**kwargs):
+        for root,dirs,files in original(*args,**kwargs):
+            if Path(root)==directory:(directory/'RESULT.json').write_text('{}')
+            yield root,dirs,files
+    monkeypatch.setattr(relay.os,'walk',walk)
+    with pytest.raises(ValueError,match='discovery changed'):
+        relay.collect(bus=bus,reader=Reader(''))
+
+
+@pytest.mark.parametrize('mutation', ['new-directory','new-result','edit-result','move-result','replace-directory','retarget-alias','unreadable'])
+def test_discovery_projection_preserves_effect_guard_vetoes(tmp_path,monkeypatch,mutation):
+    bus=tmp_path/'business';bus.mkdir();directory=bus/'lanes/OWNER/cohort';directory.mkdir(parents=True)
+    source=directory/'RESULT.json';source.write_text('{}')
+    other=bus/'lanes/OTHER';other.mkdir()
+    alias=directory/'alias';alias.symlink_to(other,target_is_directory=True)
+    pins=relay.collect(bus=bus,reader=Reader(''))
+    guard=ReferenceGuardAPI(API(),pins.identities)
+    candidate=tmp_path/'candidate'
+    assert not guard.path_is_active_privileged(candidate)
+    if mutation=='new-directory':(directory/'nested').mkdir()
+    elif mutation=='new-result':(other/'RESULT.json').write_text('{}')
+    elif mutation=='edit-result':source.write_text('{"protected_roots":["reports/cold"]}')
+    elif mutation=='move-result':source.rename(directory/'old-result.json')
+    elif mutation=='replace-directory':
+        directory.rename(directory.with_name('old-cohort'));directory.mkdir()
+    elif mutation=='retarget-alias':
+        alias.rename(directory/'old-alias');alias.symlink_to(bus/'lanes/OWNER',target_is_directory=True)
+    elif mutation=='unreadable':
+        original=relay.os.scandir
+        def denied(path):
+            if Path(path)==directory: raise PermissionError('synthetic unreadable discovery')
+            return original(path)
+        monkeypatch.setattr(relay.os,'scandir',denied)
+    assert guard.path_is_active_privileged(candidate)
+    assert guard.last_reference_veto is not None
+
+
+@pytest.mark.parametrize('location,name', [('lane','RESULT.json'),
+    ('queue','JOB.json'),('queue','new-ledger.jsonl'),
+    ('deliveries','JOB.json'),('deliveries','new-ledger.jsonl')])
+@pytest.mark.parametrize('stage', ['collection','effect'])
+@pytest.mark.parametrize('relevant', [False,True], ids=['unrelated-control','new-source-must-refuse'])
+def test_source_publication_at_validation_scan_exit(tmp_path,monkeypatch,location,name,stage,relevant):
+    """RV574: publish after enumeration, before its final directory check."""
+    bus=tmp_path/'business'
+    directory=bus/('lanes/OWNER/cohort' if location=='lane' else
+                   'ops/gpt6pro-relay/route/'+location)
+    directory.mkdir(parents=True)
+    candidate=tmp_path/'cold-candidate';candidate.write_text('retained')
+    target=directory/(name if relevant else 'route-output.json')
+    before=relay.signature(directory)
+    real_scandir=relay.os.scandir
+    armed=False;fired=[]
+    class Iterator:
+        def __init__(self,path):self.path=Path(path);self.inner=real_scandir(path)
+        def __iter__(self):return self
+        def __next__(self):return next(self.inner)
+        def __enter__(self):self.inner.__enter__();return self
+        def __exit__(self,*args):
+            result=self.inner.__exit__(*args)
+            if armed and self.path==directory and not fired:
+                pending=directory/'.publication.tmp'
+                pending.write_text(json.dumps({'protected_roots':[str(candidate)]}))
+                pending.replace(target)
+                fired.append(str(target))
+            return result
+    class ArmingReader(Reader):
+        def pages(self,*args):
+            nonlocal armed
+            armed=True
+            return super().pages(*args)
+    if stage=='effect':pins=relay.collect(bus=bus,reader=Reader(''))
+    monkeypatch.setattr(relay.os,'scandir',Iterator)
+    if stage=='collection':
+        try:
+            pins=relay.collect(bus=bus,reader=ArmingReader(''));refused=False
+        except (ValueError,OSError):refused=True
+    else:
+        armed=True
+        guard=ReferenceGuardAPI(API(),pins.identities)
+        refused=guard.path_is_active_privileged(candidate)
+    assert fired==[str(target)] and target.is_file()
+    assert before!=relay.signature(directory)
+    assert candidate.read_text()=='retained'
+    if not refused:
+        assert str(target) not in pins.identities and candidate not in pins
+    assert refused==relevant
 
 
 def test_relay_walk_error_is_not_silently_omitted(tmp_path,monkeypatch):

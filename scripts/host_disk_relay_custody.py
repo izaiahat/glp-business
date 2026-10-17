@@ -86,11 +86,66 @@ def fields(s):
 def signature(path): return fields(Path(path).lstat())
 
 
+def reference_name(name,namespace):
+    if namespace=='lane': return name=='RESULT.json'
+    if namespace=='relay':
+        return name=='JOB.json' or ('ledger' in name.lower() and name.endswith(('.json','.jsonl','.ndjson')))
+    raise ValueError('unknown discovery namespace')
+
+
+def discovery_signature(path,namespace,observed=None):
+    """Bind discovery membership, not unrelated atomic output writes.
+
+    Directory inode/type/owner/mode and discoverable child membership remain
+    custody. Directory size/timestamps/link count also change for route receipts,
+    logs and Git lock files, which do not add a reference source. Actual sources
+    and directory aliases keep their complete no-follow inode signatures.
+    Collection uses os.walk's observed names, not a later listing that could
+    bless a newly arrived but unread RESULT/JOB/ledger.
+    """
+    path=Path(path);before=signature(path)
+    if not stat.S_ISDIR(before[2]): raise ValueError('aliased/invalid discovery directory')
+    stable=lambda value:[value[i] for i in (0,1,2,7,8)]
+    for attempt in range(3):
+        scan_before=before if attempt==0 else signature(path)
+        if stable(scan_before)!=stable(before): raise ValueError('discovery directory replaced during scan')
+        if observed is None:
+            with os.scandir(path) as entries:
+                names=[entry.name for entry in entries
+                       if entry.is_dir() or reference_name(entry.name,namespace)]
+        else:
+            dirs,files=observed
+            names=list(dirs)+[name for name in files if reference_name(name,namespace)]
+        members=[]
+        for name in sorted(names):
+            value=signature(path/name)
+            # Each real directory gets its own inventory. Its payload churn is
+            # not parent membership drift; aliases keep complete identities.
+            # Regular source bytes are separately bound after a complete read.
+            identity=(stable(value) if stat.S_ISDIR(value[2]) else
+                      value if stat.S_ISLNK(value[2]) else [stat.S_IFMT(value[2])])
+            members.append([name,identity])
+        after=signature(path)
+        if stable(after)!=stable(before): raise ValueError('discovery directory replaced during scan')
+        # Full metadata is only an IN-SCAN consistency witness, never persisted
+        # cross-generation custody. Publication after enumeration must trigger
+        # complete re-enumeration, not acceptance of stale names. A quiet retry
+        # still permits unrelated route output churn; sustained drift refuses.
+        # Never refresh observed walk names here: they bind the sources actually
+        # read by collection and are checked against a fresh scan at its gate.
+        if observed is not None or after==scan_before:
+            return {'discovery_namespace':namespace,'identity':stable(before),'members':members}
+    raise ValueError('discovery directory changed during scan')
+
+
 def matches(path,expected):
     """Absence is a bound observation, not permission to skip new namespaces."""
-    try: return signature(path)==expected
+    try:
+        if isinstance(expected,dict):
+            return discovery_signature(path,expected['discovery_namespace'])==expected
+        return signature(path)==expected
     except FileNotFoundError: return expected is None
-    except OSError: return False
+    except (OSError,ValueError): return False
 
 
 def lane_sources(root,identities,pins,namespaces):
@@ -108,7 +163,7 @@ def lane_sources(root,identities,pins,namespaces):
     sources=[]
     def failed(error): raise error
     for directory,dirs,files in os.walk(root,followlinks=False,onerror=failed):
-        identities[str(directory)]=signature(directory)
+        identities[str(directory)]=discovery_signature(directory,'lane',(dirs,files))
         for name in dirs:
             link=Path(directory)/name
             if not link.is_symlink(): continue
@@ -176,12 +231,12 @@ def collect(*,bus=BUS,reader=None,timings=None):
             if relay.is_symlink(): raise ValueError('relay custody root alias')
             def failed(error): raise error
             for directory,dirs,files in os.walk(relay,followlinks=False,onerror=failed):
-                identities[str(directory)]=signature(directory)
+                identities[str(directory)]=discovery_signature(directory,'relay',(dirs,files))
                 for name in dirs:
                     p=Path(directory)/name
                     if p.is_symlink(): pins.update((p,p.resolve(strict=False)))
                 for name in files:
-                    if name!='JOB.json' and not ('ledger' in name.lower() and name.endswith(('.json','.jsonl','.ndjson'))): continue
+                    if not reference_name(name,'relay'): continue
                     path=Path(directory)/name
                     if path.is_symlink(): raise ValueError('aliased relay reference source')
                     before=path.stat()
