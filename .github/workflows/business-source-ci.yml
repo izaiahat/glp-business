@@ -257,6 +257,12 @@ jobs:
           # DecisionsGraphTests requires the uncurated host-only action_items module.
           # Run the complete portable runner class, including every carrier test.
           .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py::CronBridgeTests
+      - name: GLP47 owned-test sole-publisher adoption (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp_owned_test_adoption.py tests/test_glp_single_publisher.py tests/test_glp_release_main.py
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
       - name: GLP44 sealed commercial obligations (offline, exact head)
