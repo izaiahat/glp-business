@@ -127,6 +127,104 @@ def test_unknown_is_not_zero_or_a_ledger_write(tmp_path,monkeypatch,mutation):
     assert all('/scrape?' not in url for url in calls)
 
 
+def test_conflicting_zero_receipt_cannot_clear_unknown_cost_guard(tmp_path,monkeypatch):
+    import glp_sponsor_firecrawl_supply as supply
+    def mutate(payload,url,ledger):
+        if '/team/activity?' not in url:
+            payload['creditsUsed']=0
+            payload['data']['metadata']['creditsUsed']=30
+    state,ledger,row,client,calls=setup_effect(tmp_path,monkeypatch,mutate)
+    before=ledger.read_bytes()
+    monkeypatch.setattr(fc,'LEDGER',ledger)
+    producer=supply.Producer(state_dir=state,import_only=True)
+    with pytest.raises(RuntimeError,match='sponsor_ledger_credit_cost_unknown'):
+        producer.daily_accounted('2026-10-16')
+    plan=reconciliation.reconcile(state,ledger,client,tmp_path/'plan.json')
+    result=reconciliation.reconcile(state,ledger,client,tmp_path/'apply.json',apply=True,
+        expected_sha=plan['pre_ledger_sha256'],expected_evidence_sha=plan['evidence_sha256'])
+    try:
+        accounted=producer.daily_accounted('2026-10-16')
+        guard='cleared'
+    except RuntimeError as exc:
+        guard=str(exc);accounted=None
+    print(json.dumps({'metadata_cost':30,'envelope_cost':0,'status':result['status'],
+        'accounted':accounted,'guard_after':guard,'ledger_unchanged':ledger.read_bytes()==before}))
+    assert result['status']=='UNKNOWN' and ledger.read_bytes()==before
+    assert guard=='sponsor_ledger_credit_cost_unknown'
+    with pytest.raises(RuntimeError,match='ambiguous_capture_effect_no_replay'):
+        producer.capture_admissible('scrape','https://fixture.example/business')
+    assert (state/'firecrawl-supply-budget.json').read_text()=='{"reserved":45}'
+
+
+@pytest.mark.parametrize('phase',['plan','apply'])
+@pytest.mark.parametrize('location',['envelope','data','metadata'])
+@pytest.mark.parametrize('key',['creditsUsed','credits_used','creditsCost','credits_cost'])
+@pytest.mark.parametrize('value',[0,30,None,'1',False,-1,float('nan'),float('inf')])
+def test_any_invalid_or_conflicting_cost_field_preserves_unknown(tmp_path,monkeypatch,phase,location,key,value):
+    import glp_sponsor_firecrawl_supply as supply
+    def mutate(payload,url,ledger):
+        if '/team/activity?' not in url:
+            payload['creditsUsed']=1
+            obj={'envelope':payload,'data':payload['data'],'metadata':payload['data']['metadata']}[location]
+            obj[key]=value
+    state,ledger,row,client,calls=setup_effect(tmp_path,monkeypatch,mutate)
+    before=ledger.read_bytes()
+    monkeypatch.setattr(fc,'LEDGER',ledger)
+    result=reconciliation.reconcile(state,ledger,client,tmp_path/'refused.json',apply=phase=='apply',
+        expected_sha=reconciliation.sha(before),expected_evidence_sha='cannot-authorize-unknown')
+    assert result['status']=='UNKNOWN' and ledger.read_bytes()==before
+    assert 'creditsUsed' not in result
+    with pytest.raises(RuntimeError,match='sponsor_ledger_credit_cost_unknown'):
+        supply.Producer(state_dir=state,import_only=True).daily_accounted('2026-10-16')
+    assert (state/'firecrawl-supply-budget.json').read_text()=='{"reserved":45}'
+    assert len(calls)<=2
+
+
+@pytest.mark.parametrize('case',['different_metadata_job','missing_metadata_job','conflicting_envelope_job',
+    'missing_metadata_cost','missing_metadata_cost_alexandria_zero','alexandria_conflict'])
+def test_ordinary_scrape_requires_own_unambiguous_metadata(tmp_path,monkeypatch,case):
+    def mutate(payload,url,ledger):
+        if '/team/activity?' in url:return
+        meta=payload['data']['metadata']
+        if case=='different_metadata_job':
+            payload['id']='job';meta['scrapeId']='different'
+        elif case=='missing_metadata_job':
+            payload['id']='job';meta.pop('scrapeId')
+        elif case=='conflicting_envelope_job':payload['id']='different'
+        elif case=='alexandria_conflict':payload['data']['alexandria']=[{'creditsCost':30}]
+        else:
+            meta.pop('creditsUsed');payload['creditsUsed']=1
+            if case.endswith('alexandria_zero'):
+                payload.pop('creditsUsed');payload['data']['alexandria']=[{'creditsCost':0}]
+    state,ledger,row,client,calls=setup_effect(tmp_path,monkeypatch,mutate)
+    before=ledger.read_bytes()
+    result=reconciliation.reconcile(state,ledger,client,tmp_path/'refused.json',apply=True,
+        expected_sha=reconciliation.sha(before),expected_evidence_sha='cannot-authorize-unknown')
+    assert result['status']=='UNKNOWN' and ledger.read_bytes()==before
+
+
+@pytest.mark.parametrize('cost',[0,1,1.5])
+def test_agreeing_numeric_cost_fields_can_reconcile(tmp_path,monkeypatch,cost):
+    def mutate(payload,url,ledger):
+        if '/team/activity?' in url:return
+        payload['id']='job'
+        for obj in (payload,payload['data'],payload['data']['metadata']):
+            obj.update(creditsUsed=cost,credits_used=float(cost),creditsCost=cost,credits_cost=cost)
+    state,ledger,row,client,calls=setup_effect(tmp_path,monkeypatch,mutate)
+    plan=reconciliation.reconcile(state,ledger,client,tmp_path/'plan.json')
+    result=reconciliation.reconcile(state,ledger,client,tmp_path/'apply.json',apply=True,
+        expected_sha=plan['pre_ledger_sha256'],expected_evidence_sha=plan['evidence_sha256'])
+    assert result['status']=='applied' and result['creditsUsed']==cost
+
+
+def test_unterminated_ledger_refuses_before_transport(tmp_path,monkeypatch):
+    state,ledger,row,client,calls=setup_effect(tmp_path,monkeypatch)
+    ledger.write_bytes(ledger.read_bytes().rstrip(b'\n'));before=ledger.read_bytes()
+    with pytest.raises(RuntimeError,match='unterminated_ledger'):
+        reconciliation.reconcile(state,ledger,client,tmp_path/'plan.json')
+    assert calls==[] and ledger.read_bytes()==before
+
+
 @pytest.mark.parametrize('phase',['between_paid','between_metadata','during_paid','during_metadata'])
 def test_real_client_metadata_does_not_exempt_any_concurrent_write(tmp_path,monkeypatch,phase):
     armed=[False]

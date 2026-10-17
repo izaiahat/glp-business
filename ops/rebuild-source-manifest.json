@@ -8152,19 +8152,19 @@
         "ops/sponsor-receipt-reconciliation.md"
       ],
       "kind": "script",
-      "sha256": "349b8bc292b481940e18d713d2844dd4418a6e27cf78840ed3601ccb39f9f483"
+      "sha256": "adc5c7e7b21f819519797702e1b367b8c86b126639b644d41199b93ef35d266e"
     },
     "tests/test_glp_sponsor_receipt_reconcile.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "3b7d2d47ec3613b00e2f163f1caf2b5dcf1b9d9e50df5ed65fff599f153e10a3"
+      "sha256": "e986564551cad0af8015852c13118da5f2668e3ae5137730911ae122745a1fa8"
     },
     "ops/sponsor-receipt-reconciliation.md": {
       "callers": [],
       "kind": "operator_runbook",
-      "sha256": "1b9d6bdf03f307bd6b3c3d252719c4cd50f8ebe0ab185a576a13953b2a36c605"
+      "sha256": "98abdf0bd049fcff0e2f1828a7a13557f7b623f5c3d786915e9840a99bf713a0"
     }
   },
   "omitted_runtime_inputs": [

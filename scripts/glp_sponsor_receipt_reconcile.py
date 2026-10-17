@@ -18,7 +18,7 @@ import stat
 from pathlib import Path
 from urllib.parse import urlencode, quote
 
-from firecrawl_client import FirecrawlClient, LEDGER, _receipt
+from firecrawl_client import FirecrawlClient, LEDGER
 from glp_sponsor_firecrawl_supply import Producer
 
 # Scope is literal and reviewable; extending it requires a separate source change.
@@ -112,13 +112,24 @@ def provider_evidence(client, rows, original, receipt):
     job=matches[0]['id']
     payload=client.request('scrape/'+quote(job,safe=''),method='GET',timeout=60)
     private_create(Path(str(receipt)+'.result.json'),encoded(payload))
-    ident,cost=_receipt(payload)
     data=payload.get('data');meta=data.get('metadata') if isinstance(data,dict) else None
     if not isinstance(meta,dict) or payload.get('success') is not True:
         return {'status':'UNKNOWN','reason':'provider_result_incomplete'}
-    if ident!='sha256:'+sha(job.encode()) or sha(str(meta.get('sourceURL','')).encode())!=target:
+    ident='sha256:'+sha(job.encode())
+    if (meta.get('scrapeId')!=job or not isinstance(meta.get('sourceURL'),str)
+        or sha(meta['sourceURL'].encode())!=target
+        or any(obj[key]!=job for obj in (payload,data,meta)
+               for key in ('id','jobId','scrapeId','scrape_id') if key in obj)):
         return {'status':'UNKNOWN','reason':'provider_result_identity_mismatch'}
-    if type(cost) not in (int,float) or not math.isfinite(cost) or cost<0:
+    # Ordinary scrape metadata is mandatory; envelope/SDK aliases may only
+    # corroborate it. Generic receipt precedence or Alexandria sums cannot
+    # authorize an exact-operation financial revision.
+    cost=meta.get('creditsUsed')
+    costs=[obj[key] for obj in (payload,data,meta)
+           for key in ('creditsUsed','credits_used','creditsCost','credits_cost') if key in obj]
+    if (type(cost) not in (int,float) or not math.isfinite(cost) or cost<0
+        or any(type(c) not in (int,float) or not math.isfinite(c) or c<0 or c!=cost for c in costs)
+        or 'alexandria' in data or 'alexandria' in payload):
         return {'status':'UNKNOWN','reason':'provider_receipt_credit_cost_unknown'}
     return {'status':'EXACT_RECEIPT','provider_id_sha256':ident,'url_hash':target,
             'creditsUsed':cost,'activity_pages':pages,
@@ -146,6 +157,7 @@ def reconcile(state, ledger, client, receipt, *, apply=False, expected_sha=None,
                 ledger_identity=os.fstat(stream.fileno())
                 if not stat.S_ISREG(ledger_identity.st_mode) or ledger_identity.st_nlink!=1:
                     raise RuntimeError('unsafe_ledger_file')
+            if before and not before.endswith(b'\n'): raise RuntimeError('unterminated_ledger')
             rows=[json.loads(l) for l in before.splitlines() if l]
             row=exact_row(rows);pre=sha(before)
             result={'schema':SCHEMA,'pre_ledger_sha256':pre,'operation_id':OPERATION['operation_id'],

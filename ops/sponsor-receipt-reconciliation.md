@@ -15,7 +15,10 @@ Read `/v2/team/activity?timeRange=24h&endpoint=scrape&limit=100`, exhausting
 pagination (at most ten pages). Match exactly one activity target hash and exactly
 one local logical operation for that URL in the retained interval. Then GET
 `/v2/scrape/{provider-id}` and require the returned scrape ID and source URL to
-match, with a finite nonnegative numeric `metadata.creditsUsed`. Provider activity
+match, with a finite nonnegative numeric `metadata.creditsUsed`. All present
+cost aliases in the envelope, data, or metadata must agree; null, nonnumeric,
+nonfinite, negative, conflicting, or missing metadata cost stays UNKNOWN. The
+ordinary scrape receipt never falls back to Alexandria cost aggregation. Provider activity
 returns naive date strings; this tool does **not** infer a timezone or use those
 strings to break a collision. Missing/expired/ambiguous evidence is UNKNOWN,
 not zero, a historical account-wide usage allocation, or permission to replay.
