@@ -450,7 +450,8 @@ def test_default_sweep_still_constructs_existing_destination(tmp_path, monkeypat
     assert reached == ['default']
 
 
-def test_local_only_reference_drift_still_refuses_before_work(tmp_path, monkeypatch):
+@pytest.mark.parametrize('relevant', [True,False], ids=['new-ledger-refuses','unrelated-output-continues'])
+def test_local_only_reference_drift_still_refuses_before_work(tmp_path, monkeypatch,relevant):
     bus, proof = fixture_sweep(tmp_path, monkeypatch)
     import host_disk_relay_custody as custody
     queue = bus / 'ops/gpt6pro-relay/route/queue'
@@ -460,14 +461,24 @@ def test_local_only_reference_drift_still_refuses_before_work(tmp_path, monkeypa
     changed = []
     def churn(*args):
         result = real_lanes(*args)
-        # A noncooperative publication after relay discovery, before its final
-        # complete-identity validation. The actual collector raises the error.
+        # Only actual discovered custody sources must veto a complete phase.
+        # Route output JSON is not JOB/ledger custody; a new ledger is.
         if not changed:
-            (queue / 'new.json').write_text(json.dumps({'pin': str(proof)}))
+            name='new-ledger.json' if relevant else 'new.json'
+            (queue / name).write_text(json.dumps({'pin': str(proof)}))
             changed.append(str(queue))
         return result
     monkeypatch.setattr(custody, 'lane_sources', churn)
     report = tmp_path / 'report'
+    if not relevant:
+        reached=[]
+        monkeypatch.setattr(cold,'idle_scratch',lambda *a,**k: reached.append('scratch') or [])
+        monkeypatch.setattr(dependencies,'run',lambda *a,**k: reached.append('dependencies') or [])
+        sweep.run(report,budget=10,local_only=True)
+        assert reached==['scratch','dependencies']
+        assert proof.read_text()=='fixture retained proof'
+        assert json.loads((report/'large-classes.json').read_text())['stage']=='complete'
+        return
     with pytest.raises(ValueError, match='relay/lane discovery changed during collection') as caught:
         sweep.run(report, budget=10, local_only=True)
     assert changed == [str(queue)]

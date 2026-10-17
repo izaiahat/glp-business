@@ -8007,14 +8007,14 @@
         "scripts/host_disk_large_sweep.py",
         "scripts/evidence_preserving_pruner.py"
       ],
-      "sha256": "70f9806918f6ab3e14e9f9cd383f51e60a59566a2eea00d63434f630fee388e7"
+      "sha256": "816e9a328069af0e237500f60d11a663344be4d859a72a1ee4df19e61cb51e48"
     },
     "tests/test_host_disk_relay_custody.py": {
       "kind": "test",
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "8b6bbb376551ab7858cff67985abe151144abe9f215ffe91b69ef176393f25fa"
+      "sha256": "42ac90a719f6a50c3d1b53608f853434c35b32213d963ce18849012bd62150bc"
     },
     "scripts/glp_sponsor_firecrawl_booking.py": {
       "kind": "script",
@@ -8106,7 +8106,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "a9c0c84c727feacc1780f3d24cc7748d5e03df0e00d85ba31fd57908c1c27565"
+      "sha256": "961bdc33df3ddcb5ca513e522678cf73e172d35d5619059fbff13eb91d607d0c"
     },
     "tests/test_glp_evidence_refresh_entry_pins.py": {
       "callers": [
