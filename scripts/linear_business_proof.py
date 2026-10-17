@@ -15,7 +15,7 @@ import base64
 from datetime import datetime, timezone
 from email.parser import BytesParser
 from email.policy import default
-from email.utils import parseaddr
+from email.utils import getaddresses, parseaddr
 import hashlib
 import json
 from pathlib import Path
@@ -118,7 +118,13 @@ class Proof:
         self.observed = {}
 
     def native(self, name, prefix):
-        """Read a hash-bound real producer output, never an acceptance/worker claim."""
+        """Validate locator integrity, but REFUSE unsupported producer provenance.
+
+        A worker-selected path/hash is not an authenticated producer execution or
+        source-evidence binding. No normalized-report contract here has that
+        independent binding yet. Do not promote even plausible success bytes.
+        Direct authenticated readers (e.g. NuImage SENT) do not use this gate.
+        """
         spec = self.inputs.get(name)
         if not spec and self.issue == 'GLP-334' and name == 'reconciliation':
             # Maintained producer namespaces sort by UTC stamp, not report mtime.
@@ -134,8 +140,7 @@ class Proof:
         require(path.suffix == '.json' and not any(w in path.name.upper() for w in ('ACCEPT', 'REVIEW')), 'review is not business output')
         blob = path.read_bytes()
         require(re.fullmatch('[a-f0-9]{64}', str(spec.get('sha256', ''))) and digest(blob) == spec['sha256'], 'native output bytes changed: ' + name)
-        self.observed[name] = {'path': relative, 'sha256': digest(blob)}
-        return json.loads(blob)
+        raise Refused('producer execution/source contract unsupported: ' + name)
 
     def pr(self, repo, number):
         require(repo in ('glp-business', 'glp-site-candidate') and type(number) is int and number > 0, 'invalid PR')
@@ -218,7 +223,8 @@ class Proof:
         require(re.fullmatch(r'[a-f0-9-]{36}', message_id), 'provider message id invalid')
         _, _, _, data = api.request('GET', 'https://api.resend.com/emails/' + message_id,
             headers={'Authorization':'Bearer ' + api.resend_key(), 'User-Agent':api.USER_AGENT})
-        return {'id':data['id'], 'status':data['last_event']}
+        return {**{k: data.get(k) for k in ('headers', 'from', 'to', 'subject', 'text')},
+                'id': data['id'], 'status': data['last_event']}
 
     def owned_mailbox_message(self, message_id):
         from inbox_control_plane.gmail_client import GmailClient
@@ -305,7 +311,8 @@ def sponsor_outreach(p):
     job = p.cron('3940adcf89f6')
     require(job['enabled'] is True and job['state'] == 'scheduled', 'registered sponsor sender not active')
     import glp_sponsor_campaign as campaign
-    campaign.approval_ready(read_json(p.root, campaign.CONFIG))
+    require(campaign.approval_ready(read_json(p.root, campaign.CONFIG)) is True,
+            'sponsor approval/enablement absent')
     report = p.native('pilot_report', 'reports/ops/sponsor-machine-20261003')
     require(report['sent_messages'], 'no genuine sponsor SENT output')
     client = campaign.service('read')
@@ -381,7 +388,31 @@ def onboarding(p):
     require(provider['id'] == output['provider_message_id'] and provider['status'] == 'delivered', 'provider delivery not verified')
     mailbox = p.inputs['mailbox_message']
     row = p.owned_mailbox_message(mailbox['id'])
-    require(digest(base64.urlsafe_b64decode(row['raw'] + '===')) == mailbox['raw_sha256'], 'owned mailbox content mismatch')
+    wire = base64.urlsafe_b64decode(row['raw'] + '===')
+    require(row['id'] == mailbox['id'] and digest(wire) == mailbox['raw_sha256'], 'owned mailbox content mismatch')
+    message = BytesParser(policy=default).parsebytes(wire)
+    headers = provider.get('headers') or {}
+    if isinstance(headers, list):
+        headers = {r['name']: r['value'] for r in headers}
+    message_ids = [v for k, v in headers.items() if k.casefold() == 'message-id']
+    require(len(message_ids) == 1 and bool(message_ids[0])
+            and len(message.get_all('Message-ID', [])) == 1
+            and str(message['Message-ID']).strip() == message_ids[0].strip(),
+            'onboarding mailbox/provider identity unavailable or different')
+    require(parseaddr(str(message['From']))[1].lower() == parseaddr(provider.get('from') or '')[1].lower()
+            and bool(parseaddr(provider.get('from') or '')[1])
+            and [a.lower() for _, a in getaddresses(message.get_all('To', []))] == ['izaiah@glpclinicscout.com']
+            and provider.get('to') == ['izaiah@glpclinicscout.com']
+            and bool(provider.get('subject')) and str(message['Subject']) == provider['subject'],
+            'onboarding mailbox/provider sender/recipient/subject mismatch')
+    body = message.get_body(preferencelist=('plain',))
+    text = body.get_content() if body else None
+    # Approved-copy contract is UTF-8 plain text, LF, without terminal newlines.
+    canonical = lambda value: value.replace('\r\n', '\n').rstrip('\n')
+    require(isinstance(text, str) and bool(text) and isinstance(provider.get('text'), str)
+            and canonical(text) == canonical(provider['text'])
+            and digest(canonical(text).encode()) == output['copy_sha256'],
+            'onboarding mailbox/provider approved content mismatch')
     require(output['duplicate_refusals'] > 0 and output['unconsented_refusals'] > 0 and output['suppressed_refusals'] > 0, 'required adverse refusals absent')
     require(output['copy_sha256'] == output['accepted_copy_sha256'] and output['retention_sha256'] == output['accepted_retention_sha256'], 'copy/retention drift')
     active = p.native('activation', 'reports/glp-clinic-scout')
@@ -482,11 +513,13 @@ def permissions(p, ro=False):
     if ro:
         original = [('Ro', '1a0e14c2f194fb53', '1a0e14c2f194fb53')]
     client = ops_mail()
-    replies = {}
+    replies, recipients = {}, {}
     for partner, thread_id, sent_id in original:
         thread = client.users().threads().get(userId='me', id=thread_id, format='full').execute(num_retries=0)
         messages = thread.get('messages', [])
         sent = next(r for r in messages if r['id'] == sent_id)
+        recipients[partner] = [address.lower() for _, address in getaddresses([
+            h['value'] for h in sent.get('payload', {}).get('headers', []) if h['name'].casefold() == 'to'])]
         inbound = [r for r in messages if int(r['internalDate']) > int(sent['internalDate'])
                    and not {'SENT', 'DRAFT'}.intersection(r.get('labelIds', []))]
         require(inbound, partner + ': no provider permission reply in exact original thread')
@@ -498,10 +531,22 @@ def permissions(p, ro=False):
         raw = client.users().messages().get(userId='me', id=r['message_id'], format='raw').execute(num_retries=0)
         wire = base64.urlsafe_b64decode(raw['raw'] + '===')
         require(digest(wire) == r['raw_sha256'], 'reply native bytes differ from governed answer')
+        message = BytesParser(policy=default).parsebytes(wire)
+        require(len(recipients[r['partner']]) == 1
+                and len(message.get_all('From', [])) == 1
+                and parseaddr(str(message['From']))[1].lower() in recipients[r['partner']],
+                'permission sender not the exact original partner recipient')
+        body = message.get_body(preferencelist=('plain',))
+        text = body.get_content() if body else None
+        require(isinstance(text, str) and r['scope_quote'] in text,
+                'scope quote absent from exact decoded permission message')
         require(r['hold'] == ('released' if r['decision'] == 'grant' else 'kept'), 'hold contrary to written answer')
         require(r['registry_message_id'] == r['message_id'] and r['duplicate_requests'] == 0, 'registry identity/duplicate request defect')
     require({r['partner'] for r in output['answers']} == set(replies), 'missing network answer')
-    return output
+    # A quote, even from the original recipient, does not classify its scope or
+    # prove an actual governed hold update. No independently authenticated
+    # decision + registry reader contract is registered for these threads yet.
+    raise Refused('governed permission decision/hold contract unsupported')
 
 
 def partner_holds(p):

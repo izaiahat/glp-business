@@ -26,13 +26,28 @@ text, extra flags and unknown issues refuse. Existing proof contracts remain.
 
 ## Output bindings
 
-A worker may supply `business_output`, a dictionary of named native-output
-locators. Each locator is `{ "path": "reports/.../native.json", "sha256": "..." }`.
-These must point to real maintained producer outputs with the fields consumed by
-the issue predicate. They are not a license to create a normalized success report
-or copy fixture data. Producer-schema mismatch refuses and requires an adapter
-repair/review, not hand-written completion assertions. Path prefixes, symlinks,
-changed bytes, review filenames and worker status are checked separately.
+A worker may supply `business_output`, a dictionary of locator hints shaped as
+`{ "path": "reports/.../native.json", "sha256": "..." }`. Prefix/hash consistency
+proves only byte integrity, **not** a registered producer execution or authentic
+source evidence. None of the normalized-report contracts in this candidate has
+an independently authenticated execution/output/source binding. `Proof.native`
+therefore always REFUSES after checking locator integrity, including financial
+zero/fresh-attempt, prune, telemetry, closure/idempotency and Cloud reports. Missing
+locators still refuse. Supporting a contract later requires a reviewed maintained
+producer adapter, not a worker-authored success report or a new caller-supplied
+hash. Direct authenticated readers such as GLP-125's exact SENT observation are
+unchanged; no downstream issue is made PASS to satisfy this repair.
+
+Sponsor operation requires `approval_ready(...) is True`. Permission readers
+check the original partner recipient against the reply sender and require the
+exact scope quote in decoded plain text, but still REFUSE: matching text alone
+cannot classify legal scope or authenticate an actual governed-registry hold.
+No permission decision/hold contract is supported for GLP-88/250/253 yet.
+Onboarding additionally requires provider-returned RFC Message-ID, sender,
+recipient, subject and plain-text copy to join the exact mailbox message to the
+D1-delivered provider ID. Approved plain-text copy is UTF-8 with LF and no terminal
+newlines. Missing provider identity/content fields refuse; no synthetic fallback
+or independently chosen mailbox hash establishes delivery of approved onboarding.
 
 Direct readers cover exact Gmail threads/messages, canonical static URLs without
 redirects, Sheet reads, fixed SELECT-only receiver/D1 queries, provider email

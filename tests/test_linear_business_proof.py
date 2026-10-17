@@ -62,7 +62,8 @@ def test_locator_requires_native_output_exact_bytes_not_accept(tmp_path):
     artifact.parent.mkdir(parents=True)
     artifact.write_text('{"real_rows":1}')
     p.inputs['native'] = {'path':str(artifact),'sha256':b.digest(artifact.read_bytes())}
-    assert p.native('native','reports/ops/native')['real_rows'] == 1
+    with pytest.raises(b.Refused, match='producer execution/source contract unsupported'):
+        p.native('native','reports/ops/native')
     artifact.write_text('{"real_rows":2}')
     with pytest.raises(b.Refused,match='bytes changed'):
         p.native('native','reports/ops/native')
@@ -153,16 +154,130 @@ def test_unknown_financial_coverage_never_proven_zero():
         b.conversions(p)
 
 
-def test_true_network_zero_and_superseded_attempt_refusal():
+def test_synthetic_zero_predicate_and_superseded_attempt_refusal():
     report={'conversion_reconciliation':{'coverage_complete':True,'input_completeness':'COMPLETE',
              'provenance':'AUTHENTICATED_PRODUCTION_DATA','rows':[],'network_proven_zero':True,'test_rows_in_financial_totals':0},
              'completed_at':'2026-10-16T02:00:00Z','effects':{'tracking_requests':0,'provider_writes':0}}
     attempt={'status':'complete','attempt_sha256':'f'*64,'preclaim_source_pr':560,'fresh_attempt_count':1,'started_at':'2026-10-16T01:00:00Z'}
     p=FakeProof({'reconciliation':report,'fresh_attempt':attempt})
+    # Predicate-only fixture bypasses native(); it proves no producer provenance.
     assert b.conversions(p)['real_lineage_rows']==0
     attempt['attempt_sha256']='e4678e3d'+'0'*56
     with pytest.raises(b.Refused,match='old effect never replayed'):
         b.conversions(p)
+
+
+# RV564 controls are synthetic counterexamples, never runtime business output.
+def test_rv564_fabricated_financial_zero_and_all_native_names_refuse(tmp_path, monkeypatch):
+    report = {'conversion_reconciliation': {'coverage_complete': True, 'input_completeness': 'COMPLETE',
+        'provenance': 'AUTHENTICATED_PRODUCTION_DATA', 'rows': [], 'network_proven_zero': True,
+        'test_rows_in_financial_totals': 0}, 'completed_at': '2026-10-16T02:00:00Z',
+        'effects': {'tracking_requests': 0, 'provider_writes': 0}}
+    attempt = {'status': 'complete', 'attempt_sha256': 'f'*64, 'preclaim_source_pr': 560,
+        'fresh_attempt_count': 1, 'started_at': '2026-10-16T01:00:00Z'}
+    inputs = {}
+    for name, data, prefix in [('reconciliation', report, 'reports/glp-clinic-scout/affiliate-machine/conversion-reconciliation'),
+                               ('fresh_attempt', attempt, 'reports/ops')]:
+        path = tmp_path/prefix/(name+'.json')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data))
+        inputs[name] = {'path': str(path), 'sha256': b.digest(path.read_bytes())}
+    (tmp_path/'worker.json').write_text(json.dumps({'business_output': inputs}))
+    p = b.Proof('GLP-334', {'worker_result': 'worker.json'}, tmp_path)
+    monkeypatch.setattr(p, 'pr', lambda *a: {'headRefOid': 'a'*40})
+    with pytest.raises(b.Refused, match='producer execution/source contract unsupported'):
+        b.conversions(p)
+    # No other normalized success-report name may inherit prefix/hash trust.
+    for name in ('manual_prune', 'scheduled_prune', 'capacity_telemetry', 'closure_readback',
+                 'coordinator_runs', 'site_output', 'pilot_report', 'onboarding', 'activation',
+                 'permission_registry', 'cloud_results', 'fresh_attempt'):
+        p.inputs[name] = inputs['fresh_attempt']
+        with pytest.raises(b.Refused, match='producer execution/source contract unsupported'):
+            p.native(name, 'reports/ops')
+
+
+def test_rv564_disabled_approval_is_not_operating_sponsor(tmp_path, monkeypatch):
+    import base64
+    import glp_sponsor_campaign as campaign
+    raw = b'From: partners@glpclinicscout.com\r\nTo: synthetic@example.invalid\r\n\r\nsynthetic pilot'
+    config = tmp_path/'config.json'
+    config.write_text('{"send_enabled":false}')
+    assert campaign.approval_ready(json.loads(config.read_text())) is False
+    report = {'sent_messages': [{'message_id': 'fixture', 'thread_id': 'thread',
+        'raw_sha256': b.digest(raw), 'organization_id': 'fixture-org', 'sequence_step': 0, 'us_eligible': True}],
+        'genuine_reply_stops': True, 'genuine_followup_stops': True, 'opt_out_stops': True,
+        'excluded_provider_sends': 0, 'suppressed_sends': 0, 'spend_used': 0, 'spend_cap': 0}
+    stub = SimpleNamespace(CONFIG=config, SENDER=campaign.SENDER, approval_ready=campaign.approval_ready,
+        service=lambda _: SimpleNamespace(get_message=lambda *a, **k: {'id': 'fixture', 'threadId': 'thread',
+            'raw': base64.urlsafe_b64encode(raw).decode(), 'labelIds': ['SENT'], 'internalDate': '1792166400000'}))
+    monkeypatch.setitem(sys.modules, 'glp_sponsor_campaign', stub)
+    # Synthetic native adapter isolates approval handling from the separate producer gate.
+    p = FakeProof({'pilot_report': report})
+    p.root = tmp_path
+    with pytest.raises(b.Refused, match='sponsor approval/enablement absent'):
+        b.sponsor_outreach(p)
+
+
+def test_rv564_unrelated_permission_cannot_release_governed_hold(monkeypatch):
+    import base64
+    wire = b'From: unrelated@example.invalid\r\nSubject: unrelated\r\n\r\nNo decision has been made; do not publish.'
+    original = {'1a086bd56c0efba4': ('1a1229a1484e341a', 'fixture-x'),
+                '1a0a0ca5a8b8d54a': ('1a1229aa7f912aa1', 'fixture-b')}
+    answers = [{'partner': partner, 'message_id': mid, 'decision': 'grant',
+        'scope_quote': 'permission GRANTED (not in actual mail)', 'raw_sha256': b.digest(wire),
+        'hold': 'released', 'registry_message_id': mid, 'duplicate_requests': 0}
+        for partner, mid in [('XenTraffic', 'fixture-x'), ('BistroMD', 'fixture-b')]]
+    class API:
+        def users(self): return self
+        def threads(self):
+            return SimpleNamespace(get=lambda **kw: SimpleNamespace(execute=lambda **k: {'messages': [
+                {'id': original[kw['id']][0], 'internalDate': '1', 'labelIds': ['SENT'],
+                 'payload': {'headers': [{'name': 'To', 'value': 'partner@example.invalid'}]}},
+                {'id': original[kw['id']][1], 'internalDate': '2', 'labelIds': ['INBOX']}]}))
+        def messages(self):
+            return SimpleNamespace(get=lambda **kw: SimpleNamespace(execute=lambda **k:
+                {'raw': base64.urlsafe_b64encode(wire).decode()}))
+    monkeypatch.setattr(b, 'ops_mail', API)
+    with pytest.raises(b.Refused, match='permission sender|scope quote|governed permission'):
+        b.permissions(FakeProof({'permission_registry': {'answers': answers}}))
+    wire = wire.replace(b'unrelated@example.invalid', b'partner@example.invalid')
+    for answer in answers:
+        answer['raw_sha256'] = b.digest(wire)
+    with pytest.raises(b.Refused, match='scope quote absent'):
+        b.permissions(FakeProof({'permission_registry': {'answers': answers}}))
+    for answer in answers:
+        answer['scope_quote'] = 'No decision has been made; do not publish.'
+    with pytest.raises(b.Refused, match='governed permission decision/hold contract unsupported'):
+        b.permissions(FakeProof({'permission_registry': {'answers': answers}}))
+
+
+def test_rv564_unrelated_mailbox_is_not_delivered_onboarding():
+    import base64
+    raw = b'From: other@example.invalid\r\nTo: izaiah@glpclinicscout.com\r\nSubject: Unrelated\r\n\r\nThis is not onboarding.'
+    output = {'classification': 'TEST', 'consented': True, 'owned_identity': True,
+        'provider_message_id': 'fixture-provider', 'duplicate_refusals': 1, 'unconsented_refusals': 1,
+        'suppressed_refusals': 1, 'copy_sha256': 'fixture-copy', 'accepted_copy_sha256': 'fixture-copy',
+        'retention_sha256': 'fixture-retention', 'accepted_retention_sha256': 'fixture-retention'}
+    p = FakeProof({'onboarding': output, 'activation': {'capture_enabled': True, 'onboarding_enabled': True,
+        'copy_sha256': 'fixture-copy', 'commercial_test_rows': 0}})
+    p.inputs = {'mailbox_message': {'id': 'unrelated', 'raw_sha256': b.digest(raw)}}
+    p.onboard_live = lambda: [{'resend_email_id': 'fixture-provider', 'status': 'delivered'}]
+    p.resend_get = lambda _: {'id': 'fixture-provider', 'status': 'delivered'}
+    p.owned_mailbox_message = lambda _: {'id': 'unrelated', 'raw': base64.urlsafe_b64encode(raw).decode()}
+    with pytest.raises(b.Refused, match='onboarding mailbox/provider identity'):
+        b.onboarding(p)
+    # Even matching RFC identity cannot substitute unrelated copy for onboarding.
+    raw = raw.replace(b'From: other@example.invalid', b'Message-ID: <owned@resend.dev>\r\nFrom: onboarding@example.invalid')
+    p.inputs['mailbox_message']['raw_sha256'] = b.digest(raw)
+    provider = {'id': 'fixture-provider', 'status': 'delivered', 'headers': {'Message-ID': '<owned@resend.dev>'},
+        'from': 'onboarding@example.invalid', 'to': ['izaiah@glpclinicscout.com'], 'subject': 'Unrelated',
+        'text': 'Approved onboarding'}
+    p.resend_get = lambda _: provider
+    with pytest.raises(b.Refused, match='approved content mismatch'):
+        b.onboarding(p)
+    provider['text'] = 'This is not onboarding.'
+    with pytest.raises(b.Refused, match='approved content mismatch'):
+        b.onboarding(p)  # mailbox/provider text still not accepted-copy hash
 
 
 def test_plan_exact_fourteen_business_not_preflight_bindings():
