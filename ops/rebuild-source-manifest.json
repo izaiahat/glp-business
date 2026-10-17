@@ -3762,7 +3762,7 @@
         "systemd:kael-audit.service"
       ],
       "kind": "script",
-      "sha256": "50a54869204bd9816b728acc893ca183f95ee506e76973da32b2e70cd4d6d3b7"
+      "sha256": "4d80711730d115a8cf51be36434a98d12283a4ad334879b524ec3b23caa9cad9"
     },
     "scripts/impact_api_credentials.py": {
       "callers": [
@@ -6672,7 +6672,7 @@
         ".github/workflows/host-health-audit.yml"
       ],
       "kind": "test",
-      "sha256": "e3302ac4b3cc697525d9dab7ecf81fcc9638f86e7210b6e782a335f2de2f4c52"
+      "sha256": "7bb47db547833c9b4b33efb08f4a6665cdfd77ac5474bb66372fc5dd4af863d1"
     },
     "tests/test_inbox_control_plane.py": {
       "callers": [],

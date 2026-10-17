@@ -15,6 +15,7 @@ import tempfile
 
 HOME = Path('/home/ubuntu/.hermes')
 DEFAULT_REPORT = Path('/home/ubuntu/business/reports/host-health-audit')
+FLEET_DISK_FLOOR_BYTES = 100_000_000_000
 
 
 def write_json(path: Path, value: dict) -> None:
@@ -31,6 +32,14 @@ def write_json(path: Path, value: dict) -> None:
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def canonical_start_tick(value: object) -> bool:
+    """Linux /proc starttime is canonical unsigned 64-bit decimal, not an alias."""
+    return (isinstance(value, str) and 1 <= len(value) <= 20
+            and value.isascii() and value.isdigit()
+            and (value == '0' or not value.startswith('0'))
+            and int(value) <= 2**64 - 1)
 
 
 def snapshot() -> dict:
@@ -86,22 +95,43 @@ def snapshot() -> dict:
         reservations = []
         active = None
         findings.append('capacity_ledger_unavailable')
+    tokens = set()
+    unverifiable = False
     for row in reservations:
+        if (not isinstance(row, dict) or type(row.get('pid')) is not int or row['pid'] <= 0
+                or not canonical_start_tick(row.get('start'))
+                or not isinstance(row.get('token'), str)
+                or not row['token'] or row['token'] in tokens):
+            unverifiable = True
+            continue
+        tokens.add(row['token'])
         try:
             # Use /proc start ticks to exclude reused/dead PIDs; no process signalling.
-            fields = Path(f"/proc/{int(row['pid'])}/stat").read_text().rsplit(')', 1)[1].split()
-            if fields[19] == str(row['start']):
+            fields = Path(f"/proc/{row['pid']}/stat").read_text().rsplit(')', 1)[1].split()
+            if not canonical_start_tick(fields[19]):
+                unverifiable = True
+            elif fields[19] == row['start']:
                 active = int(active or 0) + 1
-        except (OSError, ValueError, KeyError, IndexError):
+        except (FileNotFoundError, ProcessLookupError):
+            # Only a definitely absent owner is stale; denied reads are unknown.
             continue
+        except (OSError, ValueError, IndexError):
+            unverifiable = True
+    if unverifiable:
+        active = None
+        findings.append('capacity_ledger_unverifiable')
     disk = shutil.disk_usage('/')
+    # shutil.disk_usage.free is f_bavail on Linux: excludes reserved blocks.
+    available_bytes = disk.free
+    if available_bytes < FLEET_DISK_FLOOR_BYTES:
+        findings.append('root_disk_below_fleet_floor')
     if state['main_bytes'] is not None and state['main_bytes'] >= 8_000_000_000:
         findings.append('state_db_over_fleet_threshold')
     if memory['SwapTotal'] and (memory['SwapTotal'] - memory['SwapFree']) / memory['SwapTotal'] >= .75:
         findings.append('swap_guard_high_water')
     if any(p['rss_bytes'] >= 4 * 1024**3 for p in processes):
         findings.append('swap_guard_runaway_rss')
-    if state['main_bytes'] is not None and disk.free < state['main_bytes'] + int(state['wal_bytes'] or 0) + 1024**3:
+    if state['main_bytes'] is not None and available_bytes < state['main_bytes'] + int(state['wal_bytes'] or 0) + 1024**3:
         findings.append('insufficient_state_backup_compaction_headroom')
     if any(j['id'] == 'fbf9ba7b76c2' and not j['enabled'] for j in selected):
         findings.append('legacy_session_pruner_disabled')
@@ -109,7 +139,9 @@ def snapshot() -> dict:
             'observed_at_utc': dt.datetime.now(dt.timezone.utc).isoformat(),
             'assessment': 'degraded' if findings else 'healthy', 'findings': findings,
             'memory': memory, 'memory_pressure': pressure, 'state_db': state,
-            'root_disk': {'free_bytes': disk.free, 'total_bytes': disk.total},
+            'root_disk': {'free_bytes': disk.free, 'total_bytes': disk.total,
+                          'available_bytes': available_bytes,
+                          'fleet_floor_bytes': FLEET_DISK_FLOOR_BYTES},
             'top_processes': sorted(processes, key=lambda x: x['rss_bytes'], reverse=True)[:10],
             'housekeeping_jobs': selected,
             'capacity': {'active_reservations': active, 'ledger_entries': len(reservations),
