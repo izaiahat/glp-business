@@ -22,9 +22,11 @@ def objects(mode='held'):
               'fail_open': False, 'always_use_latest_compatibility_date': False}
     dep = {'id': adoption.DEPLOYMENT, 'project_id': adoption.PROJECT_ID,
            'project_name': carrier.PROJECT, 'environment': 'production',
-           'latest_stage': {'status': 'success'}, 'uses_functions': True,
+           'latest_stage': {'status': 'success'}, 'uses_functions': True, 'build_config': {},
            'deployment_trigger': {'metadata': {'branch': 'main', 'commit_hash': adoption.HEAD}},
            **{k: copy.deepcopy(config[k]) for k in adoption.DEPLOYED_KEYS}}
+    dep['usage_model'] = 'bundled'  # Independently observed Pages representation.
+    dep['production_branch'] = 'main'
     project = {'id': adoption.PROJECT_ID, 'name': carrier.PROJECT, 'uses_functions': True,
                'subdomain': carrier.PROJECT + '.pages.dev', 'production_branch': 'main',
                'deployment_configs': {'production': config, 'preview': {'env_vars': {}}},
@@ -204,6 +206,112 @@ def test_uncertain_or_other_setting_loss_blocks_next_release_and_replay(effect_f
     assert len(state['patches']) == 1 and len(state['uploads']) == before
     with pytest.raises(carrier.GateError, match='unsettled_blocks_release'):
         adoption.assert_no_pending(runs)
+
+
+def test_deployed_build_analytics_drift_refused_before_cas(effect_fixture, tmp_path, monkeypatch):
+    """Astra's observed build_config counterexample, using the real apply chain."""
+    runs, state, plan = effect_fixture
+    native_upload = adoption.subprocess.run
+
+    def upload(*args, **kwargs):
+        result = native_upload(*args, **kwargs)
+        state['dep']['build_config'] = {
+            'web_analytics_tag': 'synthetic-unreviewed-tag',
+            'web_analytics_token': 'synthetic-not-a-credential'}
+        state['project']['canonical_deployment'] = copy.deepcopy(state['dep'])
+        return result
+
+    monkeypatch.setattr(adoption.subprocess, 'run', upload)
+    with pytest.raises(carrier.GateError):
+        run_apply(effect_fixture, tmp_path)
+    assert len(state['patches']) == len(state['uploads']) == 1
+    assert not state['cas']
+    assert json.loads(adoption.journal_path(runs).read_text())['status'] == 'ACTIVE'
+
+
+@pytest.mark.parametrize('key', ['kv_namespaces', 'r2_buckets', 'placement'])
+def test_empty_optional_setting_presence_is_not_absence(key):
+    project, dep = objects()
+    before = adoption.settings_witness(project, dep, 'held')
+    dep[key] = {}
+    with pytest.raises(carrier.GateError):
+        adoption.require_witness(project, dep, 'held', before)
+
+
+@pytest.mark.parametrize('key,value', [
+    ('kv_namespaces', {'FLAGS': {'namespace_id': 'a' * 32}}),
+    ('r2_buckets', {'FILES': {'name': 'fixture-bucket'}}),
+    ('placement', {'mode': 'smart'}),
+])
+def test_deployed_optional_setting_loss_refused(key, value):
+    """Each of Astra's three pure-witness counterexamples remains a regression."""
+    project, dep = objects()
+    project['deployment_configs']['production'][key] = copy.deepcopy(value)
+    dep[key] = copy.deepcopy(value)
+    before = adoption.settings_witness(project, dep, 'held')
+    dep[key] = {}
+    with pytest.raises(carrier.GateError):
+        adoption.require_witness(project, dep, 'held', before)
+
+
+@pytest.mark.parametrize('key,value', [
+    ('kv_namespaces', {'UNREVIEWED': {'namespace_id': 'b' * 32}}),
+    ('r2_buckets', {'FILES': {'name': 'fixture-bucket'}}),
+    ('placement', {'mode': 'smart'}),
+    ('future_runtime_binding', {'UNREVIEWED': {'id': 'synthetic'}}),
+])
+def test_deployed_configuration_addition_refused_before_cas(
+        effect_fixture, tmp_path, monkeypatch, key, value):
+    runs, state, plan = effect_fixture
+    native_upload = adoption.subprocess.run
+
+    def upload(*args, **kwargs):
+        result = native_upload(*args, **kwargs)
+        state['dep'][key] = copy.deepcopy(value)
+        state['project']['canonical_deployment'] = copy.deepcopy(state['dep'])
+        return result
+
+    monkeypatch.setattr(adoption.subprocess, 'run', upload)
+    with pytest.raises(carrier.GateError):
+        run_apply(effect_fixture, tmp_path)
+    assert len(state['patches']) == len(state['uploads']) == 1
+    assert not state['cas']
+    assert json.loads(adoption.journal_path(runs).read_text())['status'] == 'ACTIVE'
+    with pytest.raises(carrier.GateError, match='unsettled_blocks_release'):
+        adoption.assert_no_pending(runs)
+
+
+def test_unknown_initial_deployed_configuration_refused():
+    project, dep = objects()
+    # Even an unchanged unknown binding cannot be blessed by prepare.
+    dep['future_runtime_binding'] = {}
+    with pytest.raises(carrier.GateError, match='unknown_deployed_configuration'):
+        adoption.settings_witness(project, dep, 'held')
+
+
+def test_deployment_metadata_changes_preserve_settings_and_usage_model(
+        effect_fixture, tmp_path, monkeypatch):
+    runs, state, plan = effect_fixture
+    native_upload = adoption.subprocess.run
+
+    def upload(*args, **kwargs):
+        result = native_upload(*args, **kwargs)
+        # New deployment IDs, URLs, timestamps, stages and file-upload metadata
+        # may change, but these fields do not describe runtime/build settings.
+        state['dep'].update({
+            'short_id': '11111111', 'url': 'https://11111111.fixture.pages.dev',
+            'aliases': ['https://fixture.pages.dev'], 'created_on': '2026-10-17T01:00:00Z',
+            'modified_on': '2026-10-17T01:00:01Z', 'is_skipped': False,
+            'stages': [{'name': 'deploy', 'status': 'success'}], 'files': {}})
+        state['project']['canonical_deployment'] = copy.deepcopy(state['dep'])
+        return result
+
+    monkeypatch.setattr(adoption.subprocess, 'run', upload)
+    out = run_apply(effect_fixture, tmp_path)
+    assert out['status'] == 'PASS_PRODUCTION_TERMINAL'
+    assert len(state['cas']) == 1
+    assert state['dep']['usage_model'] == 'bundled'
+    assert state['project']['deployment_configs']['production']['usage_model'] == 'standard'
 
 
 def test_changed_plan_requires_no_credentials_or_effects(effect_fixture, tmp_path, monkeypatch):

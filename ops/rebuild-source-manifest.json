@@ -6,21 +6,21 @@
         "scripts/glp_release_main.py"
       ],
       "kind": "script",
-      "sha256": "fced1d9173ffba6c553652fa641cfa5388db7f26778ee0c39d5b6c82cf92997e"
+      "sha256": "0e027049d338ec8027527cbfc0bffb7aeea167312a77480a6e7c51d04cc31a4a"
     },
     "tests/test_glp_owned_test_adoption.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "97480516ff51d83941dadc3ee9704fb4fffd592aac7752b09f58f3f78153e0c6"
+      "sha256": "fb1e5d0c64e6261b874bf08e81efd3edf351390ed82ea185db50e4c039683c77"
     },
     "ops/glp47-owned-test-adoption.md": {
       "callers": [
         "scripts/glp_release_main.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "061d62612e0bf87402f90721162205173db036296c3425dee3214bf78e8f39c0"
+      "sha256": "1d3fffe3f2ae30a9703859ed8d26e3c0136c26e5c3b5eba223d2101d23152fdd"
     },
     "tests/test_glp_ship_preclaim.py": {
       "kind": "test",

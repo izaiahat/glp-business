@@ -54,6 +54,16 @@ functions flag, D1, and both project/deployed capture/settings are read back.
 The native route matrix, held-route runtime probes, final receipt and pointer CAS
 remain required. No search notification occurs for unchanged content.
 
+The deployed witness is a closed schema, separate from the project witness: it
+hashes deployed `build_config` (including analytics), stable identity settings,
+and every present supported runtime binding, including optional KV/R2/placement.
+Absent and present-empty optional keys are distinct. Unknown top-level fields
+refuse at prepare or receiving rather than being ignored or silently approved.
+Only generated deployment IDs/URLs/aliases, timestamps, trigger/stage status and
+upload-file metadata may vary; commit/marker/status and complete retained-byte
+closure remain authenticated by the existing native gates. No configuration
+values are written into the witness, only its hash.
+
 The existing provider representation is project `usage_model=standard` versus
 deployed `usage_model=bundled`; both are retained separately and must each remain
 unchanged. This difference is not normalized into an assumed equality.

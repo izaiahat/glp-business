@@ -28,6 +28,17 @@ KEY = 'NEWSLETTER_CAPTURE_MODE'
 BASE = f'/accounts/{c.ACCOUNT_ID}/pages/projects/{c.PROJECT}'
 DEPLOYED_KEYS = ('env_vars', 'd1_databases', 'compatibility_date', 'compatibility_flags',
                  'usage_model', 'build_image_major_version')
+# Fixed-cohort deployed schema, independent of project deployment_configs. Keep
+# stable identity/build/runtime settings; optional keys retain presence as well
+# as values. Any provider field outside these two explicit classes must refuse.
+DEPLOYED_SETTINGS = frozenset((*DEPLOYED_KEYS, 'build_config', 'project_id',
+    'project_name', 'environment', 'production_branch', 'uses_functions',
+    'kv_namespaces', 'r2_buckets', 'placement'))
+# Only generated deployment identity/URLs, lifecycle/trigger/stage status and
+# upload-file metadata may vary for a fresh retained-byte deployment. The native
+# gates still authenticate ID, commit/marker, success and complete byte closure.
+DEPLOYED_METADATA = frozenset(('id', 'short_id', 'url', 'aliases', 'created_on',
+    'modified_on', 'deployment_trigger', 'latest_stage', 'stages', 'is_skipped', 'files'))
 
 
 def digest(value):
@@ -71,14 +82,19 @@ def settings_witness(project, deployment, mode):
         if (name not in prod or name not in deployment
                 or name != 'usage_model' and prod[name] != deployment[name]):
             c.fail('owned_test_deployed_settings_mismatch:' + name)
+    if set(deployment) - DEPLOYED_SETTINGS - DEPLOYED_METADATA:
+        c.fail('owned_test_unknown_deployed_configuration')
+    if not isinstance(deployment.get('build_config'), dict):
+        c.fail('owned_test_deployed_build_config_missing_or_invalid')
+    deployed_settings = {k: copy.deepcopy(v) for k, v in deployment.items()
+                         if k not in DEPLOYED_METADATA}
+    deployed_settings['env_vars'].pop(KEY)
     env.pop(KEY)
     return {'deployment_configs_except_capture_sha256': digest(configs),
             'project_settings_sha256': digest({k: project.get(k) for k in
                 ('id', 'name', 'subdomain', 'production_branch', 'build_config', 'source',
                  'domains', 'production_script_name', 'preview_script_name')}),
-            'deployed_settings_except_capture_sha256': digest({k:
-                ({n: v for n, v in deployment[k].items() if n != KEY} if k == 'env_vars'
-                 else deployment[k]) for k in DEPLOYED_KEYS})}
+            'deployed_settings_except_capture_sha256': digest(deployed_settings)}
 
 
 def require_witness(project, deployment, mode, expected):
