@@ -1,0 +1,32 @@
+name: auto-deployer
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/auto_deployer.py'
+      - 'scripts/fleet_ingest.py'
+      - 'tests/test_auto_deployer.py'
+      - 'ops/hermes-cron-scripts/auto_deployer.sh'
+      - '.github/workflows/auto-deployer.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Offline admission, custody, scoped install and closure regressions
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_auto_deployer.py -v
+          python3 -B -m unittest discover -s tests -p test_fleet_ingest.py -v
+          bash -n ops/hermes-cron-scripts/auto_deployer.sh
