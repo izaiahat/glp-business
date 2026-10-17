@@ -104,3 +104,72 @@ def test_report_writer_cleans_exclusive_temp_on_failure(tmp_path, monkeypatch):
         module.write_json(path, {'new': True})
     assert path.read_bytes() == b'previous report\n'
     assert sorted(p.name for p in tmp_path.iterdir()) == ['LATEST.json']
+
+
+def fixture_audit(tmp_path, monkeypatch, reservations):
+    """Only synthetic home/ledger; never open or mutate the live session DB."""
+    spec = importlib.util.spec_from_file_location('host_audit', SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, 'HOME', tmp_path)
+    (tmp_path / 'state.db').write_bytes(b'fixture, not SQLite')
+    (tmp_path / 'cron').mkdir()
+    (tmp_path / 'cron/jobs.json').write_text('{"jobs": []}')
+    (tmp_path / 'cache').mkdir()
+    (tmp_path / 'cache/delegation-host-budget.json').write_text(json.dumps(reservations))
+    return module
+
+
+@pytest.mark.parametrize('available', [500_000_000, 99_999_999_999, 100_000_000_000, 100_000_000_001])
+def test_fleet_disk_floor_and_backup_headroom_boundaries(tmp_path, monkeypatch, available):
+    from types import SimpleNamespace
+    module = fixture_audit(tmp_path, monkeypatch, [])
+    monkeypatch.setattr(module.shutil, 'disk_usage', lambda _: SimpleNamespace(
+        total=622_000_000_000, free=available))
+    report = module.snapshot()
+    assert report['root_disk']['fleet_floor_bytes'] == 100_000_000_000
+    assert report['root_disk']['available_bytes'] == available
+    assert ('root_disk_below_fleet_floor' in report['findings']) == (available < 100_000_000_000)
+    assert ('insufficient_state_backup_compaction_headroom' in report['findings']) == (
+        available < 1024**3 + (tmp_path / 'state.db').stat().st_size)
+
+
+@pytest.mark.parametrize('bad_row', [None, [], {'pid': None},
+    {'pid': True, 'start': '1', 'token': 'bad'},
+    {'pid': 1, 'start': [], 'token': 'bad'},
+    {'pid': 1, 'start': '1', 'token': ''}])
+def test_invalid_capacity_row_is_unknown_not_zero_or_crash(tmp_path, monkeypatch, bad_row):
+    module = fixture_audit(tmp_path, monkeypatch, [bad_row])
+    report = module.snapshot()
+    assert report['capacity']['active_reservations'] is None
+    assert 'capacity_ledger_unverifiable' in report['findings']
+
+
+def test_duplicate_capacity_tokens_are_unknown(tmp_path, monkeypatch):
+    import os
+    pid = os.getpid()
+    tick = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+    row = {'pid': pid, 'start': tick, 'token': 'same-token'}
+    module = fixture_audit(tmp_path, monkeypatch, [row, row])
+    report = module.snapshot()
+    assert report['capacity']['active_reservations'] is None
+    assert 'capacity_ledger_unverifiable' in report['findings']
+
+
+def test_unreadable_capacity_owner_is_unknown_but_dead_owner_is_stale(tmp_path, monkeypatch):
+    import os
+    pid = os.getpid()
+    tick = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[19]
+    rows = [{'pid': pid, 'start': tick, 'token': 'live'},
+            {'pid': 99999999, 'start': '1', 'token': 'dead'}]
+    module = fixture_audit(tmp_path, monkeypatch, rows)
+    assert module.snapshot()['capacity']['active_reservations'] == 1
+    original = Path.read_text
+    def denied(path, *args, **kwargs):
+        if path == Path(f'/proc/{pid}/stat'):
+            raise PermissionError('fixture owner inspection denied')
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'read_text', denied)
+    report = module.snapshot()
+    assert report['capacity']['active_reservations'] is None
+    assert 'capacity_ledger_unverifiable' in report['findings']

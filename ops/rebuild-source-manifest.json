@@ -3744,7 +3744,7 @@
         "systemd:kael-audit.service"
       ],
       "kind": "script",
-      "sha256": "50a54869204bd9816b728acc893ca183f95ee506e76973da32b2e70cd4d6d3b7"
+      "sha256": "4927a6e71ea8e9dc9f339f083b1d42bff6645fbd78e2ba36cfc3c0e4556dbac8"
     },
     "scripts/impact_api_credentials.py": {
       "callers": [
