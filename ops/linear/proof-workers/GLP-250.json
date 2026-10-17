@@ -1,0 +1,8 @@
+{
+  "issue": "GLP-250",
+  "owner": "same partner-permission end-to-end owner; parent alone closes",
+  "status": "REDISPATCH_NEEDED",
+  "failure": "Written network permission responses absent in last exact-thread receiving; holds remain. Former L8/GLP250 worker path did not exist.",
+  "source_result": "reports/ops/fable-plan-2-20261009/lanes/PARTNER-RECEIVE/RESULT.json",
+  "business_output": {}
+}

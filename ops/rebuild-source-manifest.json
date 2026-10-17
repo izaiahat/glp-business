@@ -327,7 +327,7 @@
         "scripts/dot_lane.py"
       ],
       "kind": "operations",
-      "sha256": "390d10ecf41d19baf351d2b29b6e51fa97a6feda58779d9427525bec6e432bed"
+      "sha256": "bdca88ebed301f45f8d99024db27629c868f9db07f60b746143795dbe3d64072"
     },
     "ops/dots/README.md": {
       "callers": [
@@ -349,14 +349,14 @@
         "ops/cron.d/glp-dot-refill"
       ],
       "kind": "script",
-      "sha256": "dfd133eebfa7fab3651774ebe50a3fa60708fede0f2d6628784d88e2b9910200"
+      "sha256": "761439f943b3e87827323d6d807a66d4c4a7e09f7981918454e929ad394965d5"
     },
     "tests/test_dot_lane.py": {
       "callers": [
         ".github/workflows/dot-lane.yml"
       ],
       "kind": "test",
-      "sha256": "a81b1f59dd39fdb9c7fb982aad7194c0d976a16d3a1f1e6d3d3d189026fbf613"
+      "sha256": "363155453bdca18bfe2e9bdd260177930ee753d8b684088304ea522baa158012"
     },
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [
@@ -431,7 +431,7 @@
         "GitHub exact-head CI"
       ],
       "kind": "repository_control",
-      "sha256": "733bd2cf8cda3f30575979b4a459889fbf36e7b7c00326aa0cdc8bff1e45a9f8"
+      "sha256": "141947c52f190734e17a685a4b56353f4de307de74827b7b7df5b5a3b1478115"
     },
     ".github/workflows/glp110-archive-admission.yml": {
       "callers": [
@@ -1941,7 +1941,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "601b83a6a2dcb8aba00e8996152fbc6f34cd886978c8053126aef4e2fc5cedf9"
+      "sha256": "1d540371211045e5cfd140fc2f815c168e41a17c4e033fa2b04a87058ee26cc7"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -2813,7 +2813,7 @@
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "caadd415864d33476fe1519b82c6d71df9c98fbf6b5718e1c085f04f9d371360"
+      "sha256": "ef784c19420af2e368b1a005025f1d07ae0908f83ee779e0ed907e2a6572a4a1"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -2979,7 +2979,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "fd061926391279b5115b21872b4f0eb25b63ab1a47684ba72c3308b8b485c59a"
+      "sha256": "a797afaf71127bb5d29e2e4d5ab0629ec644bed412c803540b9993b0bda97f45"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -3685,7 +3685,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "04dae0459281e8e5192ddd965ceb86f00e1983916e335b29ee7f7c5bfe01bce7"
+      "sha256": "80d35887705c52037e31865a7d6173eb7de6a72a2e1e6320a5e1d200e4551821"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -6599,7 +6599,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "90caa3ded34ea191ff05cda676556b7475b64fb738a6d3cdcb33e2ab4f3aef5c"
+      "sha256": "12c77b36d7fe7e8e89bc5e01072805e5ee8c771bfab495026d6f65ebac60ad21"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [
@@ -7099,7 +7099,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "22cdb5fe84aad1c3ca37fcf9dcd65e20f7bc6cca62862bdc166ae124649f4c9d"
+      "sha256": "a1c8134559c7241f62eead956372b3c465b2696315c8c3fa24c2a3e2f593a9b8"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -7967,7 +7967,7 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "df8832489b14c31a668dc60b9cb8e69cf467870e1c5a62576bf951fc98c0da73"
+      "sha256": "775d98bca5230249c18487a9cbe4e071282a4b23cdc9135ad4721dc98764f834"
     },
     "scripts/host_disk_relay_custody.py": {
       "kind": "script",
@@ -8160,6 +8160,69 @@
       ],
       "kind": "test",
       "sha256": "1c199ab0db9a73cb3e10775464e0116871975a669408a1364fdcf49eafd9eb85"
+    },
+    "ops/linear/proof-workers/GLP-88.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-88 non-complete owner binding"
+      ],
+      "sha256": "a244a7edea8bc95c1ba3087f2a517371297eb1ae9a1db4426d6e7f108608a87c"
+    },
+    "ops/linear/proof-workers/GLP-250.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-250 non-complete owner binding"
+      ],
+      "sha256": "be78522d62cb07ecaf823d242806864669a93da1b6fd0d5ed5e8d4bcfa1670db"
+    },
+    "ops/linear/proof-workers/GLP-253.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-253 non-complete owner binding"
+      ],
+      "sha256": "2c1ecd57ed2364360f27eac1b9437bd4354f992124598105857ab24656cfeb41"
+    },
+    "ops/linear/PLAN.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-358 reviewed proof policy"
+      ],
+      "sha256": "a10b9141059c23ee92a00592c48ddc60118ce74004ffe0192d7e4b09b9b65cea"
+    },
+    "ops/linear/BUSINESS-PROOFS.md": {
+      "kind": "operations",
+      "callers": [
+        "GLP-358 proof contracts"
+      ],
+      "sha256": "8121dce91821cd67eae57b1b4063a732e8de36d9233bf56f2d8588abd41db8e4"
+    },
+    "ops/linear/proof-workers/GLP-125.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-125 exact sent identity binding"
+      ],
+      "sha256": "abe0ca4c9e4fec0f1d951c5822cd3069271b1a432d01574e8e19f0646225bd42"
+    },
+    "scripts/linear_business_proof.py": {
+      "kind": "script",
+      "callers": [
+        "GLP-358 read-only proof"
+      ],
+      "sha256": "d22328f209a26cb825d4bfa8e5d4dfed5b6d9a1de4f9dae1bfbf0fef40e29464"
+    },
+    "scripts/prepare_business_proof_plan.py": {
+      "kind": "script",
+      "callers": [
+        "GLP-358 policy preparation"
+      ],
+      "sha256": "0790aabdff975e3020143e67e819da36bfd6b3cb916c3b83f99993876469bc5f"
+    },
+    "tests/test_linear_business_proof.py": {
+      "kind": "test",
+      "callers": [
+        "fleet-ingest CI"
+      ],
+      "sha256": "28e672fd1f1c445eafe676bb088d12fa4effa32d46d8c8ddb18380a28a945072"
     }
   },
   "omitted_runtime_inputs": [
@@ -8170,5 +8233,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1194
+  "tracked_count": 1203
 }

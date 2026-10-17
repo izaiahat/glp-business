@@ -1277,7 +1277,7 @@
         },
         {
           "path": "/home/ubuntu/business/scripts/host_disk_large_sweep.py",
-          "sha256": "04dae0459281e8e5192ddd965ceb86f00e1983916e335b29ee7f7c5bfe01bce7",
+          "sha256": "80d35887705c52037e31865a7d6173eb7de6a72a2e1e6320a5e1d200e4551821",
           "owner": "/home/ubuntu/.hermes/scripts/host_disk_pruner.py"
         }
       ]
