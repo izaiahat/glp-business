@@ -18,7 +18,7 @@ def load():
     return module
 
 
-@pytest.mark.parametrize('tampered', [None, 'scripts/build_glp_affiliate_wirein_incremental_v2.py', 'scripts/glp_review_editorial_projection.py'])
+@pytest.mark.parametrize('tampered', [None, 'scripts/build_glp_affiliate_wirein_incremental_v2.py', 'scripts/glp_review_editorial_projection.py', 'scripts/glp_best_terms_current_bindings.py'])
 def test_current_base_exact_pair_and_tamper_refusal(tmp_path, tampered):
     module = load()
     for name in module.CURRENT_BINDINGS:

@@ -103,13 +103,14 @@ declare -A b2_pins=(
   ['/home/ubuntu/business/scripts/katalys_generate_tracking_links.py']='7bad1d2ea2084004f98aefd85b5785f15771cebe61237d76c7884d1a293a2cd6'
   ['/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py']='aef4747d1e9ca683df5bf0edc31c4be12d6769f28a9fe438f439f09e83bfefe3'
   ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_daily.py']='948a6c1bb6fb41fc8ad11ba4b9d236d5ea50823a1cff423fc3887012fe3c8b21'
-  ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_worker.py']='4e10f7d1557aaa33f7351ce97f5a1dcf9dc396bb4027ea8dfa8660fff2bb3ca2'
+  ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_worker.py']='eba4103d5909750c450f9ba432ed9549638f61b43b473390e04b89bf7b41c10c'
   ['/home/ubuntu/business/scripts/glp_provider_cardinality_test_refresh.py']='83cb9e73eeeeb184043ff9bf53f68265c22c51e104bb7aeb76eb9cae1e98d6aa'
   ['/home/ubuntu/business/scripts/glp_price_index_source_rebind.mjs']='5342eabc650b351b5d3c7a2dd1329cf013a7445dbc30260f5240f6606cae021c'
   ['/home/ubuntu/business/scripts/glp_provider_dynamic_profile_activation.mjs']='598a7d4c9b1a261471569e9c69df6ae45d6fb6572807f801ccd958f6f0acd5a0'
   ['/home/ubuntu/business/scripts/glp_go_runtime_manifest_refresh.mjs']='a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e'
   ['/home/ubuntu/business/scripts/build_glp_affiliate_wirein_incremental_v2.py']='c5cef691ddaf5d5e80a9337ed2181a68b430e0808301707847d3efe98dc6b506'
   ['/home/ubuntu/business/scripts/glp_review_editorial_projection.py']='113ff2f339be09305a80d3e963e6f1f4395bf18218dec975f344ccd916ec72c8'
+  ['/home/ubuntu/business/scripts/glp_best_terms_current_bindings.py']='e0f1e5f6f49e1159e48c4e43ab1f7843b53a014f56b1d61c385a853ef53dd974'
 )
 for b2_path in "${!b2_pins[@]}"; do
   actual_b2_sha256="$(sha256sum "$b2_path" | cut -d' ' -f1)"

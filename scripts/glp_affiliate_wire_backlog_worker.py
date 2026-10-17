@@ -43,6 +43,7 @@ from affiliate_contract_policy import (  # noqa: E402
 from affiliate_sheet_schema_guard import REQUIRED_MARKETPLACE_PARENT_ROWS  # noqa: E402
 from affiliate_merge_deep_research import research_dynamic_profile  # noqa: E402
 from affiliate_best_terms_machine import parse_payout as parse_commercial_payout  # noqa: E402
+from glp_best_terms_current_bindings import current_best_terms_bindings  # noqa: E402
 import affiliate_payout_policy as payout_policy  # noqa: E402
 import glp_affiliate_link_rails as link_rails  # noqa: E402
 import glp_katalys_postback_attribution as katalys_postback_attribution  # noqa: E402
@@ -3064,16 +3065,28 @@ def payout_evaluation_switches(
 
 def best_terms_morning_stage(
     path: Path = BEST_TERMS_MORNING_STAGE,
-) -> dict[str, dict[int, dict[str, Any]]]:
+) -> dict[str, Any]:
     """Validate the payout-audit staging surface and index exact winner/loser rows."""
     document = read_json(Path(path))
     if (document.get("schema") != "glp.wire-in-best-terms-reconciliation-stage.v1"
             or document.get("status") != "STAGED_NOT_DEPLOYED"):
         raise B2Error("best_terms_morning_stage_schema_or_status_invalid")
-    for label, binding in (document.get("source_bindings") or {}).items():
+    # Keep the frozen reconciliation/audit and active-rail safety checks. Only
+    # packet custody moves to the registered weekly producer's authenticated
+    # current receipt/matrix chain. This does not promote a historical winner
+    # or bypass any current provider, traffic, hold or eligibility gate.
+    source_bindings = dict(document.get("source_bindings") or {})
+    try:
+        source_bindings.update(current_best_terms_bindings())
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise B2Error(f"best_terms_morning_stage_current_packet_invalid:{exc}") from exc
+    for required in ("active_rail_selection", "payout_audit"):
+        if not isinstance(source_bindings.get(required), dict):
+            raise B2Error(f"best_terms_morning_stage_{required}_binding_missing")
+    for label, binding in source_bindings.items():
         verify_binding(binding, label=f"best_terms_morning_stage_{label}")
     active_path = verify_binding(
-        (document.get("source_bindings") or {}).get("active_rail_selection") or {},
+        source_bindings["active_rail_selection"],
         label="best_terms_morning_stage_active_rail_selection",
     )
     active = {
@@ -3136,7 +3149,7 @@ def best_terms_morning_stage(
             raise B2Error(f"best_terms_morning_stage_ceiling_invalid:{provider}")
     if not winners or not losers:
         raise B2Error("best_terms_morning_stage_empty")
-    return {"winners": winners, "losers": losers}
+    return {"winners": winners, "losers": losers, "source_bindings": source_bindings}
 
 
 def _payout_switch_capability_inputs() -> dict[str, Any]:
@@ -3809,6 +3822,8 @@ def build_plan(
         "best_terms_switch_backlog": (
             path_binding(BEST_TERMS_SWITCH_BACKLOG) if BEST_TERMS_SWITCH_BACKLOG.is_file() else None),
         "best_terms_morning_stage": path_binding(BEST_TERMS_MORNING_STAGE),
+        **{f"best_terms_morning_{label}": binding
+           for label, binding in morning_stage["source_bindings"].items()},
         "exact_paid_event_publication_policy": path_binding(EXACT_PAID_EVENT_POLICY),
         "real_provider_economics": path_binding(REAL_PROVIDER_ECONOMICS),
         "morning_two_phase_rollout": path_binding(MORNING_TWO_PHASE_ROLLOUT),
