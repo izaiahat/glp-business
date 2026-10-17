@@ -320,6 +320,9 @@ def live_issues():
 def refill(root=ROOT, *, dot=None, issues=None, dispatch=dots.dispatch, effects=live_effect, cloud_reader=cloud_updates):
     root = Path(root)
     policy = read(root/'ops/dots/lane-policy.json')
+    held_dots = policy.get('held_dots', {})
+    if dot in held_dots:
+        return [{'dot':dot, 'status':'held_no_dispatch', 'hold':held_dots[dot]}]
     plan = read(root/'reports/ops/fable-plan-2-20261009/PLAN.json')
     tickets_dir = root/'reports/ops/dot-tickets'
     ledger_dir = root/'reports/ops/dot-refill'
@@ -329,6 +332,9 @@ def refill(root=ROOT, *, dot=None, issues=None, dispatch=dots.dispatch, effects=
         claims = read(ledger) if ledger.exists() else {}
         issues = live_issues() if issues is None else issues
         for scope_id, claim in claims.items():
+            # Holds suspend refill effects, including prior claim comment retries.
+            if claim.get('dot') in held_dots:
+                continue
             if claim.get('status') == 'selecting':
                 # Never turn a crashed/uncertain effect into an automatic retry.
                 raise ValueError('refill_uncertain_selection_requires_coordinator_reconcile')
@@ -351,6 +357,9 @@ def refill(root=ROOT, *, dot=None, issues=None, dispatch=dots.dispatch, effects=
                 claim['status'] = 'commented'
                 dots.atomic_json(ledger, claims)
         for name in ([dot] if dot else ['rook','finch']):
+            if name in held_dots:
+                result.append({'dot':name, 'status':'held_no_dispatch', 'hold':held_dots[name]})
+                continue
             if any(claim.get('dot')==name and claim.get('status')=='coordinator_comment_required' for claim in claims.values()):
                 result.append({'dot':name,'status':'awaiting_coordinator_refill_comment'})
                 continue

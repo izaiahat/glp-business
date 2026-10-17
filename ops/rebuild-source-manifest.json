@@ -299,7 +299,7 @@
         "scripts/dot_lane.py"
       ],
       "kind": "operations",
-      "sha256": "390d10ecf41d19baf351d2b29b6e51fa97a6feda58779d9427525bec6e432bed"
+      "sha256": "bdca88ebed301f45f8d99024db27629c868f9db07f60b746143795dbe3d64072"
     },
     "ops/dots/README.md": {
       "callers": [
@@ -321,14 +321,14 @@
         "ops/cron.d/glp-dot-refill"
       ],
       "kind": "script",
-      "sha256": "dfd133eebfa7fab3651774ebe50a3fa60708fede0f2d6628784d88e2b9910200"
+      "sha256": "761439f943b3e87827323d6d807a66d4c4a7e09f7981918454e929ad394965d5"
     },
     "tests/test_dot_lane.py": {
       "callers": [
         ".github/workflows/dot-lane.yml"
       ],
       "kind": "test",
-      "sha256": "a81b1f59dd39fdb9c7fb982aad7194c0d976a16d3a1f1e6d3d3d189026fbf613"
+      "sha256": "363155453bdca18bfe2e9bdd260177930ee753d8b684088304ea522baa158012"
     },
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [
@@ -382,7 +382,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "513e189613e3e01dd52ca9267fd16e64ee5b289ef110469b5d9d2589fbfacf34"
+      "sha256": "0d2ef42c5309396f468d1b0c6f7036eeabd58bc3a2ace65f83d48bf14ed551bf"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3735,12 +3735,12 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "4684b186d34b6dd6228319c0b359fa8faff44c36a7dd6f6a3e75e48e714ae361"
+      "sha256": "b43e90ce6b54710eebfeb295ef1e08355580e7468cd933296a0ec5b5c50dc398"
     },
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "bab526945a0758af56562a9c95cac7ddd7e18ccede696f9e896a1226d91b03d6"
+      "sha256": "0adb819ca1307a44b41e9973a3ff50c8d8d943ce5158ab8fad259638b52b30ec"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -6734,7 +6734,7 @@
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "5c1241eae7f93c576946b66fd3c2d54a85f5ab1a5ec26da3363291e7f4f5ee58"
+      "sha256": "d7b50c557e0b43cb3d68db2286f65ba34592c8d9a5ea0e947a26fab3c1303c34"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
@@ -8138,14 +8138,14 @@
       "callers": [
         "ops/hermes-cron-scripts/auto_deployer.sh"
       ],
-      "sha256": "f88b651fa45ce31fd8153febda3d2345df0c4bd731d77b72044e0fa8cb3df5dc"
+      "sha256": "8cbd2f34f7f275df790781477306127e4f3fa73ea00b51a8e0ef9c005a3dbbb5"
     },
     "tests/test_auto_deployer.py": {
       "kind": "test",
       "callers": [
         "auto-deployer:offline-exact-head"
       ],
-      "sha256": "9d05e171c695858fd7f4cf73b746afda43cdc7116c92e6dd618026d03f3f3f5b"
+      "sha256": "dd5583022f3d8c86861e872755ab65b81ca63a7113cf89e55c48dd1411099a48"
     },
     "ops/hermes-cron-scripts/auto_deployer.sh": {
       "kind": "registered_launcher_source",
@@ -8159,7 +8159,7 @@
       "callers": [
         "GLP-358 independent receiving and parent activation"
       ],
-      "sha256": "0b4cc4d72db6c6f3227451814248924bea27bde2c9e6241508e700d821fcffda"
+      "sha256": "ed06d6063f64ec30dd1c5b654e200abe24eed587058d47223ab828fac1b5e479"
     },
     ".github/workflows/auto-deployer.yml": {
       "kind": "workflow",
@@ -8230,6 +8230,27 @@
         "fleet-ingest CI"
       ],
       "sha256": "28e672fd1f1c445eafe676bb088d12fa4effa32d46d8c8ddb18380a28a945072"
+    },
+    "scripts/linear_operator_acceptance.py": {
+      "callers": [
+        "scripts/linear_orchestrator.py"
+      ],
+      "kind": "script",
+      "sha256": "5d8785a203694db0e3b2f6d67c3669f14d808aabf6cdf1d4547e9f7a7018ad08"
+    },
+    "ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md": {
+      "callers": [
+        "GLP-358 coordinator protected closure"
+      ],
+      "kind": "documentation",
+      "sha256": "78e2bd74779df5d57fb0fb28435985283401a3445addbbf9bafdef96242cf161"
+    },
+    "tests/test_linear_operator_acceptance_replay.py": {
+      "callers": [
+        "scripts/linear_operator_acceptance.py"
+      ],
+      "kind": "test",
+      "sha256": "7a0275e4b91fc9935d125d454d06780d15fd81b941c33199eb943ea1b20a598f"
     }
   },
   "omitted_runtime_inputs": [
@@ -8240,5 +8261,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1204
+  "tracked_count": 1207
 }

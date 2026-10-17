@@ -3,6 +3,12 @@
   "ingest_since": 1791761039,
   "authority": "DOT1 operator scope: safe idle refill in PLAN/Linear order; public research subtasks only",
   "continuous_public_research_issues": ["GLP-93", "GLP-253", "GLP-327", "GLP-328"],
+  "held_dots": {
+    "finch": {
+      "until": "GLP-359 Cloud readiness",
+      "reason": "Reserve Finch for GLP-359 Cloud setup; no unrelated idle refill until the coordinator explicitly removes this hold after readiness."
+    }
+  },
   "scopes": [
     {
       "id": "glp253-public-ro-rail-census-v1",

@@ -118,10 +118,76 @@ heads are skipped. Receipt always has `live_output_proven=false`.
 
 After uncertainty, inspect the exact merge/target paths; never replay merge,
 apply or send. Unfinished intents are inspected even if PRs have disappeared
-from the open list; a recovered BLOCKED_UNCERTAIN receipt stops subsequent work.
+from the open list; an unresolved BLOCKED_UNCERTAIN receipt stops subsequent work.
 An operator/coordinator must reconcile a blocked attempt under a separate exact
 recovery instruction; do not delete/overwrite history to retry. Scratch checkouts
 are retained temporarily for diagnosis, not used as installed source authority.
+
+### Reconciled source recovery (no replay)
+
+After separately authorized recovery **has finished**, the coordinator may stage
+this JSON in `lanes/<lane>/recovery.json` (paths relative to the installed root):
+
+```json
+{
+  "schema": "auto-deployer-recovery-v1",
+  "repo": "izaiahat/glp-business",
+  "pr": 564,
+  "head": "<exact original 40-character head>",
+  "original_receipt": "reports/ops/auto-deployer/<UTC>/glp-business-564.json",
+  "original_receipt_sha256": "<SHA256 of original receipt bytes>",
+  "merge_commit": "<40-character merge commit>",
+  "authority": "lanes/<lane>/COORDINATOR-AUTHORITY.json",
+  "authority_sha256": "<SHA256 of exact coordinator instruction bytes>",
+  "installed_sha256": {"scripts/example.py": "<SHA256 of installed/merge-tree bytes>"}
+}
+```
+
+The authority JSON must contain `original_receipt` and `merge` matching the
+recovery, plus nonempty `authority` and `scope`. These files preserve the exact
+coordinator instruction; hashes do not confer new authority or authenticate a
+coordinator identity. Invocation/publication remains coordinator-controlled,
+under the existing trusted local filesystem boundary, not an OS signature.
+Do not manufacture or broaden recovery approval, reuse source acceptance as
+recovery authority, or have workers register recoveries on their own.
+
+Supported registration (only under the separate coordinator recovery grant):
+
+```sh
+python3 -B scripts/auto_deployer.py --record-recovery lanes/<lane>/recovery.json
+```
+
+This takes the existing run lock and validates all evidence before an exclusive,
+fsynced write at `reports/ops/auto-deployer/.state/recoveries/<repo>-<pr>-<head>.json`
+(`repo` is the allowlisted repository basename). An existing file is never
+replaced, even if identical. BUSY means nothing was registered; inspect before
+retrying. Registration never merges, installs, delivers receipts, sends Discord,
+or scans/processes later PRs. It is mutually exclusive with `--dry-run`.
+
+On **every** reconciliation, including dry-run, a blocked historical receipt is
+resolved only when this deterministic recovery file validates:
+
+- Exact repo/PR/head, original receipt path and raw-byte SHA256; history stays
+  unchanged and the recovered head still returns `SKIP_RECEIPTED`.
+- Exact authority path/digest and original receipt/merge binding.
+- A nonempty installed path-to-SHA256 map covering **all and only** the original
+  `deployment.paths` / `runtime_paths` (or the retained exact-head intent's
+  `runtime_paths` when a pre-install receipt has no path list). An empty or
+  unavailable scope does not count as recovery.
+- Every live file is regular, canonical and in-root, with no symlink components;
+  every byte hash matches the recorded map.
+- Fresh GitHub merged/head/direct-parent readback yields that same merge commit;
+  the original merge, if known, must also match. Fetch that immutable merge tree
+  and each selected regular blob from GitHub, reject truncated trees or invalid
+  blob OID/size/content, and require their SHA256 map equal the installed map.
+
+Missing, unreadable, malformed or mismatched local/remote evidence leaves the
+attempt blocked and the hourly cycle exits 2 before later PRs. A later live drift
+also blocks again: recovery is not a permanent exemption. No recovery is inferred
+from a human recovery note, a source-install receipt, or a successful prior cycle.
+New unfinished intents still produce BLOCKED_UNCERTAIN receipts and require
+separate reconciliation; this path never replays merge/apply or proves live
+business output. Original receipt/outbox semantics and closure gates are unchanged.
 
 Append a digest-bound row under the existing `reports/ops/fleet-inbox/`
 `auto-deployer.jsonl`; `fleet_ingest.py` validates the receipt and applies its
