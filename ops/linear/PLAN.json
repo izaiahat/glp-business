@@ -1,0 +1,271 @@
+{
+  "schema": "glp-business-output-plan-v1",
+  "authority": "ops/linear/approvals/OPERATOR-DECISION-20261016-grill-round2.md #1 and #6; exact delegated board/PLAN writes",
+  "written_at_utc": "2026-10-16T23:08:07.139265+00:00",
+  "notes": [
+    "Candidate policy; parent must receive this into the registered fleet plan after Astra review.",
+    "Proof PASS means observed business output, not independent acceptance or permission to close.",
+    "No generic completion preflight, worker status or reviewer ACCEPT substitutes for business output."
+  ],
+  "issues": [
+    {
+      "issue": "GLP-125",
+      "title": "Approve disclosed sponsor economics and the exact Nu Image reply",
+      "state": "In Progress",
+      "order": 1,
+      "acceptance_rewrite": "The already-approved Nu Image commercial reply is sent exactly once in its existing thread with the approved rate card and a reconciled SENT/message identity, without duplicate outreach.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-125"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "ops/linear/proof-workers/GLP-125.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-320",
+      "title": "Prove sole host article publishing with a verified manual run",
+      "state": "In Progress",
+      "order": 2,
+      "acceptance_rewrite": "The corrected savings guide (PR116, integrated PR123 successor) is live from the sole host publisher with title/content, sitemap and notifier readbacks after exact-head full build/test success including the GLP-361 baseline repairs and required independent source/health/design acceptance; the retired n8n article carrier remains inactive.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-320"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/GLP320-LIVE-20261016/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-327",
+      "title": "Build a disclosed sponsor rate card and reviewed example placements",
+      "state": "In Progress",
+      "order": 3,
+      "acceptance_rewrite": "The approved disclosed sponsor rate card and example placements are live through the site renderer with exact prices/terms, desktop/mobile readbacks and required independent outward-design acceptance; editorial ranking and provider holds remain unchanged.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-327"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/SPONSOR-FULL/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-328",
+      "title": "Deliver approved eligible-US sponsor outreach and pilot reporting",
+      "state": "In Progress",
+      "order": 4,
+      "acceptance_rewrite": "Approved eligible-US sponsor outreach operates within 25 sends/day on weekdays 06:00\u201317:00 America/Los_Angeles, with deduplicated SENT receipts, genuine reply/follow-up stop handling and a pilot report; exclusions, opt-outs and spend caps remain enforced.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-328"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/SPONSOR-FULL/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-349",
+      "title": "F10 host safety: memory/swap headroom, state.db prune, kael-audit, 8-worker capacity",
+      "state": "In Progress",
+      "order": 5,
+      "acceptance_rewrite": "The host has at least 100,000,000,000 bytes free and registered scheduled pruners sustain that floor while supported session pruning keeps state.db below 8 GB, kael-audit has a verified successful or consumer-removed disposition, and real eight-slot workload telemetry shows 24 hours of safe memory/swap admission without filler workers.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-349"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/DISK-RECEIVE/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-47",
+      "title": "Deliver consented subscriber onboarding after one-time copy approval",
+      "state": "In Progress",
+      "order": 6,
+      "acceptance_rewrite": "One consented owned TEST onboarding email has provider-delivered and mailbox readback with duplicate/unconsented/suppressed refusals and the accepted retention/copy binding, followed by verified activation of the same approved consented capture/onboarding automation; TEST remains excluded from commercial results.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-47"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/ONBOARD/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-334",
+      "title": "Reconcile conversion events to network earnings and payouts",
+      "state": "In Progress",
+      "order": 7,
+      "acceptance_rewrite": "After installed PR560 preclaim planning, exactly one fresh F12 attempt (never replaying superseded e4678e3d) reconciles authenticated conversion\u2192earnings\u2192payout lineage for a closed period with source IDs, reversals, unmatched owners and TEST exclusion; network-proven zero is allowed and missing financial coverage remains UNKNOWN rather than invented income.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-334"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/F12-CONVERSIONS/pin-closure-20261016/receiving-pr560/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-93",
+      "title": "Prove eligible-US discovery through approval and live provider adoption",
+      "state": "In Progress",
+      "order": 8,
+      "acceptance_rewrite": "Operator decision 2026-10-16 #8 replaces the unavailable original-48 roster with the authenticated **69-row approved inventory** recorded in `lanes/F01-OWNER/ultra-glp93-20261016/receiving/retained-counts.json` and its exact cited `DISPOSITIONS.json`/source Sheet snapshot. Freeze those 69 row identities; do not silently substitute a later population or treat 69 rows as 69 distinct programs. The original-48 roster is no longer a prerequisite. 1. Execute the maintained reconciliation/eligibility gate against those identities and retain a row-by-row disposition, immutable network/program identity, evidence, and exact hold/refusal reason. Report eligible, wired, live, held, refused and unknown separately; unknown is not zero. Routing resolution and preliminary wire-ready flags do not establish full eligibility. 2. For **every fully eligible, approved US program** in the cohort, use only the governed single-writer Sheet queue and maintained registry/route generation/release path. Read back queue and Sheet outcomes, exact adopted registry identity, route artifact and release receipt. Existing selected economic rails, Fella exclusion, provider holds, US scope, claims and release/safety gates remain binding; no inferred rail switches or fabricated approvals. 3. Verify at least one genuinely adopted eligible-cohort provider route on the live site by reading its first-party provider URL and checking the served provider identity. Provider content routes must return 200; first-party outbound `/go/` routes have their maintained redirect contract and are not required to return 200. Never follow or probe affiliate tracking URLs. Pre-existing provider pages or a `/go/_manifest` response alone do not prove new cohort adoption. 4. Preserve and genuinely disposition the existing queued-application population under its authorized machine and receipts; this denominator change does not grant new application/send/legal authority. Acceptance remains false if eligibility, required adoption or live readback is blocked. Evidence: `lanes/F01-OWNER/glp93-69-20261016/RESULT.json`; parent alone applies closure after business-output verification.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-93"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/F01-OWNER/glp93-69-20261016/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-354",
+      "title": "Host disk /tmp class refuses 421 idle aeo-declared-* dirs on generic name/suffix",
+      "state": "In Progress",
+      "order": 9,
+      "acceptance_rewrite": "The registered safe pruner reclaims eligible idle rebuildable payloads through the maintained allowlist and sustains at least 100,000,000,000 host free bytes on a subsequent scheduled cycle, with actual freed-byte receipts and active/protected data retained.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-354"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/H349d/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-358",
+      "title": "Auto-coordinator v2: unattended hourly loop that only acts on inbox rows and the PLAN order",
+      "state": "In Progress",
+      "order": 10,
+      "acceptance_rewrite": "One genuine poller READY_TO_CLOSE row completes proof\u2192validator\u2192immutable receipt\u2192Linear Done readback before hourly auto-coordinator 13d3fff8734a is enabled, then a genuine unattended action and an idempotent second pass verify the single-coordinator loop without racing live TUI work.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-358"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/AUTO-COORDINATOR/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-359",
+      "title": "Codex Cloud + Tailscale evidence pilot (after operator/tailnet approvals): one GET allowed, one HEAD denied, then one heavy build off-host",
+      "state": "In Progress",
+      "order": 11,
+      "acceptance_rewrite": "Both Rook and Finch have working published Codex Cloud environments and each completes one coordinator-delegated GLP task with exact environment/task/result and PR/check readbacks through Discord; approved access boundaries and independent review remain intact, not merely a local tailnet fixture.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-359"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "lanes/DOT-OWNER/RESULT.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-88",
+      "title": "Prove eligible XenTraffic release and genuine network-origin attribution",
+      "state": "Backlog",
+      "order": 12,
+      "acceptance_rewrite": "One permission-eligible XenTraffic program is published live with a genuine network-origin non-SELFTEST/non-TEST postback joined once to its governed registry/click identity, with GLP-250 holds satisfied and no fabricated earning or tracking probe.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-88"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "ops/linear/proof-workers/GLP-88.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-250",
+      "title": "Resolve BistroMD destination and XenTraffic advertiser permission holds",
+      "state": "Backlog",
+      "order": 13,
+      "acceptance_rewrite": "Written network grant/refusal answers for XenTraffic advertiser 3277 postback permission and the BistroMD destination are reconciled into the governed registry with exact reply identities and each hold kept or released according to that answer, without duplicate requests.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-250"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "ops/linear/proof-workers/GLP-250.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    },
+    {
+      "issue": "GLP-253",
+      "title": "Ro (Roman Health) Everflow WHITELABEL approval 2026-09-14: ingest through the re",
+      "state": "Backlog",
+      "order": 14,
+      "acceptance_rewrite": "The Ro Everflow-whitelabel approval traverses inbox\u2192queue\u2192sole Sheet drain with tenant/offer identity and sole-or-best-rail evidence, then only after actual placement/traffic/event-term permission the sponsored route is adopted in the live registry/build artifacts without firing a partner pixel or probing a tracking URL.",
+      "proof_cmd": [
+        "python3",
+        "-B",
+        "scripts/linear_business_proof.py",
+        "GLP-253"
+      ],
+      "proof_cwd": "/home/ubuntu/business",
+      "proof_timeout_s": 240,
+      "proof_complete": true,
+      "worker_result": "ops/linear/proof-workers/GLP-253.json",
+      "proof_contract": "Read-only issue predicate + live native reads; unchanged completion/provenance/independent protected-acceptance gates remain mandatory."
+    }
+  ],
+  "untouched": [
+    "GLP-65",
+    "GLP-68",
+    "GLP-69",
+    "GLP-345",
+    "GLP-132"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "issue": "GLP-125",
+  "owner": "same sponsor end-to-end owner; parent alone closes",
+  "status": "DONE_READY_TO_CLOSE",
+  "receipt": "reports/ops/linear-business-proofs-20261016/GLP-125-READBACK.json",
+  "live_run": {"readback_utc": "2026-10-16T23:55:09.211758+00:00", "sent_message_id": "1a13037e99fe9c58", "exact_matching_sent_count": 1, "new_sends": 0},
+  "qualification": "Business output genuinely verified via fresh native GET. Not source/protected independent acceptance or permission to close. DO NOT RESEND.",
+  "business_output": {}
+}

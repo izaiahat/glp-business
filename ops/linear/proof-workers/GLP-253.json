@@ -1,0 +1,8 @@
+{
+  "issue": "GLP-253",
+  "owner": "same Ro end-to-end owner; parent alone closes",
+  "status": "REDISPATCH_NEEDED",
+  "failure": "Actual Ro placement/traffic/event-term permission and sole-writer live adoption remain unverified; former L8/GLP253 worker path did not exist.",
+  "source_result": "reports/ops/fable-plan-2-20261009/lanes/PARTNER-RECEIVE/RESULT.json",
+  "business_output": {}
+}

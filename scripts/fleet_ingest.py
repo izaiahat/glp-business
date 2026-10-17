@@ -93,6 +93,11 @@ def run(argv, cwd, timeout, output_limit=4000):
         return {'rc': 127, 'stdout': '', 'stderr': str(exc)}
 
 
+BUSINESS_PROOF_ISSUES = frozenset({'GLP-125', 'GLP-320', 'GLP-327', 'GLP-328',
+    'GLP-349', 'GLP-47', 'GLP-334', 'GLP-93', 'GLP-354', 'GLP-358',
+    'GLP-359', 'GLP-88', 'GLP-250', 'GLP-253'})
+
+
 def proof_argv(value):
     if isinstance(value, str):
         if any(x in value for x in (';', '|', '&', '`', '$', '\n', '>', '<')):
@@ -116,6 +121,9 @@ def proof_argv(value):
     safe |= (base in {'python3', 'python'} and len(value) == 3
              and value[1] == 'scripts/fleet_plan_proof.py' and ISSUE.fullmatch(value[2]) is not None)
     safe |= (base in {'python3', 'python'} and value[1:] == ['scripts/glp_cogny_queue_drain.py', '--mode', 'status'])
+    safe |= (base == 'python3' and len(value) == 4
+             and value[1:3] == ['-B', 'scripts/linear_business_proof.py']
+             and value[3] in BUSINESS_PROOF_ISSUES)
     if not safe:
         raise ValueError('proof_cmd not in read-only allowlist; coordinator must supply a safe proof')
     return value
@@ -511,7 +519,8 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
         'gate': digest(root / 'scripts/linear_orchestrator.py') if (root / 'scripts/linear_orchestrator.py').is_file() else None,
         'dispatcher': digest(root / 'scripts/fleet_ingest.py') if (root / 'scripts/fleet_ingest.py').is_file() else None,
         'typed_lint': digest(root / 'scripts/result_lint.py') if (root / 'scripts/result_lint.py').is_file() else None,
-        'proof_verifier': digest(root / 'scripts/fleet_plan_proof.py') if (root / 'scripts/fleet_plan_proof.py').is_file() else None}, sort_keys=True).encode()).hexdigest()
+        'proof_verifier': digest(root / 'scripts/fleet_plan_proof.py') if (root / 'scripts/fleet_plan_proof.py').is_file() else None,
+        'business_verifier': digest(root / 'scripts/linear_business_proof.py') if (root / 'scripts/linear_business_proof.py').is_file() else None}, sort_keys=True).encode()).hexdigest()
     prior = read(target)
     if prior.get('fingerprint') == fingerprint and not retry:
         return prior
@@ -523,7 +532,17 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
         failures.append('proof incomplete: ' + str(policy.get('proof_incomplete_reason') or 'prerequisite-only command'))
     try:
         argv = proof_argv(policy.get('proof_cmd'))
-        proof = runner(argv, root, timeout)
+        proof_cwd, proof_timeout = root, timeout
+        if argv[1:3] == ['-B', 'scripts/linear_business_proof.py']:
+            if argv[-1] != item['issue'] or policy.get('issue', item['issue']) != item['issue']:
+                raise ValueError('business proof issue mismatch')
+            if not isinstance(policy.get('proof_cmd'), list):
+                raise ValueError('business proof_cmd requires nonempty argv list, not shell text')
+            proof_cwd = Path(policy.get('proof_cwd', str(root)))
+            proof_timeout = policy.get('proof_timeout_s', timeout)
+            if proof_cwd != root or type(proof_timeout) is not int or not 1 <= proof_timeout <= 300:
+                raise ValueError('business proof cwd/timeout outside read-only contract')
+        proof = runner(argv, proof_cwd, proof_timeout)
         minimums = policy.get('proof_stdout_minimums')
         if proof['rc'] == 0 and minimums is not None:
             try:
