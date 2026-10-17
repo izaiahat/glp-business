@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 
-@pytest.mark.parametrize('missing', ['glp331_carrier_adoption.py', 'glp345_a4_adoption.py',
+@pytest.mark.parametrize('missing', ['glp_ship_attempts.py', 'glp331_carrier_adoption.py', 'glp345_a4_adoption.py',
                                     'glp44_safe_bridge_activation.py', 'glp334_pin_closure.py',
                                     'glp345_a4_adoption.py:outdated',
                                     'glp331_carrier_adoption.py:preclaim', 'inventory-opaque', None])

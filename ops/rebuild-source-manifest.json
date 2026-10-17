@@ -1,68 +1,19 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "ops/linear/proof-workers/GLP-88.json": {
-      "kind": "operations",
+    "scripts/glp_ship_attempts.py": {
+      "kind": "repository_control",
       "callers": [
-        "GLP-88 non-complete owner binding"
+        "scripts/glp_ship.py"
       ],
-      "sha256": "a244a7edea8bc95c1ba3087f2a517371297eb1ae9a1db4426d6e7f108608a87c"
+      "sha256": "0591208c38933fa0b3a11433cb1bfda994955a6dbff3f8280e0d1d43f6b1b940"
     },
-    "ops/linear/proof-workers/GLP-250.json": {
-      "kind": "operations",
-      "callers": [
-        "GLP-250 non-complete owner binding"
-      ],
-      "sha256": "be78522d62cb07ecaf823d242806864669a93da1b6fd0d5ed5e8d4bcfa1670db"
-    },
-    "ops/linear/proof-workers/GLP-253.json": {
-      "kind": "operations",
-      "callers": [
-        "GLP-253 non-complete owner binding"
-      ],
-      "sha256": "2c1ecd57ed2364360f27eac1b9437bd4354f992124598105857ab24656cfeb41"
-    },
-    "ops/linear/PLAN.json": {
-      "kind": "operations",
-      "callers": [
-        "GLP-358 reviewed proof policy"
-      ],
-      "sha256": "a10b9141059c23ee92a00592c48ddc60118ce74004ffe0192d7e4b09b9b65cea"
-    },
-    "ops/linear/BUSINESS-PROOFS.md": {
-      "kind": "operations",
-      "callers": [
-        "GLP-358 proof contracts"
-      ],
-      "sha256": "8121dce91821cd67eae57b1b4063a732e8de36d9233bf56f2d8588abd41db8e4"
-    },
-    "ops/linear/proof-workers/GLP-125.json": {
-      "kind": "operations",
-      "callers": [
-        "GLP-125 exact sent identity binding"
-      ],
-      "sha256": "abe0ca4c9e4fec0f1d951c5822cd3069271b1a432d01574e8e19f0646225bd42"
-    },
-    "scripts/linear_business_proof.py": {
-      "kind": "script",
-      "callers": [
-        "GLP-358 read-only proof"
-      ],
-      "sha256": "d22328f209a26cb825d4bfa8e5d4dfed5b6d9a1de4f9dae1bfbf0fef40e29464"
-    },
-    "scripts/prepare_business_proof_plan.py": {
-      "kind": "script",
-      "callers": [
-        "GLP-358 policy preparation"
-      ],
-      "sha256": "0790aabdff975e3020143e67e819da36bfd6b3cb916c3b83f99993876469bc5f"
-    },
-    "tests/test_linear_business_proof.py": {
+    "tests/test_glp_ship_supersession.py": {
       "kind": "test",
       "callers": [
-        "fleet-ingest CI"
+        ".github/workflows/glp333-reporting-generation.yml"
       ],
-      "sha256": "28e672fd1f1c445eafe676bb088d12fa4effa32d46d8c8ddb18380a28a945072"
+      "sha256": "37e0e3a486022728af4d7269f550099d234a7c2fa9795edb81469f60adee345a"
     },
     "scripts/auto_deployer.py": {
       "kind": "script",
@@ -104,7 +55,7 @@
       "callers": [
         "GLP334 projected installed caller and real bounded full preclaim planning"
       ],
-      "sha256": "50ec7fd92c55308f9e281a5edad1740f33a466545f90e37b109af6f84137c2a4"
+      "sha256": "bfa9a0aa193d7b2a1d037d0f51b31679f323ed9584c26c66911ff6d0d7d1d735"
     },
     "tests/test_glp_ship_refusal_inspection.py": {
       "kind": "test",
@@ -513,7 +464,7 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "41ecd8025e85fc12c0cd2aa2d20efc3b074572c151fa7801b6ed17e4f632bf15"
+      "sha256": "0e8effb7e342c1bd79f94c7ec353a82b61c07f262086e1d468b6d3b2b1aa8c39"
     },
     ".github/workflows/glp336-host-completion.yml": {
       "callers": [],
@@ -836,7 +787,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source_control",
-      "sha256": "68269982211ecc96b225a8e941713b81af979ddb17c190734467fc837c431b83"
+      "sha256": "38bfee5ee50bcfe0650c186965e6991b4db04d2501fd58adab46cdb9771b3ec6"
     },
     "ops/glp/analytics-brain-control.json": {
       "callers": [
@@ -3492,7 +3443,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source",
-      "sha256": "afd9a51d3f278136f09abd0e877bb28bdc40a5152da96c7b7052fbb8cb7c94bd"
+      "sha256": "cf7d8c51b4331f2e7b6396b65fcfe6d6d333d0199c86a286ca6ec9209c2fda47"
     },
     "scripts/glp_ship_collector.py": {
       "callers": [
@@ -3808,16 +3759,6 @@
       ],
       "kind": "script",
       "sha256": "55f06988d0d08b91de7ab7f08ac45d08f5362e1e819890b7d427bcbfc12ad26d"
-    },
-    "scripts/linear_operator_acceptance.py": {
-      "callers": ["scripts/linear_orchestrator.py"],
-      "kind": "script",
-      "sha256": "5d8785a203694db0e3b2f6d67c3669f14d808aabf6cdf1d4547e9f7a7018ad08"
-    },
-    "ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md": {
-      "callers": ["GLP-358 coordinator protected closure"],
-      "kind": "documentation",
-      "sha256": "78e2bd74779df5d57fb0fb28435985283401a3445addbbf9bafdef96242cf161"
     },
     "scripts/linear_close.py": {
       "callers": [],
@@ -6818,11 +6759,6 @@
       "kind": "test",
       "sha256": "ba36c08056a522f09c48bfc37f53d88bbb943aba9691dcd63140697ea9f88d7f"
     },
-    "tests/test_linear_operator_acceptance_replay.py": {
-      "callers": ["scripts/linear_operator_acceptance.py"],
-      "kind": "test",
-      "sha256": "7a0275e4b91fc9935d125d454d06780d15fd81b941c33199eb943ea1b20a598f"
-    },
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
@@ -8224,6 +8160,90 @@
       ],
       "kind": "test",
       "sha256": "1c199ab0db9a73cb3e10775464e0116871975a669408a1364fdcf49eafd9eb85"
+    },
+    "ops/linear/proof-workers/GLP-88.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-88 non-complete owner binding"
+      ],
+      "sha256": "a244a7edea8bc95c1ba3087f2a517371297eb1ae9a1db4426d6e7f108608a87c"
+    },
+    "ops/linear/proof-workers/GLP-250.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-250 non-complete owner binding"
+      ],
+      "sha256": "be78522d62cb07ecaf823d242806864669a93da1b6fd0d5ed5e8d4bcfa1670db"
+    },
+    "ops/linear/proof-workers/GLP-253.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-253 non-complete owner binding"
+      ],
+      "sha256": "2c1ecd57ed2364360f27eac1b9437bd4354f992124598105857ab24656cfeb41"
+    },
+    "ops/linear/PLAN.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-358 reviewed proof policy"
+      ],
+      "sha256": "a10b9141059c23ee92a00592c48ddc60118ce74004ffe0192d7e4b09b9b65cea"
+    },
+    "ops/linear/BUSINESS-PROOFS.md": {
+      "kind": "operations",
+      "callers": [
+        "GLP-358 proof contracts"
+      ],
+      "sha256": "8121dce91821cd67eae57b1b4063a732e8de36d9233bf56f2d8588abd41db8e4"
+    },
+    "ops/linear/proof-workers/GLP-125.json": {
+      "kind": "operations",
+      "callers": [
+        "GLP-125 exact sent identity binding"
+      ],
+      "sha256": "abe0ca4c9e4fec0f1d951c5822cd3069271b1a432d01574e8e19f0646225bd42"
+    },
+    "scripts/linear_business_proof.py": {
+      "kind": "script",
+      "callers": [
+        "GLP-358 read-only proof"
+      ],
+      "sha256": "d22328f209a26cb825d4bfa8e5d4dfed5b6d9a1de4f9dae1bfbf0fef40e29464"
+    },
+    "scripts/prepare_business_proof_plan.py": {
+      "kind": "script",
+      "callers": [
+        "GLP-358 policy preparation"
+      ],
+      "sha256": "0790aabdff975e3020143e67e819da36bfd6b3cb916c3b83f99993876469bc5f"
+    },
+    "tests/test_linear_business_proof.py": {
+      "kind": "test",
+      "callers": [
+        "fleet-ingest CI"
+      ],
+      "sha256": "28e672fd1f1c445eafe676bb088d12fa4effa32d46d8c8ddb18380a28a945072"
+    },
+    "scripts/linear_operator_acceptance.py": {
+      "callers": [
+        "scripts/linear_orchestrator.py"
+      ],
+      "kind": "script",
+      "sha256": "5d8785a203694db0e3b2f6d67c3669f14d808aabf6cdf1d4547e9f7a7018ad08"
+    },
+    "ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md": {
+      "callers": [
+        "GLP-358 coordinator protected closure"
+      ],
+      "kind": "documentation",
+      "sha256": "78e2bd74779df5d57fb0fb28435985283401a3445addbbf9bafdef96242cf161"
+    },
+    "tests/test_linear_operator_acceptance_replay.py": {
+      "callers": [
+        "scripts/linear_operator_acceptance.py"
+      ],
+      "kind": "test",
+      "sha256": "7a0275e4b91fc9935d125d454d06780d15fd81b941c33199eb943ea1b20a598f"
     }
   },
   "omitted_runtime_inputs": [
@@ -8234,5 +8254,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1204
+  "tracked_count": 1206
 }
