@@ -43,6 +43,7 @@ def fixture(tmp_path, monkeypatch):
         prior = {'fields': {}, 'configuration_sha256': mw.job_configuration(job), 'script_sha256': None}
         c.window['entries'].append({'entry': entry, 'prior': prior, 'intent': True,
                                     'paused': True, 'restore_intent': True, 'restored': True})
+    c.window['inventory_shape'] = mw.inventory_shape({'entries': [r['entry'] for r in c.window['entries']]})
     put(c.journal, c.window)
     c.fresh_id = 'fresh-001'
     c.fresh_output = c.root / 'reports/ops/glp-ship/fresh-001'
@@ -117,6 +118,67 @@ def test_exact_binding_allows_only_one_new_exclusive_started_attempt(tmp_path, m
     with pytest.raises(RuntimeError):
         retry(c)
     assert c.attempt.read_bytes() == old and c.record.read_bytes() == record
+
+
+@pytest.mark.parametrize('stage', ['supersession', 'fresh-claim'])
+@pytest.mark.parametrize('bad', [
+    'missing-hermes', 'missing-crontab', 'missing-systemd', 'missing-n8n', 'missing-inventory',
+    'empty-inventory', 'non-list-inventory', 'malformed-member', 'duplicate-identity',
+    'conflicting-identity', 'unknown-kind', 'non-string-id', 'non-string-command',
+    'non-bool-affected', 'changed-id', 'changed-command', 'changed-affected',
+    'non-object-entry', 'non-object-prior',
+])
+def test_incomplete_or_inconsistent_inventory_refuses_before_reservation_or_claim(tmp_path, monkeypatch, stage, bad):
+    c = fixture(tmp_path, monkeypatch)
+    if stage == 'fresh-claim':
+        supersede(c)
+    inventory = c.window['inventory_shape']
+    if bad.startswith('missing-') and bad != 'missing-inventory':
+        kind = bad.removeprefix('missing-')
+        c.window['entries'] = [r for r in c.window['entries'] if r['entry']['kind'] != kind]
+    elif bad == 'missing-inventory': c.window.pop('inventory_shape')
+    elif bad == 'empty-inventory': c.window['inventory_shape'] = []
+    elif bad == 'non-list-inventory': c.window['inventory_shape'] = {'unproven': True}
+    elif bad == 'malformed-member': inventory[0].pop()
+    elif bad == 'duplicate-identity': inventory.append(deepcopy(inventory[0]))
+    elif bad == 'conflicting-identity':
+        inventory.append([*inventory[0][:3], False])
+    elif bad == 'unknown-kind': inventory[0][0] = 'unknown'
+    elif bad == 'non-string-id': inventory[0][1] = []
+    elif bad == 'non-string-command': inventory[0][2] = {}
+    elif bad == 'non-bool-affected': inventory[0][3] = 1
+    elif bad == 'changed-id': inventory[0][1] += '-other'
+    elif bad == 'changed-command': inventory[0][2] = 'different command'
+    elif bad == 'changed-affected': inventory[0][3] = False
+    elif bad == 'non-object-entry': c.window['entries'][0]['entry'] = []
+    elif bad == 'non-object-prior': c.window['entries'][0]['prior'] = []
+    put(c.journal, c.window)
+    c.evidence['window_sha256'] = digest(c.journal)
+    c.review['evidence_sha256'] = json_sha(c.evidence)
+    if stage == 'fresh-claim':
+        # Even exact re-reviewed/rebound historical evidence must be internally complete.
+        stored = json.loads(c.record.read_text())
+        stored.update(evidence=c.evidence, review=c.review)
+        put(c.record, stored)
+    before = {p: p.read_bytes() for p in (c.attempt, c.journal, c.leaf, c.home / 'cron/jobs.json')}
+    c.readbacks.clear()
+    with pytest.raises(RuntimeError, match='ship_supersession_.*(inventory|restoration)'):
+        retry(c) if stage == 'fresh-claim' else supersede(c)
+    assert all(p.read_bytes() == b for p, b in before.items())
+    assert not c.fresh_intent.exists() and not c.fresh_output.exists()
+    assert c.record.exists() == (stage == 'fresh-claim')
+    assert not c.readbacks  # Validate the entire cohort before any control readback.
+
+
+def test_complete_inventory_with_unaffected_members_needs_only_affected_restoration_rows(tmp_path, monkeypatch):
+    c = fixture(tmp_path, monkeypatch)
+    c.window['inventory_shape'].append(['systemd', 'unrelated.timer', 'unchanged command', False])
+    put(c.journal, c.window)
+    c.evidence['window_sha256'] = digest(c.journal)
+    c.review['evidence_sha256'] = json_sha(c.evidence)
+    assert supersede(c)['state'] == 'superseded'
+    assert retry(c) == c.fresh_intent
+    assert set(c.readbacks) == {'crontab', 'systemd', 'n8n'}
 
 
 @pytest.mark.parametrize('bad', [

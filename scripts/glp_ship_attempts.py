@@ -153,17 +153,38 @@ def validate_refusal(root, hermes, spec, proposal, evidence, review, attempt_id,
         dead_owner(data['controller'])
     rows = data.get('entries')
     require(isinstance(rows, list) and bool(rows), 'complete_restoration_required')
+    # A reviewed digest authenticates bytes, not completeness. Bind every unique
+    # affected historical control (including command) to exactly one restored row.
+    inventory = data.get('inventory_shape')
+    require(isinstance(inventory, list) and bool(inventory), 'restoration_inventory_required')
+    cohort = {}
+    for member in inventory:
+        require(isinstance(member, list) and len(member) == 4
+                and isinstance(member[0], str) and member[0] in {'hermes', 'crontab', 'systemd', 'n8n'}
+                and isinstance(member[1], str) and bool(member[1])
+                and (member[2] is None or isinstance(member[2], str))
+                and type(member[3]) is bool, 'restoration_inventory_shape')
+        key = tuple(member[:2])
+        require(key not in cohort, 'restoration_inventory_duplicate')
+        cohort[key] = member
     seen = set()
-    backend = mw.LinuxBackend(root, hermes, journal)
     for row in rows:
         require(isinstance(row, dict) and set(row) == {'entry', 'prior', 'intent', 'paused', 'restore_intent', 'restored'}
                 and all(row.get(k) is True for k in ('intent', 'paused', 'restore_intent', 'restored')),
                 'complete_restoration_required')
         entry, prior = row['entry'], row['prior']
+        require(isinstance(entry, dict) and isinstance(prior, dict), 'restoration_inventory')
         key = (entry.get('kind'), entry.get('id'))
-        require(key[0] in {'hermes', 'crontab', 'systemd', 'n8n'} and isinstance(key[1], str)
-                and bool(key[1]) and key not in seen and entry.get('affected') is True, 'restoration_inventory')
+        require(isinstance(key[0], str) and key[0] in {'hermes', 'crontab', 'systemd', 'n8n'}
+                and isinstance(key[1], str) and bool(key[1]) and key not in seen
+                and entry.get('affected') is True
+                and cohort.get(key) == [key[0], key[1], entry.get('command'), True],
+                'restoration_inventory')
         seen.add(key)
+    require(seen == {key for key, member in cohort.items() if member[3]}, 'complete_restoration_inventory')
+    backend = mw.LinuxBackend(root, hermes, journal)
+    for row in rows:
+        entry, prior = row['entry'], row['prior']
         if entry['kind'] == 'hermes':
             job = backend.job(entry['id'])
             require({k: job[k] for k in mw.CONTROL_FIELDS if k in job} == prior['fields']

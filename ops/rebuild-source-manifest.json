@@ -6,14 +6,14 @@
       "callers": [
         "scripts/glp_ship.py"
       ],
-      "sha256": "87ea20fca0effebe4780e07819881935019aa6fc14c53c56f9c522fa214009f3"
+      "sha256": "0591208c38933fa0b3a11433cb1bfda994955a6dbff3f8280e0d1d43f6b1b940"
     },
     "tests/test_glp_ship_supersession.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp333-reporting-generation.yml"
       ],
-      "sha256": "c267976a88d332d5fa1155cd92ff0207b068d6b5398ea90150a5ce9547c741a9"
+      "sha256": "37e0e3a486022728af4d7269f550099d234a7c2fa9795edb81469f60adee345a"
     },
     "scripts/auto_deployer.py": {
       "kind": "script",
