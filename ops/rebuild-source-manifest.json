@@ -3,47 +3,65 @@
   "files": {
     "ops/linear/proof-workers/GLP-88.json": {
       "kind": "operations",
-      "callers": ["GLP-88 non-complete owner binding"],
+      "callers": [
+        "GLP-88 non-complete owner binding"
+      ],
       "sha256": "a244a7edea8bc95c1ba3087f2a517371297eb1ae9a1db4426d6e7f108608a87c"
     },
     "ops/linear/proof-workers/GLP-250.json": {
       "kind": "operations",
-      "callers": ["GLP-250 non-complete owner binding"],
+      "callers": [
+        "GLP-250 non-complete owner binding"
+      ],
       "sha256": "be78522d62cb07ecaf823d242806864669a93da1b6fd0d5ed5e8d4bcfa1670db"
     },
     "ops/linear/proof-workers/GLP-253.json": {
       "kind": "operations",
-      "callers": ["GLP-253 non-complete owner binding"],
+      "callers": [
+        "GLP-253 non-complete owner binding"
+      ],
       "sha256": "2c1ecd57ed2364360f27eac1b9437bd4354f992124598105857ab24656cfeb41"
     },
     "ops/linear/PLAN.json": {
       "kind": "operations",
-      "callers": ["GLP-358 reviewed proof policy"],
+      "callers": [
+        "GLP-358 reviewed proof policy"
+      ],
       "sha256": "a10b9141059c23ee92a00592c48ddc60118ce74004ffe0192d7e4b09b9b65cea"
     },
     "ops/linear/BUSINESS-PROOFS.md": {
       "kind": "operations",
-      "callers": ["GLP-358 proof contracts"],
+      "callers": [
+        "GLP-358 proof contracts"
+      ],
       "sha256": "8121dce91821cd67eae57b1b4063a732e8de36d9233bf56f2d8588abd41db8e4"
     },
     "ops/linear/proof-workers/GLP-125.json": {
       "kind": "operations",
-      "callers": ["GLP-125 exact sent identity binding"],
+      "callers": [
+        "GLP-125 exact sent identity binding"
+      ],
       "sha256": "abe0ca4c9e4fec0f1d951c5822cd3069271b1a432d01574e8e19f0646225bd42"
     },
     "scripts/linear_business_proof.py": {
       "kind": "script",
-      "callers": ["GLP-358 read-only proof"],
+      "callers": [
+        "GLP-358 read-only proof"
+      ],
       "sha256": "d22328f209a26cb825d4bfa8e5d4dfed5b6d9a1de4f9dae1bfbf0fef40e29464"
     },
     "scripts/prepare_business_proof_plan.py": {
       "kind": "script",
-      "callers": ["GLP-358 policy preparation"],
+      "callers": [
+        "GLP-358 policy preparation"
+      ],
       "sha256": "0790aabdff975e3020143e67e819da36bfd6b3cb916c3b83f99993876469bc5f"
     },
     "tests/test_linear_business_proof.py": {
       "kind": "test",
-      "callers": ["fleet-ingest CI"],
+      "callers": [
+        "fleet-ingest CI"
+      ],
       "sha256": "28e672fd1f1c445eafe676bb088d12fa4effa32d46d8c8ddb18380a28a945072"
     },
     "scripts/auto_deployer.py": {
@@ -2844,7 +2862,7 @@
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "3f12c4e03502cd626676b255b1633ae722da941f2d721fc8cd61f3152dde361d"
+      "sha256": "0e183665c317b6f0cf83cade5e42ac103becda1a08aa5606ea14498e95607f6b"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -5371,7 +5389,7 @@
         ".github/workflows/fleet-ingest.yml"
       ],
       "kind": "test",
-      "sha256": "bd09d79c7dc822d9203de627b7f7523af5860cd90f5874b81e6d07ff48d0b0fe"
+      "sha256": "7e7de362fdcc3e2f6a011cb9e2315ed68f1c7cd68201faac7c87964da37e8d97"
     },
     "tests/test_fleet_pin_release.py": {
       "callers": [

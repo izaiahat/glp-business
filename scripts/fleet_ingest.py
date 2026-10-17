@@ -26,6 +26,7 @@ LANE = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}\Z')
 # Leave room for local discovery, durable receipts and the wrapper's 240s ceiling.
 MAX_COMMAND_SECONDS = 15
 POLL_COMMAND_BUDGET_SECONDS = 120
+TIMEOUT_CLEANUP_SECONDS = .1
 
 
 def now():
@@ -90,19 +91,35 @@ def run(argv, cwd, timeout, output_limit=4000):
     try:
         # Own only this read-only command's process group. Killing just its Python
         # parent can leave a network helper holding stdout open past the deadline.
-        with subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, text=True, start_new_session=True) as cp:
+        # Do not use Popen's context manager: its implicit wait is unbounded.
+        cp = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, start_new_session=True)
+        try:
             try:
                 stdout, stderr = cp.communicate(timeout=timeout)
             except subprocess.TimeoutExpired:
+                deadline = time.monotonic() + TIMEOUT_CLEANUP_SECONDS
                 try:
                     os.killpg(cp.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-                cp.communicate()
+                try:
+                    cp.communicate(timeout=max(0, deadline - time.monotonic()))
+                except subprocess.TimeoutExpired:
+                    # A detached descendant can still own the write ends. Never
+                    # wait for its EOF or kill processes outside our owned group.
+                    cp.stdout.close()
+                    cp.stderr.close()
+                    try:
+                        cp.wait(timeout=max(0, deadline - time.monotonic()))
+                    except subprocess.TimeoutExpired:
+                        pass  # Popen's nonblocking reaper retains an unreaped child.
                 return {'rc': 124, 'stdout': '', 'stderr': 'REFUSED: read-only proof timed out; not verified'}
             return {'rc': cp.returncode, 'stdout': stdout[-output_limit:], 'stderr': stderr[-4000:],
                     'output_truncated': len(stdout) > output_limit}
+        finally:
+            cp.stdout.close()
+            cp.stderr.close()
     except OSError as exc:
         return {'rc': 127, 'stdout': '', 'stderr': str(exc)}
 
@@ -173,22 +190,50 @@ def alive(pid):
         return True
 
 
+def generated_tree(directory, dirs, files):
+    """Positive producer evidence, not a basename blacklist. Unknown stays visible."""
+    path = Path(directory)
+    if {'RESULT.json', 'RUN.json'} & set(files):
+        return False
+    if 'CACHEDIR.TAG' in files:
+        try:
+            with (path / 'CACHEDIR.TAG').open('rb') as tag:
+                if tag.read(43) == b'Signature: 8a477f597d28d172789f06886806bc55':
+                    return True
+        except OSError:
+            pass
+    if not re.fullmatch(r'pytest(?:-.*)?', path.name):
+        return False
+    # pytest tmp_path/basetemp creates numbered siblings and a matching current
+    # symlink. The name alone (including cases/native-output) proves nothing.
+    for name in dirs:
+        if not re.fullmatch(r'(?:test_.+|pytest-)current', name):
+            continue
+        try:
+            target = (path / name).readlink()
+            if not target.is_absolute():
+                target = path / target
+            prefix = name[:-len('current')]
+            if (target.parent == path and target.name in dirs
+                    and re.fullmatch(re.escape(prefix) + r'[0-9]+', target.name)
+                    and not target.is_symlink()):
+                return True
+        except OSError:
+            pass
+    return False
+
+
 def walk(root, names):
-    # Never recurse into copies, checkouts, artifacts, or generated inbox state.
+    # Retain the predecessor's copy/state namespace exclusions. Additional
+    # generated-tree pruning requires producer evidence, never a name alone.
     for directory, dirs, files in os.walk(root, followlinks=False):
-        if '.git' in dirs or '.git' in files:
+        if '.git' in dirs or '.git' in files or generated_tree(directory, dirs, files):
             dirs[:] = []
             continue
         dirs[:] = sorted(x for x in dirs if x not in {
-            '.git', 'checkout', 'source', 'sources', 'repo', 'node_modules', '.venv',
-            'worktree', 'backups', 'backup', 'preimages', 'browser-profile',
-            'tmp', 'home', 'archive', 'fixtures', 'regressions', 'cases',
-            'pytest-tmp', 'test-results', '.cache', '.pytest_cache', 'npm-cache', '_cacache',
+            '.git', 'checkout', 'source', 'repo', 'node_modules', '.venv',
             '.worktrees', 'fleet-inbox', 'artifacts', 'history', 'cache',
-            'site-system', 'prepared', 'release', 'evidence'}
-            and x.lower() not in {'harness', 'preimage', 'native-output'}
-            and not re.fullmatch(r'pytest(?:-.*)?', x)
-            and not x.startswith('.venv-'))
+            'site-system', 'prepared', 'release', 'evidence'})
         for name in sorted(set(files) & set(names)):
             path = Path(directory) / name
             if not path.is_symlink():
