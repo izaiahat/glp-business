@@ -459,7 +459,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "27a3fb5aee92e00fba5a544ea15317a97975211d7fdfc9c34b00b2180134cc2b"
+      "sha256": "e8dcbf8957df4e9a07e00fb5e8ffb0c96c49457be545a46eba54ad969d306115"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3809,15 +3809,25 @@
       "kind": "script",
       "sha256": "55f06988d0d08b91de7ab7f08ac45d08f5362e1e819890b7d427bcbfc12ad26d"
     },
+    "scripts/linear_operator_acceptance.py": {
+      "callers": ["scripts/linear_orchestrator.py"],
+      "kind": "script",
+      "sha256": "5d8785a203694db0e3b2f6d67c3669f14d808aabf6cdf1d4547e9f7a7018ad08"
+    },
+    "ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md": {
+      "callers": ["GLP-358 coordinator protected closure"],
+      "kind": "documentation",
+      "sha256": "78e2bd74779df5d57fb0fb28435985283401a3445addbbf9bafdef96242cf161"
+    },
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "4684b186d34b6dd6228319c0b359fa8faff44c36a7dd6f6a3e75e48e714ae361"
+      "sha256": "b43e90ce6b54710eebfeb295ef1e08355580e7468cd933296a0ec5b5c50dc398"
     },
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "bab526945a0758af56562a9c95cac7ddd7e18ccede696f9e896a1226d91b03d6"
+      "sha256": "0adb819ca1307a44b41e9973a3ff50c8d8d943ce5158ab8fad259638b52b30ec"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -6808,10 +6818,15 @@
       "kind": "test",
       "sha256": "ba36c08056a522f09c48bfc37f53d88bbb943aba9691dcd63140697ea9f88d7f"
     },
+    "tests/test_linear_operator_acceptance_replay.py": {
+      "callers": ["scripts/linear_operator_acceptance.py"],
+      "kind": "test",
+      "sha256": "7a0275e4b91fc9935d125d454d06780d15fd81b941c33199eb943ea1b20a598f"
+    },
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "5c1241eae7f93c576946b66fd3c2d54a85f5ab1a5ec26da3363291e7f4f5ee58"
+      "sha256": "d7b50c557e0b43cb3d68db2286f65ba34592c8d9a5ea0e947a26fab3c1303c34"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
@@ -8219,5 +8234,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1201
+  "tracked_count": 1204
 }
