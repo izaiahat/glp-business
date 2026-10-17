@@ -358,7 +358,7 @@
         "scripts/dot_lane.py"
       ],
       "kind": "operations",
-      "sha256": "390d10ecf41d19baf351d2b29b6e51fa97a6feda58779d9427525bec6e432bed"
+      "sha256": "bdca88ebed301f45f8d99024db27629c868f9db07f60b746143795dbe3d64072"
     },
     "ops/dots/README.md": {
       "callers": [
@@ -380,14 +380,14 @@
         "ops/cron.d/glp-dot-refill"
       ],
       "kind": "script",
-      "sha256": "dfd133eebfa7fab3651774ebe50a3fa60708fede0f2d6628784d88e2b9910200"
+      "sha256": "761439f943b3e87827323d6d807a66d4c4a7e09f7981918454e929ad394965d5"
     },
     "tests/test_dot_lane.py": {
       "callers": [
         ".github/workflows/dot-lane.yml"
       ],
       "kind": "test",
-      "sha256": "a81b1f59dd39fdb9c7fb982aad7194c0d976a16d3a1f1e6d3d3d189026fbf613"
+      "sha256": "363155453bdca18bfe2e9bdd260177930ee753d8b684088304ea522baa158012"
     },
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [

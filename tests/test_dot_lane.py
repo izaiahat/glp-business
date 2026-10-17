@@ -269,6 +269,88 @@ def test_new_acceptance_versions_replenish_without_repeating_same_scope():
     assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[])[0]['id'] != first['id']
 
 
+def test_finch_hold_blocks_refill_after_expiry_and_new_glp93_acceptance(tmp_path, monkeypatch):
+    import dot_lane as lane
+    import dot_dispatch as d
+    hold = dict(until='GLP-359 Cloud readiness',
+                reason='Keep Finch idle until GLP-359 Cloud setup is ready.')
+    policy = dict(ingest_since=0, scopes=[], continuous_public_research_issues=['GLP-93'],
+                  held_dots={'finch': hold})
+    plan = {'issues': [{'issue': 'GLP-93', 'order': 1}]}
+    issue = dict(identifier='GLP-93', title='Provider source evidence', priority=1,
+                 description='One unresolved official-source gap', state={'type': 'started'})
+    old_scope = lane.select('finch', [issue], plan, policy, {}, [])[0]['id']
+    claims = {old_scope: dict(dot='finch', issue='GLP-93', status='commented',
+                             comment_body='Retained prior dispatch comment', files=[])}
+    ticket = dict(ticket='finch-glp-93-fa4e178bba19a44b', dot='finch', issue='GLP-93',
+                  task_owner='coordinator', parent=lane.PARENT, sent_at=10, state='sent')
+    assert lane.select('finch', [issue], plan, policy, claims, [ticket]) is None
+    # Offline reproduction of the coordinator expiry, then a changed acceptance version.
+    ticket['state'] = 'expired'
+    issue['description'] += '; newly admitted official terms question'
+    new_scope = lane.select('finch', [issue], plan, policy, claims, [ticket])[0]['id']
+    assert new_scope != old_scope
+    ledger = tmp_path/'reports/ops/dot-refill/CLAIMS.json'
+    ticket_path = tmp_path/'reports/ops/dot-tickets'/ticket['ticket']/'TICKET.json'
+    for path, value in [(tmp_path/'ops/dots/lane-policy.json', policy),
+                        (tmp_path/'reports/ops/fable-plan-2-20261009/PLAN.json', plan),
+                        (ledger, claims), (ticket_path, ticket)]:
+        path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        path.write_text(json.dumps(value))
+    before_ticket = ticket_path.read_bytes()
+    before_claims = ledger.read_bytes()
+    events = []
+    monkeypatch.setattr(lane, 'live_issues', lambda: pytest.fail('unexpected live Linear read'))
+    monkeypatch.setattr(d, 'subscription_ready',
+                        lambda dot: events.append('subscription:'+dot['user']) or {'id': 'ready'})
+    def dispatch(dot, issue, brief, root, parent, owner):
+        events.append('dispatch:'+dot)
+        return dict(ticket=dot+'-offline', request_id='123456789', exact_readback=True)
+    def effects(kind, *args):
+        events.append(kind)
+        return {'id': 'offline-comment'}
+    def cloud(root):
+        events.append('cloud')
+    def refill(dot):
+        return lane.refill(tmp_path, dot=dot, issues=[issue], dispatch=dispatch,
+                           effects=effects, cloud_reader=cloud)
+    out = refill('finch')
+    assert [row['status'] for row in out] == ['held_no_dispatch'], (out, events)
+    assert events == []
+    assert ledger.read_bytes() == before_claims
+    assert not (ledger.parent/'SELECTIONS.jsonl').exists()
+    assert lane.refill(tmp_path, dot='finch', dispatch=dispatch, effects=effects,
+                       cloud_reader=cloud) == out  # Held-only runs need no live issue read.
+    # A hold must also leave prior uncertain claims/comments alone, not reconcile them.
+    for status in ('dispatched', 'coordinator_comment_required', 'selecting'):
+        claims[old_scope]['status'] = status
+        ledger.write_text(json.dumps(claims))
+        before = ledger.read_bytes()
+        assert refill('finch')[0]['status'] == 'held_no_dispatch'
+        all_out = lane.refill(tmp_path, issues=[], dispatch=dispatch, effects=effects,
+                              cloud_reader=cloud)
+        assert [(row['dot'], row['status']) for row in all_out] == [
+            ('rook', 'no_safe_open_scope'), ('finch', 'held_no_dispatch')]
+        assert ledger.read_bytes() == before
+        assert events == []
+    claims[old_scope]['status'] = 'commented'
+    ledger.write_text(json.dumps(claims))
+    out = refill(None)
+    assert [(row['dot'], row['status']) for row in out] == [
+        ('rook', 'dispatched'), ('finch', 'held_no_dispatch')]
+    assert events == ['cloud', 'subscription:'+d.DOTS['rook']['user'], 'dispatch:rook', 'linear']
+    after = json.loads(ledger.read_text())
+    assert after[old_scope] == claims[old_scope]
+    assert after[new_scope]['dot'] == 'rook'
+    selections = [json.loads(line) for line in (ledger.parent/'SELECTIONS.jsonl').read_text().splitlines()]
+    assert [(row['dot'], row['scope_id']) for row in selections] == [('rook', new_scope)]
+    assert ticket_path.read_bytes() == before_ticket
+    maintained_policy = json.loads((Path(__file__).resolve().parents[1]/'ops/dots/lane-policy.json').read_text())
+    assert maintained_policy['held_dots']['finch']['until'] == hold['until']
+    assert maintained_policy['held_dots']['finch']['reason']
+    assert 'rook' not in maintained_policy['held_dots']
+
+
 def test_supply_ignores_execution_owner_metadata_changes():
     import dot_lane as lane
     policy = dict(scopes=[],continuous_public_research_issues=['GLP-93'])
