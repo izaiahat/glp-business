@@ -375,6 +375,209 @@ class AutoDeployerTests(unittest.TestCase):
             self.assertEqual(len(remote.merges), 1)
             self.assertEqual(len(remote.readbacks), 1)
 
+    def recovery_fixture(self, m, root, *, register=True):
+        remote = FakeRemote(fixture())
+        remote.open_prs = lambda repo: [7] if repo == m.REPOS[1] else []
+        deployer = m.Deployer(root, remote, notify=lambda _: None)
+        paths = ['scripts/first.py', 'scripts/second.py']
+        installed = {}
+        for path in paths:
+            target = root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((path + '\n').encode())
+            installed[path] = hashlib.sha256(target.read_bytes()).hexdigest()
+        remote.installed_hashes = lambda repo, merge, selected: dict(installed)
+        original = {'schema': 'auto-deployer-v1', 'repo': m.REPOS[0], 'pr': 6,
+                    'head': 'c' * 40, 'issue': 'GLP-358', 'status': 'BLOCKED_UNCERTAIN',
+                    'merge': {'merge_commit': 'b' * 40}, 'deployment': {'paths': paths}}
+        receipt = deployer.base / '20261016T030000Z/glp-business-6.json'
+        m.immutable(receipt, original)
+        authority = root / 'lanes/recovery/COORDINATOR-AUTHORITY.json'
+        m.immutable(authority, {'original_receipt': str(receipt.relative_to(root)), 'merge': 'b' * 40,
+                                'authority': 'coordinator exact recovery instruction', 'scope': paths})
+        recovery = {'schema': 'auto-deployer-recovery-v1', 'repo': m.REPOS[0], 'pr': 6, 'head': 'c' * 40,
+                    'original_receipt': str(receipt.relative_to(root)),
+                    'original_receipt_sha256': hashlib.sha256(receipt.read_bytes()).hexdigest(),
+                    'merge_commit': 'b' * 40, 'authority': str(authority.relative_to(root)),
+                    'authority_sha256': hashlib.sha256(authority.read_bytes()).hexdigest(),
+                    'installed_sha256': dict(installed)}
+        recovery_path = deployer.base / '.state/recoveries' / ('glp-business-6-' + 'c' * 40 + '.json')
+        if register:
+            m.immutable(recovery_path, recovery)
+        return deployer, receipt, recovery_path, recovery
+
+    def test_blocked_receipt_without_recovery_stops_later_prs(self):
+        m = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            deployer, receipt, _, _ = self.recovery_fixture(m, Path(tmp), register=False)
+            before = receipt.read_bytes()
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(m.main(['--dry-run'], root=Path(tmp), remote=deployer.remote), 2)
+            self.assertEqual(receipt.read_bytes(), before)
+            self.assertEqual(deployer.remote.merges, [])
+
+    def test_valid_recovery_unblocks_later_pr_without_replaying_recovered_pr(self):
+        m = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            deployer, receipt, recovery_path, _ = self.recovery_fixture(m, Path(tmp))
+            before = receipt.read_bytes(), recovery_path.read_bytes()
+            with patch.object(m.Deployer, 'discord', return_value=None), \
+                    patch.object(m.Deployer, 'install', side_effect=AssertionError('no recovered apply')), \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(m.main([], root=Path(tmp), remote=deployer.remote), 0)
+            self.assertEqual(deployer.remote.merges, [(m.REPOS[1], 7, 'a' * 40)])
+            self.assertEqual(json.loads(output.getvalue())['status'], 'WAITING_LIVE_OUTPUT')
+            self.assertEqual((receipt.read_bytes(), recovery_path.read_bytes()), before)
+            self.assertEqual(deployer.reconcile(dry_run=True), [])
+            self.assertEqual(deployer.process({'repo': m.REPOS[0], 'number': 6, 'headRefOid': 'c' * 40})['status'],
+                             'SKIP_RECEIPTED')
+
+    def test_recovery_drifted_live_file_keeps_cycle_blocked(self):
+        m = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            deployer, receipt, _, _ = self.recovery_fixture(m, Path(tmp))
+            self.assertEqual(deployer.reconcile(dry_run=True), [])
+            (Path(tmp) / 'scripts/second.py').write_text('drift\n')
+            self.assertEqual(deployer.reconcile(dry_run=True), [json.loads(receipt.read_bytes())])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(m.main(['--dry-run'], root=Path(tmp), remote=deployer.remote), 2)
+            self.assertEqual(deployer.remote.merges, [])
+
+    def test_recovery_wrong_original_receipt_digest_keeps_cycle_blocked(self):
+        m = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            deployer, receipt, path, recovery = self.recovery_fixture(m, Path(tmp), register=False)
+            recovery['original_receipt_sha256'] = '0' * 64
+            m.immutable(path, recovery)
+            self.assertEqual(deployer.reconcile(dry_run=True), [json.loads(receipt.read_bytes())])
+            self.assertEqual(deployer.remote.merges, [])
+
+    def test_recovery_missing_malformed_mismatched_evidence_refuses(self):
+        m = load()
+        for fault in ('authority-digest', 'authority-binding', 'missing-authority', 'missing-file',
+                      'partial-map', 'empty-map', 'remote-drift', 'remote-unreadable', 'wrong-merge',
+                      'wrong-head', 'wrong-receipt-path', 'malformed-json', 'symlink-file', 'symlink-parent'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                deployer, receipt, path, recovery = self.recovery_fixture(m, root, register=False)
+                if fault == 'authority-digest':
+                    recovery['authority_sha256'] = '0' * 64
+                elif fault == 'authority-binding':
+                    authority = root / recovery['authority']
+                    authority.write_text('{}')
+                    recovery['authority_sha256'] = hashlib.sha256(authority.read_bytes()).hexdigest()
+                elif fault == 'missing-authority':
+                    (root / recovery['authority']).unlink()
+                elif fault == 'missing-file':
+                    (root / 'scripts/second.py').unlink()
+                elif fault == 'partial-map':
+                    recovery['installed_sha256'].pop('scripts/second.py')
+                elif fault == 'empty-map':
+                    recovery['installed_sha256'] = {}
+                elif fault == 'remote-drift':
+                    deployer.remote.installed_hashes = lambda *a: {'scripts/first.py': '0' * 64}
+                elif fault == 'remote-unreadable':
+                    deployer.remote.installed_hashes = lambda *a: (_ for _ in ()).throw(OSError('GitHub unavailable'))
+                elif fault == 'wrong-merge':
+                    recovery['merge_commit'] = 'd' * 40
+                elif fault == 'wrong-head':
+                    recovery['head'] = 'd' * 40
+                elif fault == 'wrong-receipt-path':
+                    recovery['original_receipt'] = 'reports/ops/auto-deployer/other.json'
+                elif fault == 'symlink-file':
+                    (root / 'same-bytes').write_bytes((root / 'scripts/second.py').read_bytes())
+                    (root / 'scripts/second.py').unlink()
+                    (root / 'scripts/second.py').symlink_to(root / 'same-bytes')
+                elif fault == 'symlink-parent':
+                    (root / 'scripts').rename(root / 'other-scripts')
+                    (root / 'scripts').symlink_to(root / 'other-scripts', target_is_directory=True)
+                m.immutable(path, recovery)
+                if fault == 'malformed-json':
+                    path.write_text('{')
+                before = receipt.read_bytes()
+                self.assertEqual(len(deployer.reconcile(dry_run=True)), 1)
+                self.assertEqual(receipt.read_bytes(), before)
+                self.assertEqual(deployer.remote.merges, [])
+
+    def test_github_recovery_hashes_come_from_regular_merge_tree_blobs(self):
+        import base64
+        m = load()
+        remote = m.GitHub()
+        content = b'committed bytes\n'
+        blob = hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest()
+        endpoints = []
+        mode, truncated, wire_content = '100644', False, content
+        def api(endpoint):
+            endpoints.append(endpoint)
+            if '/git/trees/' in endpoint:
+                return {'truncated': truncated, 'tree': [{'path': 'scripts/a.py', 'type': 'blob', 'mode': mode, 'sha': blob}]}
+            return {'sha': blob, 'encoding': 'base64', 'size': len(wire_content),
+                    'content': base64.b64encode(wire_content).decode()}
+        remote.api = api
+        self.assertEqual(remote.installed_hashes(m.REPOS[0], 'b' * 40, ['scripts/a.py']),
+                         {'scripts/a.py': hashlib.sha256(content).hexdigest()})
+        self.assertIn(f'repos/{m.REPOS[0]}/git/trees/' + 'b' * 40 + '?recursive=1', endpoints)
+        self.assertIn(f'repos/{m.REPOS[0]}/git/blobs/{blob}', endpoints)
+        for mode, truncated, wire_content, selected in [('120000', False, content, ['scripts/a.py']),
+                ('100644', True, content, ['scripts/a.py']), ('100644', False, b'tampered', ['scripts/a.py']),
+                ('100644', False, content, ['scripts/missing.py'])]:
+            with self.subTest(mode=mode, truncated=truncated, selected=selected), self.assertRaises(ValueError):
+                remote.installed_hashes(m.REPOS[0], 'b' * 40, selected)
+
+    def test_recovery_registration_is_exclusive_and_has_no_merge_apply_or_send(self):
+        m = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            deployer, receipt, path, recovery = self.recovery_fixture(m, root, register=False)
+            proposal = root / 'lanes/recovery/proposal.json'
+            m.immutable(proposal, recovery)
+            original = receipt.read_bytes()
+            with patch.object(m.Deployer, 'discord', side_effect=AssertionError('no send')), \
+                    patch.object(m.Deployer, 'install', side_effect=AssertionError('no apply')), \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(m.main(['--record-recovery', str(proposal)], root=root, remote=deployer.remote), 0)
+                published = path.read_bytes()
+                with self.assertRaises(FileExistsError):
+                    m.main(['--record-recovery', str(proposal)], root=root, remote=deployer.remote)
+            self.assertEqual(json.loads(output.getvalue())['status'], 'RECOVERY_RECORDED')
+            self.assertEqual(path.read_bytes(), published)
+            self.assertEqual(receipt.read_bytes(), original)
+            self.assertEqual(deployer.remote.merges, [])
+            self.assertFalse((root / 'reports/ops/fleet-inbox').exists())
+            self.assertEqual(deployer.reconcile(dry_run=True), [])
+
+    def test_recovery_registration_invalid_evidence_never_publishes(self):
+        m = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            deployer, receipt, path, recovery = self.recovery_fixture(m, root, register=False)
+            recovery['original_receipt_sha256'] = '0' * 64
+            proposal = root / 'lanes/recovery/invalid.json'
+            m.immutable(proposal, recovery)
+            before = receipt.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'original receipt digest'):
+                m.main(['--record-recovery', str(proposal)], root=root, remote=deployer.remote)
+            self.assertFalse(path.exists())
+            self.assertEqual(receipt.read_bytes(), before)
+            self.assertEqual(deployer.remote.merges, [])
+            self.assertFalse((root / 'reports/ops/fleet-inbox').exists())
+
+    def test_recovery_scope_can_use_retained_exact_head_intent(self):
+        m = load()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            deployer, receipt, path, recovery = self.recovery_fixture(m, root, register=False)
+            original = json.loads(receipt.read_bytes())
+            del original['deployment']
+            receipt.write_text(json.dumps(original))
+            recovery['original_receipt_sha256'] = hashlib.sha256(receipt.read_bytes()).hexdigest()
+            m.immutable(path, recovery)
+            self.assertEqual(len(deployer.reconcile(dry_run=True)), 1)
+            intent = deployer.intent_path({'repo': m.REPOS[0], 'number': 6, 'headRefOid': 'c' * 40})
+            m.immutable(intent, {k: original[k] for k in ('repo', 'pr', 'head')} |
+                        {'runtime_paths': list(recovery['installed_sha256'])})
+            self.assertEqual(deployer.reconcile(dry_run=True), [])
+
     def test_crash_intent_inspects_without_replaying_or_writing_in_dry_run(self):
         m = load()
         with tempfile.TemporaryDirectory() as tmp:
