@@ -208,6 +208,7 @@ def acceptance_ci_complete(pr, gh):
 def fresh_release_inputs(config, report, pr):
     """Read exact-head registry source and the live Sheet without a site clone."""
     import base64
+    import hashlib
     import glp_affiliate_sync_job as job
     from glp_affiliate_registry_sync import sync
     from glp_release_inputs import capture
@@ -215,10 +216,26 @@ def fresh_release_inputs(config, report, pr):
     for name in ('program-registry.json', 'approved-program-registry.json',
                  'affiliate-wire-in-approvals.json', 'affiliate-activation-selection.json',
                  'go-selection-receipt.json'):
-        obj = gh_json('api', f'repos/izaiahat/glp-site-candidate/contents/data/{name}?ref={pr["headRefOid"]}')
+        endpoint = f'repos/izaiahat/glp-site-candidate/contents/data/{name}?ref={pr["headRefOid"]}'
+        obj = gh_json('api', endpoint)
+        # Contents JSON intentionally has no inline bytes for files over 1 MiB.
+        # Read raw bytes from the same pinned ref, never a mutable download URL.
+        if obj.get('type') != 'file':
+            raise ValueError('release_input_not_file:' + name)
+        if obj.get('encoding') == 'base64':
+            raw = base64.b64decode(''.join(obj['content'].split()), validate=True)
+        elif obj.get('encoding') == 'none':
+            raw = subprocess.check_output(
+                ['gh', 'api', '-H', 'Accept: application/vnd.github.raw+json', endpoint], timeout=120)
+        else:
+            raise ValueError('release_input_encoding_unsupported:' + name)
+        blob = hashlib.sha1(f'blob {len(raw)}\0'.encode() + raw).hexdigest()
+        if not raw or len(raw) != obj.get('size') or blob != obj.get('sha'):
+            raise ValueError('release_input_blob_mismatch:' + name)
+        json.loads(raw)  # Refuse invalid source before creating the report-local input.
         path = source / 'data' / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(base64.b64decode(obj['content']))
+        path.write_bytes(raw)
     outcome = sync(source, report / 'registry', apply=False)
     if outcome['changed']:
         return None  # Full producer must propagate the fresh denial/terms delta.
