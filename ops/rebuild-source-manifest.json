@@ -2862,7 +2862,7 @@
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "ef784c19420af2e368b1a005025f1d07ae0908f83ee779e0ed907e2a6572a4a1"
+      "sha256": "0e183665c317b6f0cf83cade5e42ac103becda1a08aa5606ea14498e95607f6b"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -3810,12 +3810,16 @@
       "sha256": "55f06988d0d08b91de7ab7f08ac45d08f5362e1e819890b7d427bcbfc12ad26d"
     },
     "scripts/linear_operator_acceptance.py": {
-      "callers": ["scripts/linear_orchestrator.py"],
+      "callers": [
+        "scripts/linear_orchestrator.py"
+      ],
       "kind": "script",
       "sha256": "5d8785a203694db0e3b2f6d67c3669f14d808aabf6cdf1d4547e9f7a7018ad08"
     },
     "ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md": {
-      "callers": ["GLP-358 coordinator protected closure"],
+      "callers": [
+        "GLP-358 coordinator protected closure"
+      ],
       "kind": "documentation",
       "sha256": "78e2bd74779df5d57fb0fb28435985283401a3445addbbf9bafdef96242cf161"
     },
@@ -5399,7 +5403,7 @@
         ".github/workflows/fleet-ingest.yml"
       ],
       "kind": "test",
-      "sha256": "5e85e641d38b2a9238a534b8b084ac537a12469da6a42fff89518f94f7868db7"
+      "sha256": "7e7de362fdcc3e2f6a011cb9e2315ed68f1c7cd68201faac7c87964da37e8d97"
     },
     "tests/test_fleet_pin_release.py": {
       "callers": [
@@ -6819,7 +6823,9 @@
       "sha256": "ba36c08056a522f09c48bfc37f53d88bbb943aba9691dcd63140697ea9f88d7f"
     },
     "tests/test_linear_operator_acceptance_replay.py": {
-      "callers": ["scripts/linear_operator_acceptance.py"],
+      "callers": [
+        "scripts/linear_operator_acceptance.py"
+      ],
       "kind": "test",
       "sha256": "7a0275e4b91fc9935d125d454d06780d15fd81b941c33199eb943ea1b20a598f"
     },

@@ -8,6 +8,265 @@ SOURCE = Path(__file__).resolve().parents[1] / 'scripts/fleet_ingest.py'
 
 
 class FleetTest(unittest.TestCase):
+    def test_reviewer_terminal_receipts_survive_unproven_basename_pruning(self):
+        import subprocess
+        import sys
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            dead = subprocess.Popen([sys.executable, '-c', 'pass'])
+            dead.wait(timeout=3)
+            for name in ('ordinary', 'cases', 'native-output'):
+                path = root / 'reports/ops/reviewer-worker' / name / 'RESULT.json'
+                path.parent.mkdir(parents=True)
+                path.write_text(json.dumps({'issue': 'GLP-358', 'lane': 'sol-' + name,
+                    'status': 'DONE_READY_TO_CLOSE', 'pid': dead.pid}))
+            items, errors = m.discover(root, root / 'live', {}, [])
+            self.assertEqual(errors, [])
+            self.assertEqual({Path(x['worker_result']).parent.name for x in items},
+                             {'ordinary', 'cases', 'native-output'})
+
+    def test_timeout_drain_deadline_with_detached_inherited_pipes(self):
+        import sys
+        import time
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            child = 'import time; time.sleep(1.0)'
+            parent = ('import subprocess,sys,time; '
+                      'subprocess.Popen([sys.executable,"-c",%r],start_new_session=True); '
+                      'print("GLP-358 PASS",flush=True); time.sleep(2)') % child
+            start = time.monotonic()
+            result = m.run([sys.executable, '-c', parent], root, .05)
+            elapsed = time.monotonic() - start
+            self.assertEqual(result['rc'], 124)
+            self.assertEqual(result['stdout'], '')
+            self.assertIn('REFUSED', result['stderr'])
+            self.assertLess(elapsed, .4, 'detached helper must not extend the drain to 1s')
+
+    def test_discovery_prunes_copies_before_descending(self):
+        from unittest.mock import patch
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            live = root / 'lane/RESULT.json'
+            live.parent.mkdir(parents=True)
+            live.write_text('{}')
+            excluded = ('source', 'repo', 'checkout', 'node_modules', '.venv',
+                        '.worktrees', 'fleet-inbox', 'artifacts', 'history',
+                        'cache', 'site-system', 'prepared', 'release', 'evidence')
+            for name in excluded:
+                path = root / name / 'deep/RESULT.json'
+                path.parent.mkdir(parents=True)
+                path.write_text('{}')
+            checkout = root / 'arbitrary-clone'
+            (checkout / '.git').mkdir(parents=True)
+            (checkout / 'RESULT.json').write_text('{}')
+            visited = []
+            import os
+            original = os.scandir
+            def scandir(path):
+                visited.append(Path(path))
+                return original(path)
+            with patch('os.scandir', side_effect=scandir):
+                found = list(m.walk(root, {'RESULT.json'}))
+            self.assertEqual(found, [live])
+            self.assertFalse(any(root / name in visited for name in excluded))
+
+    def test_new_basename_exclusions_require_generated_tree_evidence(self):
+        import os
+        from unittest.mock import patch
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            expected = set()
+            for name in ('sources', 'backups', 'preimages', 'browser-profile',
+                         'worktree', '.venv-fixture', 'pytest', 'pytest-03',
+                         'HARNESS', 'PREIMAGE', 'native-output', 'npm-cache',
+                         'tmp', 'home', 'archive', 'fixtures', 'regressions',
+                         'cases', 'pytest-tmp', 'test-results', '.cache',
+                         '.pytest_cache', '_cacache'):
+                path = root / name / 'deep/RESULT.json'
+                path.parent.mkdir(parents=True)
+                path.write_text('{}')
+                expected.add(path)
+            # Real tmp_path and numbered-session layout; no basename alone is
+            # sufficient. Generated nested RESULT copies must not be discovered.
+            generated = root / 'generated/pytest-02'
+            case = generated / 'test_fixture0'
+            case.mkdir(parents=True)
+            (case / 'RESULT.json').write_text('{}')
+            (generated / 'test_fixturecurrent').symlink_to(case, target_is_directory=True)
+            session = root / 'tmp/pytest-of-worker'
+            (session / 'pytest-0').mkdir(parents=True)
+            (session / 'pytest-current').symlink_to('pytest-0', target_is_directory=True)
+            (session / 'pytest-0/RESULT.json').write_text('{}')
+            tagged = root / 'generated/npm-cache'
+            (tagged / 'payload').mkdir(parents=True)
+            (tagged / 'CACHEDIR.TAG').write_text(
+                'Signature: 8a477f597d28d172789f06886806bc55\n# cache data\n')
+            (tagged / 'payload/RESULT.json').write_text('{}')
+            # An invalid tag is not cache proof; a directory called *current is
+            # not pytest's sibling symlink. An explicit local receipt wins too.
+            for p in (root / 'invalid-cache', root / 'unproven/pytest'):
+                (p / 'test_fixturecurrent').mkdir(parents=True)
+                (p / 'CACHEDIR.TAG').write_text('not a cache signature')
+                receipt = p / 'test_fixturecurrent/RESULT.json'
+                receipt.write_text('{}')
+                expected.add(receipt)
+            direct = generated / 'RESULT.json'
+            direct.write_text('{}')
+            self.assertIn(direct, set(m.walk(generated, {'RESULT.json'})))
+            direct.unlink()
+            visited = []
+            original = os.scandir
+            def scandir(path):
+                visited.append(Path(path))
+                return original(path)
+            with patch('os.scandir', side_effect=scandir):
+                self.assertEqual(set(m.walk(root, {'RESULT.json'})), expected)
+            self.assertNotIn(case, visited)
+            self.assertNotIn(session / 'pytest-0', visited)
+            self.assertNotIn(tagged / 'payload', visited)
+
+    def test_timeout_detached_pipe_stays_open_until_fixture_cleanup(self):
+        import os
+        import signal
+        import subprocess
+        import sys
+        import time
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            pidfile = root / 'fixture-helper-pid'
+            child = 'import time; time.sleep(30)'
+            parent = ('import subprocess,sys,time; from pathlib import Path; '
+                      'p=subprocess.Popen([sys.executable,"-c",%r],start_new_session=True); '
+                      'Path(%r).write_text(str(p.pid)); time.sleep(30)') % (child, str(pidfile))
+            # A separate outer watchdog prevents even a regressed unbounded drain
+            # from hanging the suite. Cleanup targets only this synthetic helper.
+            wrapper = ('import importlib.util,sys,json; from pathlib import Path; '
+                       's=importlib.util.spec_from_file_location("probe",sys.argv[1]); '
+                       'm=importlib.util.module_from_spec(s); s.loader.exec_module(m); '
+                       'print(json.dumps(m.run([sys.executable,"-c",sys.argv[2]],Path(sys.argv[3]),.1)))')
+            try:
+                start = time.monotonic()
+                result = subprocess.run([sys.executable, '-c', wrapper, str(SOURCE), parent, str(root)],
+                                        capture_output=True, text=True, timeout=2)
+                self.assertLess(time.monotonic() - start, 1)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                output = json.loads(result.stdout)
+                self.assertEqual(output['rc'], 124)
+                self.assertEqual(output['stdout'], '')
+                self.assertIn('REFUSED', output['stderr'])
+                self.assertTrue(pidfile.exists())
+                os.kill(int(pidfile.read_text()), 0)  # still open when run returned
+            finally:
+                if pidfile.exists():
+                    try:
+                        os.killpg(int(pidfile.read_text()), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+    def test_poll_slow_verifiers_are_bounded_and_refused_not_passed(self):
+        import sys
+        import time
+        from unittest.mock import patch
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            script = root / 'scripts/linear_business_proof.py'
+            script.parent.mkdir()
+            script.write_text('import time; time.sleep(2); print("GLP-358 PASS")')
+            result = root / 'RESULT.json'
+            result.write_text('{}')
+            items = [m.event('native', 'GLP-358', 'sol-' + str(i),
+                             result, [result], result) for i in range(6)]
+            plan = root / 'plan.json'
+            plan.write_text(json.dumps({'issues': [{'issue': 'GLP-358',
+                'proof_cmd': ['python3', '-B', 'scripts/linear_business_proof.py', 'GLP-358'],
+                'proof_timeout_s': 300}]}))
+            real_run = m.run
+            launched = []
+            def run(argv, cwd, timeout, output_limit=4000):
+                if argv[0] == 'gh':
+                    return {'rc': 0, 'stdout': '[]', 'stderr': ''}
+                launched.append(timeout)
+                return real_run([sys.executable, str(script)], cwd, timeout)
+            start = time.monotonic()
+            with patch.object(m, 'run', side_effect=run), \
+                    patch.object(m, 'MAX_COMMAND_SECONDS', .06, create=True), \
+                    patch.object(m, 'POLL_COMMAND_BUDGET_SECONDS', .18, create=True), \
+                    patch.object(m, 'discover', return_value=(items, [])):
+                summary = m.poll(root, root / 'live', plan, root / 'config', timeout=2)
+            self.assertLess(time.monotonic() - start, 1.0)
+            self.assertLessEqual(len(launched), 4)
+            self.assertTrue(all(t <= .06 for t in launched))
+            self.assertEqual(summary['statuses'], {'REDISPATCH': 6})
+            for path in (root / 'reports/ops/fleet-inbox').glob('GLP-*/*/INGEST.json'):
+                row = m.read(path)
+                self.assertIn('REFUSED', row['failure_text'])
+                self.assertNotEqual(row['status'], 'READY_TO_CLOSE')
+                self.assertEqual(row['checks']['proof']['rc'], 124)
+
+            # Deferred receipts precede attempted timeouts on the next poll;
+            # retries need no operator --retry and cannot starve behind lane 0.
+            order = []
+            original_ingest = m.ingest
+            def ingest(root, item, policy, **kwargs):
+                order.append(item['lane'])
+                return original_ingest(root, item, policy, **kwargs)
+            with patch.object(m, 'run', side_effect=run), \
+                    patch.object(m, 'MAX_COMMAND_SECONDS', .06), \
+                    patch.object(m, 'POLL_COMMAND_BUDGET_SECONDS', .18), \
+                    patch.object(m, 'discover', return_value=(items, [])), \
+                    patch.object(m, 'ingest', side_effect=ingest):
+                summary = m.poll(root, root / 'live', plan, root / 'config', timeout=2)
+            self.assertNotEqual(order[0], 'sol-0')
+            self.assertEqual(summary['statuses'], {'REDISPATCH': 6})
+
+    def test_timeout_retry_can_pass_only_after_real_success_then_cache(self):
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            result = root / 'RESULT.json'
+            result.write_text('{}')
+            item = m.event('native', 'GLP-358', 'sol', result, [result], result)
+            policy = {'proof_cmd': ['stat', str(result)]}
+            calls = []
+            def runner(argv, cwd, timeout):
+                calls.append(argv)
+                if len(calls) == 1:
+                    return {'rc': 124, 'stdout': '', 'stderr': 'REFUSED: timed out'}
+                return {'rc': 0, 'stdout': 'GLP-358 PASS', 'stderr': ''}
+            first = m.ingest(root, item, policy, runner=runner)
+            second = m.ingest(root, item, policy, runner=runner)
+            third = m.ingest(root, item, policy, runner=runner)
+            self.assertEqual(first['status'], 'REDISPATCH')
+            self.assertEqual(second['status'], 'READY_TO_CLOSE')
+            self.assertEqual(second, third)
+            self.assertEqual(len(calls), 4)
+            history = root / 'reports/ops/fleet-inbox/GLP-358/sol/history'
+            self.assertEqual(len(list(history.glob('*.json'))), 2)
+            self.assertEqual(m.read(history / (first['fingerprint'] + '.json')), first)
+
+    def test_timeout_reaps_verifier_helpers_holding_output_pipe(self):
+        import sys
+        import time
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            marker = root / 'helper-effect'
+            child = 'import time; from pathlib import Path; time.sleep(.4); Path(%r).write_text("late")' % str(marker)
+            parent = 'import subprocess, sys, time; subprocess.Popen([sys.executable, "-c", %r]); time.sleep(2)' % child
+            start = time.monotonic()
+            result = m.run([sys.executable, '-c', parent], root, .08)
+            self.assertLess(time.monotonic() - start, .4)
+            self.assertEqual(result['rc'], 124)
+            self.assertIn('REFUSED', result['stderr'])
+            time.sleep(.45)
+            self.assertFalse(marker.exists())
+
     def test_completion_runs_checks_once_and_writes_stable_row(self):
         self.assertTrue(SOURCE.exists(), 'fleet ingestion producer is missing')
         spec = importlib.util.spec_from_file_location('fleet_ingest', SOURCE)
