@@ -319,6 +319,30 @@ class GitHub:
         content = self.api(f'repos/{repo}/contents/{MANIFEST}?ref={head}')
         return json.loads(base64.b64decode(content['content']))
 
+    def installed_hashes(self, repo, merge, paths):
+        """Fetch regular blobs by immutable merge-tree OID, not mutable main."""
+        tree = self.api(f'repos/{repo}/git/trees/{merge}?recursive=1')
+        if tree.get('truncated') is not False:
+            raise ValueError('recovery tree incomplete')
+        entries = {entry['path']: entry for entry in tree['tree']}
+        result = {}
+        for path in paths:
+            entry = entries.get(path)
+            if not entry or entry['type'] != 'blob' or entry['mode'] not in {'100644', '100755'}:
+                raise ValueError('recovery tree path missing/nonregular: ' + path)
+            oid = entry['sha']
+            if not SHA.fullmatch(oid):
+                raise ValueError('invalid recovery blob OID')
+            blob = self.api(f'repos/{repo}/git/blobs/{oid}')
+            if blob['sha'] != oid or blob['encoding'] != 'base64':
+                raise ValueError('invalid recovery blob response')
+            raw = base64.b64decode(''.join(blob['content'].split()), validate=True)
+            actual_oid = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+            if len(raw) != blob['size'] or actual_oid != oid:
+                raise ValueError('incomplete/mismatched recovery blob')
+            result[path] = hashlib.sha256(raw).hexdigest()
+        return result
+
     def merge(self, repo, number, head):
         run(['gh', 'pr', 'merge', str(number), '--repo', repo, '--merge',
              '--match-head-commit', head])
@@ -458,6 +482,102 @@ class Deployer:
     def intent_path(self, pr):
         return self.base / '.state/intents' / f'{pr["repo"].split("/")[1]}-{pr["number"]}-{pr["headRefOid"]}.json'
 
+    def recovery_path(self, receipt):
+        repo, number, head = receipt['repo'], receipt['pr'], receipt['head']
+        if repo not in REPOS or type(number) is not int or number < 1 or not SHA.fullmatch(head):
+            raise ValueError('invalid recovery identity')
+        return self.base / '.state/recoveries' / f'{repo.split("/")[1]}-{number}-{head}.json'
+
+    def recovery_bytes(self, path):
+        """Only canonical, regular, in-root files; reject symlink parents too."""
+        pp = PurePosixPath(path)
+        if not pp.parts or pp.is_absolute() or '..' in pp.parts or str(pp) != path:
+            raise ValueError('unsafe recovery path')
+        target = self.root
+        for part in pp.parts:
+            target = target / part
+            if target.is_symlink():
+                raise ValueError('recovery symlink refused')
+        if not target.resolve().is_relative_to(self.root.resolve()) or not target.is_file():
+            raise ValueError('recovery file missing/nonregular')
+        return target.read_bytes()
+
+    def verify_recovery(self, path, receipt, recovery):
+        """Read-only reconciliation, never merge/apply. All evidence is required."""
+        def require(ok, why):
+            if not ok:
+                raise ValueError('recovery: ' + why)
+
+        self.recovery_path(receipt)  # Validate identity before remote/path use.
+        require(receipt['status'] == 'BLOCKED_UNCERTAIN', 'original is not blocked')
+        require(recovery['schema'] == 'auto-deployer-recovery-v1', 'unknown schema')
+        require(all(recovery[k] == receipt[k] for k in ('repo', 'pr', 'head')), 'identity mismatch')
+        original_path = str(path.relative_to(self.root))
+        require(recovery['original_receipt'] == original_path, 'original receipt path mismatch')
+        raw = self.recovery_bytes(original_path)
+        require(hashlib.sha256(raw).hexdigest() == recovery['original_receipt_sha256']
+                and json.loads(raw) == receipt, 'original receipt digest/content mismatch')
+        merge = recovery['merge_commit']
+        require(isinstance(merge, str) and SHA.fullmatch(merge), 'invalid merge commit')
+        recorded_merge = receipt.get('merge', receipt.get('inspection', {})).get('merge_commit')
+        require(recorded_merge is None or recorded_merge == merge, 'original merge mismatch')
+        authority_path = recovery['authority']
+        require(isinstance(authority_path, str) and authority_path.startswith('lanes/')
+                and authority_path.endswith('.json'), 'lanes authority file required')
+        authority_raw = self.recovery_bytes(authority_path)
+        require(hashlib.sha256(authority_raw).hexdigest() == recovery['authority_sha256'], 'authority digest mismatch')
+        authority = json.loads(authority_raw)
+        require(authority['original_receipt'] == original_path and authority['merge'] == merge
+                and authority['authority'] and authority['scope'], 'authority binding missing')
+        installed = recovery['installed_sha256']
+        require(isinstance(installed, dict) and installed, 'nonempty installed map required')
+        expected = receipt.get('deployment', {}).get('paths', receipt.get('runtime_paths'))
+        # Receipts created before checkout/apply can get their scope from the
+        # retained exact-head intent; absence never authorizes a partial map.
+        if expected is None:
+            intent = self.intent_path({'repo': receipt['repo'], 'number': receipt['pr'], 'headRefOid': receipt['head']})
+            item = json.loads(self.recovery_bytes(str(intent.relative_to(self.root))))
+            require(all(item[k] == receipt[k] for k in ('repo', 'pr', 'head')), 'intent identity mismatch')
+            expected = item['runtime_paths']
+        require(isinstance(expected, list) and len(expected) == len(set(expected))
+                and set(installed) == set(expected), 'incomplete installed path scope')
+        for name, digest in installed.items():
+            require(isinstance(digest, str) and re.fullmatch(r'[a-f0-9]{64}', digest), 'invalid installed digest')
+            require(hashlib.sha256(self.recovery_bytes(name)).hexdigest() == digest, 'live bytes drifted: ' + name)
+        observed = self.remote.merged(receipt['repo'], receipt['pr'], receipt['head'])
+        require(observed['merge_commit'] == merge and observed['head'] == receipt['head'], 'remote merge mismatch')
+        require(self.remote.installed_hashes(receipt['repo'], merge, sorted(installed)) == installed,
+                'merge-tree bytes mismatch')
+
+    def record_recovery(self, proposal):
+        """Coordinator-only bookkeeping under run.lock; no source/outbox effects."""
+        proposal = Path(proposal)
+        if not proposal.is_absolute():
+            proposal = self.root / proposal
+        recovery = json.loads(self.recovery_bytes(str(proposal.relative_to(self.root))))
+        matches = [(path, receipt) for path, receipt in self.receipts()
+                   if str(path.relative_to(self.root)) == recovery['original_receipt']]
+        if len(matches) != 1:
+            raise ValueError('recovery must name one retained historical receipt')
+        path, receipt = matches[0]
+        self.verify_recovery(path, receipt, recovery)
+        destination = self.recovery_path(receipt)
+        if any(p.is_symlink() for p in (destination, *destination.parents) if p != self.root.parent):
+            raise ValueError('recovery destination symlink refused')
+        immutable(destination, recovery)
+        return {'status': 'RECOVERY_RECORDED', 'recovery': str(destination.relative_to(self.root))}
+
+    def recovered(self, path, receipt):
+        try:
+            recovery_path = self.recovery_path(receipt)
+            recovery = json.loads(self.recovery_bytes(str(recovery_path.relative_to(self.root))))
+            self.verify_recovery(path, receipt, recovery)
+            return True
+        except Exception:
+            # Missing, unreadable, malformed or stale local/remote evidence is
+            # still uncertainty. Never alter the historical receipt to clear it.
+            return False
+
     def reconcile(self, dry_run=False):
         """Inspect unfinished attempts, including PRs no longer open. No replay."""
         receipts = self.receipts()
@@ -465,7 +585,8 @@ class Deployer:
             for path, receipt in receipts:
                 self.deliver(path, receipt)
         known = {(r['repo'], r['pr'], r['head']) for _, r in receipts}
-        blocked = [r for _, r in receipts if r['status'] == 'BLOCKED_UNCERTAIN']
+        blocked = [r for path, r in receipts if r['status'] == 'BLOCKED_UNCERTAIN'
+                   and not self.recovered(path, r)]
         for path in sorted((self.base / '.state/intents').glob('*.json')):
             item = json.loads(path.read_text())
             if (item['repo'], item['pr'], item['head']) in known:
@@ -576,7 +697,9 @@ class Deployer:
 
 def main(argv=None, *, remote=None, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--dry-run', action='store_true', help='Read-only decisions; no locks, receipts, install, merge, or sends')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--dry-run', action='store_true', help='Read-only decisions; no locks, receipts, install, merge, or sends')
+    mode.add_argument('--record-recovery', metavar='JSON', help='Coordinator exact recovery only: verify and exclusively record; no merge/install/send')
     args = parser.parse_args(argv)
     remote = remote or GitHub()
     deployer = Deployer(root, remote)
@@ -615,6 +738,9 @@ def main(argv=None, *, remote=None, root=ROOT):
             return 0
         LOCK_FD = lock.fileno()
         try:
+            if args.record_recovery:
+                print(json.dumps(deployer.record_recovery(args.record_recovery), sort_keys=True))
+                return 0
             return cycle()
         finally:
             LOCK_FD = None

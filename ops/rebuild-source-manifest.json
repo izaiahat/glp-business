@@ -20,14 +20,14 @@
       "callers": [
         "ops/hermes-cron-scripts/auto_deployer.sh"
       ],
-      "sha256": "f88b651fa45ce31fd8153febda3d2345df0c4bd731d77b72044e0fa8cb3df5dc"
+      "sha256": "8cbd2f34f7f275df790781477306127e4f3fa73ea00b51a8e0ef9c005a3dbbb5"
     },
     "tests/test_auto_deployer.py": {
       "kind": "test",
       "callers": [
         "auto-deployer:offline-exact-head"
       ],
-      "sha256": "9d05e171c695858fd7f4cf73b746afda43cdc7116c92e6dd618026d03f3f3f5b"
+      "sha256": "dd5583022f3d8c86861e872755ab65b81ca63a7113cf89e55c48dd1411099a48"
     },
     "ops/hermes-cron-scripts/auto_deployer.sh": {
       "kind": "registered_launcher_source",
@@ -41,7 +41,7 @@
       "callers": [
         "GLP-358 independent receiving and parent activation"
       ],
-      "sha256": "0b4cc4d72db6c6f3227451814248924bea27bde2c9e6241508e700d821fcffda"
+      "sha256": "ed06d6063f64ec30dd1c5b654e200abe24eed587058d47223ab828fac1b5e479"
     },
     ".github/workflows/auto-deployer.yml": {
       "kind": "workflow",
