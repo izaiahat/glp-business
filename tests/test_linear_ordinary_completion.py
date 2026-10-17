@@ -501,16 +501,23 @@ def operator_discord_completion(request, monkeypatch):
     target, path, data, writes, parent, *_ = request.getfixturevalue(request.param)
     data['evidence'] = data['evidence'][:1]
     evidence = data['evidence'][0]
+    # Synthetic evidence precedes the synthetic request/reply; no live authority.
+    import os
+    now = datetime.now(timezone.utc)
+    os.utime(evidence['path'], (now.timestamp() - 180, now.timestamp() - 180))
+    monkeypatch.setattr(oa, 'CONSUMED_DB', path.parent / 'consumed.sqlite3', raising=False)
     request = {'id': '1560838185641050233', 'channel_id': oa.CHANNEL_ID,
                'author': {'id': oa.REQUEST_BOT_ID, 'bot': True}, 'type': 0,
                'content': ('• Evidence: reports/' + Path(evidence['path']).name +
                            '\n• SHA256: ' + evidence['sha256'] +
                            '\nACCEPT ' + target['identifier'] + ' ' + evidence['sha256'][:8]),
-               'timestamp': '2026-10-17T02:13:42+00:00', 'edited_timestamp': None}
+               'timestamp': datetime.fromtimestamp(now.timestamp() - 120, timezone.utc).isoformat(),
+               'edited_timestamp': None}
     reply = {'id': '1560839999999999999', 'channel_id': oa.CHANNEL_ID,
              'author': {'id': oa.OPERATOR_ID}, 'type': 19,
              'content': 'ACCEPT ' + target['identifier'] + ' ' + evidence['sha256'][:8],
-             'timestamp': '2026-10-17T02:15:00+00:00', 'edited_timestamp': None,
+             'timestamp': datetime.fromtimestamp(now.timestamp() - 60, timezone.utc).isoformat(),
+             'edited_timestamp': None,
              'message_reference': {'message_id': request['id'], 'channel_id': oa.CHANNEL_ID}}
     rows = {request['id']: request, reply['id']: reply}
     monkeypatch.setattr(oa, 'readback', lambda channel, message: rows[message])

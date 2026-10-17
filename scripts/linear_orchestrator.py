@@ -1003,6 +1003,19 @@ def pass_issue(iss, result_path, st, brief=None, *, ordinary=False, protected_no
         print(json.dumps({'identifier': iss['identifier'], 'validated': True, 'writes': 0,
                           'result_sha256': digest}))
         return
+    if protected_noncode or protected_runtime:
+        # Reserve exactly once before *any* external write, including startedAt.
+        # An uncertain receipt/Done outcome must never make this reply reusable.
+        retained = json.loads(Path(path).read_text()).get('protected_review') or {}
+        if 'discord' in retained:
+            from linear_operator_acceptance import consume
+            try:
+                consume(retained['discord'], iss['identifier'],
+                        json.loads(Path(path).read_text())['evidence'], digest)
+            except (ValueError, OSError) as exc:
+                raise SystemExit('protected completion refused: ' + str(exc)) from None
+        if sha(path) != digest:
+            raise SystemExit('RESULT changed before closure attempt; inspect before any action')
     if iss['state']['name'] in ('Todo', 'Backlog', 'Triage'):
         # Retain the real startedAt needed by existing cycle-time readers.
         set_state(iss['id'], st['In Progress'])

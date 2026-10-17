@@ -441,7 +441,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "27a3fb5aee92e00fba5a544ea15317a97975211d7fdfc9c34b00b2180134cc2b"
+      "sha256": "e8dcbf8957df4e9a07e00fb5e8ffb0c96c49457be545a46eba54ad969d306115"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3794,12 +3794,12 @@
     "scripts/linear_operator_acceptance.py": {
       "callers": ["scripts/linear_orchestrator.py"],
       "kind": "script",
-      "sha256": "cbedf1a75ac9c0ca52d2768126ca87fab95eab284522abc154e6748764428680"
+      "sha256": "5d8785a203694db0e3b2f6d67c3669f14d808aabf6cdf1d4547e9f7a7018ad08"
     },
     "ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md": {
       "callers": ["GLP-358 coordinator protected closure"],
       "kind": "documentation",
-      "sha256": "b8fb0c84a8504782d9290398220a891fdace4ff28ce76230a441b4e6040314c3"
+      "sha256": "78e2bd74779df5d57fb0fb28435985283401a3445addbbf9bafdef96242cf161"
     },
     "scripts/linear_close.py": {
       "callers": [],
@@ -3809,7 +3809,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "64e6109fef5824d16e3cb733cf1cf2a7d18872f0c809b63456bebafe388060a7"
+      "sha256": "0adb819ca1307a44b41e9973a3ff50c8d8d943ce5158ab8fad259638b52b30ec"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -6800,10 +6800,15 @@
       "kind": "test",
       "sha256": "ba36c08056a522f09c48bfc37f53d88bbb943aba9691dcd63140697ea9f88d7f"
     },
+    "tests/test_linear_operator_acceptance_replay.py": {
+      "callers": ["scripts/linear_operator_acceptance.py"],
+      "kind": "test",
+      "sha256": "7a0275e4b91fc9935d125d454d06780d15fd81b941c33199eb943ea1b20a598f"
+    },
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "190ab8d040dbe53e9a2b8fadc92a01b9d5fa20c5d1e63229dfdb57f75d917ddb"
+      "sha256": "d7b50c557e0b43cb3d68db2286f65ba34592c8d9a5ea0e947a26fab3c1303c34"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
@@ -8211,5 +8216,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1203
+  "tracked_count": 1204
 }
