@@ -28,6 +28,74 @@ from test_glp_single_publisher import (
 import glp_affiliate_sync_job as job  # noqa: E402
 
 
+@pytest.mark.parametrize('case', ['large', 'inline', 'empty', 'wrong-size', 'wrong-sha',
+                                'non-json', 'unknown-encoding', 'fetch-error'])
+def test_fresh_release_inputs_materializes_authenticated_github_json(tmp_path, monkeypatch, case):
+    """GitHub omits inline content above 1 MiB; never materialize that as empty JSON."""
+    import base64
+    import hashlib
+    import subprocess
+    import glp_affiliate_registry_sync as registry
+    import glp_release_inputs as inputs
+
+    head = 'a' * 40
+    body = json.dumps({'programs': [], 'padding': 'x' * 1_048_576}).encode()
+    if case == 'non-json':
+        body = b'not JSON'
+    blob = lambda raw: hashlib.sha1(f'blob {len(raw)}\0'.encode() + raw).hexdigest()
+    raw_calls, sync_calls = [], []
+    endpoint = f'repos/izaiahat/glp-site-candidate/contents/data/program-registry.json?ref={head}'
+
+    def gh(*args):
+        if args == ('api', f'repos/izaiahat/glp-site-candidate/commits/{head}'):
+            return {'commit': {'tree': {'sha': 'tree'}}}
+        assert args[0] == 'api' and args[1].endswith(f'?ref={head}')
+        large = args[1] == endpoint
+        data = body if large else b'{}'
+        encoding = 'none' if large and case != 'inline' else 'base64'
+        obj = {'type': 'file', 'size': len(data), 'sha': blob(data), 'encoding': encoding,
+               'content': '' if encoding == 'none' else base64.b64encode(data).decode()}
+        if large and case == 'wrong-size': obj['size'] += 1
+        if large and case == 'wrong-sha': obj['sha'] = '0' * 40
+        if large and case == 'unknown-encoding': obj['encoding'] = 'unknown'
+        return obj
+
+    def raw(argv, **kwargs):
+        assert argv == ['gh', 'api', '-H', 'Accept: application/vnd.github.raw+json', endpoint]
+        assert kwargs == {'timeout': 120}
+        raw_calls.append(argv)
+        if case == 'fetch-error': raise subprocess.CalledProcessError(1, argv)
+        return b'' if case == 'empty' else body
+
+    def sync(source, output, apply=False):
+        assert apply is False
+        sync_calls.append(source)
+        assert json.loads((source / 'data/program-registry.json').read_bytes()) == json.loads(body)
+        output.mkdir(parents=True)
+        (output / 'sheet-snapshot.json').write_text('{}')
+        return {'changed': 0}
+
+    monkeypatch.setattr(rm, 'gh_json', gh)
+    monkeypatch.setattr(rm.subprocess, 'check_output', raw)
+    monkeypatch.setattr(registry, 'sync', sync)
+    monkeypatch.setattr(inputs, 'capture', lambda *a, **kw: {'fixture': 'snapshot', **kw})
+    report = tmp_path / case
+    if case in ('large', 'inline'):
+        result = rm.fresh_release_inputs({}, report, {'headRefOid': head})
+        assert result['source_revision'] == head
+        assert (report / 'input-source/data/program-registry.json').read_bytes() == body
+        assert len(raw_calls) == (case == 'large')
+        assert len(sync_calls) == 1
+        assert json.loads((report / 'CURRENT-INPUTS.json').read_text()) == result
+    else:
+        expected = subprocess.CalledProcessError if case == 'fetch-error' else ValueError
+        with pytest.raises(expected):
+            rm.fresh_release_inputs({}, report, {'headRefOid': head})
+        assert not sync_calls
+        assert not (report / 'input-source/data/program-registry.json').exists()
+        assert not (report / 'CURRENT-INPUTS.json').exists()
+
+
 def test_rebuild_manifests_are_retained_and_missing_inputs_refuse_skip(tmp_path):
     names = ('artifacts/ops/build-report.json', 'artifacts/ops/price-index-manifest.json',
              'artifacts/ops/wave4-deal-ingestion-manifest.json')
