@@ -5,6 +5,78 @@ from types import SimpleNamespace
 from test_host_disk_tmp_custody import sweep, cold, sys
 
 
+def test_scratch_24h_cleanup_precedes_slow_classes_and_reference_drift(tmp_path, monkeypatch):
+    """A finite pass must reach idle scratch before other classes poison its generation."""
+    import host_disk_reference_guard
+    clock = [0.0]
+    source = tmp_path / 'lane-generation'
+    source.write_text('admitted')
+    target = tmp_path / 'idle-14-days'
+    report = tmp_path / 'receipt'
+    monkeypatch.setattr(sweep.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(sweep, 'BUS', tmp_path)
+    monkeypatch.setattr(sweep, 'api', SimpleNamespace(path_is_active_privileged=lambda p: False))
+    def references(report):
+        cold.write_json(report / 'references.json',
+                        {'reference_source_identity': {str(source): cold.signature(source)}})
+        return set()
+    monkeypatch.setattr(sweep, 'references', references)
+    monkeypatch.setattr(sweep, 'load_external_pins', lambda p: set())
+    monkeypatch.setattr(sweep, 'idle_targets', lambda *a, **kw: [target])
+    order = []
+    def idle(api, targets, **kw):
+        order.append('scratch')
+        assert targets == [target]
+        assert clock[0] < kw['deadline']
+        assert not api.path_is_active_privileged(target), 'pre-scratch classes invalidated the complete index'
+        return [{'rule': 'idle_scratch_tmp', 'status': 'ELIGIBLE', 'bytes_freed': 0}]
+    def slow(*a, **kw):
+        order.append('other')
+        source.write_text('new unrelated lane generation')
+        clock[0] = 1801.0
+        return []
+    monkeypatch.setattr(cold, 'idle_scratch', idle)
+    monkeypatch.setattr(cold, 'cleanup_abandoned_archives', slow)
+    monkeypatch.setattr(sweep, 'auto_classes', lambda api, report, pins, external, **kw: (pins, []))
+    monkeypatch.setattr(sweep, 'discover', lambda *a, **kw: [])
+    monkeypatch.setattr(cold, 'node_modules', lambda *a, **kw: [])
+    monkeypatch.setattr(cold, 'verified_duplicates', lambda *a, **kw: [])
+    monkeypatch.setitem(sys.modules, 'host_disk_completed_dependencies', SimpleNamespace(run=slow))
+    monkeypatch.setattr(sweep, 'cold_report_roots', lambda *a, **kw: [])
+    monkeypatch.setattr(sweep, 'rank_reports', lambda *a: ([], []))
+    sweep.run(report, dry_run=True, budget=1800, external_pins='fixture-only', local_only=True)
+    assert order[0] == 'scratch'
+    assert order.count('scratch') == 1
+
+
+def test_auto_class_refusal_closes_downstream_archive_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(sweep, 'BUS', tmp_path)
+    monkeypatch.setattr(sweep, 'api', SimpleNamespace(path_is_active_privileged=lambda p: False))
+    def references(report):
+        cold.write_json(report / 'references.json', {'reference_source_identity': {}})
+        return ()
+    monkeypatch.setattr(sweep, 'references', references)
+    monkeypatch.setattr(sweep, 'load_external_pins', lambda p: set())
+    monkeypatch.setattr(sweep, 'idle_targets', lambda *a, **kw: [])
+    monkeypatch.setattr(cold, 'idle_scratch', lambda *a, **kw: [])
+    monkeypatch.setitem(sys.modules, 'host_disk_completed_dependencies', SimpleNamespace(run=lambda *a, **kw: []))
+    monkeypatch.setattr(cold, 'cleanup_abandoned_archives', lambda *a, **kw: [])
+    def refused(*a, **kw):
+        raise ValueError('incomplete reference/custody inventory')
+    monkeypatch.setattr(sweep, 'auto_classes', refused)
+    monkeypatch.setattr(sweep, 'discover', lambda *a, **kw: [])
+    monkeypatch.setattr(cold, 'node_modules', lambda *a, **kw: [])
+    monkeypatch.setattr(sweep, 'cold_report_roots', lambda *a, **kw: [])
+    monkeypatch.setattr(sweep, 'rank_reports', lambda *a, **kw: ([], []))
+    monkeypatch.setattr(cold, 'verified_duplicates', lambda *a, **kw: [])
+    called = []
+    import host_disk_auto_classes as auto
+    monkeypatch.setattr(auto, 'site_cold_archive', lambda *a, **kw: called.append(kw) or [])
+    rows = sweep.run(tmp_path / 'report', dry_run=False, external_pins='fixture-only', local_only=True)
+    assert any(r['status'] == 'GATED_REFERENCE_INVENTORY' for r in rows)
+    assert not called
+
+
 def test_site_archive_receives_budget_before_report_backlog(tmp_path, monkeypatch):
     clock = [0.0]
     monkeypatch.setattr(sweep.time, 'monotonic', lambda: clock[0])

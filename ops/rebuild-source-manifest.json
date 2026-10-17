@@ -1927,7 +1927,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "601b83a6a2dcb8aba00e8996152fbc6f34cd886978c8053126aef4e2fc5cedf9"
+      "sha256": "1d540371211045e5cfd140fc2f815c168e41a17c4e033fa2b04a87058ee26cc7"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -2965,7 +2965,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "fd061926391279b5115b21872b4f0eb25b63ab1a47684ba72c3308b8b485c59a"
+      "sha256": "a797afaf71127bb5d29e2e4d5ab0629ec644bed412c803540b9993b0bda97f45"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -3671,7 +3671,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "04dae0459281e8e5192ddd965ceb86f00e1983916e335b29ee7f7c5bfe01bce7"
+      "sha256": "80d35887705c52037e31865a7d6173eb7de6a72a2e1e6320a5e1d200e4551821"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -6585,7 +6585,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "90caa3ded34ea191ff05cda676556b7475b64fb738a6d3cdcb33e2ab4f3aef5c"
+      "sha256": "12c77b36d7fe7e8e89bc5e01072805e5ee8c771bfab495026d6f65ebac60ad21"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [
@@ -7085,7 +7085,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "22cdb5fe84aad1c3ca37fcf9dcd65e20f7bc6cca62862bdc166ae124649f4c9d"
+      "sha256": "a1c8134559c7241f62eead956372b3c465b2696315c8c3fa24c2a3e2f593a9b8"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -7953,7 +7953,7 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "df8832489b14c31a668dc60b9cb8e69cf467870e1c5a62576bf951fc98c0da73"
+      "sha256": "775d98bca5230249c18487a9cbe4e071282a4b23cdc9135ad4721dc98764f834"
     },
     "scripts/host_disk_relay_custody.py": {
       "kind": "script",

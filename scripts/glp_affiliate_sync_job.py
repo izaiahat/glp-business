@@ -356,6 +356,141 @@ CUSTODY_MARKERS=('source-intent.json','PR.json','GATE.json','publish-intent.json
 DISPOSABLE_KEEP=3
 
 
+def retire_main_payloads(root, *, pins, active, keep=10, pass_keep=4):
+    """Producer-owned main-* retention; caller holds registry-site-sync/run.lock.
+
+    Keep newest ten, last four PASS runs AND last four published deployments,
+    current pointer, pins and uncertain publications. Only candidate/prepared
+    payloads retire; native receipts/logs and reconstructable locators remain.
+    """
+    import re
+    from host_disk_large_classes import snapshot
+    from host_disk_payload_guard import reject_database_payloads
+    rows=[]
+    def stamp(path):
+        if not re.fullmatch(r'main-\d{8}T\d{6}(?:\d{6})?Z',path.name):return None
+        text=path.name[5:]
+        return datetime.strptime(text,'%Y%m%dT%H%M%S%fZ' if len(text)>16 else '%Y%m%dT%H%M%SZ')
+    runs=[]
+    for path in root.iterdir():
+        if path.is_dir() and not path.is_symlink():
+            try:key=stamp(path)
+            except ValueError:continue
+            if key is not None:runs.append((key,path))
+    runs=[p for _,p in sorted(runs)]
+    if not runs:return rows
+    pointer=ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    try:
+        if pointer.is_symlink():raise ValueError('aliased_current_pointer')
+        pointer_bytes=pointer.read_bytes();current=json.loads(pointer_bytes)
+        if not isinstance(current,dict):raise ValueError('incomplete_current_pointer')
+        if not isinstance(current.get('release_root'),str) or not current.get('deployment_id'):raise ValueError('incomplete_current_pointer')
+        if not Path(current['release_root']).is_absolute():raise ValueError('incomplete_current_pointer')
+        pins=(*pins,Path(current['release_root']))
+        records={}
+        signatures={}
+        for p in runs:
+            records[p]={}
+            for name in ('MAIN-RELEASE-RESULT.json','RESULT.json','PUBLISH.json'):
+                q=p/name
+                if q.is_symlink():raise ValueError('aliased_main_receipt')
+                if q.exists():
+                    raw=q.read_bytes();record=json.loads(raw)
+                    if not isinstance(record,dict):raise ValueError('invalid_main_receipt')
+                    records[p][name]=record;signatures[q]=raw
+        successful=[p for p in runs if any(str(v.get('status','')).startswith('PASS') for v in records[p].values())]
+        published=[p for p in runs if records[p].get('PUBLISH.json',{}).get('status')=='PASS_PRODUCTION_TERMINAL']
+        retained=set(runs[-keep:] if keep else ())|set(successful[-pass_keep:] if pass_keep else ())|set(published[-pass_keep:] if pass_keep else ())
+    except (OSError,ValueError,TypeError) as e:
+        return [{'run':'main-*','status':'ERROR_KEPT','reason':'main_retention_inventory:'+str(e)}]
+    if active is None:
+        from host_disk_pruner import path_is_active_privileged
+        active=path_is_active_privileged
+    # Admission belongs to the effect helper, not just the pruner adapter: the
+    # native hourly finally block must honor the same complete reference union.
+    from host_disk_auto_classes import external_pins
+    from host_disk_cold_classes import custody_pins
+    from host_disk_large_sweep import references as local_references
+    reference_report=root/'.main-retention-custody'
+    def references():
+        external=external_pins()  # Missing/partial live API inventory is a veto.
+        if reference_report.is_symlink() or reference_report.resolve()!=reference_report.absolute():raise ValueError('aliased_reference_report')
+        reference_report.mkdir(exist_ok=True)
+        local=local_references(reference_report)  # Pallas, policy and relay/lane generation.
+        identities=read(reference_report/'references.json')['reference_source_identity']
+        fresh=custody_pins((*pins,*external,*local))
+        from host_disk_relay_custody import matches
+        if any(not matches(Path(source),expected) for source,expected in identities.items()):raise ValueError('reference_inventory_changed')
+        return fresh
+    try:
+        pins=references()
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError,TimeoutError,subprocess.SubprocessError) as e:
+        return [{'run':'main-*','status':'GATED_REFERENCE_INVENTORY','reason':type(e).__name__}]
+    for p in runs:
+        reason=None
+        if p in retained:reason='newest_or_last_four_pass'
+        elif any(q==p or p in q.parents or q in p.parents for q in pins):reason='pinned'
+        elif any(v.get('deployment_id')==current['deployment_id'] for v in records[p].values()):reason='current_deployment'
+        elif (p/'publish-intent.json').exists() and records[p].get('PUBLISH.json',{}).get('status')!='PASS_PRODUCTION_TERMINAL':reason='publication_uncertain'
+        if reason:
+            rows.append({'run':p.name,'status':'KEPT','reason':reason});continue
+        for name in ('candidate','prepared'):
+            payload=p/name
+            if not payload.exists():continue
+            row={'run':p.name,'payload':name,'status':'KEPT'}
+            try:
+                if payload.is_symlink() or payload.resolve()!=payload.absolute() or not payload.is_dir():raise ValueError('aliased_payload')
+                if active(p):raise ValueError('active_reference')
+                deadline=time.monotonic()+180
+                before,amount=snapshot(payload,deadline)
+                reject_database_payloads(payload,before)
+                if any(part.startswith('.env') and part not in {'.env.example','.env.sample','.env.template'}
+                       for r in before for part in Path(r[0]).parts):raise ValueError('protected_environment')
+                if any(part in {'SingletonLock','DevToolsActivePort','Cookies','Login Data','Local State'}
+                       for r in before for part in Path(r[0]).parts):raise ValueError('browser_profile_custody')
+                if any('.git' in Path(r[0]).parts and not (name=='candidate' and Path(r[0]).parts[0]=='.git')
+                       for r in before):raise ValueError('nested_git_custody')
+                if any(part.lower() in {'archive','archives','backups','financial','financial-records','payments'}
+                       for r in before for part in Path(r[0]).parts):raise ValueError('protected_payload')
+                # Use the shared complete member contract in addition to the
+                # existing vetoes. Only the candidate's own Git metadata is
+                # reconstructable; nested repositories and protected members stay.
+                from host_disk_cold_classes import protected
+                if any(protected(Path(r[0])) for r in before
+                       if not (name=='candidate' and Path(r[0]).parts[:1]==('.git',))):
+                    raise ValueError('protected_payload')
+                commit=None
+                git=['git','--no-optional-locks','-c','safe.directory='+str(payload),'-c','core.fsmonitor=false','-C',str(payload)]
+                if name=='candidate':
+                    if subprocess.check_output(git+['status','--porcelain','--untracked-files=all'],timeout=60).strip():raise ValueError('dirty_or_unpushed')
+                    if subprocess.check_output(git+['log','HEAD','--branches','--not','--remotes','--format=%H'],timeout=60).strip():raise ValueError('dirty_or_unpushed')
+                    if subprocess.check_output(git+['stash','list','--format=%H'],timeout=60).strip():raise ValueError('git_stash_custody')
+                    commit=subprocess.check_output(git+['rev-parse','HEAD'],text=True,timeout=60).strip()
+                prepared=read(payload/'PREPARED.json') if (payload/'PREPARED.json').is_file() else None
+                retirement={'reason':'bounded_main_release_retention','repository':REPO,
+                     'head':commit,'prepared_manifest':prepared,'allocated_bytes':amount}
+                save(p/(name+'.RETIREMENT-INTENT.json'),retirement)
+                # Fresh pointer, publication metadata, refs, all-UID process and
+                # exact no-follow payload generation are mandatory at unlink.
+                if pointer.read_bytes()!=pointer_bytes:raise ValueError('current_pointer_changed')
+                if any(q.read_bytes()!=raw for q,raw in signatures.items()):raise ValueError('main_receipt_changed')
+                if (p/'publish-intent.json').exists() and records[p].get('PUBLISH.json',{}).get('status')!='PASS_PRODUCTION_TERMINAL':raise ValueError('publication_uncertain')
+                if name=='candidate' and (subprocess.check_output(git+['status','--porcelain','--untracked-files=all'],timeout=60).strip()
+                    or subprocess.check_output(git+['log','HEAD','--branches','--not','--remotes','--format=%H'],timeout=60).strip()):raise ValueError('dirty_or_unpushed')
+                if name=='candidate' and subprocess.check_output(git+['stash','list','--format=%H'],timeout=60).strip():raise ValueError('git_stash_custody')
+                fresh=references()
+                if any(q==p or p in q.parents or q in p.parents for q in fresh):raise ValueError('fresh_reference_custody')
+                if active(p) or snapshot(payload,deadline)[0]!=before:raise ValueError('reference_or_identity_changed')
+                shutil.rmtree(payload)
+                if payload.exists():raise ValueError('retirement_readback')
+                row.update(status='RETIRED',reason='bounded_main_release_retention',bytes_freed=amount)
+                save(p/(name+'.RETIRED.json'),dict(retirement,status='RETIRED'))
+            except (OSError,ValueError,KeyError,TypeError,RuntimeError,TimeoutError,subprocess.SubprocessError) as e:
+                row.update(status='ERROR_PRESERVED_OR_PARTIAL',reason=str(e))
+            rows.append(row)
+    return rows
+
+
 def retire_disposable_clones(root,*,keep=DISPOSABLE_KEEP,pins=(),active=None):
     """Bound hourly regrowth: each run clones the ~0.5 GiB site repo into <run>/candidate.
 
@@ -364,7 +499,8 @@ def retire_disposable_clones(root,*,keep=DISPOSABLE_KEEP,pins=(),active=None):
     disposable; the latter are saved as a hash-bound candidate.DIFF.patch.
     Custody/publication markers, release_root pins and newest `keep` runs stay.
     """
-    root=Path(root);pins=tuple(Path(p) for p in pins);rows=[]
+    root=Path(root);pins=tuple(Path(p) for p in pins)
+    rows=retire_main_payloads(root,pins=pins,active=active)
     runs=sorted(p for p in root.iterdir() if p.is_dir() and not p.is_symlink() and len(p.name)==16 and p.name.endswith('Z'))
     for run_dir in runs[:-keep] if keep else runs:
         clone=run_dir/'candidate';row={'run':run_dir.name,'status':'KEPT'}
