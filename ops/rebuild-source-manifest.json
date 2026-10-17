@@ -3790,7 +3790,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "7930b4b5a16e607e22969ebb7bace32d66af4206fe7c1e316bce6c27585eee17"
+      "sha256": "03aa77dd0c3e8678690f0f538e1b27c15326486fab4962f2d8b8a737068ab47d"
     },
     "scripts/marketplace_adapters/__init__.py": {
       "callers": [

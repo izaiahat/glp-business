@@ -112,6 +112,38 @@ def assert_locks_held(tmp_path):
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
+@pytest.mark.parametrize('second_failure', ['exception', 'death'])
+def test_resume_preserves_last_successful_census(module, tmp_path, second_failure):
+    # Reviewer RV567/test_reviewer.py: same two failure paths and byte oracle.
+    mw, fixtures = module, sys.modules[__name__]
+    backend = fixtures.FakeBackend()
+    blockers = [{'kind': 'process', 'pid': 98765, 'start_ticks': 123,
+                 'reason': 'affected_task_tree', 'sources': [], 'tasks': ['fixture']}]
+    backend.running = blockers
+    def die_after_observation(seconds):
+        raise fixtures.SimulatedPowerLoss('first keeper dies after persisted observation')
+    first = fixtures.new_window(mw, tmp_path, backend, sleeper=die_after_observation)
+    with pytest.raises(fixtures.SimulatedPowerLoss):
+        first.enter()
+    first.release_locks()
+    previous = json.loads(first.journal.read_text())['drain']
+    assert previous['blockers'] == blockers
+    def fail_before_observation(entries):
+        if second_failure == 'death':
+            raise fixtures.SimulatedPowerLoss('replacement keeper dies before census')
+        raise RuntimeError('replacement census fails')
+    backend.inflight = fail_before_observation
+    second = fixtures.new_window(mw, tmp_path, backend)
+    with pytest.raises((RuntimeError, fixtures.SimulatedPowerLoss)):
+        second.enter()
+    second.release_locks()
+    retained = json.loads(second.journal.read_text())
+    assert retained['drain'] == previous, 'last actual census erased before replacement observation succeeds'
+    assert retained['state'] == ('closed' if second_failure == 'exception' else 'draining')
+    if second_failure == 'exception':
+        assert backend.states == backend.original
+
+
 def test_enter_exit_restores_exact_mixed_prior_states(module, tmp_path):
     backend = FakeBackend()
     window = new_window(module, tmp_path, backend)

@@ -761,14 +761,15 @@ class MaintenanceWindow:
                 row['paused'] = True
                 self._save(data)
             data['state'] = 'draining'
-            data['drain'] = {'started_at': time.time(), 'timeout_seconds': self.drain_timeout,
-                             'blockers': None}
-            self._save(data)
+            drain = {'started_at': time.time(), 'timeout_seconds': self.drain_timeout,
+                     'blockers': None}
+            self._save(data)  # Retain the previous census until a new one succeeds.
             deadline = self.clock() + self.drain_timeout
             while True:
                 busy = self.backend.inflight([row['entry'] for row in data['entries']])
-                changed = busy != data['drain']['blockers']
-                data['drain'].update(last_observed_at=time.time(), blockers=copy.deepcopy(busy))
+                changed = busy != drain['blockers']
+                drain.update(last_observed_at=time.time(), blockers=copy.deepcopy(busy))
+                data['drain'] = drain
                 if changed:
                     self._save(data)  # Safe census only; never argv, prompts or environments.
                 if not busy:
