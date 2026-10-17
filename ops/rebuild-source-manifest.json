@@ -2,17 +2,23 @@
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
     "scripts/glp_owned_test_adoption.py": {
-      "callers": ["scripts/glp_release_main.py"],
+      "callers": [
+        "scripts/glp_release_main.py"
+      ],
       "kind": "script",
       "sha256": "fced1d9173ffba6c553652fa641cfa5388db7f26778ee0c39d5b6c82cf92997e"
     },
     "tests/test_glp_owned_test_adoption.py": {
-      "callers": [".github/workflows/business-source-ci.yml"],
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
       "kind": "test",
       "sha256": "97480516ff51d83941dadc3ee9704fb4fffd592aac7752b09f58f3f78153e0c6"
     },
     "ops/glp47-owned-test-adoption.md": {
-      "callers": ["scripts/glp_release_main.py"],
+      "callers": [
+        "scripts/glp_release_main.py"
+      ],
       "kind": "instruction_or_policy",
       "sha256": "061d62612e0bf87402f90721162205173db036296c3425dee3214bf78e8f39c0"
     },
@@ -2779,7 +2785,7 @@
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
       "kind": "registered_producer",
-      "sha256": "b783ff3e5c8a4485a44eada7362d21c0016c2544c8e0fe65526f06318d11e2e7"
+      "sha256": "caadd415864d33476fe1519b82c6d71df9c98fbf6b5718e1c085f04f9d371360"
     },
     "scripts/fleet_pin_release.py": {
       "callers": [
@@ -8126,6 +8132,41 @@
       ],
       "kind": "test",
       "sha256": "1c199ab0db9a73cb3e10775464e0116871975a669408a1364fdcf49eafd9eb85"
+    },
+    "scripts/auto_deployer.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-scripts/auto_deployer.sh"
+      ],
+      "sha256": "f88b651fa45ce31fd8153febda3d2345df0c4bd731d77b72044e0fa8cb3df5dc"
+    },
+    "tests/test_auto_deployer.py": {
+      "kind": "test",
+      "callers": [
+        "auto-deployer:offline-exact-head"
+      ],
+      "sha256": "9d05e171c695858fd7f4cf73b746afda43cdc7116c92e6dd618026d03f3f3f5b"
+    },
+    "ops/hermes-cron-scripts/auto_deployer.sh": {
+      "kind": "registered_launcher_source",
+      "callers": [
+        "Hermes glp-auto-deployer (registration held for independent review)"
+      ],
+      "sha256": "40572a1bce3e217ed51a7f48d5e3d8b35ff948f4e39a951dbdac1256ca0a0ada"
+    },
+    "ops/linear/AUTO-DEPLOYER.md": {
+      "kind": "documentation",
+      "callers": [
+        "GLP-358 independent receiving and parent activation"
+      ],
+      "sha256": "0b4cc4d72db6c6f3227451814248924bea27bde2c9e6241508e700d821fcffda"
+    },
+    ".github/workflows/auto-deployer.yml": {
+      "kind": "workflow",
+      "callers": [
+        "GitHub exact-head CI"
+      ],
+      "sha256": "267381c2c280b6a0b84abc4775d7c8609e87047ae2e16deabd13cd6dc5580c36"
     }
   },
   "omitted_runtime_inputs": [
@@ -8136,5 +8177,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1190
+  "tracked_count": 1195
 }

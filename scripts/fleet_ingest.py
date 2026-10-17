@@ -267,8 +267,55 @@ def registered_root_native(root, live, config):
     return events
 
 
+def auto_deployer_events(root):
+    """Consume the deployer's finite append-only inbox; still require PLAN proof.
+
+    A source install or merge receipt is not a genuine completed worker RESULT
+    and never supplies its own executable proof or Linear closure authority.
+    """
+    journal = root / 'reports/ops/fleet-inbox/auto-deployer.jsonl'
+    events, errors, seen = [], [], set()
+    if not journal.exists():
+        return events, errors
+    for line_number, line in enumerate(journal.read_text().splitlines(), 1):
+        try:
+            entry = json.loads(line)
+            rel = entry['receipt']
+            if not re.fullmatch(r'reports/ops/auto-deployer/[0-9]{8}T[0-9]{6}\.[0-9]{6}Z/glp-(?:business|site-candidate)-[1-9][0-9]*\.json', rel):
+                raise ValueError('invalid auto-deployer receipt path')
+            path = root / rel
+            if path.is_symlink() or not path.resolve().is_relative_to((root / 'reports/ops/auto-deployer').resolve()):
+                raise ValueError('receipt escapes maintained output root')
+            data, sha = read_hashed(path)
+            if sha != entry['sha256'] or data.get('schema') != 'auto-deployer-v1':
+                raise ValueError('receipt digest/schema mismatch')
+            repo, number, head, issue = data['repo'], data['pr'], data['head'], data['issue']
+            if (repo not in {'izaiahat/glp-business', 'izaiahat/glp-site-candidate'}
+                    or type(number) is not int or number < 1 or not ISSUE.fullmatch(issue)
+                    or not re.fullmatch('[0-9a-f]{40}', head)
+                    or path.name != f'{repo.split("/")[1]}-{number}.json'):
+                raise ValueError('invalid receipt identity')
+            identity = f'auto-deployer:{repo}#{number}:{head}'
+            if identity in seen:
+                continue
+            seen.add(identity)
+            failure = '' if (data['status'] == 'WAITING_LIVE_OUTPUT'
+                and data.get('merge', {}).get('head') == head
+                and re.fullmatch('[0-9a-f]{40}', data.get('merge', {}).get('merge_commit', ''))
+                and data.get('deployment', {}).get('status') in
+                    {'INSTALLED_SOURCE', 'NO_RUNTIME_PATHS', 'WAITING_REGISTERED_RELEASE'}) else 'auto-deployer requires owner reconciliation'
+            item = event('github', issue, f'auto-deployer-{repo.split("/")[1]}-{number}', identity, [path], failure=failure)
+            if item['evidence'] != {str(path): sha}:
+                raise ValueError('receipt changed during discovery')
+            events.append(item)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            errors.append({'path': str(journal), 'line': line_number, 'error': str(exc)})
+    return events, errors
+
+
 def discover(root, live, config, prs):
-    events, errors, completed = [], [], {}
+    events, errors = auto_deployer_events(root)
+    completed = {}
     try:
         events.extend(registered_root_native(root, live, config))
     except (OSError, ValueError) as exc:
