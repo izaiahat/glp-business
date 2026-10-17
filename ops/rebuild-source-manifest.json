@@ -3003,7 +3003,17 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "4e10f7d1557aaa33f7351ce97f5a1dcf9dc396bb4027ea8dfa8660fff2bb3ca2"
+      "sha256": "eba4103d5909750c450f9ba432ed9549638f61b43b473390e04b89bf7b41c10c"
+    },
+    "scripts/glp_best_terms_current_bindings.py": {
+      "callers": ["scripts/glp_affiliate_wire_backlog_worker.py"],
+      "kind": "script",
+      "sha256": "f5b558e6a82f34d36523e9a98672a87a9f5ce6105c2c99ea80848899d3f11f8d"
+    },
+    "tests/test_glp93_current_terms_bindings.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "064dbc50b78d4de93ef72f5df4d50359799c7aee3021954a3cc8ddb36d910f93"
     },
     "scripts/glp_affiliati_postback_ship.py": {
       "callers": [
@@ -3976,7 +3986,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5c72103f2f7520dd42817a55147f6eac186cee577a107d5e28c7fd4b4cbdf3bf"
+      "sha256": "d263ce25705e391b87f291d14f9f07679059c001f5db7a03c92b019e2397f0b6"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -8121,5 +8131,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1187
+  "tracked_count": 1189
 }
