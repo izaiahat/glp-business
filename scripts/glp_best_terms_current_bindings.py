@@ -8,6 +8,7 @@ untrusted file. PASS/PARTIAL describe producer output, NOT adoption eligibility.
 """
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 from pathlib import Path
@@ -61,6 +62,42 @@ def current_best_terms_bindings(
             or switches.get('schema') != 'glp.best-terms-switch-backlog.v1'
             or not isinstance(switches.get('items'), list)):
         raise ValueError('best_terms_current_packet_contract_invalid')
+    # The registered producer claims one UTC ISO-week window. A timed-out
+    # successor may leave latest-run untouched: hashes alone cannot mean current.
+    # No grace/fallback: both clocks must be within seven days and this ISO week.
+    now = dt.datetime.now(dt.timezone.utc)
+
+    def clock(document):
+        value = document.get('generated_at_utc')
+        try:
+            if not isinstance(value, str) or 'T' not in value:
+                raise ValueError
+            generated = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+            if generated.tzinfo is None or generated.utcoffset() is None:
+                raise ValueError
+            generated = generated.astimezone(dt.timezone.utc)
+        except (ValueError, OverflowError):
+            raise ValueError('best_terms_current_clock_invalid') from None
+        if generated > now:
+            raise ValueError('best_terms_current_future_clock')
+        if now - generated > dt.timedelta(days=7):
+            raise ValueError('best_terms_current_expired_clock')
+        return generated
+
+    receipt_clock = clock(receipt)
+    matrix_clock = clock(matrix)
+    window = receipt.get('weekly_window')
+    expected = now.isocalendar()
+    expected_window = f'{expected.year}-W{expected.week:02d}'
+    if (not isinstance(window, dict)
+            or window.get('window_id') != expected_window
+            or receipt_clock.isocalendar()[:2] != expected[:2]
+            or matrix_clock.isocalendar()[:2] != expected[:2]):
+        raise ValueError('best_terms_current_window_invalid')
+    # The producer writes the matrix before its immutable receipt; equal clocks
+    # are normal at second resolution, but a newer matrix is not the same run.
+    if matrix_clock > receipt_clock:
+        raise ValueError('best_terms_current_clock_order_invalid')
     return {
         'best_terms_current_pointer': latest_binding,
         'deploy_packet_manifest': receipt_binding,

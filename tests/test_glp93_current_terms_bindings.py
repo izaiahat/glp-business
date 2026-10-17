@@ -1,5 +1,6 @@
 """Offline regression: historical pins must not replace current producer custody."""
 import ast
+import datetime as dt
 import hashlib
 import json
 from pathlib import Path
@@ -33,9 +34,13 @@ def load_worker_functions():
 
 @pytest.fixture
 def packet(tmp_path):
-    matrix = write(tmp_path / "runs/current/matrix.json", {"schema": "glp.best-collectible-offer-selection.v1", "providers": []})
+    now = dt.datetime.now(dt.timezone.utc)
+    generated = now.isoformat()
+    window = f"{now.isocalendar().year}-W{now.isocalendar().week:02d}"
+    matrix = write(tmp_path / "runs/current/matrix.json", {"schema": "glp.best-collectible-offer-selection.v1", "providers": [], "generated_at_utc": generated})
     backlog = write(tmp_path / "switch-backlog.json", {"schema": "glp.best-terms-switch-backlog.v1", "items": []})
     receipt = {"schema": "glp.best-terms-run.v1", "status": "PARTIAL", "mode": "weekly",
+               "generated_at_utc": generated, "weekly_window": {"window_id": window, "duplicate": False},
                "matrix": matrix, "switch_backlog": backlog}
     run = write(tmp_path / "runs/current/run-receipt.json", receipt)
     latest = tmp_path / "latest-run.json"
@@ -152,6 +157,120 @@ def test_producer_relative_paths_and_partial_do_not_mean_eligible(packet):
     result = reader()(packet.latest, business=packet.root)
     assert set(result) == {"best_terms_current_pointer", "deploy_packet_manifest", "matrix_data", "best_terms_current_switch_manifest"}
     assert "eligible" not in result
+
+
+def set_packet_clock(packet, generated, window):
+    matrix = json.loads(Path(packet.matrix["path"]).read_text())
+    matrix["generated_at_utc"] = generated
+    packet.receipt["matrix"] = write(Path(packet.matrix["path"]), matrix)
+    packet.receipt["generated_at_utc"] = generated
+    packet.receipt["weekly_window"] = {"window_id": window, "duplicate": False}
+    reseal(packet)
+
+
+@pytest.mark.parametrize("fault", ["old", "future", "missing_clock", "wrong_window"])
+def test_review_freshness_counterexamples_refuse(packet, fault):
+    # Same hash-consistent synthetic faults as RV565/test_freshness.py.
+    if fault in {"old", "future"}:
+        year = "2020" if fault == "old" else "2099"
+        set_packet_clock(packet, year + "-01-01T00:00:00+00:00", year + "-W01")
+    elif fault == "missing_clock":
+        packet.receipt.pop("generated_at_utc")
+        packet.receipt.pop("weekly_window")
+        reseal(packet)
+    else:
+        packet.receipt["weekly_window"]["window_id"] = "2020-W01"
+        reseal(packet)
+    with pytest.raises(ValueError, match="best_terms_current_.*(clock|window|expired|future)"):
+        reader()(packet.latest, business=packet.root)
+
+
+def test_2020_packet_never_reaches_stage_success(tmp_path, packet):
+    set_packet_clock(packet, "2020-01-01T00:00:00+00:00", "2020-W01")
+    scope = load_worker_functions()
+    scope["current_best_terms_bindings"] = lambda: reader()(packet.latest, business=packet.root)
+    active = write(tmp_path / "active.json", {"programs": []})
+    audit = write(tmp_path / "audit.json", {"fixture": True})
+    stage = tmp_path / "stage.json"
+    write(stage, {"schema": "glp.wire-in-best-terms-reconciliation-stage.v1", "status": "STAGED_NOT_DEPLOYED",
+                  "source_bindings": {"active_rail_selection": active, "payout_audit": audit,
+                                      "deploy_packet_manifest": {"path": str(tmp_path / "missing.json"), "sha256": "0" * 64}},
+                  "reconciliations": [{"provider": "Example", "site_program_id": "example",
+                                       "winner": {"sheet_row": 2, "network": "awin", "program_id": "10", "payout_usd": 20},
+                                       "losers": [{"sheet_row": 3, "network": "awin", "program_id": "11", "payout_usd": 10}]}]})
+    with pytest.raises(ValueError, match="best_terms_current_.*(expired|window)"):
+        scope["best_terms_morning_stage"](stage)
+
+
+@pytest.mark.parametrize("fault,reason", [
+    ("receipt_missing", "clock_invalid"), ("matrix_missing", "clock_invalid"),
+    ("receipt_null", "clock_invalid"), ("matrix_null", "clock_invalid"),
+    ("receipt_naive", "clock_invalid"), ("matrix_naive", "clock_invalid"),
+    ("receipt_date_only", "clock_invalid"), ("matrix_date_only", "clock_invalid"),
+    ("receipt_malformed", "clock_invalid"), ("matrix_malformed", "clock_invalid"),
+    ("receipt_future", "future_clock"), ("matrix_future", "future_clock"),
+    ("receipt_expired", "expired_clock"), ("matrix_expired", "expired_clock"),
+    ("matrix_newer", "clock_order_invalid"), ("matrix_previous_week", "window_invalid"),
+    ("receipt_previous_week", "window_invalid"), ("window_missing", "window_invalid"),
+    ("window_malformed", "window_invalid"), ("window_id_missing", "window_invalid"),
+])
+def test_individual_clock_and_window_guards(packet, monkeypatch, fault, reason):
+    # Fixed Sunday: prior-week evidence is under seven days old, and a future
+    # microsecond is still in this week. Neither may hide behind the other gate.
+    now = dt.datetime(2026, 10, 18, 12, tzinfo=dt.timezone.utc)
+    read = reader()
+    frozen = SimpleNamespace(datetime=SimpleNamespace(fromisoformat=dt.datetime.fromisoformat, now=lambda tz: now),
+                             timezone=dt.timezone, timedelta=dt.timedelta)
+    monkeypatch.setitem(read.__globals__, "dt", frozen)
+    set_packet_clock(packet, (now - dt.timedelta(seconds=2)).isoformat(), "2026-W42")
+    matrix = json.loads(Path(packet.matrix["path"]).read_text())
+    if fault.startswith("window"):
+        if fault == "window_missing":
+            packet.receipt.pop("weekly_window")
+        elif fault == "window_malformed":
+            packet.receipt["weekly_window"] = "2026-W42"
+        else:
+            packet.receipt["weekly_window"] = {}
+    else:
+        target, mutation = fault.split("_", 1)
+        document = packet.receipt if target == "receipt" else matrix
+        values = {"null": None, "naive": "2026-10-18T11:59:58", "date_only": "2026-10-18",
+                  "malformed": "not-a-date", "future": (now + dt.timedelta(microseconds=1)).isoformat(),
+                  "expired": (now - dt.timedelta(days=7, microseconds=1)).isoformat(),
+                  "newer": (now - dt.timedelta(seconds=1)).isoformat(),
+                  "previous_week": "2026-10-11T23:59:59Z"}
+        if mutation == "missing":
+            document.pop("generated_at_utc")
+        else:
+            document["generated_at_utc"] = values[mutation]
+    packet.receipt["matrix"] = write(Path(packet.matrix["path"]), matrix)
+    reseal(packet)
+    with pytest.raises(ValueError, match="best_terms_current_" + reason):
+        read(packet.latest, business=packet.root)
+
+
+@pytest.mark.parametrize("now,generated,window", [
+    ("2026-10-18T23:59:59Z", "2026-10-12T00:00:00Z", "2026-W42"),
+    ("2026-10-19T00:00:00Z", "2026-10-19T00:00:00Z", "2026-W43"),
+    ("2027-01-01T12:00:00Z", "2027-01-01T07:00:00-05:00", "2026-W53"),
+])
+def test_current_window_boundaries_and_utc_normalization(packet, monkeypatch, now, generated, window):
+    read = reader()
+    current = dt.datetime.fromisoformat(now.replace("Z", "+00:00"))
+    frozen = SimpleNamespace(datetime=SimpleNamespace(fromisoformat=dt.datetime.fromisoformat, now=lambda tz: current),
+                             timezone=dt.timezone, timedelta=dt.timedelta)
+    monkeypatch.setitem(read.__globals__, "dt", frozen)
+    set_packet_clock(packet, generated, window)
+    assert len(read(packet.latest, business=packet.root)) == 4
+
+
+def test_producer_matrix_can_precede_receipt_within_the_same_week(packet):
+    generated = dt.datetime.fromisoformat(packet.receipt["generated_at_utc"])
+    matrix = json.loads(Path(packet.matrix["path"]).read_text())
+    matrix["generated_at_utc"] = (generated - dt.timedelta(seconds=1)).isoformat()
+    packet.receipt["matrix"] = write(Path(packet.matrix["path"]), matrix)
+    reseal(packet)
+    assert len(reader()(packet.latest, business=packet.root)) == 4
 
 
 def test_plan_persists_the_exact_verified_packet_bindings():

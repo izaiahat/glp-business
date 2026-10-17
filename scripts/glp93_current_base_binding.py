@@ -19,7 +19,7 @@ HISTORICAL_BUILDER = 'a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3
 CURRENT_BINDINGS = {
     BUILDER: 'c5cef691ddaf5d5e80a9337ed2181a68b430e0808301707847d3efe98dc6b506',
     HELPER: '113ff2f339be09305a80d3e963e6f1f4395bf18218dec975f344ccd916ec72c8',
-    'scripts/glp_best_terms_current_bindings.py': 'f5b558e6a82f34d36523e9a98672a87a9f5ce6105c2c99ea80848899d3f11f8d',
+    'scripts/glp_best_terms_current_bindings.py': 'e0f1e5f6f49e1159e48c4e43ab1f7843b53a014f56b1d61c385a853ef53dd974',
 }
 WIRE_SCANNER_SHA256 = 'a5c20feed5c2a8395d598fde28363d4a034682093629c5b90c7ab22dc984fcd1'
 APPROVAL_CHAIN_CAPTURE_ROOT = '/home/ubuntu/business/reports/glp-affiliate-auto-reconciler/maxbounty-approval-chain'
