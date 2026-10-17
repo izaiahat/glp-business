@@ -1,0 +1,8 @@
+{
+  "issue": "GLP-88",
+  "owner": "same XenTraffic end-to-end owner; parent alone closes",
+  "status": "REDISPATCH_NEEDED",
+  "failure": "Permission/native REAL attribution and adopted live program output absent; no completed worker result exists at the former L8/GLP88 path.",
+  "source_result": "reports/ops/fable-plan-2-20261009/lanes/PARTNER-RECEIVE/RESULT.json",
+  "business_output": {}
+}
