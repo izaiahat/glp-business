@@ -8,6 +8,134 @@ SOURCE = Path(__file__).resolve().parents[1] / 'scripts/fleet_ingest.py'
 
 
 class FleetTest(unittest.TestCase):
+    def test_discovery_prunes_copies_before_descending(self):
+        from unittest.mock import patch
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            live = root / 'lane/RESULT.json'
+            live.parent.mkdir(parents=True)
+            live.write_text('{}')
+            excluded = ('sources', 'backups', 'preimages', 'browser-profile',
+                        'worktree', '.venv-fixture', 'pytest', 'pytest-03',
+                        'HARNESS', 'PREIMAGE', 'native-output', 'npm-cache')
+            for name in excluded:
+                path = root / name / 'deep/RESULT.json'
+                path.parent.mkdir(parents=True)
+                path.write_text('{}')
+            checkout = root / 'arbitrary-clone'
+            (checkout / '.git').mkdir(parents=True)
+            (checkout / 'RESULT.json').write_text('{}')
+            visited = []
+            import os
+            original = os.scandir
+            def scandir(path):
+                visited.append(Path(path))
+                return original(path)
+            with patch('os.scandir', side_effect=scandir):
+                found = list(m.walk(root, {'RESULT.json'}))
+            self.assertEqual(found, [live])
+            self.assertFalse(any(root / name in visited for name in excluded))
+
+    def test_poll_slow_verifiers_are_bounded_and_refused_not_passed(self):
+        import sys
+        import time
+        from unittest.mock import patch
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            script = root / 'scripts/linear_business_proof.py'
+            script.parent.mkdir()
+            script.write_text('import time; time.sleep(2); print("GLP-358 PASS")')
+            result = root / 'RESULT.json'
+            result.write_text('{}')
+            items = [m.event('native', 'GLP-358', 'sol-' + str(i),
+                             result, [result], result) for i in range(6)]
+            plan = root / 'plan.json'
+            plan.write_text(json.dumps({'issues': [{'issue': 'GLP-358',
+                'proof_cmd': ['python3', '-B', 'scripts/linear_business_proof.py', 'GLP-358'],
+                'proof_timeout_s': 300}]}))
+            real_run = m.run
+            launched = []
+            def run(argv, cwd, timeout, output_limit=4000):
+                if argv[0] == 'gh':
+                    return {'rc': 0, 'stdout': '[]', 'stderr': ''}
+                launched.append(timeout)
+                return real_run([sys.executable, str(script)], cwd, timeout)
+            start = time.monotonic()
+            with patch.object(m, 'run', side_effect=run), \
+                    patch.object(m, 'MAX_COMMAND_SECONDS', .06, create=True), \
+                    patch.object(m, 'POLL_COMMAND_BUDGET_SECONDS', .18, create=True), \
+                    patch.object(m, 'discover', return_value=(items, [])):
+                summary = m.poll(root, root / 'live', plan, root / 'config', timeout=2)
+            self.assertLess(time.monotonic() - start, 1.0)
+            self.assertLessEqual(len(launched), 4)
+            self.assertTrue(all(t <= .06 for t in launched))
+            self.assertEqual(summary['statuses'], {'REDISPATCH': 6})
+            for path in (root / 'reports/ops/fleet-inbox').glob('GLP-*/*/INGEST.json'):
+                row = m.read(path)
+                self.assertIn('REFUSED', row['failure_text'])
+                self.assertNotEqual(row['status'], 'READY_TO_CLOSE')
+                self.assertEqual(row['checks']['proof']['rc'], 124)
+
+            # Deferred receipts precede attempted timeouts on the next poll;
+            # retries need no operator --retry and cannot starve behind lane 0.
+            order = []
+            original_ingest = m.ingest
+            def ingest(root, item, policy, **kwargs):
+                order.append(item['lane'])
+                return original_ingest(root, item, policy, **kwargs)
+            with patch.object(m, 'run', side_effect=run), \
+                    patch.object(m, 'MAX_COMMAND_SECONDS', .06), \
+                    patch.object(m, 'POLL_COMMAND_BUDGET_SECONDS', .18), \
+                    patch.object(m, 'discover', return_value=(items, [])), \
+                    patch.object(m, 'ingest', side_effect=ingest):
+                summary = m.poll(root, root / 'live', plan, root / 'config', timeout=2)
+            self.assertNotEqual(order[0], 'sol-0')
+            self.assertEqual(summary['statuses'], {'REDISPATCH': 6})
+
+    def test_timeout_retry_can_pass_only_after_real_success_then_cache(self):
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            result = root / 'RESULT.json'
+            result.write_text('{}')
+            item = m.event('native', 'GLP-358', 'sol', result, [result], result)
+            policy = {'proof_cmd': ['stat', str(result)]}
+            calls = []
+            def runner(argv, cwd, timeout):
+                calls.append(argv)
+                if len(calls) == 1:
+                    return {'rc': 124, 'stdout': '', 'stderr': 'REFUSED: timed out'}
+                return {'rc': 0, 'stdout': 'GLP-358 PASS', 'stderr': ''}
+            first = m.ingest(root, item, policy, runner=runner)
+            second = m.ingest(root, item, policy, runner=runner)
+            third = m.ingest(root, item, policy, runner=runner)
+            self.assertEqual(first['status'], 'REDISPATCH')
+            self.assertEqual(second['status'], 'READY_TO_CLOSE')
+            self.assertEqual(second, third)
+            self.assertEqual(len(calls), 4)
+            history = root / 'reports/ops/fleet-inbox/GLP-358/sol/history'
+            self.assertEqual(len(list(history.glob('*.json'))), 2)
+            self.assertEqual(m.read(history / (first['fingerprint'] + '.json')), first)
+
+    def test_timeout_reaps_verifier_helpers_holding_output_pipe(self):
+        import sys
+        import time
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            marker = root / 'helper-effect'
+            child = 'import time; from pathlib import Path; time.sleep(.4); Path(%r).write_text("late")' % str(marker)
+            parent = 'import subprocess, sys, time; subprocess.Popen([sys.executable, "-c", %r]); time.sleep(2)' % child
+            start = time.monotonic()
+            result = m.run([sys.executable, '-c', parent], root, .08)
+            self.assertLess(time.monotonic() - start, .4)
+            self.assertEqual(result['rc'], 124)
+            self.assertIn('REFUSED', result['stderr'])
+            time.sleep(.45)
+            self.assertFalse(marker.exists())
+
     def test_completion_runs_checks_once_and_writes_stable_row(self):
         self.assertTrue(SOURCE.exists(), 'fleet ingestion producer is missing')
         spec = importlib.util.spec_from_file_location('fleet_ingest', SOURCE)
