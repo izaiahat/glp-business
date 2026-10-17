@@ -347,6 +347,58 @@ def test_discovery_projection_preserves_effect_guard_vetoes(tmp_path,monkeypatch
     assert guard.last_reference_veto is not None
 
 
+@pytest.mark.parametrize('location,name', [('lane','RESULT.json'),
+    ('queue','JOB.json'),('queue','new-ledger.jsonl'),
+    ('deliveries','JOB.json'),('deliveries','new-ledger.jsonl')])
+@pytest.mark.parametrize('stage', ['collection','effect'])
+@pytest.mark.parametrize('relevant', [False,True], ids=['unrelated-control','new-source-must-refuse'])
+def test_source_publication_at_validation_scan_exit(tmp_path,monkeypatch,location,name,stage,relevant):
+    """RV574: publish after enumeration, before its final directory check."""
+    bus=tmp_path/'business'
+    directory=bus/('lanes/OWNER/cohort' if location=='lane' else
+                   'ops/gpt6pro-relay/route/'+location)
+    directory.mkdir(parents=True)
+    candidate=tmp_path/'cold-candidate';candidate.write_text('retained')
+    target=directory/(name if relevant else 'route-output.json')
+    before=relay.signature(directory)
+    real_scandir=relay.os.scandir
+    armed=False;fired=[]
+    class Iterator:
+        def __init__(self,path):self.path=Path(path);self.inner=real_scandir(path)
+        def __iter__(self):return self
+        def __next__(self):return next(self.inner)
+        def __enter__(self):self.inner.__enter__();return self
+        def __exit__(self,*args):
+            result=self.inner.__exit__(*args)
+            if armed and self.path==directory and not fired:
+                pending=directory/'.publication.tmp'
+                pending.write_text(json.dumps({'protected_roots':[str(candidate)]}))
+                pending.replace(target)
+                fired.append(str(target))
+            return result
+    class ArmingReader(Reader):
+        def pages(self,*args):
+            nonlocal armed
+            armed=True
+            return super().pages(*args)
+    if stage=='effect':pins=relay.collect(bus=bus,reader=Reader(''))
+    monkeypatch.setattr(relay.os,'scandir',Iterator)
+    if stage=='collection':
+        try:
+            pins=relay.collect(bus=bus,reader=ArmingReader(''));refused=False
+        except (ValueError,OSError):refused=True
+    else:
+        armed=True
+        guard=ReferenceGuardAPI(API(),pins.identities)
+        refused=guard.path_is_active_privileged(candidate)
+    assert fired==[str(target)] and target.is_file()
+    assert before!=relay.signature(directory)
+    assert candidate.read_text()=='retained'
+    if not refused:
+        assert str(target) not in pins.identities and candidate not in pins
+    assert refused==relevant
+
+
 def test_relay_walk_error_is_not_silently_omitted(tmp_path,monkeypatch):
     import pytest
     root=tmp_path/'ops/gpt6pro-relay';root.mkdir(parents=True)

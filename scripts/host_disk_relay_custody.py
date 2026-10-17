@@ -106,25 +106,36 @@ def discovery_signature(path,namespace,observed=None):
     path=Path(path);before=signature(path)
     if not stat.S_ISDIR(before[2]): raise ValueError('aliased/invalid discovery directory')
     stable=lambda value:[value[i] for i in (0,1,2,7,8)]
-    if observed is None:
-        with os.scandir(path) as entries:
-            names=[entry.name for entry in entries
-                   if entry.is_dir() or reference_name(entry.name,namespace)]
-    else:
-        dirs,files=observed
-        names=list(dirs)+[name for name in files if reference_name(name,namespace)]
-    members=[]
-    for name in sorted(names):
-        value=signature(path/name)
-        # Each real directory gets its own inventory. Its payload churn is not
-        # parent membership drift; aliases retain their complete identity.
-        # Regular source bytes are separately bound after their complete read;
-        # keep membership/type here so diagnostics identify that exact source.
-        identity=(stable(value) if stat.S_ISDIR(value[2]) else
-                  value if stat.S_ISLNK(value[2]) else [stat.S_IFMT(value[2])])
-        members.append([name,identity])
-    if stable(signature(path))!=stable(before): raise ValueError('discovery directory replaced during scan')
-    return {'discovery_namespace':namespace,'identity':stable(before),'members':members}
+    for attempt in range(3):
+        scan_before=before if attempt==0 else signature(path)
+        if stable(scan_before)!=stable(before): raise ValueError('discovery directory replaced during scan')
+        if observed is None:
+            with os.scandir(path) as entries:
+                names=[entry.name for entry in entries
+                       if entry.is_dir() or reference_name(entry.name,namespace)]
+        else:
+            dirs,files=observed
+            names=list(dirs)+[name for name in files if reference_name(name,namespace)]
+        members=[]
+        for name in sorted(names):
+            value=signature(path/name)
+            # Each real directory gets its own inventory. Its payload churn is
+            # not parent membership drift; aliases keep complete identities.
+            # Regular source bytes are separately bound after a complete read.
+            identity=(stable(value) if stat.S_ISDIR(value[2]) else
+                      value if stat.S_ISLNK(value[2]) else [stat.S_IFMT(value[2])])
+            members.append([name,identity])
+        after=signature(path)
+        if stable(after)!=stable(before): raise ValueError('discovery directory replaced during scan')
+        # Full metadata is only an IN-SCAN consistency witness, never persisted
+        # cross-generation custody. Publication after enumeration must trigger
+        # complete re-enumeration, not acceptance of stale names. A quiet retry
+        # still permits unrelated route output churn; sustained drift refuses.
+        # Never refresh observed walk names here: they bind the sources actually
+        # read by collection and are checked against a fresh scan at its gate.
+        if observed is not None or after==scan_before:
+            return {'discovery_namespace':namespace,'identity':stable(before),'members':members}
+    raise ValueError('discovery directory changed during scan')
 
 
 def matches(path,expected):

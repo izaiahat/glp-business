@@ -3,47 +3,65 @@
   "files": {
     "ops/linear/proof-workers/GLP-88.json": {
       "kind": "operations",
-      "callers": ["GLP-88 non-complete owner binding"],
+      "callers": [
+        "GLP-88 non-complete owner binding"
+      ],
       "sha256": "a244a7edea8bc95c1ba3087f2a517371297eb1ae9a1db4426d6e7f108608a87c"
     },
     "ops/linear/proof-workers/GLP-250.json": {
       "kind": "operations",
-      "callers": ["GLP-250 non-complete owner binding"],
+      "callers": [
+        "GLP-250 non-complete owner binding"
+      ],
       "sha256": "be78522d62cb07ecaf823d242806864669a93da1b6fd0d5ed5e8d4bcfa1670db"
     },
     "ops/linear/proof-workers/GLP-253.json": {
       "kind": "operations",
-      "callers": ["GLP-253 non-complete owner binding"],
+      "callers": [
+        "GLP-253 non-complete owner binding"
+      ],
       "sha256": "2c1ecd57ed2364360f27eac1b9437bd4354f992124598105857ab24656cfeb41"
     },
     "ops/linear/PLAN.json": {
       "kind": "operations",
-      "callers": ["GLP-358 reviewed proof policy"],
+      "callers": [
+        "GLP-358 reviewed proof policy"
+      ],
       "sha256": "a10b9141059c23ee92a00592c48ddc60118ce74004ffe0192d7e4b09b9b65cea"
     },
     "ops/linear/BUSINESS-PROOFS.md": {
       "kind": "operations",
-      "callers": ["GLP-358 proof contracts"],
+      "callers": [
+        "GLP-358 proof contracts"
+      ],
       "sha256": "8121dce91821cd67eae57b1b4063a732e8de36d9233bf56f2d8588abd41db8e4"
     },
     "ops/linear/proof-workers/GLP-125.json": {
       "kind": "operations",
-      "callers": ["GLP-125 exact sent identity binding"],
+      "callers": [
+        "GLP-125 exact sent identity binding"
+      ],
       "sha256": "abe0ca4c9e4fec0f1d951c5822cd3069271b1a432d01574e8e19f0646225bd42"
     },
     "scripts/linear_business_proof.py": {
       "kind": "script",
-      "callers": ["GLP-358 read-only proof"],
+      "callers": [
+        "GLP-358 read-only proof"
+      ],
       "sha256": "d22328f209a26cb825d4bfa8e5d4dfed5b6d9a1de4f9dae1bfbf0fef40e29464"
     },
     "scripts/prepare_business_proof_plan.py": {
       "kind": "script",
-      "callers": ["GLP-358 policy preparation"],
+      "callers": [
+        "GLP-358 policy preparation"
+      ],
       "sha256": "0790aabdff975e3020143e67e819da36bfd6b3cb916c3b83f99993876469bc5f"
     },
     "tests/test_linear_business_proof.py": {
       "kind": "test",
-      "callers": ["fleet-ingest CI"],
+      "callers": [
+        "fleet-ingest CI"
+      ],
       "sha256": "28e672fd1f1c445eafe676bb088d12fa4effa32d46d8c8ddb18380a28a945072"
     },
     "scripts/auto_deployer.py": {
@@ -8007,14 +8025,14 @@
         "scripts/host_disk_large_sweep.py",
         "scripts/evidence_preserving_pruner.py"
       ],
-      "sha256": "816e9a328069af0e237500f60d11a663344be4d859a72a1ee4df19e61cb51e48"
+      "sha256": "1b0128a7bbf8c5230f5b6b1dee0c7cc62138088165a51f24a930d6aa552dd389"
     },
     "tests/test_host_disk_relay_custody.py": {
       "kind": "test",
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "42ac90a719f6a50c3d1b53608f853434c35b32213d963ce18849012bd62150bc"
+      "sha256": "98fe4a8ec2b01759f7358968b4dedb9800ea98963620aca23d82bff451d00266"
     },
     "scripts/glp_sponsor_firecrawl_booking.py": {
       "kind": "script",
