@@ -455,6 +455,10 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
         if rel == 'scripts/host_disk_large_sweep.py':
             assert pin == '04dae0459281e8e5192ddd965ceb86f00e1983916e335b29ee7f7c5bfe01bce7'
             pin = '9faabc96570e39e9a0e46a6110eeb1b3adfd8419ff77794ff65735803591fc20'
+            # PR561's single safety repair restores fail-closed downstream
+            # archive admission. Preserve the original scratch-first preimage.
+            assert pin == '9faabc96570e39e9a0e46a6110eeb1b3adfd8419ff77794ff65735803591fc20'
+            pin = '80d35887705c52037e31865a7d6173eb7de6a72a2e1e6320a5e1d200e4551821'
         assert sha((ROOT/rel).read_bytes()) == pin
         payloads[i] = (rel, pin)
     host[0]['payloads'] = [{'path': '/home/ubuntu/business/' + rel, 'sha256': pin,

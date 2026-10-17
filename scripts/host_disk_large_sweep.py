@@ -229,6 +229,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
             pins,auto_rows=auto_classes(guarded,report,pins,external,dry_run=dry_run,deadline=deadline)
             rows.extend(auto_rows);external_ok=True
         except (OSError,ValueError,KeyError,RuntimeError,TimeoutError) as e:
+            external_ok=False
             rows.append({'rule':'auto_classes','status':'GATED_REFERENCE_INVENTORY','reason':str(e),'bytes_freed':0,'ok':False})
     save('discover_nodes');nodes=[]
     for root in [BUS/'reports',BUS/'site-system/flagship-v2/candidates',

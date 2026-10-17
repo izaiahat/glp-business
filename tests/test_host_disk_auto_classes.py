@@ -6,6 +6,7 @@ import pytest
 import subprocess
 import sys
 import time
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -33,9 +34,20 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def isolated_scheduler_custody(monkeypatch):
+def isolated_scheduler_custody(tmp_path, monkeypatch):
     import host_disk_custody
+    import host_disk_large_sweep as sweep
+    # Complete, readable private local-reference inventory, not a missing-source
+    # refusal that could make every retention positive vacuously pass.
+    (tmp_path / 'reports/ops/glp347-pallas-20261007').mkdir(parents=True)
+    (tmp_path / 'ops').mkdir()
+    (tmp_path / 'ops/disk-retention-policy.json').write_text(json.dumps({'protected_roots': []}))
+    monkeypatch.setattr(sweep, 'BUS', tmp_path)
+    monkeypatch.setattr(m, 'LIVE_HOME', tmp_path / 'private-hermes')
     monkeypatch.setattr(host_disk_custody, 'collect', lambda: set())
+    # Source-only fixtures have no live PR/Linear/release registries. Tests below
+    # inject pins/refusals explicitly; no credential/network fallback is allowed.
+    monkeypatch.setattr(auto, 'external_pins', lambda: set())
 
 
 def shift(monkeypatch, days):
@@ -158,6 +170,101 @@ def test_main_registry_retention_keeps_policy_and_retires_candidate_and_prepared
         assert (kept / 'prepared/release/page.html').is_file(), kept
     assert calls, 'all-UID reference gate must be exercised before retirement'
     assert sum(r['status'] == 'RETIRED' for r in rows) >= 4
+
+
+@pytest.mark.parametrize('member', ['payout.csv', 'invoice.json', 'ledger.json', 'finance/data.txt'])
+def test_main_retention_preserves_protected_members(tmp_path, monkeypatch, member):
+    monkeypatch.setattr(job, 'ROOT', tmp_path)
+    root = tmp_path / 'registry-site-sync'
+    run = root / 'main-20261001T001701Z'
+    prepared = run / 'prepared'
+    target = prepared / member
+    target.parent.mkdir(parents=True)
+    target.write_text('unique synthetic evidence')
+    pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(json.dumps({'deployment_id': 'live', 'release_root': str(tmp_path / 'live')}))
+    assert m.protected(Path(member))
+    rows = job.retire_main_payloads(root, pins=(), active=lambda p: False, keep=0, pass_keep=0)
+    assert target.is_file(), rows
+    assert any(r.get('reason') == 'protected_payload' for r in rows), rows
+
+
+def test_main_retention_preserves_clean_candidate_with_unique_stash(tmp_path, monkeypatch):
+    monkeypatch.setattr(job, 'ROOT', tmp_path)
+    root = tmp_path / 'registry-site-sync'
+    run = clone_run(root, 'main-20261001T001701Z')
+    candidate = run / 'candidate'
+    (candidate / 'a.html').write_text('unique source absent from remote')
+    git(candidate, 'stash', 'push', '-m', 'unique local source')
+    assert subprocess.check_output(['git', '-C', str(candidate), 'stash', 'list']).strip()
+    assert not subprocess.check_output(['git', '-C', str(candidate), 'status', '--porcelain']).strip()
+    pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(json.dumps({'deployment_id': 'live', 'release_root': str(tmp_path / 'live')}))
+    rows = job.retire_main_payloads(root, pins=(), active=lambda p: False, keep=0, pass_keep=0)
+    assert candidate.is_dir(), rows
+    assert any(r.get('reason') == 'git_stash_custody' for r in rows), rows
+
+
+@pytest.mark.parametrize('custody', ['skill', 'late_skill', 'scheduler_lane', 'external', 'incomplete', 'pallas', 'late_pallas', 'incomplete_local'])
+def test_hourly_main_requires_complete_fresh_custody(tmp_path, monkeypatch, custody):
+    import host_disk_custody
+    monkeypatch.setattr(job, 'ROOT', tmp_path)
+    root = tmp_path / 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
+    run = root / 'main-20261001T001701Z'
+    prepared = run / 'prepared'
+    prepared.mkdir(parents=True)
+    target = prepared / 'skill.md'
+    target.write_text('unique live fixture')
+    pallas = tmp_path / 'reports/ops/glp347-pallas-20261007/hold.md'
+    if custody == 'pallas':
+        pallas.write_text(str(prepared))
+    if custody == 'incomplete_local':
+        (tmp_path / 'ops/disk-retention-policy.json').write_text('not JSON')
+    for i in range(1, 11):
+        (root / f'main-20261001T{i:02}1701Z').mkdir()
+    pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(json.dumps({'deployment_id': 'live', 'release_root': str(tmp_path / 'live')}))
+    home = tmp_path / 'private-hermes'
+    (home / 'skills').mkdir(parents=True)
+    monkeypatch.setattr(m, 'LIVE_HOME', home)
+    link = home / 'skills/live-fixture'
+    if custody == 'skill':
+        link.symlink_to(prepared, target_is_directory=True)
+        assert prepared in m.live_symlink_targets()
+    calls = []
+    def collect():
+        calls.append('local')
+        return {prepared} if custody == 'scheduler_lane' else set()
+    monkeypatch.setattr(host_disk_custody, 'collect', collect)
+    def external():
+        calls.append('external')
+        if custody == 'incomplete':
+            raise ValueError('incomplete external inventory')
+        return {prepared} if custody == 'external' else set()
+    monkeypatch.setattr(auto, 'external_pins', external)
+    def save(path, value):
+        Path(path).write_text(json.dumps(value))
+        if custody == 'late_skill' and Path(path).name == 'prepared.RETIREMENT-INTENT.json':
+            link.symlink_to(prepared, target_is_directory=True)
+        if custody == 'late_pallas' and Path(path).name == 'prepared.RETIREMENT-INTENT.json':
+            pallas.write_text(str(prepared))
+    monkeypatch.setattr(job, 'save', save)
+    config = tmp_path / 'config.json'
+    config.write_text('{}')
+    monkeypatch.setattr(job, 'execute', lambda *a, **kw: {'status': 'PASS_SOURCE_NO_CHANGE'})
+    monkeypatch.setattr(sys, 'argv', ['glp_affiliate_sync_job.py', '--config', str(config)])
+    monkeypatch.setitem(sys.modules, 'host_disk_pruner', types.SimpleNamespace(path_is_active_privileged=lambda p: False))
+    monkeypatch.setitem(sys.modules, 'glp_release_main', types.SimpleNamespace(main_pre_effect_refusal=lambda p: True))
+    assert job.main() == 0
+    assert target.exists(), custody
+    assert 'external' in calls
+    if custody not in {'incomplete', 'incomplete_local'}:
+        assert 'local' in calls
+    if custody in {'late_skill', 'late_pallas'}:
+        assert calls.count('external') >= 2
 
 
 @pytest.mark.parametrize('hold', ['unpushed', 'database', 'environment', 'browser_profile', 'nested_git', 'pointer_drift', 'new_process'])

@@ -406,6 +406,26 @@ def retire_main_payloads(root, *, pins, active, keep=10, pass_keep=4):
     if active is None:
         from host_disk_pruner import path_is_active_privileged
         active=path_is_active_privileged
+    # Admission belongs to the effect helper, not just the pruner adapter: the
+    # native hourly finally block must honor the same complete reference union.
+    from host_disk_auto_classes import external_pins
+    from host_disk_cold_classes import custody_pins
+    from host_disk_large_sweep import references as local_references
+    reference_report=root/'.main-retention-custody'
+    def references():
+        external=external_pins()  # Missing/partial live API inventory is a veto.
+        if reference_report.is_symlink() or reference_report.resolve()!=reference_report.absolute():raise ValueError('aliased_reference_report')
+        reference_report.mkdir(exist_ok=True)
+        local=local_references(reference_report)  # Pallas, policy and relay/lane generation.
+        identities=read(reference_report/'references.json')['reference_source_identity']
+        fresh=custody_pins((*pins,*external,*local))
+        from host_disk_relay_custody import matches
+        if any(not matches(Path(source),expected) for source,expected in identities.items()):raise ValueError('reference_inventory_changed')
+        return fresh
+    try:
+        pins=references()
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError,TimeoutError,subprocess.SubprocessError) as e:
+        return [{'run':'main-*','status':'GATED_REFERENCE_INVENTORY','reason':type(e).__name__}]
     for p in runs:
         reason=None
         if p in retained:reason='newest_or_last_four_pass'
@@ -432,11 +452,19 @@ def retire_main_payloads(root, *, pins, active, keep=10, pass_keep=4):
                        for r in before):raise ValueError('nested_git_custody')
                 if any(part.lower() in {'archive','archives','backups','financial','financial-records','payments'}
                        for r in before for part in Path(r[0]).parts):raise ValueError('protected_payload')
+                # Use the shared complete member contract in addition to the
+                # existing vetoes. Only the candidate's own Git metadata is
+                # reconstructable; nested repositories and protected members stay.
+                from host_disk_cold_classes import protected
+                if any(protected(Path(r[0])) for r in before
+                       if not (name=='candidate' and Path(r[0]).parts[:1]==('.git',))):
+                    raise ValueError('protected_payload')
                 commit=None
                 git=['git','--no-optional-locks','-c','safe.directory='+str(payload),'-c','core.fsmonitor=false','-C',str(payload)]
                 if name=='candidate':
                     if subprocess.check_output(git+['status','--porcelain','--untracked-files=all'],timeout=60).strip():raise ValueError('dirty_or_unpushed')
                     if subprocess.check_output(git+['log','HEAD','--branches','--not','--remotes','--format=%H'],timeout=60).strip():raise ValueError('dirty_or_unpushed')
+                    if subprocess.check_output(git+['stash','list','--format=%H'],timeout=60).strip():raise ValueError('git_stash_custody')
                     commit=subprocess.check_output(git+['rev-parse','HEAD'],text=True,timeout=60).strip()
                 prepared=read(payload/'PREPARED.json') if (payload/'PREPARED.json').is_file() else None
                 retirement={'reason':'bounded_main_release_retention','repository':REPO,
@@ -449,12 +477,15 @@ def retire_main_payloads(root, *, pins, active, keep=10, pass_keep=4):
                 if (p/'publish-intent.json').exists() and records[p].get('PUBLISH.json',{}).get('status')!='PASS_PRODUCTION_TERMINAL':raise ValueError('publication_uncertain')
                 if name=='candidate' and (subprocess.check_output(git+['status','--porcelain','--untracked-files=all'],timeout=60).strip()
                     or subprocess.check_output(git+['log','HEAD','--branches','--not','--remotes','--format=%H'],timeout=60).strip()):raise ValueError('dirty_or_unpushed')
+                if name=='candidate' and subprocess.check_output(git+['stash','list','--format=%H'],timeout=60).strip():raise ValueError('git_stash_custody')
+                fresh=references()
+                if any(q==p or p in q.parents or q in p.parents for q in fresh):raise ValueError('fresh_reference_custody')
                 if active(p) or snapshot(payload,deadline)[0]!=before:raise ValueError('reference_or_identity_changed')
                 shutil.rmtree(payload)
                 if payload.exists():raise ValueError('retirement_readback')
                 row.update(status='RETIRED',reason='bounded_main_release_retention',bytes_freed=amount)
                 save(p/(name+'.RETIRED.json'),dict(retirement,status='RETIRED'))
-            except (OSError,ValueError,TimeoutError,subprocess.SubprocessError) as e:
+            except (OSError,ValueError,KeyError,TypeError,RuntimeError,TimeoutError,subprocess.SubprocessError) as e:
                 row.update(status='ERROR_PRESERVED_OR_PARTIAL',reason=str(e))
             rows.append(row)
     return rows
