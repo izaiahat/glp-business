@@ -112,6 +112,38 @@ def assert_locks_held(tmp_path):
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
+@pytest.mark.parametrize('second_failure', ['exception', 'death'])
+def test_resume_preserves_last_successful_census(module, tmp_path, second_failure):
+    # Reviewer RV567/test_reviewer.py: same two failure paths and byte oracle.
+    mw, fixtures = module, sys.modules[__name__]
+    backend = fixtures.FakeBackend()
+    blockers = [{'kind': 'process', 'pid': 98765, 'start_ticks': 123,
+                 'reason': 'affected_task_tree', 'sources': [], 'tasks': ['fixture']}]
+    backend.running = blockers
+    def die_after_observation(seconds):
+        raise fixtures.SimulatedPowerLoss('first keeper dies after persisted observation')
+    first = fixtures.new_window(mw, tmp_path, backend, sleeper=die_after_observation)
+    with pytest.raises(fixtures.SimulatedPowerLoss):
+        first.enter()
+    first.release_locks()
+    previous = json.loads(first.journal.read_text())['drain']
+    assert previous['blockers'] == blockers
+    def fail_before_observation(entries):
+        if second_failure == 'death':
+            raise fixtures.SimulatedPowerLoss('replacement keeper dies before census')
+        raise RuntimeError('replacement census fails')
+    backend.inflight = fail_before_observation
+    second = fixtures.new_window(mw, tmp_path, backend)
+    with pytest.raises((RuntimeError, fixtures.SimulatedPowerLoss)):
+        second.enter()
+    second.release_locks()
+    retained = json.loads(second.journal.read_text())
+    assert retained['drain'] == previous, 'last actual census erased before replacement observation succeeds'
+    assert retained['state'] == ('closed' if second_failure == 'exception' else 'draining')
+    if second_failure == 'exception':
+        assert backend.states == backend.original
+
+
 def test_enter_exit_restores_exact_mixed_prior_states(module, tmp_path):
     backend = FakeBackend()
     window = new_window(module, tmp_path, backend)
@@ -182,6 +214,32 @@ def test_drain_timeout_aborts_and_restores_without_killing_work(module, tmp_path
     assert backend.states == backend.original
     assert backend.running[0]["pid"] == 98765
     assert window.status()["state"] == "closed"
+    durable = json.loads((tmp_path / "window.json").read_text())
+    assert durable['drain']['timeout_seconds'] == 0
+    assert durable['drain']['blockers'] == backend.running
+    assert durable['drain']['last_observed_at'] >= durable['drain']['started_at']
+    assert_locks_released(tmp_path)
+
+
+def test_drain_census_retains_last_blocker_not_the_finished_first_holder(module, tmp_path):
+    backend = FakeBackend()
+    first = [{'kind': 'hermes', 'id': 'finished-job', 'reason': 'native_execution_owner_live'}]
+    final = [{'kind': 'process', 'pid': 98765, 'start_ticks': 123,
+              'reason': 'affected_task_tree', 'tasks': ['glp_host_ingress.py'], 'sources': []}]
+    clock = [0]
+    def census(entries):
+        return first if clock[0] == 0 else final
+    backend.inflight = census
+    def advance(seconds):
+        clock[0] += seconds
+    window = new_window(module, tmp_path, backend, drain_timeout=0.002,
+                        clock=lambda: clock[0], sleeper=advance)
+    with pytest.raises(module.WindowError, match='drain_timeout'):
+        window.enter()
+    durable = json.loads(window.journal.read_text())
+    assert durable['drain']['blockers'] == final
+    assert durable['state'] == 'closed'
+    assert backend.states == backend.original
     assert_locks_released(tmp_path)
 
 

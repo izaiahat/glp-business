@@ -51,6 +51,50 @@ Independent Astra review and separate exact receiving authority remain necessary
 for any future baseline change, followed by a **new** proposal and independent
 review, never the original reviewed proposal reused against changed baselines.
 
+## Drain census and receive-only ingress
+
+The maintained drain window remains 300 seconds. It now retains `drain` with
+`started_at`, `timeout_seconds`, `last_observed_at` and the last actual `blockers`
+census in its existing journal. Changed blocker sets are saved during drain;
+the final timeout save preserves its last census through ordinary restoration.
+Only the existing bounded reader identities/reasons/paths are recorded, not
+process command lines, prompts or environments. No holder is signalled and no
+deadline or drain/adoption gate is weakened.
+
+The exact receive-only `glp_host_ingress.py serve` exemption must pin the current
+reviewed source. The predecessor `0989cd700e18` became stale when committed
+`5fbe89026cc1792251a3614edbaec1820af06ee2` changed ingress custody. Its successor
+is `2d5aa63b6bf9416d94e74928c7a21ff587cb2900e485351430aeeff0ca544b7d`.
+The serve path still only accepts/reads durable intents; action imports, bridge
+calls and drains remain outside serve. Exact argv, one thread, no children,
+no affected source references, no native owner and readable identity checks
+remain mandatory. The regression authenticates real committed server bytes
+against the production digest rather than substituting a matching fake digest.
+
+For GLP-334's `9fa8d72d` refusal, the retained window records this ingress source
+as `2d5aa63b6bf9`. PID 4045047/start_ticks 605349141 belongs to
+`glp-host-ingress.service`, started 2026-10-09T01:03:39Z with no restarts and the
+exact serve argv. Read-only installed census reports it as `affected_task_tree`
+via `glp-host-custody.timer`'s drain trace. The stale pin therefore provides a
+persistent refusal, not a holder that a longer timeout would clear. The sole
+native execution overlapping the window, fleet-inbox job `bbc82551321b` run
+`4512fc313854452eb6720c9a10c707ce`, failed normally at 00:29:31.762622Z,
+before even the earliest possible 300-second deadline (00:31:33.872494Z).
+It cannot explain the final
+timeout. The old journal did not persist its busy list: this attribution proves
+a persistent blocker, not an exhaustive historical census of every transient
+host process or bridge thread.
+
+A clean restored `drain_timeout` still leaves an exclusive `started` intent.
+There is **no supported new attempt identifier, same-source retry or same
+accepted-proposal reapply** in this CLI. Changing output or preparer does not
+change the intent key. Keep both historical intents and their reviews intact.
+This source repair requires Astra source review, separately authorized merge
+and finite installer receiving, then a new merged-source proposal and genuine
+independent exact-proposal review before any separately admitted apply. The old
+review cannot authorize changed installer/proposal bytes. `--inspect-attempt`
+remains read-only and reports `replay_permitted=false`; it is not recovery.
+
 ## Registered shipping
 
 Run from a clean checkout of the merged commit, as the workspace owner:

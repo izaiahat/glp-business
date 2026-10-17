@@ -186,6 +186,24 @@ def test_bounded_process_admission_blocks_source_and_task_descendants_only(tmp_p
     assert all(row['start_ticks'] == 123 for row in rows)
 
 
+def test_committed_receive_only_ingress_pin_matches_actual_server(tmp_path, monkeypatch):
+    """Do not replace the production digest with a fixture-derived digest."""
+    proc = tmp_path / 'proc'
+    proc.mkdir()
+    script = tmp_path / 'glp_host_ingress.py'
+    script.write_bytes((Path(__file__).resolve().parents[1] / 'scripts/glp_host_ingress.py').read_bytes())
+    monkeypatch.setattr(admission, 'RECEIVE_ONLY_INGRESS',
+                        (str(script), admission.RECEIVE_ONLY_INGRESS[1]))
+    base = proc_entry(proc, 31, 0, ['/usr/bin/python3', '-B', str(script), 'serve'], tmp_path)
+    thread = base / 'task/31'
+    thread.mkdir(parents=True)
+    (thread / 'children').write_text('')
+    assert admission.process_readers([], [script], proc=proc) == []
+    # Actual source mutations must still refuse, not become a hash-free exemption.
+    script.write_bytes(script.read_bytes() + b'\n# unreviewed change\n')
+    assert admission.process_readers([], [script], proc=proc)[0]['pid'] == 31
+
+
 def test_receive_only_ingress_is_not_a_drain_worker(tmp_path, monkeypatch):
     import hashlib
     proc = tmp_path / 'proc'

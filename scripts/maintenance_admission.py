@@ -15,7 +15,7 @@ import hashlib
 # action modules, or calls the bridge. Bind exact reviewed bytes and argv.
 RECEIVE_ONLY_INGRESS = (
     '/home/ubuntu/business/scripts/glp_host_ingress.py',
-    '0989cd700e189fcb4e3ff162b9550390bccc4231a9e16ac2bcf4e721eda4c94e')
+    '2d5aa63b6bf9416d94e74928c7a21ff587cb2900e485351430aeeff0ca544b7d')
 
 
 def receive_only_ingress(base, argv, row, owners):
