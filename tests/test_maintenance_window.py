@@ -182,6 +182,32 @@ def test_drain_timeout_aborts_and_restores_without_killing_work(module, tmp_path
     assert backend.states == backend.original
     assert backend.running[0]["pid"] == 98765
     assert window.status()["state"] == "closed"
+    durable = json.loads((tmp_path / "window.json").read_text())
+    assert durable['drain']['timeout_seconds'] == 0
+    assert durable['drain']['blockers'] == backend.running
+    assert durable['drain']['last_observed_at'] >= durable['drain']['started_at']
+    assert_locks_released(tmp_path)
+
+
+def test_drain_census_retains_last_blocker_not_the_finished_first_holder(module, tmp_path):
+    backend = FakeBackend()
+    first = [{'kind': 'hermes', 'id': 'finished-job', 'reason': 'native_execution_owner_live'}]
+    final = [{'kind': 'process', 'pid': 98765, 'start_ticks': 123,
+              'reason': 'affected_task_tree', 'tasks': ['glp_host_ingress.py'], 'sources': []}]
+    clock = [0]
+    def census(entries):
+        return first if clock[0] == 0 else final
+    backend.inflight = census
+    def advance(seconds):
+        clock[0] += seconds
+    window = new_window(module, tmp_path, backend, drain_timeout=0.002,
+                        clock=lambda: clock[0], sleeper=advance)
+    with pytest.raises(module.WindowError, match='drain_timeout'):
+        window.enter()
+    durable = json.loads(window.journal.read_text())
+    assert durable['drain']['blockers'] == final
+    assert durable['state'] == 'closed'
+    assert backend.states == backend.original
     assert_locks_released(tmp_path)
 
 
