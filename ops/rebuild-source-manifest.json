@@ -6644,7 +6644,7 @@
         ".github/workflows/host-health-audit.yml"
       ],
       "kind": "test",
-      "sha256": "e3302ac4b3cc697525d9dab7ecf81fcc9638f86e7210b6e782a335f2de2f4c52"
+      "sha256": "ee3869236f69072db1943cec3cb88a689caf26b7cc6c7df861af81abbd5ba8c7"
     },
     "tests/test_inbox_control_plane.py": {
       "callers": [],
