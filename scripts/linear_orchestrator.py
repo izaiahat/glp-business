@@ -867,9 +867,15 @@ def _lint_protected_result(path, iss, *, runtime=False):
         payload = hashlib.sha256(json.dumps(
             {k: v for k, v in data.items() if k not in ('review', 'protected_review')},
             sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        protected_review = data['protected_review']
+        discord = isinstance(protected_review, dict) and 'discord' in protected_review
+        if discord:
+            require(set(protected_review) == {'discord'}, 'Discord and Linear/native acceptance are distinct contracts')
         rows = []
         for key, prefix in (('review', ('Coordinator acceptance verified:', 'Acceptance verified by parent:')),
                             ('protected_review', ('Independent protected acceptance verified:',))):
+            if discord and key == 'protected_review':
+                continue
             binding = data[key]
             row = gql('query($id:String!){comment(id:$id){id body archivedAt createdAt user{id} issue{id}}}',
                       {'id': binding['comment_id']})['comment']
@@ -885,24 +891,30 @@ def _lint_protected_result(path, iss, *, runtime=False):
                 require(re.findall(r'^' + re.escape(label) + r': (.+)$', body, re.M) == [value],
                         key + ' ' + label + ' binding missing, ambiguous or stale')
             rows.append(row)
-        parent, independent = rows
+        parent = rows[0]
         require(parent['user']['id'] in (OPERATOR_USER_ID, '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'),
                 'authenticated coordinator acceptance required')
         from datetime import datetime, timezone
         created = datetime.fromisoformat(parent['createdAt'].replace('Z', '+00:00'))
         require(abs((datetime.now(timezone.utc) - created).total_seconds()) <= 3600,
                 'coordinator acceptance must be from the same hour as Done')
-        protected_review = data['protected_review']
-        require(independent['id'] != parent['id'], 'separate adoption and coordinator comments required')
-        if 'native' in protected_review:
-            require(runtime, 'native review cannot bypass non-code independent acceptance')
-            _lint_glp109_native_review(protected_review['native'], data, iss, path, parent, independent, payload)
+        if discord:
+            from linear_operator_acceptance import verify
+            binding_hash = verify(protected_review['discord'], iss['identifier'], data.get('evidence') or [])
+            require(re.findall(r'^Independent operator Discord acceptance SHA256: (.+)$', parent['body'], re.M) ==
+                    [binding_hash], 'parent must bind exact authenticated operator Discord acceptance')
         else:
-            require(independent['user']['id'] not in (author, parent['user']['id']),
-                    'separate non-author independent protected acceptance required')
-        require(re.findall(r'^Independent protected acceptance: (.+)$', parent['body'], re.M) ==
-                [protected_review['comment_id'] + ' ' + protected_review['body_sha256']],
-                'parent must bind designated independent protected acceptance')
+            independent = rows[1]
+            require(independent['id'] != parent['id'], 'separate adoption and coordinator comments required')
+            if 'native' in protected_review:
+                require(runtime, 'native review cannot bypass non-code independent acceptance')
+                _lint_glp109_native_review(protected_review['native'], data, iss, path, parent, independent, payload)
+            else:
+                require(independent['user']['id'] not in (author, parent['user']['id']),
+                        'separate non-author independent protected acceptance required')
+            require(re.findall(r'^Independent protected acceptance: (.+)$', parent['body'], re.M) ==
+                    [protected_review['comment_id'] + ' ' + protected_review['body_sha256']],
+                    'parent must bind designated independent protected acceptance')
         if runtime:
             pr = data['pr']
             match = re.fullmatch(r'https://github\.com/(izaiahat/glp-business)/pull/[1-9]\d*', pr['url'])
@@ -950,6 +962,10 @@ def _lint_protected_result(path, iss, *, runtime=False):
                         source.resolve() == Path(e['path']).resolve() for e in evidence)),
                     'reported artifact must be RESULT or hash-bound runtime evidence')
         _lint_result(path, expected_issue=iss['identifier'])
+        if discord:
+            # Re-read after slower provenance/legacy checks, immediately before
+            # returning to the single writer. Never rely on capture-time copies.
+            verify(protected_review['discord'], iss['identifier'], data['evidence'])
     except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError) as exc:
         raise SystemExit('protected completion evidence unavailable/invalid: ' + str(exc)) from None
 
@@ -992,8 +1008,16 @@ def pass_issue(iss, result_path, st, brief=None, *, ordinary=False, protected_no
         set_state(iss['id'], st['In Progress'])
         iss['state'] = {'id': st['In Progress'], 'name': 'In Progress'}
     # Existing Done readers accept the exact RESULT binding without a metadata echo.
-    receipt = comment(iss['id'], fenced('FLEET_RESULT_V1', {'issue_id': iss['id'],
-            'outcome': 'PASS', 'result_path': path, 'result_sha256': digest}))
+    receipt_data = {'issue_id': iss['id'], 'outcome': 'PASS', 'result_path': path, 'result_sha256': digest}
+    if protected_noncode or protected_runtime:
+        retained = json.loads(Path(path).read_text()).get('protected_review') or {}
+        if 'discord' in retained:
+            # Inline the authenticated original snapshots, not just a mutable file
+            # pointer. The unchanged RESULT hash also binds scope/author/evidence.
+            receipt_data['independent_operator_acceptance'] = retained['discord']
+        if sha(path) != digest:
+            raise SystemExit('RESULT changed before receipt; inspect before any action')
+    receipt = comment(iss['id'], fenced('FLEET_RESULT_V1', receipt_data))
     if not receipt.get('success') or not (receipt.get('comment') or {}).get('id'):
         raise SystemExit('RESULT comment unconfirmed; inspect before any action')
     if sha(path) != digest:

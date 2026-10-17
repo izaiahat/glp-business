@@ -3791,15 +3791,25 @@
       "kind": "script",
       "sha256": "55f06988d0d08b91de7ab7f08ac45d08f5362e1e819890b7d427bcbfc12ad26d"
     },
+    "scripts/linear_operator_acceptance.py": {
+      "callers": ["scripts/linear_orchestrator.py"],
+      "kind": "script",
+      "sha256": "cbedf1a75ac9c0ca52d2768126ca87fab95eab284522abc154e6748764428680"
+    },
+    "ops/linear/OPERATOR-DISCORD-ACCEPTANCE.md": {
+      "callers": ["GLP-358 coordinator protected closure"],
+      "kind": "documentation",
+      "sha256": "b8fb0c84a8504782d9290398220a891fdace4ff28ce76230a441b4e6040314c3"
+    },
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "4684b186d34b6dd6228319c0b359fa8faff44c36a7dd6f6a3e75e48e714ae361"
+      "sha256": "b43e90ce6b54710eebfeb295ef1e08355580e7468cd933296a0ec5b5c50dc398"
     },
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "bab526945a0758af56562a9c95cac7ddd7e18ccede696f9e896a1226d91b03d6"
+      "sha256": "64e6109fef5824d16e3cb733cf1cf2a7d18872f0c809b63456bebafe388060a7"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -6793,7 +6803,7 @@
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "5c1241eae7f93c576946b66fd3c2d54a85f5ab1a5ec26da3363291e7f4f5ee58"
+      "sha256": "190ab8d040dbe53e9a2b8fadc92a01b9d5fa20c5d1e63229dfdb57f75d917ddb"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
