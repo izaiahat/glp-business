@@ -558,7 +558,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6cf5e341fef7b05fa67bb4c54cccfa0af3d6efa63da3e719ec2d3a475dd148c8"
+      "sha256": "b5d072aa97f9d235efde8786b81c114810a483fad8cfd95bff29f89b9a206273"
     },
     ".hermes.md": {
       "callers": [],
@@ -4011,7 +4011,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5c72103f2f7520dd42817a55147f6eac186cee577a107d5e28c7fd4b4cbdf3bf"
+      "sha256": "7f4c6ec74e9f5f8200b2e097c63dd54f527d247748f1434b55cc8a78323dc3f1"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -8146,6 +8146,25 @@
       ],
       "kind": "test",
       "sha256": "1c199ab0db9a73cb3e10775464e0116871975a669408a1364fdcf49eafd9eb85"
+    },
+    "scripts/glp_sponsor_receipt_reconcile.py": {
+      "callers": [
+        "ops/sponsor-receipt-reconciliation.md"
+      ],
+      "kind": "script",
+      "sha256": "349b8bc292b481940e18d713d2844dd4418a6e27cf78840ed3601ccb39f9f483"
+    },
+    "tests/test_glp_sponsor_receipt_reconcile.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "3b7d2d47ec3613b00e2f163f1caf2b5dcf1b9d9e50df5ed65fff599f153e10a3"
+    },
+    "ops/sponsor-receipt-reconciliation.md": {
+      "callers": [],
+      "kind": "operator_runbook",
+      "sha256": "1b9d6bdf03f307bd6b3c3d252719c4cd50f8ebe0ab185a576a13953b2a36c605"
     }
   },
   "omitted_runtime_inputs": [
@@ -8156,5 +8175,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1192
+  "tracked_count": 1195
 }

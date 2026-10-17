@@ -651,3 +651,8 @@
 !/tests/test_host_disk_local_only.py
 !/ops/host-disk-local-only-capability.md
 !/ops/systemd/host-disk-cleanup-local-only.conf.example
+
+# GLP327/328 exact receipt accounting; source-only, no live adoption
+!/scripts/glp_sponsor_receipt_reconcile.py
+!/tests/test_glp_sponsor_receipt_reconcile.py
+!/ops/sponsor-receipt-reconciliation.md
