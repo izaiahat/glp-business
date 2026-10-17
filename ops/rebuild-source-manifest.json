@@ -6832,7 +6832,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "c9e8dc8903f252ad2cbc7ec3c605c62afce51c31417e33a3152388d30e7699f6"
+      "sha256": "1bd369acec298ea9997f84b7681783dbe003f6ade892dce662acbc76badb3526"
     },
     "tests/test_maintenance_window_lock_contention.py": {
       "callers": [
