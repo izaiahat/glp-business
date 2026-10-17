@@ -264,3 +264,71 @@ runs under bubblewrap: host filesystem read-only, network namespace isolated,
 and only the disposable scratch directory writable. Source projection reaches
 17 selected paths / zero drifts before the copied offline enrollment; neither
 check is live receiving or permission for a subsequent job run.
+
+### Reviewed no-effect drain-refusal supersession (GLP334 only)
+
+This is **not** a reset, replay of the original intent, waiver of acceptance, or
+permission to run a producer. It is a separate metadata transition, followed (only
+under separate apply authority) by one separately claimed fresh attempt. Source
+review/merge/receiving and current exact target custody remain prerequisites.
+
+`--supersede-drain-refusal` requires `--proposal <original-READY>` and the original
+`--review <ACCEPT_EXACT_PROPOSAL>`, plus `--refusal-evidence`, `--refusal-review`,
+`--attempt-id <new-id>` and a previously nonexistent `--output <fresh-directory>`.
+It must not be combined with `--apply` or `--inspect-attempt`. In these recovery
+modes **`--merge-sha` identifies the current, merged, CI-proven installer**, not a
+replacement proposal. The saved proposal still names its original source/merge
+proof; that source, the finite enrollment payload, every accepted preimage and
+both complete target native records are independently revalidated. No proposal
+is regenerated, preparer changed or new acceptance synthesized.
+
+The exact evidence schema is `glp-ship-drain-refusal-v1`, with fields:
+- `source`, `root`, `hermes`, `attempt_sha256`, `proposal_sha256`;
+- `window_journal` (original absolute location), `window_sha256` (raw bytes);
+- `recorded_by`, `apply_exited: true`, `exit_code: 2`;
+- `stage: MaintenanceWindow.enter`, `exception: drain_timeout`;
+- `adoption_started: false`, `producer_started: false`, `effects_uncertain: false`.
+
+The exact reconciliation review schema is
+`glp-ship-drain-supersession-review-v1`, with `decision:
+ACCEPT_EXACT_DRAIN_SUPERSESSION`, a `reviewer` distinct from recorder/preparer,
+`evidence_sha256` (canonical `json_sha`), `proposal_sha256`, `fresh_attempt_id`
+and `fresh_output`. These are **operator-authenticated review attestations**, not
+cryptographic proof against a hostile local writer. The reviewer must authenticate
+original argv/output attribution, process exit and the historical pre-adoption
+boundary; a reconstructed JSON document or equality now is not historical proof.
+Missing/extra evidence fields refuse rather than silently narrowing the review.
+
+The original intent must be exclusively `started` for exactly this proposal.
+The original journal must be closed with `error: drain_timeout`, no live
+keeper/controller, no remaining locks, a complete nonempty unique affected-entry
+restoration list, and no adoption, transaction, outcome, recovery or unknown
+fields. Every row must retain intent/pause/restore-intent/restored proof. Current
+native controls/configuration/pins and crontab/systemd/bridge restoration are
+read back without any saver. Existing result/enrollment receipts, a second
+unbound default-output window, symlink/hardlink ambiguity, unknown process data,
+missing restoration or any target drift refuse. The old pre-window attempt with
+no restoration journal **cannot** take this transition; its historical bytes and
+review remain untouched. The more recent clean refusal is eligible only if all
+proof and current-target gates still pass—an old clean snapshot does not excuse
+subsequent `ops/.rebuild-sync-state.json` or manifest drift.
+
+Under the existing source and original-window operation locks, one exclusive
+fsynced `<job>-<source>.supersession.json` records effective `state: superseded`,
+the original intent path/raw digest, exact evidence/reviews, proposal digest,
+and **one** fresh ID/intent/output reservation. The original intent bytes are not
+changed or deleted. A second transition, different ID, existing claim, or partial
+record refuses. The sidecar itself is the supersession readback; the legacy
+`--inspect-attempt` continues to inspect original historical intent state and
+never grants replay authority.
+
+A separately authorized `--apply --attempt-id <same-id> --proposal <same-READY>
+--review <same-acceptance> --output <same-fresh-directory>` uses the current
+installer merge SHA. It rechecks the exact sidecar, original bytes, reviewed
+restoration, source/payload, acceptance, preimages and complete native records,
+then runs the original bounded full preclaim plan immediately before one
+exclusive `.retry-<id>.json` started claim. It calls the **unchanged** enrollment
+apply path: cleanup singleton, full maintenance drain, source/fire/native locks,
+window verification, full-record CAS, custody, restoration and zero-run policy.
+No automatic retry exists. Failure/uncertainty after claim remains a claimed
+fresh attempt; neither changing output nor choosing another ID permits reuse.

@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/glp_ship_attempts.py": {
+      "kind": "repository_control",
+      "callers": [
+        "scripts/glp_ship.py"
+      ],
+      "sha256": "87ea20fca0effebe4780e07819881935019aa6fc14c53c56f9c522fa214009f3"
+    },
+    "tests/test_glp_ship_supersession.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "c267976a88d332d5fa1155cd92ff0207b068d6b5398ea90150a5ce9547c741a9"
+    },
     "scripts/auto_deployer.py": {
       "kind": "script",
       "callers": [
@@ -41,7 +55,7 @@
       "callers": [
         "GLP334 projected installed caller and real bounded full preclaim planning"
       ],
-      "sha256": "50ec7fd92c55308f9e281a5edad1740f33a466545f90e37b109af6f84137c2a4"
+      "sha256": "bfa9a0aa193d7b2a1d037d0f51b31679f323ed9584c26c66911ff6d0d7d1d735"
     },
     "tests/test_glp_ship_refusal_inspection.py": {
       "kind": "test",
@@ -450,7 +464,7 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "41ecd8025e85fc12c0cd2aa2d20efc3b074572c151fa7801b6ed17e4f632bf15"
+      "sha256": "0e8effb7e342c1bd79f94c7ec353a82b61c07f262086e1d468b6d3b2b1aa8c39"
     },
     ".github/workflows/glp336-host-completion.yml": {
       "callers": [],
@@ -773,7 +787,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source_control",
-      "sha256": "68269982211ecc96b225a8e941713b81af979ddb17c190734467fc837c431b83"
+      "sha256": "38bfee5ee50bcfe0650c186965e6991b4db04d2501fd58adab46cdb9771b3ec6"
     },
     "ops/glp/analytics-brain-control.json": {
       "callers": [
@@ -3429,7 +3443,7 @@
         "scripts/glp_ship.py"
       ],
       "kind": "source",
-      "sha256": "afd9a51d3f278136f09abd0e877bb28bdc40a5152da96c7b7052fbb8cb7c94bd"
+      "sha256": "cf7d8c51b4331f2e7b6396b65fcfe6d6d333d0199c86a286ca6ec9209c2fda47"
     },
     "scripts/glp_ship_collector.py": {
       "callers": [
@@ -8156,5 +8170,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1192
+  "tracked_count": 1194
 }

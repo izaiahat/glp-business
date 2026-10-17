@@ -18,6 +18,7 @@ from glp_ship_generation import GitGeneration, fingerprint, json_sha, validate_r
 from glp_ship_provenance import derive_pins, verify_merge
 from glp_ship_registry import registered_job
 from maxbounty_pin_release import read_regular
+from glp_ship_attempts import supersede_drain_refusal, claim_retry
 
 
 def parser():
@@ -27,9 +28,12 @@ def parser():
     result.add_argument('--apply', action='store_true')
     result.add_argument('--review', type=Path)
     result.add_argument('--inspect-attempt', action='store_true')
-    result.add_argument('--proposal', type=Path, help='Existing READY document for read-only inspection')
+    result.add_argument('--proposal', type=Path, help='Existing exact READY document for inspection/recovery')
     result.add_argument('--refusal-evidence', type=Path)
     result.add_argument('--refusal-review', type=Path)
+    result.add_argument('--supersede-drain-refusal', action='store_true',
+                        help='reviewed metadata-only GLP334 supersession; never apply')
+    result.add_argument('--attempt-id', help='exact fresh reservation ID; requires saved --proposal')
     result.add_argument('--checkout', type=Path, default=Path(__file__).resolve().parents[1])
     result.add_argument('--root', type=Path, default=syncer.DEFAULT_ROOT)
     result.add_argument('--hermes', type=Path, default=Path('/home/ubuntu/.hermes'))
@@ -48,7 +52,7 @@ def write_json(path, value):
 # the enrollment checker/later bridge import. Historical fleet branches are NOT
 # imported by this route and must not become generic whole-fleet adoption.
 INSTALLER_FILES = (
-    'glp_ship.py', 'glp_ship_generation.py', 'glp_ship_registry.py',
+    'glp_ship.py', 'glp_ship_attempts.py', 'glp_ship_generation.py', 'glp_ship_registry.py',
     'glp_ship_provenance.py', 'glp_ship_runtime.py', 'glp_ship_discovery.py',
     'glp_ship_collector.py', 'glp44_scoped_adoption.py', 'glp73_paired_adoption.py',
     'sync_from_repo.py', 'discovery_predecessor_migration.py',
@@ -373,7 +377,8 @@ def main(argv=None):
         spec = registered_job(args.job_id)
         root, hermes = args.root.resolve(strict=True), args.hermes.resolve(strict=True)
         if args.inspect_attempt:
-            if args.apply or args.review or args.output or not args.proposal:
+            if (args.apply or args.review or args.output or args.attempt_id
+                    or args.supersede_drain_refusal or not args.proposal):
                 raise RuntimeError('ship_inspection_is_read_only_requires_existing_proposal')
             proposal = json.loads(read_regular(args.proposal)[0])['proposal']
             if proposal.get('source') != args.merge_sha:
@@ -383,6 +388,40 @@ def main(argv=None):
             print(json.dumps(inspect_attempt(args.checkout, root, hermes, spec, proposal,
                                              evidence, refusal_review), sort_keys=True))
             return 0  # Diagnostic completed, NOT terminal success or apply authority.
+        if args.supersede_drain_refusal or args.attempt_id:
+            if not (args.proposal and args.review and args.attempt_id and args.output):
+                raise RuntimeError('ship_recovery_requires_exact_proposal_review_id_output')
+            if args.supersede_drain_refusal:
+                if args.apply or not (args.refusal_evidence and args.refusal_review):
+                    raise RuntimeError('ship_supersession_is_metadata_only_requires_reviewed_boundary')
+            elif not args.apply or args.refusal_evidence or args.refusal_review:
+                raise RuntimeError('ship_retry_requires_apply_and_existing_reservation')
+            proposal = json.loads(read_regular(args.proposal)[0])['proposal']
+            review = json.loads(read_regular(args.review)[0])
+            output = args.output.absolute()  # Do not erase a symlink before recovery checks.
+            # Here merge-sha authenticates the current installer. The original
+            # accepted proposal/source is immutable and verified independently.
+            with committed_checkout(args.checkout.resolve(strict=True), args.merge_sha) as (checkout, proof):
+                if args.supersede_drain_refusal:
+                    evidence = json.loads(read_regular(args.refusal_evidence)[0])
+                    refusal_review = json.loads(read_regular(args.refusal_review)[0])
+                    result = supersede_drain_refusal(checkout, root, hermes, spec, proposal, review,
+                                                     evidence, refusal_review, args.attempt_id, output)
+                    print(json.dumps(result, sort_keys=True))
+                    return 0  # Metadata only, NOT an apply or producer dispatch.
+                intent = claim_retry(checkout=checkout, root=root, hermes=hermes, spec=spec,
+                                     proposal=proposal, proposal_review=review,
+                                     attempt_id=args.attempt_id, output=output)
+                generation = GitGeneration(proposal['source'], spec.kind, spec.paths,
+                                           proposal['hashes'], proposal['merge_proof'], proposal)
+                result = apply_generation(checkout, root, hermes, spec, generation, review, output)
+                write_json(output / 'RESULT.json', result)
+                claimed = json.loads(read_regular(intent)[0])
+                claimed.update(state='succeeded' if result['success'] else 'failed',
+                               result=str(output / 'RESULT.json'))
+                write_json(intent, claimed)
+                print(json.dumps(result, sort_keys=True))
+                return 0 if result['success'] else 1
         if args.proposal or args.refusal_evidence or args.refusal_review:
             raise RuntimeError('ship_refusal_inputs_require_read_only_inspection')
         output = (args.output or root / 'reports/ops/glp-ship' / spec.name / args.merge_sha).resolve()
