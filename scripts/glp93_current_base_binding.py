@@ -13,12 +13,13 @@ HELPER = 'scripts/glp_review_editorial_projection.py'
 WORKER = 'scripts/glp_affiliate_wire_backlog_worker.py'
 HISTORICAL_WORKER_HEAD = '440f03781ccb9e9e003144cf23a9e3442dd06ecd'
 HISTORICAL_WORKER_SHA256 = '16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108'
-WORKER_SHA256 = '4e10f7d1557aaa33f7351ce97f5a1dcf9dc396bb4027ea8dfa8660fff2bb3ca2'
+WORKER_SHA256 = 'eba4103d5909750c450f9ba432ed9549638f61b43b473390e04b89bf7b41c10c'
 HISTORICAL_HEAD = 'b455e4a9d99b7d393c719204489a59cb65cfc293'
 HISTORICAL_BUILDER = 'a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432'
 CURRENT_BINDINGS = {
     BUILDER: 'c5cef691ddaf5d5e80a9337ed2181a68b430e0808301707847d3efe98dc6b506',
     HELPER: '113ff2f339be09305a80d3e963e6f1f4395bf18218dec975f344ccd916ec72c8',
+    'scripts/glp_best_terms_current_bindings.py': 'f5b558e6a82f34d36523e9a98672a87a9f5ce6105c2c99ea80848899d3f11f8d',
 }
 WIRE_SCANNER_SHA256 = 'a5c20feed5c2a8395d598fde28363d4a034682093629c5b90c7ab22dc984fcd1'
 APPROVAL_CHAIN_CAPTURE_ROOT = '/home/ubuntu/business/reports/glp-affiliate-auto-reconciler/maxbounty-approval-chain'

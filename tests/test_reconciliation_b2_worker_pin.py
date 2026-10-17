@@ -19,7 +19,7 @@ def dependency_bindings():
 
 
 @pytest.mark.parametrize('tamper', [False, True])
-@pytest.mark.parametrize('member', ['glp_affiliate_wire_backlog_worker.py', 'build_glp_affiliate_wirein_incremental_v2.py', 'glp_review_editorial_projection.py'])
+@pytest.mark.parametrize('member', ['glp_affiliate_wire_backlog_worker.py', 'build_glp_affiliate_wirein_incremental_v2.py', 'glp_review_editorial_projection.py', 'glp_best_terms_current_bindings.py'])
 def test_worker_pin_cohort(tmp_path, tamper, member):
     text = SUCCESSOR.read_text()
     match = re.search(r"scripts/" + re.escape(member) + r"'\]='([a-f0-9]{64})'", text)
@@ -57,7 +57,7 @@ def test_successor_preserves_historical_wrapper_and_exact_reviewed_cohort():
 
 def test_every_successor_b2_pin_equals_exact_maintained_dependency():
     pins = re.findall(r"\['/home/ubuntu/business/([^']+)'\]='([a-f0-9]{64})'", SUCCESSOR.read_text())
-    assert len(pins) == 11  # historical ten plus the new transitive helper
+    assert len(pins) == 12  # historical ten plus two current transitive helpers
     uncurated = {
         'scripts/glp_price_index_source_rebind.mjs': '5342eabc650b351b5d3c7a2dd1329cf013a7445dbc30260f5240f6606cae021c',
         'scripts/glp_provider_dynamic_profile_activation.mjs': '598a7d4c9b1a261471569e9c69df6ae45d6fb6572807f801ccd958f6f0acd5a0',

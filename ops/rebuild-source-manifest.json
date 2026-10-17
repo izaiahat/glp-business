@@ -1296,8 +1296,8 @@
         "hermes:f0c6a95a371c"
       ],
       "kind": "script",
-      "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "5f932a12122900ba1502e8ab15b95613709b248859ab7133c384893a14fd7add"
+      "scope": "Current worker successor with exact transitive builder, editorial and best-terms custody helper pins; historical cleanup and GLP331 adoption wrapper preserved unchanged. Parent receiving uses registered allowed-root delivery and reenrolls scheduler hash only after independent review.",
+      "sha256": "ee484fec534253d834491285b11c0f1f20a3e41271c771776c415f20796f073f"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
@@ -2553,7 +2553,7 @@
         "tests/test_glp331_carrier_closure.py",
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "6d0be4951f6c27d9b971d2c5a3820878f263d89d9f46ffec43b08bead9697044"
+      "sha256": "55a0b193476cfec729ec302ddbb54b74170c79e6128ba06cf11da8a30dfed79c"
     },
     "tests/test_glp93_capture_roots.py": {
       "kind": "test",
@@ -2568,7 +2568,7 @@
         "tests/test_glp331_carrier_closure.py",
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "28b02ed8ca25567522486022c31f7921162c5c3fcda94c3d7b17f7e9c6324848"
+      "sha256": "836ad01b682abe4692992c72d10de9ff286e17bcf2aa9a5b0e051c6b22b9a6d0"
     },
     "scripts/glp_review_editorial_projection.py": {
       "kind": "script",
@@ -6986,7 +6986,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "a25dae325bbca7e4ac242a66fee3fda91ef4a74000552227bee16e390a0a224b"
+      "sha256": "5d04e4797f6c20d7c1bf4da8b1d3a1729a23b43714436dd95cfa9fa1eaa7375b"
     },
     "tests/test_recurrence_batch_rail_identity_20260827.py": {
       "callers": [
