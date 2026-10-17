@@ -34,6 +34,35 @@ def objects(mode='held'):
     return project, dep
 
 
+def test_current_terminal_cohort_is_fixed_and_predecessor_or_drift_refuses(monkeypatch):
+    """Texas successor is reviewed exactly; never infer the cohort from live state."""
+    assert (adoption.DEPLOYMENT, adoption.HEAD, adoption.POINTER_SHA, adoption.PREPARED_SHA) == (
+        'b1e4c403-852c-46c9-b169-453d49186218',
+        'a7dd97e2d17c1d6e15338eadb7633fa8347e47c8',
+        '668993469ec15592b9936800465c6c1a205c5f205cae62e25396fd11ce385650',
+        '3e55c659c3aeca3db8e8154f10f48a3c98d89c4caa49079da498a324163a4a89')
+    project, dep = objects()
+    # Independent literal identity, rather than a fixture that merely follows pins.
+    dep['id'] = 'b1e4c403-852c-46c9-b169-453d49186218'
+    dep['deployment_trigger']['metadata']['commit_hash'] = 'a7dd97e2d17c1d6e15338eadb7633fa8347e47c8'
+    project['canonical_deployment'] = copy.deepcopy(dep)
+    witness = adoption.settings_witness(project, dep, 'held')
+    assert len(witness) == 3
+    for old_or_unknown_head in ('40a3faf58686ea7882cec26f9262a97946b6b99f', 'b' * 40):
+        foreign = copy.deepcopy(dep)
+        foreign['deployment_trigger']['metadata']['commit_hash'] = old_or_unknown_head
+        with pytest.raises(carrier.GateError, match='project_or_deployed_identity'):
+            adoption.settings_witness(project, foreign, 'held')
+    # Neither a predecessor pointer nor future pointer may auto-rebind this source.
+    forbidden = Mock(side_effect=AssertionError('read past exact pointer guard'))
+    monkeypatch.setattr(carrier, 'load_json', forbidden)
+    for raw in (b'predecessor-pointer-fixture', b'future-pointer-fixture'):
+        monkeypatch.setattr(carrier, 'capture_pointer', lambda path, raw=raw: (raw, None))
+        with pytest.raises(carrier.GateError, match='canonical_pointer_changed'):
+            adoption.retained_base()
+    forbidden.assert_not_called()
+
+
 def test_patch_is_one_plaintext_key_not_secret_roundtrip():
     assert adoption.patch_body() == {'deployment_configs': {'production': {'env_vars': {
         'NEWSLETTER_CAPTURE_MODE': {'type': 'plain_text', 'value': 'owned_test'}}}}}

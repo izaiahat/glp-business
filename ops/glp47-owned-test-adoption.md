@@ -9,10 +9,10 @@ It does **not** enroll anyone, send mail, activate the scheduler, or close GLP-4
 Pages project environment variables and a deployed function's bindings are
 separate snapshots. Changing the project alone leaves the deployed capture held.
 The supported path makes a **new canonical deployment using exactly the accepted
-2,381-file deploy directory and compiled worker**. It never replays the consumed
+2,382-file deploy directory and compiled worker**. It never replays the consumed
 same-head publication journal, compiles functions again, edits accepted history,
-or points at an older release. The commit stays `40a3faf…`; the deployment ID
-must change. This is settings-only in content scope, not in provider effects.
+or points at an older release. The commit stays `a7dd97e2d17c1d6e15338eadb7633fa8347e47c8`;
+the deployment ID must change. This is settings-only in content scope, not in provider effects.
 
 `glp_release_main.py` owns both modes under its existing main run lock and the
 existing native carrier lock for mutations. No new publisher or schedule exists.
@@ -91,7 +91,18 @@ settings receipt as delivery/unsubscribe/retention/deletion proof.
 Offline regression tests cover secret/preview/D1/other-setting loss, stale
 canonical identity, exact-plan/authority guards, intent-before-effect ordering,
 retained-byte upload, project-versus-deployed binding checks, native CAS gating,
-ambiguous upload and terminal non-replay. A GET-only readback authenticated the
-current `9dae1da7-cc07-40f5-b0a8-0719f9bb5142` deployment and found project **and**
-deployed capture `held`, with the same accepted compiled worker and D1. It made
-zero mutations. Live apply/send/receiving remain deliberately unexecuted here.
+ambiguous upload and terminal non-replay. The original `9dae1da7…` / `40a3faf…`
+cohort was superseded by the terminal Texas release at 02:00Z on 2026-10-17.
+At 03:48Z a GET-only project/deployment/project readback authenticated canonical
+`b1e4c403-852c-46c9-b169-453d49186218` / `a7dd97e2d17c1d6e15338eadb7633fa8347e47c8`,
+with project **and** deployed capture `held`, Functions enabled and unchanged D1.
+The old source correctly refused `owned_test_canonical_pointer_changed`.
+
+This source successor binds that exact terminal cohort's pointer and PREPARED
+SHA-256s; it does not accept an arbitrary latest deployment or bypass any guard.
+The terminal native receipt, manifest/final receipt, complete retained closures
+and compiled worker must still authenticate. Any further release/pointer change
+requires another independently reviewed source successor, not runtime rebinding.
+The sole publisher, authority, no-replay, configuration witnesses and CAS gates
+are unchanged. No settings PATCH, deployment, enrollment or mail occurred in this
+reconciliation. Live apply/send/receiving remain deliberately unexecuted here.
