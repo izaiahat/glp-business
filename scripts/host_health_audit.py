@@ -34,6 +34,14 @@ def write_json(path: Path, value: dict) -> None:
         tmp.unlink(missing_ok=True)
 
 
+def canonical_start_tick(value: object) -> bool:
+    """Linux /proc starttime is canonical unsigned 64-bit decimal, not an alias."""
+    return (isinstance(value, str) and 1 <= len(value) <= 20
+            and value.isascii() and value.isdigit()
+            and (value == '0' or not value.startswith('0'))
+            and int(value) <= 2**64 - 1)
+
+
 def snapshot() -> dict:
     memory = {}
     for line in Path('/proc/meminfo').read_text().splitlines():
@@ -91,8 +99,8 @@ def snapshot() -> dict:
     unverifiable = False
     for row in reservations:
         if (not isinstance(row, dict) or type(row.get('pid')) is not int or row['pid'] <= 0
-                or not isinstance(row.get('start'), str) or not row['start'].isascii()
-                or not row['start'].isdigit() or not isinstance(row.get('token'), str)
+                or not canonical_start_tick(row.get('start'))
+                or not isinstance(row.get('token'), str)
                 or not row['token'] or row['token'] in tokens):
             unverifiable = True
             continue
@@ -100,7 +108,9 @@ def snapshot() -> dict:
         try:
             # Use /proc start ticks to exclude reused/dead PIDs; no process signalling.
             fields = Path(f"/proc/{row['pid']}/stat").read_text().rsplit(')', 1)[1].split()
-            if fields[19] == row['start']:
+            if not canonical_start_tick(fields[19]):
+                unverifiable = True
+            elif fields[19] == row['start']:
                 active = int(active or 0) + 1
         except (FileNotFoundError, ProcessLookupError):
             # Only a definitely absent owner is stale; denied reads are unknown.
