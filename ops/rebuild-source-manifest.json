@@ -6509,7 +6509,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "4e450a3b3c7f733f12e96523180591108ff4c996ab050a1e59251e61c0b4f8b8"
+      "sha256": "bce034b952c473475deaaa80e26ad8669a4ba5ee759930d0a27b99e41cadd1ae"
     },
     "tests/test_glp_sponsor_followup_notifications.py": {
       "callers": [
