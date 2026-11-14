@@ -10,6 +10,8 @@ import json
 import os
 from pathlib import Path
 import secrets
+import select
+import signal
 import stat
 import subprocess
 import sys
@@ -116,10 +118,84 @@ def read_state(path):
     return state
 
 
+def stop_running_backup():
+    """Stop only the registered backup's current flock owner, using a pidfd.
+
+    An unlocked/stale record grants no stop authority; never signal a process
+    merely because a PID was written to disk. No systemd/AHS unit is touched.
+    """
+    path = BUSINESS / 'backups/hermes-state/.backup.lock'
+    if path.resolve() != path:
+        raise ValueError('aliased backup lock')
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return 'not-running'
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+            raise ValueError('unsafe backup lock')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pass
+        else:
+            return 'not-running'
+        owner = json.loads(os.read(fd, 4096))
+        pid = owner['pid']
+        if owner.get('schema') != 1 or type(pid) is not int or pid <= 1:
+            raise ValueError('invalid backup owner')
+        try:
+            process = os.pidfd_open(pid)
+        except ProcessLookupError:
+            return 'not-running'
+        try:
+            proc = Path(f'/proc/{pid}')
+            try:
+                start = int((proc / 'stat').read_text().rsplit(')', 1)[1].split()[19])
+                if proc.stat().st_uid != os.getuid() or start != owner['start_ticks']:
+                    raise ValueError('backup owner identity changed')
+            except FileNotFoundError:
+                return 'not-running'
+            # Kernel flock ownership binds the record to this exact live writer.
+            device = (os.major(info.st_dev), os.minor(info.st_dev), info.st_ino)
+            owns_lock = False
+            for line in Path('/proc/locks').read_text().splitlines():
+                fields = line.split()
+                if len(fields) < 6 or fields[1:5] != ['FLOCK', 'ADVISORY', 'WRITE', str(pid)]:
+                    continue
+                major, minor, inode = fields[5].split(':')
+                if (int(major, 16), int(minor, 16), int(inode)) == device:
+                    owns_lock = True
+                    break
+            if not owns_lock:
+                raise ValueError('backup flock owner changed')
+            try:
+                signal.pidfd_send_signal(process, signal.SIGTERM)
+                if not select.select([process], [], [], 10)[0]:
+                    signal.pidfd_send_signal(process, signal.SIGKILL)
+                    if not select.select([process], [], [], 5)[0]:
+                        raise RuntimeError('backup stop not confirmed')
+            except ProcessLookupError:
+                pass
+            return 'stopped'
+        finally:
+            os.close(process)
+    finally:
+        os.close(fd)
+
+
 def backup_pause(root, current, observation):
     marker = root / 'backup-paused'
-    if current in ('critical', 'error') and not os.path.lexists(marker):
-        atomic_json(marker, {**observation, 'owner': 'disk-alarm'})
+    if current in ('critical', 'error'):
+        try:
+            if not os.path.lexists(marker):
+                atomic_json(marker, {**observation, 'owner': 'disk-alarm'})
+        finally:
+            # Also stop an in-flight registered backup, even if marker storage
+            # failed. The rsync child's kernel parent-death guard stops copying.
+            observation['backup_stop'] = stop_running_backup()
     if current == 'healthy' and marker.is_file() and not marker.is_symlink():
         try:
             owned = json.loads(marker.read_text()).get('owner') == 'disk-alarm'
@@ -178,7 +254,8 @@ def tick(root, available, send=notify, log_path=None, measurement_error=None):
                    'Operator + assistant: inspect disk pressure/monitoring. '
                    + ('Backup schedule gated. ' if current in ('critical', 'error')
                       else 'Below 60 GiB warning; no schedules changed. ')
-                   + 'No active jobs stopped; AHS untouched. Alarm hold lifts at 60 GiB; operator holds remain.')
+                   + 'Only the registered backup may be stopped; other jobs/AHS untouched. '
+                   + 'Alarm hold lifts at 60 GiB; operator holds remain.')
         state['pending'][current] = {'id': uuid.uuid4().hex, 'level': current,
                                      'message': message, 'at': observation['at']}
     atomic_json(path, state)  # Intent and observation BEFORE log/sender; no send on failed writes.

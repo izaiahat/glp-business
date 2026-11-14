@@ -20,6 +20,12 @@ def isolated_inbox(tmp_path,monkeypatch):
 
 NOW=dt.datetime(2026,10,3,tzinfo=dt.timezone.utc)
 
+
+def test_recipient_evidence_still_expires_after_thirty_days(monkeypatch):
+ sheet,discovery,local=inputs()
+ monkeypatch.setattr(m,'now',lambda:NOW+dt.timedelta(days=31))
+ assert m.recipients(sheet,discovery,local)['recipients']==[]
+
 def inputs():
  row=['']*27
  row[2]='Example GLP-1 Provider (US)';row[3]='GLP-1';row[6]='https://example.com';row[7]='US GLP-1 provider';row[10]='approved_active_not_wired';row[25]='glp1-weightloss'

@@ -3663,7 +3663,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "9c3079e6a68b37dc0d81c6cd95290318e004fa849dc9f9030cc196aefda2e53d"
+      "sha256": "d62a2c03580042c4ed5db8f97a5b32ae9ae3090e9f332d9a246f161fee3b0497"
     },
     "scripts/check_hermes_host.py": {
       "callers": [
@@ -5417,7 +5417,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "67bb76b01a93b5dcb18ed60e26885d501b0eda8b76fde8e61f001e2cd906a2c9"
+      "sha256": "8c576f8d91d740ff743b3c5c1e4a7ce78eaa44997c97ebc234746df6ede04ce2"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
@@ -6509,7 +6509,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "4e450a3b3c7f733f12e96523180591108ff4c996ab050a1e59251e61c0b4f8b8"
+      "sha256": "bce034b952c473475deaaa80e26ad8669a4ba5ee759930d0a27b99e41cadd1ae"
     },
     "tests/test_glp_sponsor_followup_notifications.py": {
       "callers": [
@@ -8294,24 +8294,31 @@
       "kind": "test",
       "sha256": "7a0275e4b91fc9935d125d454d06780d15fd81b941c33199eb943ea1b20a598f"
     },
+    "tests/test_hermes_backup_incremental.py": {
+      "callers": [
+        "tests/test_glp110_archive_admission.py"
+      ],
+      "kind": "test",
+      "sha256": "6d2e8377fb0523e7274228a1dccfc2da4e94a77824fcdeae9923edd17364aca4"
+    },
     "scripts/disk_alarm.py": {
       "kind": "script",
       "callers": [
         "host cron (parent installation only)"
       ],
-      "sha256": "7716c1ab8a0a18a368eaf6c069ad42d944edfbb3613d3224cd0e0e70174d63a5"
+      "sha256": "b75ca0d225db4a76e5bafc7ca3a6d917f51e49aa052afb167a751facc9ecdc75"
     },
     "tests/test_disk_alarm.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/disk-alarm-source.yml"
       ],
-      "sha256": "2c3698fb4cc565b347d472be1c2dafaa8667f4807ab67a2a7c73c4f0a1e15da5"
+      "sha256": "4dbffb7c502ff611090515d6dea79e1db7176460a5fd02d52272d6c88f0074c6"
     },
     "ops/disk-alarm.md": {
       "kind": "instruction_or_policy",
       "callers": [],
-      "sha256": "4067fd2d3e72e873ca13121b01e20312c6a9b1b4be718c9c1294c1bc5e3a7f21"
+      "sha256": "7cfa646cc2e1c53c2dd4752fab4332434eebd886498a992250edaf6d6f4b1d95"
     },
     ".github/workflows/disk-alarm-source.yml": {
       "kind": "repository_control",

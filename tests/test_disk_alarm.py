@@ -17,7 +17,18 @@ def load():
     spec = importlib.util.spec_from_file_location('disk_alarm_test', SOURCE)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    module.BUSINESS = SOURCE.parents[1]  # Never inspect an installed backup lock.
     return module
+
+
+def backup_fixture_env(base, home, output):
+    hook = base / 'hook'
+    hook.mkdir()
+    (hook / 'sitecustomize.py').write_text(
+        'import os\nfrom types import SimpleNamespace\n'
+        'os.statvfs = lambda p: SimpleNamespace(f_bavail=100*2**30, f_blocks=200*2**30, f_frsize=1)\n')
+    return {**os.environ, 'HERMES_HOME': str(home), 'HERMES_BACKUP_ROOT': str(output),
+            'PYTHONPATH': str(hook), 'PYTHONDONTWRITEBYTECODE': '1'}
 
 
 class DiskAlarmTests(unittest.TestCase):
@@ -85,17 +96,17 @@ class DiskAlarmTests(unittest.TestCase):
                 child = subprocess.Popen(*args, **kwargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 stdout, stderr = child.communicate(timeout=20)
                 self.assertEqual(child.returncode, 0, stdout + stderr)
-                self.assertIn('hermes-state-backup done', stdout)
+                self.assertIn('COMPLETE snapshot=', stdout)
                 return child
-            with patch.object(alarm, 'BUSINESS', base), patch.dict(os.environ, {
-                    'HERMES_HOME': str(home), 'HERMES_BACKUP_ROOT': str(output)}):
+            with patch.object(alarm, 'BUSINESS', base), patch.dict(os.environ,
+                    backup_fixture_env(base, home, output)):
                 with alarm.lock(root):
                     child = alarm.backup(root, 70 * 2**30, launch)
                     self.assertEqual(child.wait(), 0)
                     # An unadmitted direct child must refuse contention, not report success.
                     refused = subprocess.run(['/bin/bash', str(script)], capture_output=True, text=True, timeout=20)
                     self.assertNotEqual(refused.returncode, 0, refused.stdout)
-            self.assertEqual(len(list(output.glob('hermes-state-????????.tar.gz'))), 1)
+            self.assertEqual(len(list(output.glob('snapshot-*/COMPLETE'))), 1)
             with patch.object(alarm, 'STATE', root), patch('sys.argv', ['disk_alarm.py', 'backup']), \
                  contextlib.redirect_stdout(io.StringIO()), alarm.lock(root):
                 self.assertEqual(alarm.main(), 3)
@@ -251,7 +262,8 @@ class DiskAlarmTests(unittest.TestCase):
             self.assertFalse((root / 'backup-paused').exists())
             self.assertEqual(rows[-1]['backup_recovery'], 'alarm hold lifted')
             self.assertEqual({p.name for p in root.iterdir()}, {'state.json', log.name})
-            self.assertNotIn('hermes', SOURCE.read_text().replace('hermes-state-backup.sh', ''))
+            self.assertNotIn('hermes', SOURCE.read_text().replace('hermes-state-backup.sh', '').replace(
+                'backups/hermes-state/.backup.lock', ''))
             (root / 'operator-backup-paused').write_text('operator hold')
             alarm.tick(root, 30 * 2**30, notify, log)
             alarm.tick(root, 60 * 2**30, notify, log)
@@ -402,7 +414,7 @@ class DiskAlarmTests(unittest.TestCase):
             home, output = base / 'home', base / 'backups'
             home.mkdir()
             (home / 'SOUL.md').write_text('synthetic fixture, no credentials')
-            env = {**os.environ, 'HERMES_HOME': str(home), 'HERMES_BACKUP_ROOT': str(output)}
+            env = backup_fixture_env(base, home, output)
             def run():
                 return subprocess.run(['/bin/bash', str(script)], env=env, capture_output=True, text=True, timeout=20)
             self.assertEqual(run().returncode, 1)
@@ -421,8 +433,8 @@ class DiskAlarmTests(unittest.TestCase):
             (root / 'operator-backup-paused').unlink()
             completed = run()
             self.assertEqual(completed.returncode, 0, completed.stderr)
-            self.assertIn('hermes-state-backup done', completed.stdout)
-            self.assertEqual(len(list(output.glob('hermes-state-????????.tar.gz'))), 1)
+            self.assertIn('COMPLETE snapshot=', completed.stdout)
+            self.assertEqual(len(list(output.glob('snapshot-*/COMPLETE'))), 1)
 
     def test_failed_filesystem_writes_never_send_or_admit(self):
         alarm = load()

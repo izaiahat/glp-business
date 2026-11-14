@@ -11,7 +11,8 @@ Exactly 40 GiB warns without pausing. A warning does not clear a prior pause.
 Separate `operator-backup-paused` markers, unknown/legacy `backup-paused`
 contents and the existing commented cron hold are never cleared automatically.
 There is no build-job pause, Hermes scheduler import or Hermes-state write by
-the alarm. No active job is stopped; AHS units and profiles remain untouched.
+the alarm. Only an in-flight registered backup can be stopped; AHS units,
+profiles and all other jobs remain untouched.
 
 ## Independent review and parent-owned installation
 
@@ -41,8 +42,15 @@ the owner-only mode-0700 `admissions` directory. Its child receives the token vi
 checks the matching token and age under 60 seconds, then skips lock re-entry.
 Absent, invalid, expired or consumed proof falls back to normal locked admission.
 The old `DISK_ALARM_BACKUP_ADMITTED=1` flag grants no admission.
-No signal or timeout is added to an active backup. A later pause affects the next
-admission, not in-flight work.
+Critical/error pauses also stop the running registered backup. The private
+`backups/hermes-state/.backup.lock` record must match its live kernel flock owner,
+UID and PID/start ticks; a pidfd targets only that identity. Unlocked stale records
+grant no stop authority. TERM is followed by KILL only if the same backup has not
+exited within ten seconds. There is no unit stop/restart or scheduler mutation.
+The incremental backup sets Linux parent-death SIGKILL before rsync exec and
+checks its guard identity after prctl. Its local transfer workers exit when the
+guarded rsync endpoint dies; the regression kills the wrapper during a real
+throttled copy and checks the entire observed rsync tree.
 
 ## Monitoring failures
 
