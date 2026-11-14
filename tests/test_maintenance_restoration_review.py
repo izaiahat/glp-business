@@ -1,12 +1,14 @@
 """PR #109 F2/F3 independent safety oracles; native mutations use scratch homes only."""
 import datetime as dt
 import json
+import os
 from pathlib import Path
 import sys
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+NATIVE = Path(os.environ.get('GLP_NATIVE_CHECKOUT', '/home/ubuntu/.hermes/hermes-agent'))
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tests')]
 import maintenance_window as mw
 import test_maintenance_window as fixtures
@@ -34,7 +36,7 @@ def test_crontab_line_ending_movement_must_invalidate_active(tmp_path):
         window.release_locks()
 
 
-@pytest.mark.skipif(not Path('/home/ubuntu/.hermes/hermes-agent/cron/jobs.py').is_file(),
+@pytest.mark.skipif(not (NATIVE / 'cron/jobs.py').is_file(),
                     reason='installed Hermes native scheduler required for scratch integration oracle')
 def test_real_native_pause_with_legacy_job_must_be_restorable(tmp_path, monkeypatch):
     home, root = tmp_path / 'hermes', tmp_path / 'root'
@@ -42,7 +44,7 @@ def test_real_native_pause_with_legacy_job_must_be_restorable(tmp_path, monkeypa
     root.mkdir()
     monkeypatch.setenv('HERMES_HOME', str(home))
     monkeypatch.setenv('HERMES_SKIP_ENV_FILE', '1')
-    sys.path.insert(0, '/home/ubuntu/.hermes/hermes-agent')
+    sys.path.insert(0, str(NATIVE))
     from cron import jobs as native
     registry = home / 'cron/jobs.json'
     assert native._current_cron_store().jobs_file == registry
@@ -78,7 +80,7 @@ def test_real_native_pause_with_legacy_job_must_be_restorable(tmp_path, monkeypa
     assert backend.job('legacy') == original
 
 
-@pytest.mark.skipif(not Path('/home/ubuntu/.hermes/hermes-agent/cron/jobs.py').is_file(),
+@pytest.mark.skipif(not (NATIVE / 'cron/jobs.py').is_file(),
                     reason='installed Hermes native scheduler required for scratch integration oracle')
 def test_real_native_expired_one_shot_must_restore_exact_prior(tmp_path, monkeypatch):
     home, root = tmp_path / 'hermes', tmp_path / 'root'
@@ -86,7 +88,7 @@ def test_real_native_expired_one_shot_must_restore_exact_prior(tmp_path, monkeyp
     root.mkdir()
     monkeypatch.setenv('HERMES_HOME', str(home))
     monkeypatch.setenv('HERMES_SKIP_ENV_FILE', '1')
-    sys.path.insert(0, '/home/ubuntu/.hermes/hermes-agent')
+    sys.path.insert(0, str(NATIVE))
     from cron import jobs as native
     registry = home / 'cron/jobs.json'
     assert native._current_cron_store().jobs_file == registry

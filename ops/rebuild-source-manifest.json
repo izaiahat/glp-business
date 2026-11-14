@@ -6150,7 +6150,7 @@
         "glp_ads_three_platform_monitor"
       ],
       "kind": "test",
-      "sha256": "9a3c8d2ef8207d4bcb4b29184f8953ce1c93181d584b3689ba9b11d8741335cc"
+      "sha256": "23780a45e5410cb0bf52cb1c0c120dcb7426a514491b99f2fb125351bb240ebc"
     },
     "tests/test_glp_affiliate_absence_audit.py": {
       "callers": [
@@ -6881,7 +6881,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "e72784de32b4c9bbc125a9a463674e13fbfbc9ae6e2b0dd9cdb69869af1530ff"
+      "sha256": "ae9fa1e1f848eb2a57e4cd23652bc78b17e333fda20ecd9699f8fbc2e11cf6ae"
     },
     "tests/test_maintenance_window.py": {
       "callers": [
