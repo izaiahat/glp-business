@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import re
+import runpy
 import socket
 import sqlite3
 import tempfile
@@ -787,6 +788,66 @@ class IdleLifecycleRegistrationTests(unittest.TestCase):
 
 
 class SourcePortabilityTests(unittest.TestCase):
+    def test_hermes_acceptance_entrypoint_enforces_required_host_checks(self):
+        def check(args):
+            self.assertEqual(os.environ.get('HERMES_HOST_CHECK'), '1')
+            root = SCRIPT.parents[1]
+            self.assertIn(str(root / 'tests/test_hermes_active_work_gate.py'), args)
+            self.assertIn(str(root / 'tests/test_glp80_eden_policy.py'), args)
+            return 0
+
+        runner = mock.Mock(main=mock.Mock(side_effect=check))
+        with mock.patch.dict(os.environ, {'HERMES_HOST_CHECK': '0',
+                                         'GITHUB_ACTIONS': 'true',
+                                         'RUNNER_ENVIRONMENT': 'github-hosted'}), \
+             mock.patch.dict('sys.modules', {'pytest': runner}):
+            with self.assertRaises(SystemExit) as exited:
+                runpy.run_path(str(SCRIPT.with_name('check_hermes_host.py')), run_name='__main__')
+        self.assertEqual(exited.exception.code, 0)
+        runner.main.assert_called_once()
+
+    def test_required_missing_marker_rejects_readable_sources(self):
+        records = json.loads(Path(__file__).with_name('hermes_active_work_gate_sources.json').read_text())['sources']
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / 'missing-marker'
+            sources = {}
+            for relative, record in records.items():
+                source = root / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text(record['text'])
+                host = (Path.home() / 'business/scripts' / relative if relative == 'hermes_tui_continuity.py'
+                        else Path('/home/ubuntu/.hermes/hermes-agent') / relative)
+                sources[host] = source
+            original_read = Path.read_text
+
+            def read(path, *args, **kwargs):
+                return original_read(sources.get(path, path), *args, **kwargs)
+
+            with mock.patch.dict(os.environ, {'HERMES_HOST_CHECK': '1',
+                                             'GITHUB_ACTIONS': 'true',
+                                             'RUNNER_ENVIRONMENT': 'github-hosted'}), \
+                 mock.patch(__name__ + '.HERMES_MARKER', marker), \
+                 mock.patch.object(Path, 'read_text', read):
+                def run_checks():
+                    result = unittest.TestResult()
+                    unittest.TestSuite([
+                        ActiveWorkGateTests('test_claim_ttl_mirror_matches_the_fork_scheduler_literals'),
+                        IdleLifecycleRegistrationTests('test_portable_classifier_is_exact_maintained_pure_source'),
+                    ]).run(result)
+                    self.assertEqual(result.testsRun, 2)
+                    self.assertEqual(result.errors, [])
+                    self.assertEqual(result.skipped, [])
+                    return result
+
+                missing = run_checks()
+                self.assertEqual(len(missing.failures), 2)
+                for _, failure in missing.failures:
+                    self.assertIn(f'missing hermes host marker: {marker}', failure)
+                marker.mkdir()
+                readable = run_checks()
+                self.assertTrue(readable.wasSuccessful(), readable.failures)
+
     def test_source_portability_never_skips_hermes_failures(self):
         host_paths = {
             Path("/home/ubuntu/.hermes/hermes-agent/cron/jobs.py"),
@@ -800,7 +861,6 @@ class SourcePortabilityTests(unittest.TestCase):
             (True, False, True, PermissionError),
             (True, True, True, PermissionError),
             (True, True, True, FileNotFoundError),
-            (True, True, False, FileNotFoundError),
         ):
             with self.subTest(on_hermes=on_hermes, required=required,
                               marker_exists=marker_exists, error=error.__name__):
@@ -827,7 +887,7 @@ class SourcePortabilityTests(unittest.TestCase):
 
                 env = {'HERMES_HOST_CHECK': '1' if required else '',
                        'GITHUB_ACTIONS': 'true',
-                       'RUNNER_ENVIRONMENT': '' if on_hermes else 'github-hosted'}
+                       'RUNNER_ENVIRONMENT': '' if on_hermes and not required else 'github-hosted'}
                 with mock.patch.dict(os.environ, env), \
                      mock.patch.object(Path, "is_dir", is_dir), \
                      mock.patch.object(Path, "stat", stat), mock.patch.object(Path, "read_text", read):
