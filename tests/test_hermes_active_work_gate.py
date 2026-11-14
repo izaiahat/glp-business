@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -61,6 +62,20 @@ def activity_from_capture(capture: str) -> dict[str, Any]:
         "state": state,
         "evidence": {"ready_marker": ready_pos >= 0, "active_marker": active_pos >= 0, "bad_markers": bad},
     }
+
+
+def maintained_source(relative: str, host: Path) -> str:
+    # Reduced checkouts omit these producers. Never skip their source contracts:
+    # use authentic, manifest-pinned excerpts when the host source is unavailable.
+    # Readable host sources still catch drift, rather than comparing two mirrors.
+    try:
+        return host.read_text(encoding="utf-8")
+    except (FileNotFoundError, PermissionError):
+        fixture = json.loads(Path(__file__).with_name("hermes_active_work_gate_sources.json").read_text())
+        record = fixture["sources"][relative]
+        text = record["text"]
+        assert hashlib.sha256(text.encode()).hexdigest() == record["excerpt_sha256"]
+        return text
 
 
 def setUpModule():
@@ -255,19 +270,18 @@ class ActiveWorkGateTests(unittest.TestCase):
         self.assertEqual(result["stale_proven"][0]["reason"], "claim_older_than_scheduler_ttl")
 
     def test_claim_ttl_mirror_matches_the_fork_scheduler_literals(self):
-        source = self.mod.FORK_CRON_JOBS_SOURCE
-        if not source.is_file():
-            self.skipTest("fork cron/jobs.py is not present on this host")
-        constants = source.with_name("constants.py")
+        native = Path.home() / ".hermes/hermes-agent/cron"
+        source = maintained_source("cron/jobs.py", native / "jobs.py")
+        constants = maintained_source("cron/constants.py", native / "constants.py")
         for name, value, maintained in (
             ("ONESHOT_RUN_CLAIM_TTL_SECONDS", int(self.mod.CRON_CLAIM_TTL_FALLBACK_SECONDS), source),
             ("CLAIM_TTL_INACTIVITY_HEADROOM", self.mod.CRON_CLAIM_TTL_HEADROOM, constants),
             ("_DEFAULT_CRON_INACTIVITY_TIMEOUT", self.mod.DEFAULT_CRON_INACTIVITY_TIMEOUT, source),
         ):
-            match = re.search(rf"^{re.escape(name)} = ([0-9.]+)$", maintained.read_text(encoding="utf-8"), re.MULTILINE)
-            self.assertIsNotNone(match, f"{name} not found in {maintained}")
+            match = re.search(rf"^{re.escape(name)} = ([0-9.]+)$", maintained, re.MULTILINE)
+            self.assertIsNotNone(match, f"{name} not found in maintained source")
             self.assertEqual(float(match.group(1)), float(value), name)
-        self.assertIn("timeout * CLAIM_TTL_INACTIVITY_HEADROOM", source.read_text(encoding="utf-8"))
+        self.assertIn("timeout * CLAIM_TTL_INACTIVITY_HEADROOM", source)
 
     def test_process_registry_blocks_without_emitting_command(self):
         write_proc_stat(self.proc, 777, 888)
@@ -740,20 +754,53 @@ class IdleLifecycleRegistrationTests(unittest.TestCase):
         self.assertEqual(activity_from_capture('SyntaxError:\n─ ready\n❯ pending')['state'], 'error')
 
     def test_portable_classifier_is_exact_maintained_pure_source(self):
-        producer = Path("/home/ubuntu/business/scripts/hermes_tui_continuity.py")
+        producer = SCRIPT.parent / "hermes_tui_continuity.py"
         if not producer.is_file():
-            self.skipTest("host continuity producer absent; portable pure fixture only")
+            producer = Path.home() / "business/scripts/hermes_tui_continuity.py"
+        source = maintained_source("hermes_tui_continuity.py", producer)
         names = {"activity_from_capture", "READY_MARKERS", "ACTIVE_MARKERS", "BAD_MARKERS"}
-        def selected(path):
+        def selected(text):
             nodes = []
-            for node in ast.parse(path.read_text()).body:
+            for node in ast.parse(text).body:
                 name = getattr(node, "name", None)
                 if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
                     name = node.targets[0].id
                 if name in names:
                     nodes.append(ast.dump(node, include_attributes=False))
             return nodes
-        self.assertEqual(selected(producer), selected(Path(__file__)))
+        self.assertEqual(selected(source), selected(Path(__file__).read_text()))
+
+
+class SourcePortabilityTests(unittest.TestCase):
+    def test_source_contracts_run_without_access_to_host_sources(self):
+        host_paths = {
+            Path.home() / ".hermes/hermes-agent/cron/jobs.py",
+            Path.home() / ".hermes/hermes-agent/cron/constants.py",
+            Path.home() / "business/scripts/hermes_tui_continuity.py",
+        }
+        original_stat, original_read = Path.stat, Path.read_text
+        for error in (FileNotFoundError, PermissionError):
+            with self.subTest(error=error.__name__):
+                def stat(path, *args, **kwargs):
+                    if path in host_paths:
+                        raise error(2 if error is FileNotFoundError else 13, "host source unavailable", str(path))
+                    return original_stat(path, *args, **kwargs)
+
+                def read(path, *args, **kwargs):
+                    if path in host_paths:
+                        raise error(2 if error is FileNotFoundError else 13, "host source unavailable", str(path))
+                    return original_read(path, *args, **kwargs)
+
+                suite = unittest.TestSuite([
+                    ActiveWorkGateTests("test_claim_ttl_mirror_matches_the_fork_scheduler_literals"),
+                    IdleLifecycleRegistrationTests("test_portable_classifier_is_exact_maintained_pure_source"),
+                ])
+                result = unittest.TestResult()
+                with mock.patch.object(Path, "stat", stat), mock.patch.object(Path, "read_text", read):
+                    suite.run(result)
+                self.assertEqual(result.testsRun, 2)
+                self.assertEqual(result.skipped, [])
+                self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
 
 
 class WaitForIdleTests(unittest.TestCase):

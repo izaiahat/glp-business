@@ -572,7 +572,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6cf5e341fef7b05fa67bb4c54cccfa0af3d6efa63da3e719ec2d3a475dd148c8"
+      "sha256": "41eff47915dbd8bc3d7e73bdd0201f82f767c23d9d793e1101e28c3c74be45d1"
     },
     ".hermes.md": {
       "callers": [],
@@ -6580,12 +6580,19 @@
       "kind": "test",
       "sha256": "f0007b5adfa37c8c273ee88af0cb836542878654617bfcd498653786525b1b0d"
     },
+    "tests/hermes_active_work_gate_sources.json": {
+      "callers": [
+        "tests/test_hermes_active_work_gate.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "a2cf1c7ecf590877b40ff96659937c0d7fb04f81b65bf6218b7d07858693f8db"
+    },
     "tests/test_hermes_active_work_gate.py": {
       "callers": [
         "python3 -m unittest discover -s tests -p test_hermes_active_work_gate.py"
       ],
       "kind": "test",
-      "sha256": "dcfa94d51d959997c0462dba24c80acd795cddd9d666f6e048793b5d52302a3d"
+      "sha256": "cdda4f96846cbd83b47956bccb8d266498d5465b3aea9f2e2d1cf2c8a45fe807"
     },
     "tests/test_host_custody.py": {
       "callers": [
@@ -8254,5 +8261,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1206
+  "tracked_count": 1207
 }

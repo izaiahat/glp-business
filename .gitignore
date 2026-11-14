@@ -25,6 +25,7 @@
 !/scripts/glp_surface_unification.py
 !/tests/
 /tests/*
+!/tests/hermes_active_work_gate_sources.json
 !/tests/test_glp_affiliate_postback_n8n_sync.py
 !/tests/test_glp93_review_projection.py
 !/tests/test_glp93_surface_inputs.py
