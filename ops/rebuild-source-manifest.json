@@ -3663,7 +3663,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "69332b30ccb2904e20d0bda71228aa5a738ee98cb1dbb60d5a22c9b44d718cd7"
+      "sha256": "a1fb90599ef56828d12b326a76a6fd2b8420bf773e64ebd2995f774840645e2d"
     },
     "scripts/check_hermes_host.py": {
       "callers": [
@@ -8299,19 +8299,19 @@
       "callers": [
         "host cron (parent installation only)"
       ],
-      "sha256": "6beed06d71104c927722ab47f47631a7c840457661287fd66b7e0fe76f91a96d"
+      "sha256": "ac36eb0f70ba7a63d9ed1766409bf2eef064d3f5ffe24f62f833c4d9f8351ecd"
     },
     "tests/test_disk_alarm.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/disk-alarm-source.yml"
       ],
-      "sha256": "5801ba0c523516c6c8bf6f7eed49fec59aea933b575c3e4b726621a20efccded"
+      "sha256": "aea75cf7fa0f386e11f396eeeffe7cda5c49865bc12111d8fa1c7cf51218511b"
     },
     "ops/disk-alarm.md": {
       "kind": "instruction_or_policy",
       "callers": [],
-      "sha256": "cda06040a4299f3c8d20e1121af5ed72172bc66f9c1c2f88f717be21e3f4add5"
+      "sha256": "f7f0b76d02d382983a5bd3dc4770eb41f7714a86fcc30a367bd03a9364cdd092"
     },
     ".github/workflows/disk-alarm-source.yml": {
       "kind": "repository_control",

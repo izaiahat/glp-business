@@ -101,6 +101,9 @@ def read_state(path):
             raise ValueError('invalid pending intent')
     state['pending'] = pending
     latest = state.get('latest')
+    if latest is None:
+        state['latest'] = None  # Legacy state: timer must supply the first observation.
+        return state
     if (not isinstance(latest, dict) or type(latest.get('at')) is not int
             or latest.get('level') not in (*LEVELS, 'healthy')):
         raise ValueError('invalid latest observation')
@@ -160,6 +163,11 @@ def tick(root, available, send=notify, log_path=None, measurement_error=None):
     state['latest'] = observation
     if current == 'healthy':
         state['sent'] = []  # Pending severities remain latched independently.
+        sidecar = root / 'monitoring-error.json'
+        if sidecar.exists():
+            error_state = read_state(sidecar)
+            error_state['sent'] = []  # Preserve uncertain intents and reconciliation evidence.
+            atomic_json(sidecar, error_state)
     message = None
     should_send = current != 'healthy' and current not in state['sent'] and current not in state['pending']
     if should_send:
@@ -189,13 +197,14 @@ def tick(root, available, send=notify, log_path=None, measurement_error=None):
 def admitted(root, available):
     state = read_state(root / 'state.json')
     latest = state['latest']
-    if latest['level'] == 'error' or not 0 <= time.time() - latest['at'] <= 30 * 60:
+    if latest is None or latest['level'] == 'error' or not 0 <= time.time() - latest['at'] <= 30 * 60:
         raise RuntimeError('alarm unhealthy or stale; backup admission refused')
     if type(available) is not int or available < 0:
         raise RuntimeError('invalid backup measurement')
     # Recovery is timer-owned: a fresh backup measurement cannot erase a hold.
     if level(available) == 'critical':
         backup_pause(root, 'critical', {'at': int(time.time()), 'available_bytes': available})
+        return False  # Refuse independently of whether the pause marker persisted.
     return not (os.path.lexists(root / 'backup-paused')
                 or os.path.lexists(root / 'operator-backup-paused'))
 
@@ -204,7 +213,8 @@ def backup(root, available, launch):
     """Called under the alarm lock. Start only; caller waits outside that lock."""
     if not admitted(root, available):
         return None
-    return launch(['/bin/bash', str(BUSINESS / 'scripts/hermes-state-backup.sh')])
+    return launch(['/bin/bash', str(BUSINESS / 'scripts/hermes-state-backup.sh')],
+                  env={**os.environ, 'DISK_ALARM_BACKUP_ADMITTED': '1'})
 
 
 def reconcile(root, filename, severity, intent_id, outcome, evidence, message_id=None):
@@ -265,7 +275,7 @@ def main():
                 return int('delivery_pending' in result or result['level'] == 'error')
     except BlockingIOError:
         print('SKIP disk alarm lock busy')
-        return 3 if args.action == 'admit-backup' else 0
+        return 3 if args.action in ('backup', 'admit-backup') else 0
     except (OSError, RuntimeError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
         # Journald/stderr is the fallback when disk/permissions prevent our own log.
         failure = {'at': int(time.time()), 'level': 'error', 'monitoring_error': type(exc).__name__}
@@ -279,7 +289,7 @@ def main():
         return 1
     if child is None:
         print('SKIP backup schedule paused by disk alarm')
-        return 0
+        return 3
     return child.wait()  # no deadline or signal: never stop an active backup
 
 

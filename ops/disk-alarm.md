@@ -31,10 +31,12 @@ Installation is not backup-resume authority.
 
 Admission takes the alarm singleton lock, validates the state and its latest
 observation (no more than 30 minutes old, no monitoring error), checks fresh df,
-and refuses below 40 GiB or on either pause marker. Busy/paused admission skips
-without starting a backup; measurement/state errors return nonzero. The optional
+and refuses below 40 GiB or on either pause marker. Busy/paused admission returns
+3 without starting a backup; measurement/state errors also return nonzero. The optional
 `disk_alarm.py backup` wrapper remains supported. The lock covers admission/start,
 not the duration of a backup; existing backup locks/guards remain unchanged.
+The wrapper admits once and passes `DISK_ALARM_BACKUP_ADMITTED=1` only to its
+child. That script consumes/unsets the flag instead of re-entering the held lock.
 No signal or timeout is added to an active backup. A later pause affects the next
 admission, not in-flight work.
 
@@ -49,10 +51,15 @@ Corrupt primary state is not overwritten. Preserve its uncertain deliveries;
 log/alert the error using a separate `monitoring-error.json` intent and keep
 backup admission closed. The operator must reconcile/repair the exact primary
 state; a subsequent healthy tick can lift the alarm hold. Do not delete or reset
-state just to unblock admission. Failed filesystem writes prevent sending;
+state just to unblock admission. Legacy state without `latest` is read as having
+no observation yet; admission refuses until a tick records a valid observation.
+Healthy ticks clear the sidecar's confirmed sent levels but preserve pending
+intents and reconciliation evidence, so a later corruption alerts again.
+Failed filesystem writes prevent sending;
 stderr/journald records the failure when the normal log is unavailable, with a
 best-effort pause. No software can promise a durable marker/log on an unwritable
-filesystem; admission still refuses its own failed writes and invalid/stale state.
+filesystem; admission always re-measures and refuses below 40 GiB or if df fails,
+even when cached state is healthy and neither state nor pause writes succeeded.
 
 ## Delivery and exact-effect reconciliation
 

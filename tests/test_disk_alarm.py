@@ -21,6 +21,114 @@ def load():
 
 
 class DiskAlarmTests(unittest.TestCase):
+    def test_legacy_state_migrates_and_lifts_alarm_pause(self):
+        alarm = load()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'state.json').write_text('{"sent":[],"pending":null}')
+            with self.assertRaises(RuntimeError):
+                alarm.admitted(root, 70 * 2**30)  # Legacy state alone is not admission.
+            alarm.atomic_json(root / 'backup-paused', {'owner': 'disk-alarm'})
+            notify = Mock(return_value={'message_id': 'unexpected'})
+            result = alarm.tick(root, 70 * 2**30, notify)
+            self.assertEqual(result['level'], 'healthy')
+            self.assertEqual(result['backup_recovery'], 'alarm hold lifted')
+            state = alarm.read_state(root / 'state.json')
+            self.assertEqual(state['pending'], {})
+            self.assertEqual(state['latest']['available_bytes'], 70 * 2**30)
+            self.assertFalse((root / 'backup-paused').exists())
+            self.assertTrue(alarm.admitted(root, 70 * 2**30))
+            notify.assert_not_called()
+
+    def test_corruption_alert_rearms_after_healthy_repair(self):
+        alarm = load()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            notify = Mock(return_value={'message_id': 'error-alert'})
+            for episode in range(2):
+                (root / 'state.json').write_text('{')
+                self.assertEqual(alarm.tick(root, 70 * 2**30, notify)['level'], 'error')
+                self.assertEqual(notify.call_count, episode + 1)
+                (root / 'state.json').unlink()  # explicit scratch fixture repair
+                alarm.tick(root, 70 * 2**30, notify)
+            self.assertEqual(alarm.read_state(root / 'monitoring-error.json')['sent'], [])
+            notify.side_effect = TimeoutError('uncertain third alert')
+            (root / 'state.json').write_text('{')
+            alarm.tick(root, 70 * 2**30, notify)
+            pending = alarm.read_state(root / 'monitoring-error.json')['pending']
+            (root / 'state.json').unlink()
+            alarm.tick(root, 70 * 2**30, notify)
+            self.assertEqual(alarm.read_state(root / 'monitoring-error.json')['pending'], pending)
+            (root / 'state.json').write_text('{')
+            alarm.tick(root, 70 * 2**30, notify)
+            self.assertEqual(notify.call_count, 3)  # Recovery never replays uncertain delivery.
+
+    def test_wrapper_child_runs_while_parent_admission_lock_is_held(self):
+        alarm = load()
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            scripts = base / 'scripts'
+            scripts.mkdir()
+            script = scripts / 'hermes-state-backup.sh'
+            script.write_bytes((SOURCE.parent / script.name).read_bytes())
+            source = SOURCE.read_text().replace("BUSINESS = Path('/home/ubuntu/business')", f'BUSINESS = Path({str(base)!r})')
+            source = source.replace("if __name__ == '__main__':", "def free_bytes(): return 70 * 2**30\n\nif __name__ == '__main__':")
+            (scripts / SOURCE.name).write_text(source)
+            home, output = base / 'home', base / 'backups'
+            home.mkdir()
+            (home / 'SOUL.md').write_text('synthetic fixture')
+            root = base / 'ops/runtime/disk-alarm'
+            root.mkdir(parents=True)
+            alarm.tick(root, 70 * 2**30, Mock())
+            # Wait inside launch: force the child to reach its gate before parent unlock.
+            def launch(*args, **kwargs):
+                child = subprocess.Popen(*args, **kwargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                stdout, stderr = child.communicate(timeout=20)
+                self.assertEqual(child.returncode, 0, stdout + stderr)
+                self.assertIn('hermes-state-backup done', stdout)
+                return child
+            with patch.object(alarm, 'BUSINESS', base), patch.dict(os.environ, {
+                    'HERMES_HOME': str(home), 'HERMES_BACKUP_ROOT': str(output)}):
+                with alarm.lock(root):
+                    child = alarm.backup(root, 70 * 2**30, launch)
+                    self.assertEqual(child.wait(), 0)
+                    # An unadmitted direct child must refuse contention, not report success.
+                    refused = subprocess.run(['/bin/bash', str(script)], capture_output=True, text=True, timeout=20)
+                    self.assertNotEqual(refused.returncode, 0, refused.stdout)
+            self.assertEqual(len(list(output.glob('hermes-state-????????.tar.gz'))), 1)
+            with patch.object(alarm, 'STATE', root), patch('sys.argv', ['disk_alarm.py', 'backup']), \
+                 contextlib.redirect_stdout(io.StringIO()), alarm.lock(root):
+                self.assertEqual(alarm.main(), 3)
+            (root / 'operator-backup-paused').touch()
+            with patch.object(alarm, 'STATE', root), patch.object(alarm, 'free_bytes', return_value=70 * 2**30), \
+                 patch('sys.argv', ['disk_alarm.py', 'backup']), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(alarm.main(), 3)
+
+    def test_admission_remeasures_after_state_and_pause_write_failure(self):
+        alarm = load()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            alarm.tick(root, 70 * 2**30, Mock())
+            healthy = (root / 'state.json').read_bytes()
+            with patch.object(alarm, 'STATE', root), patch.object(alarm, 'LOG', root / 'log'), \
+                 patch.object(alarm, 'free_bytes', return_value=30 * 2**30), \
+                 patch.object(alarm, 'atomic_json', side_effect=OSError('state and pause unwritable')), \
+                 patch('sys.argv', ['disk_alarm.py', 'tick']), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(alarm.main(), 1)
+            self.assertEqual((root / 'state.json').read_bytes(), healthy)
+            self.assertFalse((root / 'backup-paused').exists())
+            # Even a pause writer that cannot persist a marker must never admit low space.
+            with patch.object(alarm, 'backup_pause'):
+                self.assertFalse(alarm.admitted(root, 30 * 2**30))
+            for measurement in (30 * 2**30, OSError('df unavailable')):
+                with self.subTest(measurement=measurement), patch.object(alarm, 'STATE', root), \
+                     patch.object(alarm, 'free_bytes', **({'side_effect': measurement} if isinstance(measurement, Exception) else {'return_value': measurement})), \
+                     patch.object(alarm, 'atomic_json', side_effect=OSError('still unwritable')), \
+                     patch.object(alarm.subprocess, 'Popen') as launch, \
+                     patch('sys.argv', ['disk_alarm.py', 'backup']), contextlib.redirect_stderr(io.StringIO()):
+                    self.assertNotEqual(alarm.main(), 0)
+                    launch.assert_not_called()
+
     def test_exact_thresholds(self):
         alarm = load()
         for available, expected in [(60 * 2**30, 'healthy'), (60 * 2**30 - 1, 'warning'),
@@ -96,7 +204,8 @@ class DiskAlarmTests(unittest.TestCase):
                 alarm.backup(root, 70 * 2**30, launch)
             alarm.tick(root, 70 * 2**30, Mock())
             alarm.backup(root, 40 * 2**30, launch)
-            launch.assert_called_once_with(['/bin/bash', str(alarm.BUSINESS / 'scripts/hermes-state-backup.sh')])
+            launch.assert_called_once_with(['/bin/bash', str(alarm.BUSINESS / 'scripts/hermes-state-backup.sh')],
+                                           env={**os.environ, 'DISK_ALARM_BACKUP_ADMITTED': '1'})
             launch.reset_mock()
             alarm.backup(root, 40 * 2**30 - 1, launch)
             alarm.backup(root, 70 * 2**30, launch)
@@ -157,7 +266,7 @@ class DiskAlarmTests(unittest.TestCase):
             root = Path(directory)
             notify = Mock(return_value={'message_id': 'error-alert'})
             launch = Mock()
-            for broken in ('{', '[]', '{}', '{"sent": [], "pending": {}}'):
+            for broken in ('{', '[]', '{}', '{"sent": [], "pending": {}, "latest": []}'):
                 (root / 'state.json').write_text(broken)
                 with self.assertRaises((ValueError, KeyError)):
                     alarm.backup(root, 50 * 2**30, launch)
@@ -200,7 +309,7 @@ class DiskAlarmTests(unittest.TestCase):
             notify = Mock(return_value={'message_id': 'fixture'})
             alarm.tick(root, 30 * 2**30, notify)
             paused = run()  # legacy cron entry, no disk_alarm.py wrapper
-            self.assertEqual(paused.returncode, 0, paused.stderr)
+            self.assertEqual(paused.returncode, 3, paused.stderr)
             self.assertIn('SKIP backup schedule paused', paused.stdout)
             self.assertFalse(output.exists())
             alarm.tick(root, 70 * 2**30, notify)
