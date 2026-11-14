@@ -1,0 +1,32 @@
+{
+  "cron_jobs.py": {
+    "source_path": "/home/ubuntu/.hermes/hermes-agent/cron/jobs.py",
+    "source_sha256": "c13df26739566522997333b4936bb0f26c8fcfbf561e1790d0aad45efe3016cc",
+    "excerpt_sha256": "19b4147eb4627bb69500958a450eefa73a2857dd86306c449ac78c7bd1570c67",
+    "names": [
+      "ONESHOT_RUN_CLAIM_TTL_SECONDS",
+      "_DEFAULT_CRON_INACTIVITY_TIMEOUT",
+      "_oneshot_run_claim_ttl_seconds"
+    ]
+  },
+  "cron_constants.py": {
+    "source_path": "/home/ubuntu/.hermes/hermes-agent/cron/constants.py",
+    "source_sha256": "50add58fba846c8d39d9061117541f49fd9f5b1d2bc6c4f49b76773862f8db72",
+    "excerpt_sha256": "4baf71f2f6b4544b34fa9496ebfcf4bdd44d57cd76a0fff4731728ffbb0746a6",
+    "names": [
+      "CLAIM_TTL_INACTIVITY_HEADROOM"
+    ]
+  },
+  "hermes_tui_continuity.py": {
+    "source_path": "/home/ubuntu/business/scripts/hermes_tui_continuity.py",
+    "source_sha256": "51fa11caef9aaf5cca3fdb3a4c9a3f35e10d31aa511cf88c91740d466237d697",
+    "excerpt_sha256": "22c746ab57949b83269ae2070e0bd9c27b8887450d01700e9e6bbc7177b66540",
+    "names": [
+      "ACTIVE_MARKERS",
+      "BAD_MARKERS",
+      "READY_MARKERS",
+      "activity_from_capture"
+    ]
+  },
+  "fork_head": "d11f5f5951766f89a93a1f930e53db1b0b42535a"
+}

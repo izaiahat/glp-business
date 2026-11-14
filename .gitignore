@@ -14,6 +14,7 @@
 /reports/*
 !/scripts/
 /scripts/*
+!/scripts/safe_regenerable_pruner.py
 !/scripts/article_source_carrier.py
 !/scripts/article_review_physical_lines.py
 !/scripts/review_source_lines.py
@@ -581,6 +582,11 @@
 # Hermes active-work gate: exact maintained predecessor and owning tests
 !/scripts/hermes_active_work_gate.py
 !/tests/test_hermes_active_work_gate.py
+!/tests/fixtures/active-work-source/
+!/tests/fixtures/active-work-source/SOURCE.json
+!/tests/fixtures/active-work-source/cron_jobs.py
+!/tests/fixtures/active-work-source/cron_constants.py
+!/tests/fixtures/active-work-source/hermes_tui_continuity.py
 
 # GLP75 maintained weekly source/recovery repair (no runtime artifacts)
 !/ops/glp/seo_weekly_continuation.py
