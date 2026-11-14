@@ -1,0 +1,8 @@
+[Unit]
+Description=Kael root disk-space alarm (backup pause only)
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/business
+ExecStart=/usr/bin/python3 -B /home/ubuntu/business/scripts/disk_alarm.py tick

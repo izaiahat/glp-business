@@ -4,10 +4,19 @@
 # rsync links ONLY verified prior backups, never live files or live SQLite.
 set -Eeuo pipefail
 umask 077
+# Gate the registered script itself, including legacy cron/manual invocations.
+# Admission runs before any backup directory, lock, snapshot or retention effect.
+if python3 -B "$(dirname -- "$0")/disk_alarm.py" admit-backup; then
+  :
+else
+  exit "$?"  # A skipped backup is not a completed backup.
+fi
+unset DISK_ALARM_BACKUP_ADMITTED DISK_ALARM_BACKUP_TOKEN
 exec nice -n 19 ionice -c 3 python3 - "${HERMES_HOME:-$HOME/.hermes}" \
   "${HERMES_BACKUP_ROOT:-/home/ubuntu/business/backups/hermes-state}" "$0" <<'PY'
 import datetime as dt
 from contextlib import closing
+import ctypes
 import fcntl
 import hashlib
 import json
@@ -15,6 +24,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import sqlite3
 import stat
 import subprocess
@@ -46,10 +56,33 @@ def no_alias(path):
 
 for p in (home, root):
     no_alias(p)
+home, root = home.resolve(), root.resolve()
 if home == root or home in root.parents or root in home.parents:
     raise ValueError('source and destination must be disjoint')
 if not home.is_dir():
     raise ValueError('Hermes source missing')
+
+
+def free_bytes():
+    existing = root
+    while not existing.exists():
+        existing = existing.parent
+    v = os.statvfs(existing)
+    return v.f_bavail * v.f_frsize
+
+
+def headroom(needed=0):
+    if free_bytes() < MIN_FREE_BYTES + RESERVE_BYTES + needed:
+        raise TimeoutError('insufficient headroom; 50GiB floor plus staging/reserve required')
+
+
+# Even root/lock metadata must be admitted before the first filesystem write.
+missing_parents = sum(not p.exists() for p in (root, *root.parents))
+try:
+    headroom((missing_parents + 1) * 4096)
+except TimeoutError as exc:
+    log('SKIP '+str(exc))
+    sys.exit(75)
 root.mkdir(parents=True, exist_ok=True, mode=0o700)
 root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
 if os.fstat(root_fd).st_uid != os.getuid():
@@ -67,14 +100,13 @@ except BlockingIOError:
     sys.exit(75)
 
 
-def free_bytes():
-    v = os.statvfs(root)
-    return v.f_bavail * v.f_frsize
-
-
-def headroom(needed=0):
-    if free_bytes() < MIN_FREE_BYTES + RESERVE_BYTES + needed:
-        raise TimeoutError('insufficient headroom; 50GiB floor plus staging/reserve required')
+# Alarm stop authority is this live kernel flock plus PID/start identity, not a
+# stale PID file. No credentials/source contents enter the private lock record.
+owner = {'schema': 1, 'pid': os.getpid(),
+         'start_ticks': int(Path('/proc/self/stat').read_text().rsplit(')', 1)[1].split()[19])}
+os.ftruncate(lock_fd, 0)
+os.write(lock_fd, json.dumps(owner).encode())
+os.fsync(lock_fd)
 
 
 def digest(path):
@@ -87,6 +119,7 @@ def digest(path):
 
 
 def private_write(path, data=b''):
+    headroom(len(data) + 4096)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'wb') as f:
         os.fchmod(f.fileno(), 0o600)
@@ -99,6 +132,7 @@ def private_write(path, data=b''):
 def inventory(base, selected):
     files, dirs, missing = {}, set(), []
     def visit(rel):
+        headroom()
         path = base / rel
         no_alias(path)
         s = path.lstat()
@@ -164,12 +198,26 @@ def validate_snapshot(path):
     return m
 
 
+def copy_child_guard():
+    # Linux clears PDEATHSIG on fork, so set it in the immediate rsync child,
+    # before exec. Check the fork-to-prctl race against the captured guard PID.
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(1, signal.SIGKILL, 0, 0, 0) != 0:  # PR_SET_PDEATHSIG
+        os._exit(126)
+    if os.getppid() != guard_pid:
+        os._exit(126)
+
+
+guard_pid = os.getpid()
+
+
 def copy_ordinary(home, data, files, dirs, previous):
     parents = set(dirs)
     for rel in files:
         parents.update(str(p) for p in Path(rel).parents if str(p) != '.')
     for rel in sorted(parents, key=lambda r: len(Path(r).parts)):
         p = data / rel
+        headroom(4096)
         p.mkdir(mode=0o700, exist_ok=True)
         p.chmod(0o700)
     # Explicit list, no recursion/discovery, symlinks/devices/specials disabled.
@@ -181,10 +229,16 @@ def copy_ordinary(home, data, files, dirs, previous):
         argv += ['--link-dest='+str(previous / 'data')]
     argv += [str(home)+'/', str(data)+'/']
     # A private file avoids a pipe deadlock with a large selected-name inventory.
-    with tempfile.TemporaryFile() as listing:
-        listing.write(b''.join(os.fsencode(r)+b'\0' for r in files))
+    headroom(4096 + sum(len(os.fsencode(r)) + 1 for r in files))
+    with tempfile.TemporaryFile(dir=root) as listing:
+        for rel in files:
+            name = os.fsencode(rel) + b'\0'
+            headroom(len(name) + 4096)
+            listing.write(name)
+        listing.flush()
         listing.seek(0)
-        proc = subprocess.Popen(argv, stdin=listing, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc = subprocess.Popen(argv, stdin=listing, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                preexec_fn=copy_child_guard, start_new_session=True)
         try:
             deadline = time.monotonic() + 900 + sum(r['bytes'] for r in files.values()) / (10 * 1024**2)
             while proc.poll() is None:
@@ -197,11 +251,24 @@ def copy_ordinary(home, data, files, dirs, previous):
             headroom()
         finally:
             if proc.poll() is None:
-                proc.terminate()  # only this invocation's private copy child
-            proc.wait()
+                os.killpg(proc.pid, signal.SIGTERM)  # only this invocation's private copy tree
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(proc.pid, signal.SIGKILL)
+                proc.wait()
 
 
 def run():
+    # The sole writer is locked and its prior copy tree dies with its guard.
+    # Reclaim only this producer's private abandoned staging namespaces.
+    for stale in sorted(root.glob('.snapshot-*')):
+        no_alias(stale)
+        if not stale.is_dir() or stale.stat().st_uid != os.getuid():
+            raise ValueError('unsafe stale staging directory')
+        shutil.rmtree(stale)
+        os.fsync(root_fd)
+        log('reclaimed stale staging='+stale.name)
     headroom()  # before inventory, SQLite reads or any staging allocation
     previous_set = sorted(p for p in root.iterdir() if SNAPSHOT_NAME.fullmatch(p.name)
                           and (p / 'COMPLETE').exists())
@@ -235,7 +302,9 @@ def run():
     # ordinary files that cannot link, plus one GiB of live growth/sampled margin.
     new_bytes = sum(r['bytes'] for rel, r in files.items()
                     if not prior or prior['ordinary']['files'].get(rel) != r)
-    headroom(new_bytes + sum(estimates.values()))
+    metadata_bytes = (len(dirs) + 2 * len(files) + 2 * len(estimates) + 6) * 4096
+    listing_bytes = sum(len(os.fsencode(r)) + 1 for r in files)
+    headroom(new_bytes + sum(estimates.values()) + metadata_bytes + listing_bytes)
     now = dt.datetime.now(dt.timezone.utc)
     manifest = {'schema': 2, 'status': 'COMPLETE', 'at': now.isoformat(),
         'producer_sha256': hashlib.sha256(producer.read_bytes()).hexdigest(),
@@ -252,6 +321,7 @@ def run():
         stage = Path(stage_name)
         stage.chmod(0o700)
         data = stage / 'data'
+        headroom(4096)
         data.mkdir(mode=0o700)
         data.chmod(0o700)
         copy_ordinary(home, data, files, dirs, previous)
@@ -272,6 +342,7 @@ def run():
                 continue
             no_alias(source)
             snapshot = data / rel
+            headroom(4096)
             snapshot.parent.mkdir(mode=0o700, exist_ok=True)
             private_write(snapshot)
             if rel == 'cron/cron.db' and source.stat().st_size == 0:
@@ -378,9 +449,17 @@ def run():
     log('COMPLETE snapshot='+out.name+' ordinary_count='+str(len(files))
         +' ordinary_bytes='+str(manifest['ordinary']['bytes'])+' new_ordinary_bytes='+str(new_bytes))
     # Only this format's COMPLETE snapshots, only after durable publication.
-    # Legacy tar/zstd backups and incomplete/unknown directories are NEVER pruned.
+    # Legacy tar/zstd backups and unknown directories are NEVER pruned.
     for old in (previous_set + [out])[:-KEEP]:
-        validate_snapshot(old)
+        no_alias(old)
+        if not old.is_dir() or old.stat().st_uid != os.getuid():
+            raise ValueError('unsafe retirement directory')
+        try:
+            validate_snapshot(old)
+        except TimeoutError:
+            raise  # Pressure is not corruption.
+        except (ValueError, KeyError, TypeError, OSError):
+            log('retiring corrupt COMPLETE snapshot='+old.name)
         shutil.rmtree(old)
         os.fsync(root_fd)
         log('pruned COMPLETE snapshot='+old.name)

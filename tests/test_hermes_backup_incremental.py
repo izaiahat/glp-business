@@ -13,23 +13,193 @@ PRODUCER = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh
 GIB = 1024**3
 
 
-def run_backup(tmp_path, home, injection=''):
-    # Model space independently of hosted runner capacity, not a production knob.
+def backup_command(tmp_path, home, injection='', backup_root=None):
+    # Exercise real admission, but only against healthy scratch state/df.
+    import runpy
+    scripts = tmp_path / 'producer/scripts'
+    scripts.mkdir(parents=True, exist_ok=True)
+    producer = scripts / PRODUCER.name
+    producer.write_bytes(PRODUCER.read_bytes())
+    module = scripts / 'disk_alarm.py'
+    module.write_text((PRODUCER.parent / module.name).read_text().replace(
+        "BUSINESS = Path('/home/ubuntu/business')", f'BUSINESS = Path({str(scripts.parent)!r})').replace(
+        "if __name__ == '__main__':", "def free_bytes(): return 70 * 2**30\n\nif __name__ == '__main__':"))
+    alarm = runpy.run_path(str(module))
+    with alarm['lock'](alarm['STATE']):
+        alarm['tick'](alarm['STATE'], 70 * 2**30)
+    # Model backup space independently of hosted runner capacity, not a production knob.
     hook = tmp_path / 'hook'
     hook.mkdir(exist_ok=True)
     (hook / 'sitecustomize.py').write_text(
         'import os\nfrom types import SimpleNamespace\n'
         'os.statvfs = lambda p: SimpleNamespace(f_bavail=100*1024**3, f_frsize=1)\n'
         + injection)
-    return subprocess.run(['bash', str(PRODUCER)], capture_output=True, text=True,
-        timeout=90, env={**os.environ, 'HERMES_HOME': str(home),
-        'HERMES_BACKUP_ROOT': str(tmp_path / 'backups'), 'TMPDIR': str(tmp_path),
-        'PYTHONPATH': str(hook), 'PYTHONDONTWRITEBYTECODE': '1'})
+    return ['bash', str(producer)], {**os.environ, 'HERMES_HOME': str(home),
+        'HERMES_BACKUP_ROOT': str(backup_root or tmp_path / 'backups'), 'TMPDIR': str(tmp_path),
+        'PYTHONPATH': str(hook), 'PYTHONDONTWRITEBYTECODE': '1'}
+
+
+def run_backup(tmp_path, home, injection='', backup_root=None):
+    argv, env = backup_command(tmp_path, home, injection, backup_root)
+    return subprocess.run(argv, env=env, capture_output=True, text=True, timeout=90)
 
 
 def complete(tmp_path):
     return sorted(p for p in (tmp_path / 'backups').glob('snapshot-*')
                   if (p / 'COMPLETE').is_file())
+
+
+@pytest.mark.parametrize('stop', ['SIGKILL', 'critical-alarm'])
+def test_wrapper_death_and_critical_alarm_stop_real_rsync_tree(tmp_path, stop):
+    import signal
+    import time
+    import importlib.util
+    home = tmp_path / 'home'
+    home.mkdir()
+    (home / 'config.yaml').write_bytes(b'x' * 4_000_000)
+    root = tmp_path / 'backups/hermes-state'
+    argv, env = backup_command(tmp_path, home,
+        'import subprocess, pathlib\n'
+        '_popen = subprocess.Popen\n'
+        'def popen(argv, **kw):\n'
+        '    argv = ["--bwlimit=128" if a.startswith("--bwlimit=") else a for a in argv]\n'
+        '    p = _popen(argv, **kw)\n'
+        '    pathlib.Path(os.environ["TMPDIR"], "rsync-pid").write_text(str(p.pid))\n'
+        '    return p\n'
+        'subprocess.Popen = popen\n', root)
+    wrapper = subprocess.Popen(argv, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    child = None
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            marker = tmp_path / 'rsync-pid'
+            if marker.exists():
+                child = int(marker.read_text())
+                partials = list(root.glob('.snapshot-*/data/.*'))
+                if any(p.is_file() and p.stat().st_size for p in partials):
+                    break
+            assert wrapper.poll() is None, wrapper.communicate()
+            time.sleep(0.02)
+        else:
+            pytest.fail('real rsync did not reach mid-copy')
+        # Capture all current local-transfer workers, not only rsync's leader.
+        def descendants(pid):
+            children = Path(f'/proc/{pid}/task/{pid}/children')
+            ids = list(map(int, children.read_text().split())) if children.exists() else []
+            return [pid] + [p for c in ids for p in descendants(c)]
+        workers = descendants(child)
+        assert len(workers) >= 2, 'exercise the local rsync process tree'
+        if stop == 'SIGKILL':
+            wrapper.kill()
+        else:
+            spec = importlib.util.spec_from_file_location('alarm', PRODUCER.parent / 'disk_alarm.py')
+            alarm = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(alarm)
+            alarm.BUSINESS = tmp_path
+            state = tmp_path / 'alarm-state'
+            state.mkdir()
+            result = alarm.tick(state, 39 * GIB, lambda *a: {'message_id': 'scratch-only'})
+            assert result['backup_stop'] == 'stopped'
+            assert (state / 'backup-paused').exists()
+        out, err = wrapper.communicate(timeout=10)
+        assert wrapper.returncode != 0, out + err
+        def running(pid):
+            stat_path = Path(f'/proc/{pid}/stat')
+            try:
+                return stat_path.read_text().rsplit(')', 1)[1].split()[0] != 'Z'
+            except FileNotFoundError:
+                return False
+        deadline = time.monotonic() + 5
+        while any(running(p) for p in workers) and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert not any(running(p) for p in workers), 'orphan rsync workers survived guard death'
+    finally:
+        if wrapper.poll() is None:
+            wrapper.kill()
+        wrapper.communicate(timeout=10)
+        if child:
+            # Only this test's separately-created copy group; never a host job.
+            try:
+                os.killpg(child, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            # Pre-fix rsync did not own a group: also reap its captured workers.
+            for pid in locals().get('workers', [child]):
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+
+def test_headroom_precedes_metadata_and_listing_stays_on_backup_filesystem(tmp_path):
+    home = tmp_path / 'home'
+    (home / 'memories').mkdir(parents=True)
+    for n in range(12):
+        (home / f'memories/empty-{n}').mkdir()
+    refused = run_backup(tmp_path, home,
+        'os.statvfs = lambda p: SimpleNamespace(f_bavail=49*1024**3, f_frsize=1)\n')
+    assert refused.returncode == 75
+    assert not (tmp_path / 'backups').exists(), 'low-space preflight must precede root/lock writes'
+    # Account directory blocks with a virtual nearly-full filesystem: a tiny
+    # fixture exercises the same incremental allocation as a million empty dirs.
+    probe = (
+        'import tempfile\n'
+        '_mkdir, _temporary = os.mkdir, tempfile.TemporaryFile\n'
+        '_available = 51*1024**3 + 4*4096\n'
+        'def vfs(p): return SimpleNamespace(f_bavail=_available, f_frsize=1)\n'
+        'os.statvfs = vfs\n'
+        'def mkdir(p, *a, **k):\n'
+        '    global _available\n'
+        '    assert _available >= 51*1024**3 + 4096, "metadata crossed reserve"\n'
+        '    result = _mkdir(p, *a, **k)\n'
+        '    _available -= 4096\n'
+        '    return result\n'
+        'os.mkdir = mkdir\n'
+        'def temporary(*a, **k):\n'
+        '    assert os.path.realpath(k.get("dir", "")) == os.path.realpath(os.environ["HERMES_BACKUP_ROOT"]), "listing escaped backup filesystem"\n'
+        '    return _temporary(*a, **k)\n'
+        'tempfile.TemporaryFile = temporary\n')
+    refused = run_backup(tmp_path, home, probe)
+    assert refused.returncode == 75, refused.stdout + refused.stderr
+    # With ample space, execute the actual temporary-list check as well.
+    (home / 'config.yaml').write_text('fixture')
+    succeeded = run_backup(tmp_path, home, probe[probe.index('def temporary'):].replace(
+        'def temporary', 'import tempfile\n_temporary = tempfile.TemporaryFile\ndef temporary', 1))
+    assert succeeded.returncode == 0, succeeded.stdout + succeeded.stderr
+
+
+def test_reclaims_abandoned_stage_and_retires_corrupt_oldest_complete(tmp_path):
+    home = tmp_path / 'home'
+    home.mkdir()
+    (home / 'config.yaml').write_text('fixture')
+    for _ in range(3):
+        assert run_backup(tmp_path, home).returncode == 0
+    oldest = complete(tmp_path)[0]
+    (oldest / 'COMPLETE').write_text('corrupt seal')
+    stale = tmp_path / 'backups/.snapshot-deadbeef'
+    stale.mkdir()
+    (stale / 'leftover').write_text('abandoned by killed writer')
+    run = run_backup(tmp_path, home)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert not stale.exists()
+    assert not oldest.exists()
+    assert len(complete(tmp_path)) == 3
+    assert 'reclaimed stale staging=' in run.stdout
+    assert 'retiring corrupt COMPLETE snapshot=' in run.stdout
+
+
+def test_dotdot_destination_inside_source_is_rejected_before_writes(tmp_path):
+    # Exact reported shape, entirely inside scratch; no live .hermes is read.
+    user = tmp_path / 'user'
+    home = user / '.hermes'
+    (home / 'memories').mkdir(parents=True)
+    (user / 'business').mkdir()
+    (home / 'config.yaml').write_text('fixture')
+    destination = user / 'business/../.hermes/memories/backups'
+    run = run_backup(tmp_path, home, backup_root=destination)
+    assert run.returncode != 0
+    assert 'source and destination must be disjoint' in run.stderr
+    assert not (home / 'memories/backups').exists()
 
 
 def test_real_second_incremental_run_links_only_backup_inodes(tmp_path):

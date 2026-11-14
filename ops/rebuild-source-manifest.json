@@ -607,7 +607,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "41eff47915dbd8bc3d7e73bdd0201f82f767c23d9d793e1101e28c3c74be45d1"
+      "sha256": "183a4fc04b149e941be10028b9d070b85368d60bf759f180c9925c34e94619bf"
     },
     ".hermes.md": {
       "callers": [],
@@ -3663,7 +3663,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "cf4f1ab62a596548c6592303e84d9c9a6f593d95e4e29243cad88804c869e7a1"
+      "sha256": "d62a2c03580042c4ed5db8f97a5b32ae9ae3090e9f332d9a246f161fee3b0497"
     },
     "scripts/check_hermes_host.py": {
       "callers": [
@@ -5417,7 +5417,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "82a1bcbc0a807bc2103c93738ee36659fedd9760391ab54eb5d7bfd5d005413d"
+      "sha256": "8c576f8d91d740ff743b3c5c1e4a7ce78eaa44997c97ebc234746df6ede04ce2"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
@@ -8299,7 +8299,43 @@
         "tests/test_glp110_archive_admission.py"
       ],
       "kind": "test",
-      "sha256": "d1c265fcc7b1bd2767a5a14c9dd9fa6b860ae524b734f70f1fd8480bea0ef2e4"
+      "sha256": "6d2e8377fb0523e7274228a1dccfc2da4e94a77824fcdeae9923edd17364aca4"
+    },
+    "scripts/disk_alarm.py": {
+      "kind": "script",
+      "callers": [
+        "host cron (parent installation only)"
+      ],
+      "sha256": "b75ca0d225db4a76e5bafc7ca3a6d917f51e49aa052afb167a751facc9ecdc75"
+    },
+    "tests/test_disk_alarm.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/disk-alarm-source.yml"
+      ],
+      "sha256": "4dbffb7c502ff611090515d6dea79e1db7176460a5fd02d52272d6c88f0074c6"
+    },
+    "ops/disk-alarm.md": {
+      "kind": "instruction_or_policy",
+      "callers": [],
+      "sha256": "7cfa646cc2e1c53c2dd4752fab4332434eebd886498a992250edaf6d6f4b1d95"
+    },
+    ".github/workflows/disk-alarm-source.yml": {
+      "kind": "repository_control",
+      "callers": [],
+      "sha256": "7fe6c086448f7f638d9416c16a0b1afac43592c0a68a62acad536a73c701ba5c"
+    },
+    "ops/systemd/kael-disk-alarm.service": {
+      "callers": [
+        "ops/systemd/kael-disk-alarm.timer"
+      ],
+      "kind": "repository_control",
+      "sha256": "bc0cde02f12ca6db172ea2e2ccf6b3d9a907b3416f88e67baee9ce49b47e52df"
+    },
+    "ops/systemd/kael-disk-alarm.timer": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "bc5c5f4db35052118ee1d702272a7b9da3958a059543ab0316e3b73eb822ce30"
     }
   },
   "omitted_runtime_inputs": [
@@ -8310,5 +8346,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1214
+  "tracked_count": 1219
 }
