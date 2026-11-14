@@ -3663,7 +3663,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "a5606f1a931f6c12a7fd83368b42c3f827cdc9842c81d0df9a9acd7c0249cd4d"
+      "sha256": "69332b30ccb2904e20d0bda71228aa5a738ee98cb1dbb60d5a22c9b44d718cd7"
     },
     "scripts/check_hermes_host.py": {
       "callers": [
@@ -5417,7 +5417,7 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "kind": "test",
-      "sha256": "843d5cd83e27fa9f86ccf2a8bd3115c0145019e28e1103f7b4136c633ce0507e"
+      "sha256": "67bb76b01a93b5dcb18ed60e26885d501b0eda8b76fde8e61f001e2cd906a2c9"
     },
     "tests/test_glp110_prepared_authority_cache.py": {
       "callers": [
@@ -8299,24 +8299,24 @@
       "callers": [
         "host cron (parent installation only)"
       ],
-      "sha256": "d4f85d97932165cd89291e3ca2f0545698e8f27c060de8fac6549973b3f0172e"
+      "sha256": "6beed06d71104c927722ab47f47631a7c840457661287fd66b7e0fe76f91a96d"
     },
     "tests/test_disk_alarm.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/disk-alarm-source.yml"
       ],
-      "sha256": "ae4a45c86f20f63581726fc22e519bce9b6392331d342e6d7a7a64978e8e5bbc"
+      "sha256": "5801ba0c523516c6c8bf6f7eed49fec59aea933b575c3e4b726621a20efccded"
     },
     "ops/disk-alarm.md": {
       "kind": "instruction_or_policy",
       "callers": [],
-      "sha256": "69c6c6a0be28e3aabd9e8fedde119abd820671f089f915e060674d92b924b176"
+      "sha256": "cda06040a4299f3c8d20e1121af5ed72172bc66f9c1c2f88f717be21e3f4add5"
     },
     ".github/workflows/disk-alarm-source.yml": {
       "kind": "repository_control",
       "callers": [],
-      "sha256": "3ff178ffde662a584ef35f7f1aca0bfc20e5a73544b7bd096170be008e1085d2"
+      "sha256": "7fe6c086448f7f638d9416c16a0b1afac43592c0a68a62acad536a73c701ba5c"
     },
     "ops/systemd/kael-disk-alarm.service": {
       "callers": [

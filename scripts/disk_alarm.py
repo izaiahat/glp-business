@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,12 +13,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 
 BUSINESS = Path('/home/ubuntu/business')
 STATE = BUSINESS / 'ops/runtime/disk-alarm'
 LOG = Path('/srv/kael-mailbox/disk-alerts.log')
 CHANNEL = '1487300132054765629'
 OPERATOR = '392067741500309517'
+LEVELS = ('warning', 'critical', 'error')
 
 
 def atomic_json(path, value):
@@ -53,9 +56,14 @@ def free_bytes():
                             check=True, capture_output=True, text=True, timeout=10,
                             env={**os.environ, 'LC_ALL': 'C'})
     rows = result.stdout.splitlines()
-    if len(rows) != 2 or not rows[1].strip().isascii() or not rows[1].strip().isdigit():
+    if (len(rows) != 2 or rows[0].strip() != 'Avail'
+            or not rows[1].strip().isascii() or not rows[1].strip().isdigit()):
         raise RuntimeError('invalid df available bytes')
-    return int(rows[1])
+    available = int(rows[1])
+    filesystem = os.statvfs('/')
+    if available > filesystem.f_blocks * filesystem.f_frsize:
+        raise RuntimeError('implausible df available bytes')
+    return available
 
 
 def notify(message):
@@ -71,60 +79,160 @@ def notify(message):
     return {'message_id': receipt['message_id']}
 
 
-def tick(root, available, send=notify, log_path=None):
-    """Caller holds singleton lock; callbacks are injectable for offline tests."""
-    path = root / 'state.json'
-    state = json.loads(path.read_text()) if path.exists() else {'sent': [], 'pending': None}
-    current = level(available)
-    observation = {'at': int(time.time()), 'available_bytes': available, 'level': current}
-    if current == 'critical':
-        # Persistent scheduled-backup gate; no crontab rewrite or active-process stop.
-        if not (root / 'backup-paused').exists():
-            atomic_json(root / 'backup-paused', observation)
-        observation['backup_pause'] = 'paused'
-    state['latest'] = observation
-    if current == 'healthy' and state['pending'] is None:
-        state['sent'] = []
-    should_send = current != 'healthy' and current not in state['sent'] and state['pending'] is None
-    if should_send:
-        message = (f'<@{OPERATOR}> DISK {current.upper()}: {available / 2**30:.2f} GiB available '
-                   f'on /. Operator + assistant: inspect disk pressure. '
-                   + ('Backup schedule gated. '
-                      if current == 'critical' else 'Below 60 GiB warning; no schedules changed. ')
-                   + 'No active jobs stopped; AHS untouched. Pauses never auto-resume.')
-        state['pending'] = {'level': current, 'message': message, 'at': observation['at']}
-        atomic_json(path, state)  # fsynced intent BEFORE sender; survives crashes and timeouts
+def read_state(path):
+    state = json.loads(path.read_text())
+    if not isinstance(state, dict) or not isinstance(state.get('sent'), list):
+        raise ValueError('invalid alarm state')
+    if any(item not in LEVELS for item in state['sent']):
+        raise ValueError('invalid sent levels')
+    pending = state['pending']
+    # Preserve predecessor uncertain intents, assigning a stable reconciliation ID.
+    if pending is None:
+        pending = {}
+    elif isinstance(pending, dict) and 'level' in pending:
+        pending['id'] = hashlib.sha256(json.dumps(pending, sort_keys=True).encode()).hexdigest()
+        pending = {pending['level']: pending}
+    if not isinstance(pending, dict):
+        raise ValueError('invalid pending intents')
+    for key, intent in pending.items():
+        if (key not in LEVELS or not isinstance(intent, dict) or intent.get('level') != key
+                or not isinstance(intent.get('message'), str) or not intent.get('id')
+                or type(intent.get('at')) is not int):
+            raise ValueError('invalid pending intent')
+    state['pending'] = pending
+    latest = state.get('latest')
+    if (not isinstance(latest, dict) or type(latest.get('at')) is not int
+            or latest.get('level') not in (*LEVELS, 'healthy')):
+        raise ValueError('invalid latest observation')
+    available = latest.get('available_bytes')
+    if latest['level'] != 'error' and (type(available) is not int or available < 0
+                                      or level(available) != latest['level']):
+        raise ValueError('invalid latest measurement')
+    return state
+
+
+def backup_pause(root, current, observation):
+    marker = root / 'backup-paused'
+    if current in ('critical', 'error') and not os.path.lexists(marker):
+        atomic_json(marker, {**observation, 'owner': 'disk-alarm'})
+    if current == 'healthy' and marker.is_file() and not marker.is_symlink():
         try:
-            receipt = send(message)
-            state['last_delivery'] = receipt
-            state['sent'].append(current)
-            state['pending'] = None
-        except Exception as exc:
-            observation['delivery_error'] = type(exc).__name__
-    if state['pending'] is not None:
-        observation['delivery_pending'] = True
-    atomic_json(path, state)
-    with (log_path or root / 'disk-alerts.log').open('a') as stream:
+            owned = json.loads(marker.read_text()).get('owner') == 'disk-alarm'
+        except (ValueError, AttributeError):
+            owned = False
+        if owned:
+            marker.unlink()  # Only our hold; never an operator/legacy/unknown marker.
+            fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            observation['backup_recovery'] = 'alarm hold lifted'
+    if os.path.lexists(marker) or os.path.lexists(root / 'operator-backup-paused'):
+        observation['backup_pause'] = 'paused'
+
+
+def append_log(path, observation):
+    with path.open('a') as stream:
         stream.write(json.dumps(observation, sort_keys=True) + '\n')
         stream.flush()
         os.fsync(stream.fileno())
+
+
+def tick(root, available, send=notify, log_path=None, measurement_error=None):
+    """Caller holds singleton lock; callbacks are injectable for offline tests."""
+    path = root / 'state.json'
+    state_error = None
+    try:
+        state = read_state(path) if path.exists() else {'sent': [], 'pending': {}}
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        # Preserve corrupt bytes and unknown deliveries; error alerts have a separate intent.
+        state_error = type(exc).__name__
+        path = root / 'monitoring-error.json'
+        state = read_state(path) if path.exists() else {'sent': [], 'pending': {}}
+    current = 'error' if measurement_error or state_error else level(available)
+    observation = {'at': int(time.time()), 'available_bytes': available, 'level': current}
+    if measurement_error:
+        observation['measurement_error'] = measurement_error
+    if state_error:
+        observation['state_error'] = state_error
+    backup_pause(root, current, observation)
+    state['latest'] = observation
+    if current == 'healthy':
+        state['sent'] = []  # Pending severities remain latched independently.
+    message = None
+    should_send = current != 'healthy' and current not in state['sent'] and current not in state['pending']
+    if should_send:
+        space = 'UNKNOWN' if available is None else f'{available / 2**30:.2f} GiB'
+        message = (f'<@{OPERATOR}> DISK {current.upper()}: {space} available on /. '
+                   'Operator + assistant: inspect disk pressure/monitoring. '
+                   + ('Backup schedule gated. ' if current in ('critical', 'error')
+                      else 'Below 60 GiB warning; no schedules changed. ')
+                   + 'No active jobs stopped; AHS untouched. Alarm hold lifts at 60 GiB; operator holds remain.')
+        state['pending'][current] = {'id': uuid.uuid4().hex, 'level': current,
+                                     'message': message, 'at': observation['at']}
+    atomic_json(path, state)  # Intent and observation BEFORE log/sender; no send on failed writes.
+    append_log(log_path or root / 'disk-alerts.log', observation)
+    if should_send:
+        try:
+            state['last_delivery'] = send(message)
+            state['sent'].append(current)
+            del state['pending'][current]
+        except Exception as exc:
+            observation['delivery_error'] = type(exc).__name__
+    if state['pending']:
+        observation['delivery_pending'] = True
+    atomic_json(path, state)
     return observation
+
+
+def admitted(root, available):
+    state = read_state(root / 'state.json')
+    latest = state['latest']
+    if latest['level'] == 'error' or not 0 <= time.time() - latest['at'] <= 30 * 60:
+        raise RuntimeError('alarm unhealthy or stale; backup admission refused')
+    if type(available) is not int or available < 0:
+        raise RuntimeError('invalid backup measurement')
+    # Recovery is timer-owned: a fresh backup measurement cannot erase a hold.
+    if level(available) == 'critical':
+        backup_pause(root, 'critical', {'at': int(time.time()), 'available_bytes': available})
+    return not (os.path.lexists(root / 'backup-paused')
+                or os.path.lexists(root / 'operator-backup-paused'))
 
 
 def backup(root, available, launch):
     """Called under the alarm lock. Start only; caller waits outside that lock."""
-    if not (root / 'state.json').is_file():
-        raise RuntimeError('alarm not initialized; backup admission refused')
-    if level(available) == 'critical' and not (root / 'backup-paused').exists():
-        atomic_json(root / 'backup-paused', {'available_bytes': available, 'at': int(time.time())})
-    if (root / 'backup-paused').exists():
+    if not admitted(root, available):
         return None
     return launch(['/bin/bash', str(BUSINESS / 'scripts/hermes-state-backup.sh')])
 
 
+def reconcile(root, filename, severity, intent_id, outcome, evidence, message_id=None):
+    """Record operator-verified exact-effect disposition; never send or retry here."""
+    path = root / filename
+    state = read_state(path)
+    intent = state['pending'].get(severity)
+    if not intent or intent['id'] != intent_id or not evidence.strip():
+        raise ValueError('exact pending identity and evidence required')
+    if outcome == 'delivered' and not message_id:
+        raise ValueError('confirmed message ID required')
+    state.setdefault('reconciled', []).append({**intent, 'outcome': outcome,
+        'evidence': evidence, 'message_id': message_id, 'reconciled_at': int(time.time())})
+    if outcome == 'delivered' and severity not in state['sent']:
+        state['sent'].append(severity)
+    del state['pending'][severity]
+    atomic_json(path, state)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['check', 'tick', 'backup'])
+    parser.add_argument('action', choices=['check', 'tick', 'backup', 'admit-backup', 'reconcile'])
+    parser.add_argument('--state-file', choices=['state.json', 'monitoring-error.json'], default='state.json')
+    parser.add_argument('--level', choices=LEVELS)
+    parser.add_argument('--intent-id')
+    parser.add_argument('--outcome', choices=['delivered', 'not-sent'])
+    parser.add_argument('--evidence')
+    parser.add_argument('--message-id')
     args = parser.parse_args()
 
     if args.action == 'check':
@@ -133,20 +241,46 @@ def main():
         return 0
     try:
         with lock(STATE):
-            if args.action == 'backup':
-                child = backup(STATE, free_bytes(), subprocess.Popen)
+            if args.action == 'reconcile':
+                if not all((args.level, args.intent_id, args.outcome, args.evidence)):
+                    parser.error('reconcile requires level, intent-id, outcome and evidence')
+                reconcile(STATE, args.state_file, args.level, args.intent_id,
+                          args.outcome, args.evidence, args.message_id)
+                return 0
+            if args.action in ('backup', 'admit-backup'):
+                available = free_bytes()
+                if args.action == 'admit-backup':
+                    if admitted(STATE, available):
+                        return 0
+                    print('SKIP backup schedule paused')
+                    return 3
+                child = backup(STATE, available, subprocess.Popen)
             else:
-                result = tick(STATE, free_bytes(), log_path=LOG)
+                try:
+                    available, error = free_bytes(), None
+                except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                    available, error = None, type(exc).__name__
+                result = tick(STATE, available, log_path=LOG, measurement_error=error)
                 print(json.dumps(result, sort_keys=True))
-                return int('delivery_pending' in result)
+                return int('delivery_pending' in result or result['level'] == 'error')
     except BlockingIOError:
         print('SKIP disk alarm lock busy')
-        return 0
+        return 3 if args.action == 'admit-backup' else 0
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
+        # Journald/stderr is the fallback when disk/permissions prevent our own log.
+        failure = {'at': int(time.time()), 'level': 'error', 'monitoring_error': type(exc).__name__}
+        if args.action == 'tick':
+            try:
+                with lock(STATE):
+                    backup_pause(STATE, 'error', failure)
+            except (OSError, ValueError):
+                failure['pause_write_failed'] = True
+        print(json.dumps(failure), file=sys.stderr)
+        return 1
     if child is None:
-        print('SKIP backup schedule paused by disk alarm; operator-only resume')
+        print('SKIP backup schedule paused by disk alarm')
         return 0
     return child.wait()  # no deadline or signal: never stop an active backup
-
 
 
 def level(available: int) -> str:

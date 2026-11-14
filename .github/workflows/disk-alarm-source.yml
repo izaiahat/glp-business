@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - scripts/disk_alarm.py
+      - scripts/hermes-state-backup.sh
       - tests/test_disk_alarm.py
       - ops/disk-alarm.md
       - ops/systemd/kael-disk-alarm.service

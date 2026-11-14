@@ -496,7 +496,26 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
     assert digest == 'fa3ed2ae517e6bd327cfd24ce6d809e5e1bfd8615b9fa3437655d0c0e773313f'
 
 
-def test_state_backup_successful_steps_are_paced(tmp_path):
+@pytest.fixture
+def admitted_backup_producer(tmp_path):
+    """Keep existing backup proofs behind real, healthy scratch-only admission."""
+    import runpy
+    scripts = tmp_path / 'producer' / 'scripts'
+    scripts.mkdir(parents=True)
+    source = Path(__file__).resolve().parents[1] / 'scripts'
+    producer = scripts / 'hermes-state-backup.sh'
+    producer.write_bytes((source / producer.name).read_bytes())
+    module = scripts / 'disk_alarm.py'
+    module.write_text((source / module.name).read_text().replace(
+        "BUSINESS = Path('/home/ubuntu/business')", f'BUSINESS = Path({str(scripts.parent)!r})').replace(
+        "if __name__ == '__main__':", "def free_bytes(): return 70 * 2**30\n\nif __name__ == '__main__':"))
+    alarm = runpy.run_path(str(module))
+    with alarm['lock'](alarm['STATE']):
+        alarm['tick'](alarm['STATE'], 70 * 2**30)
+    return producer
+
+
+def test_state_backup_successful_steps_are_paced(tmp_path, admitted_backup_producer):
     """A WAL-readable snapshot must not treat backup(sleep=...) as a rate limit.
 
     That argument only sleeps on SQLITE_BUSY/LOCKED. Exercise the registered
@@ -515,7 +534,7 @@ def test_state_backup_successful_steps_are_paced(tmp_path):
         for _ in range(40):
             db.execute('insert into payload values (zeroblob(?))', (1024**2,))
         db.commit()
-    producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
+    producer = admitted_backup_producer
     begin = time.monotonic()
     run = subprocess.run(['bash', str(producer)], env={**os.environ,
         'HERMES_HOME': str(home), 'HERMES_BACKUP_ROOT': str(tmp_path / 'backups'),
@@ -583,7 +602,7 @@ def test_daily_backup_large_synthetic_page_stream_fits_pacing_budget():
         scope['progress'](0, pages_total - 256, pages_total)
 
 
-def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(tmp_path):
+def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(tmp_path, admitted_backup_producer):
     """Real registered producer + SQLite restore, scratch only; not live coverage."""
     import hashlib
     import os
@@ -620,7 +639,7 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
             conn.execute('insert into proof values (?)', ('committed-in-wal-'+name,))
             conn.commit()
             assert (home / 'cron' / (name+'-wal')).stat().st_size > 0
-        producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
+        producer = admitted_backup_producer
         backup_root = tmp_path / 'backups'
         env = {**os.environ, 'HERMES_HOME': str(home),
                'HERMES_BACKUP_ROOT': str(backup_root), 'TMPDIR': str(tmp_path)}
