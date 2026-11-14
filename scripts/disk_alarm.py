@@ -208,12 +208,14 @@ def admitted(root, available):
         state['backup_observation'] = {'at': int(time.time()),
                                        'available_bytes': available, 'level': level(available)}
         try:
+            # Persist the critical hold before an observation failure can return.
+            if level(available) == 'critical':
+                backup_pause(root, 'critical', {'at': int(time.time()), 'available_bytes': available})
             atomic_json(root / 'state.json', state)
         except OSError:
             return False
     # Recovery is timer-owned: a fresh backup measurement cannot erase a hold.
     if level(available) == 'critical':
-        backup_pause(root, 'critical', {'at': int(time.time()), 'available_bytes': available})
         return False  # Refuse independently of whether the pause marker persisted.
     return not (os.path.lexists(root / 'backup-paused')
                 or os.path.lexists(root / 'operator-backup-paused'))

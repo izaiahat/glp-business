@@ -172,6 +172,27 @@ class DiskAlarmTests(unittest.TestCase):
             self.assertEqual((root / 'state.json').read_bytes(), healthy)
             self.assertFalse((root / 'backup-paused').exists())
 
+    def test_critical_pause_survives_observation_write_failure(self):
+        alarm = load()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(alarm.time, 'time', return_value=10000):
+                alarm.tick(root, 70 * 2**30, Mock())
+            persist = alarm.atomic_json
+            def fail_observation(path, value):
+                if path.name == 'state.json':
+                    raise OSError('observation write failed')
+                return persist(path, value)
+            with patch.object(alarm.time, 'time', return_value=10900), \
+                 patch.object(alarm, 'atomic_json', side_effect=fail_observation):
+                self.assertFalse(alarm.admitted(root, 30 * 2**30))
+            with patch.object(alarm.time, 'time', return_value=10901):
+                self.assertFalse(alarm.admitted(root, 50 * 2**30))
+            self.assertEqual(json.loads((root / 'backup-paused').read_text())['owner'], 'disk-alarm')
+            with patch.object(alarm.time, 'time', return_value=10902):
+                alarm.tick(root, 60 * 2**30, Mock())
+                self.assertTrue(alarm.admitted(root, 50 * 2**30))
+
     def test_warning_admission_persists_without_refreshing_timer_freshness(self):
         alarm = load()
         with tempfile.TemporaryDirectory() as directory:
