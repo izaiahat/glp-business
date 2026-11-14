@@ -10,14 +10,12 @@ set -Eeuo pipefail
 umask 077
 # Gate the registered script itself, including legacy cron/manual invocations.
 # Admission runs before any backup directory, lock, snapshot or retention effect.
-if [ "${DISK_ALARM_BACKUP_ADMITTED:-}" != 1 ]; then
-  if python3 -B "$(dirname -- "$0")/disk_alarm.py" admit-backup; then
-    :
-  else
-    exit "$?"  # A skipped backup is not a completed backup.
-  fi
+if python3 -B "$(dirname -- "$0")/disk_alarm.py" admit-backup; then
+  :
+else
+  exit "$?"  # A skipped backup is not a completed backup.
 fi
-unset DISK_ALARM_BACKUP_ADMITTED
+unset DISK_ALARM_BACKUP_ADMITTED DISK_ALARM_BACKUP_TOKEN
 exec nice -n 19 ionice -c 3 python3 - "${HERMES_HOME:-$HOME/.hermes}" \
   "${HERMES_BACKUP_ROOT:-/home/ubuntu/business/backups/hermes-state}" \
   "${HERMES_BACKUP_RETENTION_DAYS:-14}" "$0" <<'PY'

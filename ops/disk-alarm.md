@@ -35,8 +35,12 @@ and refuses below 40 GiB or on either pause marker. Busy/paused admission return
 3 without starting a backup; measurement/state errors also return nonzero. The optional
 `disk_alarm.py backup` wrapper remains supported. The lock covers admission/start,
 not the duration of a backup; existing backup locks/guards remain unchanged.
-The wrapper admits once and passes `DISK_ALARM_BACKUP_ADMITTED=1` only to its
-child. That script consumes/unsets the flag instead of re-entering the held lock.
+The wrapper admits once under the lock and writes a random single-use token in
+the owner-only mode-0700 `admissions` directory. Its child receives the token via
+`DISK_ALARM_BACKUP_TOKEN`; the gate atomically unlinks its mode-0600 proof file,
+checks the matching token and age under 60 seconds, then skips lock re-entry.
+Absent, invalid, expired or consumed proof falls back to normal locked admission.
+The old `DISK_ALARM_BACKUP_ADMITTED=1` flag grants no admission.
 No signal or timeout is added to an active backup. A later pause affects the next
 admission, not in-flight work.
 
@@ -60,6 +64,10 @@ stderr/journald records the failure when the normal log is unavailable, with a
 best-effort pause. No software can promise a durable marker/log on an unwritable
 filesystem; admission always re-measures and refuses below 40 GiB or if df fails,
 even when cached state is healthy and neither state nor pause writes succeeded.
+Below the 60 GiB resume line, admission must also persist its own observation;
+a failed write refuses, including at 40–60 GiB without a recorded pause. This
+observation never refreshes the timer's `latest`: the last persisted timer tick
+must still be no more than two 15-minute intervals old.
 
 ## Delivery and exact-effect reconciliation
 

@@ -9,6 +9,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -197,10 +199,18 @@ def tick(root, available, send=notify, log_path=None, measurement_error=None):
 def admitted(root, available):
     state = read_state(root / 'state.json')
     latest = state['latest']
-    if latest is None or latest['level'] == 'error' or not 0 <= time.time() - latest['at'] <= 30 * 60:
+    if latest is None or latest['level'] == 'error' or not 0 <= time.time() - latest['at'] <= 2 * 15 * 60:
         raise RuntimeError('alarm unhealthy or stale; backup admission refused')
     if type(available) is not int or available < 0:
         raise RuntimeError('invalid backup measurement')
+    if available < 60 * 2**30:
+        # Do not refresh latest: only a persisted timer tick proves monitor freshness.
+        state['backup_observation'] = {'at': int(time.time()),
+                                       'available_bytes': available, 'level': level(available)}
+        try:
+            atomic_json(root / 'state.json', state)
+        except OSError:
+            return False
     # Recovery is timer-owned: a fresh backup measurement cannot erase a hold.
     if level(available) == 'critical':
         backup_pause(root, 'critical', {'at': int(time.time()), 'available_bytes': available})
@@ -209,12 +219,61 @@ def admitted(root, available):
                 or os.path.lexists(root / 'operator-backup-paused'))
 
 
+@contextmanager
+def admission_directory(root, create=False):
+    directory = root / 'admissions'
+    if create:
+        directory.mkdir(mode=0o700, exist_ok=True)
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(fd)
+        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise ValueError('unsafe admission directory')
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def consume_admission(root, token):
+    """Consume one private, fresh wrapper admission; invalid proof uses normal gating."""
+    if not isinstance(token, str) or len(token) != 64 or any(c not in '0123456789abcdef' for c in token):
+        return False
+    try:
+        with admission_directory(root) as directory:
+            fd = os.open(token, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+            with os.fdopen(fd) as stream:
+                info = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                        or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1):
+                    return False
+                # Only the process that successfully unlinks may use this proof.
+                os.unlink(token, dir_fd=directory)
+                proof = json.loads(stream.read(1024))
+        return (secrets.compare_digest(proof['token'], token)
+                and 0 <= time.time() - proof['at'] < 60)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 def backup(root, available, launch):
     """Called under the alarm lock. Start only; caller waits outside that lock."""
     if not admitted(root, available):
         return None
-    return launch(['/bin/bash', str(BUSINESS / 'scripts/hermes-state-backup.sh')],
-                  env={**os.environ, 'DISK_ALARM_BACKUP_ADMITTED': '1'})
+    token = secrets.token_hex(32)
+    with admission_directory(root, create=True) as directory:
+        fd = os.open(token, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                     0o600, dir_fd=directory)
+        try:
+            with os.fdopen(fd, 'w') as stream:
+                os.fchmod(stream.fileno(), 0o600)
+                json.dump({'token': token, 'at': time.time()}, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            return launch(['/bin/bash', str(BUSINESS / 'scripts/hermes-state-backup.sh')],
+                          env={**os.environ, 'DISK_ALARM_BACKUP_TOKEN': token})
+        except BaseException:
+            os.unlink(token, dir_fd=directory)
+            raise
 
 
 def reconcile(root, filename, severity, intent_id, outcome, evidence, message_id=None):
@@ -245,6 +304,8 @@ def main():
     parser.add_argument('--message-id')
     args = parser.parse_args()
 
+    if args.action == 'admit-backup' and consume_admission(STATE, os.environ.pop('DISK_ALARM_BACKUP_TOKEN', None)):
+        return 0  # Parent already admitted under its still-held singleton lock.
     if args.action == 'check':
         available = free_bytes()
         print(json.dumps({'available_bytes': available, 'level': level(available), 'effects': False}))
