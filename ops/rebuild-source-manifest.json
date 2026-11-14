@@ -1,6 +1,41 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/fixtures/glp80-eden/native-validator/provenance.json": {
+      "kind": "test_fixture_provenance",
+      "callers": [
+        "tests/test_glp80_eden_policy.py"
+      ],
+      "sha256": "ceb0694465ba7f6fd0bc8096e1411722657064e01ace4748e039be6469421129"
+    },
+    "tests/fixtures/glp80-eden/native-validator/src/therapeutic-taxonomy.mjs": {
+      "kind": "authenticated_test_dependency",
+      "callers": [
+        "tests/test_glp80_eden_policy.py"
+      ],
+      "sha256": "74c0971af532c170a8ea3c4b136c95882de0e05f05498432b2453eb4ec733503"
+    },
+    "tests/fixtures/glp80-eden/native-validator/src/provider-dynamic-profiles.mjs": {
+      "kind": "authenticated_test_dependency",
+      "callers": [
+        "tests/test_glp80_eden_policy.py"
+      ],
+      "sha256": "36907fd5b3984446651e3466415394e034f9eef74ecbf3d3aeae9bddd894a15d"
+    },
+    "tests/fixtures/glp80-eden/native-validator/data/money-page-specs.json": {
+      "kind": "authenticated_test_dependency",
+      "callers": [
+        "tests/test_glp80_eden_policy.py"
+      ],
+      "sha256": "9d5578c5e29486ff31beabe5c374cdc3040ec673bb4242a1a0578dcc43822d72"
+    },
+    "tests/fixtures/glp80-eden/native-validator/data/quiz-config.json": {
+      "kind": "authenticated_test_dependency",
+      "callers": [
+        "tests/test_glp80_eden_policy.py"
+      ],
+      "sha256": "f16b0a970d11761fe3b151ba7a393cadfe58cfaccf3766f9ec7f052d87dfddf6"
+    },
     "scripts/glp_ship_attempts.py": {
       "kind": "repository_control",
       "callers": [
@@ -6019,7 +6054,7 @@
         "GLP-80 Eden authentic assertion replay"
       ],
       "kind": "test",
-      "sha256": "9a46c160d03f3c4f352159f0b3b3eaa31dc71322c17205bb9b72c48968bbf7f8"
+      "sha256": "6a6ff30cf88a0bea875c7237ad5a88b6b6d6dcdc814327e10e872ebd04ccfa04"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -6524,7 +6559,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "94185c58f34787ca2e29add0435c4b9fbbf214390c9a6ec26fbf9706ca1d2e9d"
+      "sha256": "e057662e2b99963c4e284efa0287ffe0ead4bdfbeeb49d3f9966533d97ec1bd1"
     },
     "tests/test_glp_sponsor_technical_receiving.py": {
       "callers": [
@@ -8004,7 +8039,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "c7d06542587586b34a475d14908a31f44bfeca5ee4aad6b628e94ba50d4380d4"
+      "sha256": "48367d695dc973fa6c44665e24587ec85595374fb6e871ef98993036e9335297"
     },
     "ops/sponsor-firecrawl-booking.md": {
       "kind": "documentation",
@@ -8261,5 +8296,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1207
+  "tracked_count": 1212
 }

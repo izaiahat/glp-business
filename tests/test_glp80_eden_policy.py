@@ -1,8 +1,8 @@
 """Authentic four-page Eden replay. No main, locks, live fetch or registry write.
 
-Portable checks exercise the registered producer's verify_sources/support path.
-The optional host check exercises its unchanged actual Node validator, not a
-stub. The one-row native projection is a labelled fixture, never live adoption.
+Portable checks exercise the registered producer's verify_sources/support path
+and unchanged actual Node validator from authenticated packaged site source.
+The one-row native projection is a labelled fixture, never live adoption.
 """
 import copy
 import hashlib
@@ -201,13 +201,33 @@ def test_current_source_membership_still_refuses_before_capture(replay):
         m.verify_sources(PID, original, m.POLICIES[PID], run)
 
 
-def test_native_validator_actual_not_stubbed(replay):
+def test_native_validator_actual_not_stubbed(replay, monkeypatch):
     m, receipts, row, run, index = replay
-    native_root = Path('/home/ubuntu/business') / REL
-    native = native_root / 'src/therapeutic-taxonomy.mjs'
-    if not native.is_file():
-        pytest.skip('host-only native source; portable CI runs authentic support replay')
+    native_root = FIXTURES / 'native-validator'
+    provenance = json.loads((native_root / 'provenance.json').read_text())
+    assert provenance['commit'] == 'e13e058810a56a4fc92bf19bab1f0a57e4f8f351'
+    assert set(provenance['files']) == {
+        'src/therapeutic-taxonomy.mjs', 'src/provider-dynamic-profiles.mjs',
+        'data/money-page-specs.json', 'data/quiz-config.json',
+    }
+    for relative, item in provenance['files'].items():
+        raw = (native_root / relative).read_bytes()
+        assert digest(raw) == item['sha256']
+        assert hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == item['git_blob']
     m.ROOT = native_root
+    # Freeze only this child Node process to the retained capture's replay date.
+    # The producer and native validator execute unchanged, including stale refusal.
+    clock = run / 'fixture-clock.mjs'
+    clock.write_text("const RealDate = Date; globalThis.Date = class extends RealDate {"
+                     "constructor(...args) { super(...(args.length ? args : ['2026-10-02T00:00:00Z'])); }"
+                     "static now() { return RealDate.parse('2026-10-02T00:00:00Z'); }};\n")
+    native_run = subprocess.run
+    calls = []
+    def replay_run(args, **kwargs):
+        assert args[:2] == ['node', '--input-type=module']
+        calls.append(args)
+        return native_run([args[0], '--import', str(clock), *args[1:]], **kwargs)
+    monkeypatch.setattr(m, 'subprocess', types.SimpleNamespace(run=replay_run))
     result = collect(replay)
     registry = json.loads((FIXTURES / 'native-input.json').read_text())
     original = registry['therapeutic_taxonomy']['programs'][PID]
@@ -233,3 +253,4 @@ def test_native_validator_actual_not_stubbed(replay):
     stale['therapeutic_taxonomy']['programs'][PID]['verified_as_of'] = '2026-08-30'
     with pytest.raises(ValueError, match='therapeutic_taxonomy_evidence_stale'):
         m.validate(stale, [PID])
+    assert len(calls) == 2  # Both admission and refusal ran the real Node validator.

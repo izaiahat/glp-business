@@ -4,12 +4,26 @@ import hashlib
 import io
 import json
 import sys
+import types
 from pathlib import Path
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import firecrawl_client as fc
 import glp_sponsor_firecrawl_booking as booking
 import glp_sponsor_firecrawl_supply as supply
+
+
+@pytest.fixture(autouse=True)
+def booking_clock(monkeypatch):
+    """Consumer time stays inside the unchanged synthetic billing window."""
+    clock = [dt.datetime(2026, 10, 16, tzinfo=dt.timezone.utc)]
+    class Frozen(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock[0]
+    monkeypatch.setattr(booking, 'dt', types.SimpleNamespace(
+        datetime=Frozen, timezone=dt.timezone))
+    return clock
 
 
 def fixture(tmp_path):
@@ -116,6 +130,26 @@ def test_exact_round1_decision_extends_only_approved_terminal_operation(tmp_path
         with pytest.raises(RuntimeError, match='outside_decision_scope'):
             booking.book(state, ledger, client, tmp_path / (key + '.json'),
                          exact_operation_decision_sha=approved_sha)
+
+
+@pytest.mark.parametrize('observed', [
+    '2026-09-19T23:59:58+00:00',
+    '2026-10-19T23:59:59+00:00',
+    '2026-11-14T00:00:00+00:00',
+])
+@pytest.mark.parametrize('apply', [False, True])
+def test_billing_window_refuses_outside_clock_without_booking(tmp_path, booking_clock, observed, apply):
+    ledger, state, row, client = fixture(tmp_path)
+    before = ledger.read_bytes()
+    reservation = (state / 'firecrawl-supply-budget.json').read_bytes()
+    booking_clock[0] = dt.datetime.fromisoformat(observed)
+    receipt = tmp_path / 'expired.json'
+    with pytest.raises(RuntimeError, match='authenticated_usage_missing'):
+        booking.book(state, ledger, client, receipt, apply=apply,
+                     expected_sha=hashlib.sha256(before).hexdigest())
+    assert ledger.read_bytes() == before
+    assert (state / 'firecrawl-supply-budget.json').read_bytes() == reservation
+    assert not receipt.exists()
 
 
 def test_same_budget_and_run_locks_refuse_before_api(tmp_path):
