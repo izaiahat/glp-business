@@ -6054,7 +6054,7 @@
         "GLP-80 Eden authentic assertion replay"
       ],
       "kind": "test",
-      "sha256": "a4f372fecc1aa0670332bbe71b7ba496df2f46d9d505142dafe2798281578737"
+      "sha256": "6261034dc4a676b4276a59ecaada4308eae59a9b0a4d578954fe54b7bfeb93a0"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -6627,7 +6627,7 @@
         "python3 -m unittest discover -s tests -p test_hermes_active_work_gate.py"
       ],
       "kind": "test",
-      "sha256": "de2b8117b2a6e690f6c7a8292f267723a5894aeb2a513613de23a04fcfbcf094"
+      "sha256": "4e806b00f537c609dadb187c587fadb66554c7641651c7e95d62d49026dd2329"
     },
     "tests/test_host_custody.py": {
       "callers": [

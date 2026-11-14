@@ -64,14 +64,26 @@ def activity_from_capture(capture: str) -> dict[str, Any]:
     }
 
 
+HERMES_MARKER = Path('/home/ubuntu/.hermes/hermes-agent')
+
+
 def maintained_source(relative: str, host: Path) -> str:
-    # Missing source may use a pinned portable excerpt. An installed but
-    # unreadable source cannot claim parity with that excerpt.
+    required = os.environ.get('HERMES_HOST_CHECK') == '1'
+    hosted = (os.environ.get('GITHUB_ACTIONS') == 'true'
+              and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted')
+    if required:
+        assert HERMES_MARKER.is_dir(), f'missing hermes host marker: {HERMES_MARKER}'
+    on_hermes = required or (not hosted and HERMES_MARKER.is_dir())
+    # Only off-host checks may skip unreadable source or use pinned excerpts.
     try:
         return host.read_text(encoding="utf-8")
     except PermissionError as exc:
+        if on_hermes:
+            raise
         raise unittest.SkipTest(f"unreadable maintained source: {host}: {exc}") from exc
     except FileNotFoundError:
+        if on_hermes:
+            raise
         fixture = json.loads(Path(__file__).with_name("hermes_active_work_gate_sources.json").read_text())
         record = fixture["sources"][relative]
         text = record["text"]
@@ -775,15 +787,23 @@ class IdleLifecycleRegistrationTests(unittest.TestCase):
 
 
 class SourcePortabilityTests(unittest.TestCase):
-    def test_missing_source_uses_fixture_but_unreadable_source_is_skipped(self):
+    def test_source_portability_never_skips_hermes_failures(self):
         host_paths = {
             Path("/home/ubuntu/.hermes/hermes-agent/cron/jobs.py"),
             Path("/home/ubuntu/.hermes/hermes-agent/cron/constants.py"),
             Path.home() / "business/scripts/hermes_tui_continuity.py",
         }
         original_stat, original_read = Path.stat, Path.read_text
-        for error in (FileNotFoundError, PermissionError):
-            with self.subTest(error=error.__name__):
+        for on_hermes, required, marker_exists, error in (
+            (False, False, False, FileNotFoundError),
+            (False, False, False, PermissionError),
+            (True, False, True, PermissionError),
+            (True, True, True, PermissionError),
+            (True, True, True, FileNotFoundError),
+            (True, True, False, FileNotFoundError),
+        ):
+            with self.subTest(on_hermes=on_hermes, required=required,
+                              marker_exists=marker_exists, error=error.__name__):
                 def stat(path, *args, **kwargs):
                     if path in host_paths:
                         raise error(2 if error is FileNotFoundError else 13, "host source unavailable", str(path))
@@ -799,16 +819,32 @@ class SourcePortabilityTests(unittest.TestCase):
                     IdleLifecycleRegistrationTests("test_portable_classifier_is_exact_maintained_pure_source"),
                 ])
                 result = unittest.TestResult()
-                with mock.patch.object(Path, "stat", stat), mock.patch.object(Path, "read_text", read):
+                original_is_dir = Path.is_dir
+                def is_dir(path):
+                    if path == Path('/home/ubuntu/.hermes/hermes-agent'):
+                        return marker_exists
+                    return original_is_dir(path)
+
+                env = {'HERMES_HOST_CHECK': '1' if required else '',
+                       'GITHUB_ACTIONS': 'true',
+                       'RUNNER_ENVIRONMENT': '' if on_hermes else 'github-hosted'}
+                with mock.patch.dict(os.environ, env), \
+                     mock.patch.object(Path, "is_dir", is_dir), \
+                     mock.patch.object(Path, "stat", stat), mock.patch.object(Path, "read_text", read):
                     suite.run(result)
                 self.assertEqual(result.testsRun, 2)
-                self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
-                if error is PermissionError:
-                    self.assertEqual(len(result.skipped), 2)
-                    self.assertTrue(all("unreadable maintained source" in reason
-                                        for _, reason in result.skipped))
-                else:
+                if on_hermes:
+                    self.assertFalse(result.wasSuccessful())
+                    self.assertEqual(len(result.errors) + len(result.failures), 2)
                     self.assertEqual(result.skipped, [])
+                else:
+                    self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
+                    if error is PermissionError:
+                        self.assertEqual(len(result.skipped), 2)
+                        self.assertTrue(all("unreadable maintained source" in reason
+                                            for _, reason in result.skipped))
+                    else:
+                        self.assertEqual(result.skipped, [])
 
 
 class WaitForIdleTests(unittest.TestCase):

@@ -209,6 +209,7 @@ def test_current_source_membership_still_refuses_before_capture(replay):
 
 @pytest.mark.parametrize('marker_state', ['missing', 'unreadable'])
 def test_hosted_runner_skips_native_validator(replay, monkeypatch, tmp_path, marker_state):
+    monkeypatch.delenv('HERMES_HOST_CHECK', raising=False)
     monkeypatch.setenv('GITHUB_ACTIONS', 'true')
     monkeypatch.setenv('RUNNER_ENVIRONMENT', 'github-hosted')
     marker = tmp_path / 'no-hermes'
@@ -224,11 +225,22 @@ def test_hosted_runner_skips_native_validator(replay, monkeypatch, tmp_path, mar
         test_native_validator_actual_not_stubbed(replay, monkeypatch)
 
 
-@pytest.mark.parametrize('state', ['missing', 'incompatible'])
+@pytest.mark.parametrize('state', ['marker_missing', 'marker_unreadable', 'missing', 'incompatible'])
 def test_hermes_validator_failure_is_not_skipped(replay, monkeypatch, tmp_path, state):
-    monkeypatch.delenv('RUNNER_ENVIRONMENT', raising=False)
+    # Explicit host admission must override even inherited hosted-runner flags.
+    monkeypatch.setenv('HERMES_HOST_CHECK', '1')
+    monkeypatch.setenv('GITHUB_ACTIONS', 'true')
+    monkeypatch.setenv('RUNNER_ENVIRONMENT', 'github-hosted')
     marker = tmp_path / 'hermes'
-    marker.mkdir()
+    if state != 'marker_missing':
+        marker.mkdir()
+    if state == 'marker_unreadable':
+        real_is_dir = Path.is_dir
+        def marker_is_dir(path):
+            if path == marker:
+                raise PermissionError('host marker inaccessible on hermes')
+            return real_is_dir(path)
+        monkeypatch.setattr(Path, 'is_dir', marker_is_dir)
     native_root = tmp_path / 'validator'
     monkeypatch.setattr(sys.modules[__name__], 'HERMES_MARKER', marker)
     monkeypatch.setattr(sys.modules[__name__], 'NATIVE_ROOT', native_root)
@@ -238,17 +250,27 @@ def test_hermes_validator_failure_is_not_skipped(replay, monkeypatch, tmp_path, 
             target = native_root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text('{}' if target.suffix == '.json' else 'export {};')
-    expected = AssertionError if state == 'missing' else ValueError
-    message = 'missing installed validator dependency' if state == 'missing' else 'export'
+    expected = (PermissionError if state == 'marker_unreadable' else
+                ValueError if state == 'incompatible' else AssertionError)
+    message = ('host marker inaccessible' if state == 'marker_unreadable' else
+               'missing hermes host marker' if state == 'marker_missing' else
+               'missing installed validator dependency' if state == 'missing' else 'export')
     with pytest.raises(expected, match=message):
-        test_native_validator_actual_not_stubbed(replay, monkeypatch)
+        try:
+            test_native_validator_actual_not_stubbed(replay, monkeypatch)
+        except pytest.skip.Exception as exc:
+            pytest.fail(f'hermes validation must fail, not skip: {exc}')
 
 
 def test_native_validator_actual_not_stubbed(replay, monkeypatch):
     hosted = (os.environ.get('GITHUB_ACTIONS') == 'true'
               and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted')
-    # Hosted images can contain an inaccessible /home/ubuntu: do not probe it.
-    if hosted or not HERMES_MARKER.is_dir():
+    required = os.environ.get('HERMES_HOST_CHECK') == '1'
+    # Hosted images can contain an inaccessible /home/ubuntu: do not probe it,
+    # unless the caller explicitly requires installed Hermes host validation.
+    if required:
+        assert HERMES_MARKER.is_dir(), f'missing hermes host marker: {HERMES_MARKER}'
+    elif hosted or not HERMES_MARKER.is_dir():
         pytest.skip('host validator only exists on hermes')
     m, receipts, row, run, index = replay
     packaged_root = FIXTURES / 'native-validator'
