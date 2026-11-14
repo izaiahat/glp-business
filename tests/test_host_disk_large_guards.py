@@ -108,6 +108,42 @@ def test_reference_collection_refusal_has_terminal_zero_effect_receipt(tmp_path,
     assert not (report/'references.json').exists()
 
 
+def test_unreadable_worktree_cache_preserved_and_readable_sibling_freed(tmp_path, monkeypatch):
+    import os
+    import safe_regenerable_pruner as safe
+    root = tmp_path / 'worktrees'
+    blocked, eligible = root / 'blocked', root / 'eligible'
+    for p in (blocked, eligible):
+        (p / '.git').mkdir(parents=True)
+        (p / 'node_modules').mkdir()
+        (p / 'node_modules/payload').write_bytes(b'x' * (1024 * 1024))
+        for q in (p / 'node_modules/payload', p / 'node_modules'):
+            os.utime(q, (time.time() - 15 * 86400,) * 2)
+    original_stat = Path.stat
+    def denied(path, *args, **kwargs):
+        if path == blocked / 'node_modules':
+            raise PermissionError('fixture private cache')
+        return original_stat(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'stat', denied)
+    monkeypatch.setattr(safe, 'worktree_proof', lambda *a, **k: (True, 'fixture custody'))
+    monkeypatch.setattr(safe, 'git_read', lambda *a, **k: {'returncode': 0, 'stdout_tail': ''})
+    class FixtureAPI(API):
+        def path_identity(self, p):
+            s = p.lstat()
+            return (s.st_dev, s.st_ino, s.st_mtime_ns)
+        def write_maintenance_state(self, state):
+            pass
+    amount = original_stat(eligible / 'node_modules/payload').st_blocks * 512
+    state = {}
+    rows = safe.prune_git_worktrees(FixtureAPI(), state, [root], dry_run=False, time_budget=30)
+    assert (blocked / 'node_modules/payload').read_bytes() == b'x' * (1024 * 1024)
+    assert not (eligible / 'node_modules').exists()
+    assert sum(r['bytes_freed'] for r in rows) >= amount
+    assert any(r['status'] == 'GATED_UNREADABLE_TARGET' and r['bytes_freed'] == 0 for r in rows)
+    assert str(blocked) not in state['git_safe_cursor']['done']
+    print('REAL_SCRATCH_RECLAIM_BYTES', amount)
+
+
 def test_archive_headroom_veto_keeps_originals(tmp_path,monkeypatch):
     p=tmp_path/'report';p.mkdir();(p/'proof.txt').write_text('evidence')
     now=time.time();monkeypatch.setattr(m.time,'time',lambda:now+10*86400)

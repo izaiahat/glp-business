@@ -77,6 +77,51 @@ def test_auto_class_refusal_closes_downstream_archive_gate(tmp_path, monkeypatch
     assert not called
 
 
+def test_dependency_discovery_timeout_preserves_budget_for_other_roots(tmp_path, monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(sweep.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(sweep, 'BUS', tmp_path)
+    monkeypatch.setattr(sweep, 'api', SimpleNamespace(path_is_active_privileged=lambda p: False))
+    def references(report):
+        cold.write_json(report / 'references.json', {'reference_source_identity': {}})
+        return ()
+    monkeypatch.setattr(sweep, 'references', references)
+    monkeypatch.setattr(sweep, 'load_external_pins', lambda p: set())
+    monkeypatch.setattr(sweep, 'idle_targets', lambda *a, **kw: [])
+    def consume_slice(*a, **kw):
+        clock[0] = kw['deadline']
+        return []
+    monkeypatch.setattr(cold, 'idle_scratch', consume_slice)
+    monkeypatch.setitem(sys.modules, 'host_disk_completed_dependencies', SimpleNamespace(run=consume_slice))
+    monkeypatch.setattr(cold, 'cleanup_abandoned_archives', lambda *a, **kw: [])
+    monkeypatch.setattr(sweep, 'auto_classes', lambda api, report, pins, external, **kw: (pins, []))
+    eligible = tmp_path / 'site-system/flagship-v2/work/node_modules'
+    def discovery(root, pins, deadline, names):
+        if root == tmp_path / 'reports':
+            clock[0] = deadline
+            raise TimeoutError('discovery')
+        assert clock[0] < deadline < 1800
+        return [eligible] if root == eligible.parent else []
+    monkeypatch.setattr(sweep, 'discover', discovery)
+    admitted = []
+    def nodes(api, targets, **kw):
+        assert targets == [eligible]
+        assert clock[0] < kw['deadline'] < 1800
+        admitted.extend(targets)
+        return []
+    monkeypatch.setattr(cold, 'node_modules', nodes)
+    monkeypatch.setattr(cold, 'verified_duplicates', lambda *a, **kw: [])
+    monkeypatch.setattr(sweep, 'cold_report_roots', lambda *a, **kw: [])
+    monkeypatch.setattr(sweep, 'rank_reports', lambda *a: ([], []))
+    import host_disk_auto_classes as auto
+    monkeypatch.setattr(auto, 'site_cold_archive', lambda *a, **kw: [])
+    report = tmp_path / 'receipt'
+    rows = sweep.run(report, dry_run=True, budget=1800, external_pins='fixture-only', local_only=True)
+    assert admitted == [eligible]
+    assert any(r.get('rule') == 'node_discovery' and r['partial'] and r['bytes_freed'] == 0 for r in rows)
+    assert json.loads((report / 'large-classes.json').read_text())['stage'] == 'partial'
+
+
 def test_site_archive_receives_budget_before_report_backlog(tmp_path, monkeypatch):
     clock = [0.0]
     monkeypatch.setattr(sweep.time, 'monotonic', lambda: clock[0])

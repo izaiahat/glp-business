@@ -182,6 +182,11 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     from host_disk_reference_guard import ReferenceGuardAPI
     reference_data=json.loads((report/'references.json').read_text())
     guarded=ReferenceGuardAPI(api,reference_data['reference_source_identity'])
+    # Earlier optional classes must not spend the entire scheduled sweep before
+    # dependency discovery/effects. These are cooperative slices, not extra time.
+    slice_seconds=max(0,deadline-time.monotonic())/6
+    def phase_deadline():
+        return min(deadline,time.monotonic()+slice_seconds)
     def save(stage):
         d=os.statvfs('/')
         m.write_json(report/'large-classes.json',{'stage':stage,'pressure_trigger':pressure,'local_only':local_only,
@@ -206,7 +211,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
         save('idle_scratch')
         scratch=Path('/home/ubuntu/.hermes/cache/scratch')
         targets=idle_targets(scratch,include_declared=bool(external_pins) and external_ok)
-        rows.extend(m.idle_scratch(guarded,targets,pins=pins,dry_run=dry_run,deadline=deadline))
+        rows.extend(m.idle_scratch(guarded,targets,pins=pins,dry_run=dry_run,deadline=phase_deadline()))
     from host_disk_completed_dependencies import run as completed_dependencies
     # Candidate-source qualification has a dry-only finite-class selector; the
     # natural registered unit retains normal singleton/source-install custody.
@@ -214,28 +219,36 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
                        if completed_ci_only else BUS/'ops/disk-retention-policy.json')
     save('completed_ci_dependencies')
     rows.extend(completed_dependencies(guarded,dependency_policy,pins=pins,
-                                      dry_run=dry_run,deadline=deadline))
+                                      dry_run=dry_run,deadline=deadline if completed_ci_only else phase_deadline()))
     if completed_ci_only:
         save('terminal_completed_ci_dry_run')
         return rows
     if external is not None:
         save('auto_classes')
         try:
+            auto_deadline=phase_deadline()
             save('abandoned_archive_staging')
             rows.extend(m.cleanup_abandoned_archives(guarded,BUS/'reports/host-disk-prune',
                 source_roots=(BUS/'reports',BUS/'site-system/flagship-v2/archives',BUS/'site-system/archives'),
-                dry_run=dry_run,deadline=deadline))
+                dry_run=dry_run,deadline=auto_deadline))
             save('auto_classes')
-            pins,auto_rows=auto_classes(guarded,report,pins,external,dry_run=dry_run,deadline=deadline)
+            pins,auto_rows=auto_classes(guarded,report,pins,external,dry_run=dry_run,deadline=auto_deadline)
             rows.extend(auto_rows);external_ok=True
         except (OSError,ValueError,KeyError,RuntimeError,TimeoutError) as e:
             external_ok=False
             rows.append({'rule':'auto_classes','status':'GATED_REFERENCE_INVENTORY','reason':str(e),'bytes_freed':0,'ok':False})
     save('discover_nodes');nodes=[]
-    for root in [BUS/'reports',BUS/'site-system/flagship-v2/candidates',
-                 BUS/'site-system/flagship-v2/work',BUS/'.worktrees']:
-        nodes.extend(discover(root,pins,deadline,names={'node_modules'}))
-    rows.extend(m.node_modules(guarded,nodes,pins=pins,dry_run=dry_run,deadline=deadline))
+    node_deadline=phase_deadline()
+    roots=[BUS/'reports',BUS/'site-system/flagship-v2/candidates',
+           BUS/'site-system/flagship-v2/work',BUS/'.worktrees']
+    discovery_seconds=max(0,node_deadline-time.monotonic())/(2*len(roots))
+    for root in roots:
+        try:
+            nodes.extend(discover(root,pins,min(node_deadline,time.monotonic()+discovery_seconds),names={'node_modules'}))
+        except TimeoutError:
+            rows.append({'rule':'node_discovery','path':str(root),'status':'TIME_BUDGET_PARTIAL',
+                         'partial':True,'bytes_freed':0})
+    rows.extend(m.node_modules(guarded,nodes,pins=pins,dry_run=dry_run,deadline=node_deadline))
     save('cold_evidence')
     class Unavailable:
         def store(self,*args):raise RuntimeError('R2 destination unavailable')

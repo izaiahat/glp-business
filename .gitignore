@@ -14,6 +14,7 @@
 /reports/*
 !/scripts/
 /scripts/*
+!/scripts/safe_regenerable_pruner.py
 !/scripts/article_source_carrier.py
 !/scripts/article_review_physical_lines.py
 !/scripts/review_source_lines.py

@@ -572,7 +572,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6cf5e341fef7b05fa67bb4c54cccfa0af3d6efa63da3e719ec2d3a475dd148c8"
+      "sha256": "f5f794a8b500f95637562a3d7f75eb5a4358db29c1c9f0b7ae3da70ccf182d8e"
     },
     ".hermes.md": {
       "callers": [],
@@ -3680,12 +3680,19 @@
       "kind": "script",
       "sha256": "432b324a2769ebfeed4b187565ecfc5f3248cb8a4653bcaa80a27d6ac6966adc"
     },
+    "scripts/safe_regenerable_pruner.py": {
+      "callers": [
+        "scripts/disk_retention.py"
+      ],
+      "kind": "script",
+      "sha256": "27ab8691bbf39c63a423d7e85ce830e0459849bfaa6d9444d7175266e5814e4c"
+    },
     "scripts/host_disk_large_sweep.py": {
       "callers": [
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "80d35887705c52037e31865a7d6173eb7de6a72a2e1e6320a5e1d200e4551821"
+      "sha256": "dfa6e8ad893bfc7b596a26fdce54dd8db3acaece7145e37bcd3325a3cef344d1"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -6606,7 +6613,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "test",
-      "sha256": "7435aecd89777505fa97bf5b0d7d12d69f0bbadd6727d5e3bf0f3b1fda0ca04e"
+      "sha256": "e0030f41c8c33e9a069ff5a33a469c7b3d21952e6c13b5193ca51660f0a066de"
     },
     "tests/test_host_health_audit.py": {
       "callers": [
@@ -7967,7 +7974,7 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "775d98bca5230249c18487a9cbe4e071282a4b23cdc9135ad4721dc98764f834"
+      "sha256": "0ace104ed3e96fbf9697a8a10bc892289ae40eb7d7e4deef40cb3eff52ccb296"
     },
     "scripts/host_disk_relay_custody.py": {
       "kind": "script",
@@ -8254,5 +8261,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1206
+  "tracked_count": 1207
 }
