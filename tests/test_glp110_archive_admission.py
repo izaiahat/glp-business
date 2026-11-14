@@ -13,6 +13,18 @@ from types import SimpleNamespace
 
 import pytest
 
+# Collected by both existing owning workflows, without a new CI architecture.
+from tests.test_hermes_backup_incremental import (
+    test_real_second_incremental_run_links_only_backup_inodes,
+    test_headroom_refusal_preserves_all_prior_and_no_partial,
+    test_runtime_rsync_headroom_refusal_reaps_child,
+    test_retention_newest_three_complete_only_and_failure_keeps_old,
+    test_unknown_or_unsafe_ordinary_data_refuses_not_silently_skipped,
+    test_lock_contention_and_unsafe_lock_do_not_touch_sources,
+    test_tampered_basis_is_never_linked_or_retired,
+    test_sqlite_runtime_refusal_and_pinned_wal_generation,
+)
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import evidence_preserving_pruner as ep
 import subprocess
@@ -517,9 +529,8 @@ def test_state_backup_successful_steps_are_paced(tmp_path):
         db.commit()
     producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
     begin = time.monotonic()
-    run = subprocess.run(['bash', str(producer)], env={**os.environ,
-        'HERMES_HOME': str(home), 'HERMES_BACKUP_ROOT': str(tmp_path / 'backups'),
-        'TMPDIR': str(tmp_path)}, capture_output=True, text=True, timeout=90)
+    from tests.test_hermes_backup_incremental import run_backup
+    run = run_backup(tmp_path, home)
     elapsed = time.monotonic() - begin
     assert run.returncode == 0, run.stdout + run.stderr
     assert elapsed >= 3.8, ('successful page copies bypassed 10MiB/s pacing', elapsed)
@@ -545,7 +556,12 @@ def test_daily_backup_large_synthetic_page_stream_fits_pacing_budget():
     last = next(i for i, n in enumerate(statements) if isinstance(n, ast.Expr)
                 and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Attribute)
                 and n.value.func.attr == 'backup')
-    code = compile(ast.Module(body=statements[first:last+1], type_ignores=[]), str(producer), 'exec')
+    block = ast.Module(body=statements[first:last+1], type_ignores=[])
+    # Lift only closure binding for the same isolated callback oracle.
+    class Lift(ast.NodeTransformer):
+        def visit_Nonlocal(self, node):
+            return ast.copy_location(ast.Global(names=node.names), node)
+    code = compile(ast.fix_missing_locations(Lift().visit(block)), str(producer), 'exec')
     clock = [0.0]
     def sleep(delay):
         clock[0] += delay
@@ -561,7 +577,8 @@ def test_daily_backup_large_synthetic_page_stream_fits_pacing_budget():
                  src=SimpleNamespace(backup=backup), dst=None, is_state=True,
                  logical_bytes=logical_bytes, page_size=page_size,
                  limit=logical_bytes + 1024**3, rel='state.db',
-                 free_bytes=lambda: 100 * 1024**3, MIN_FREE_BYTES=2 * 1024**3,
+                 free_bytes=lambda: 100 * 1024**3, MIN_FREE_BYTES=50 * 1024**3,
+                 RESERVE_BYTES=1024**3,
                  wal=SimpleNamespace(exists=lambda: False), wal_before=0,
                  sqlite3=SimpleNamespace(SQLITE_OK=0, SQLITE_DONE=101), log=logs.append)
     exec(code, scope)
@@ -621,102 +638,69 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
             conn.commit()
             assert (home / 'cron' / (name+'-wal')).stat().st_size > 0
         producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
+        from tests.test_hermes_backup_incremental import run_backup, complete
         backup_root = tmp_path / 'backups'
-        env = {**os.environ, 'HERMES_HOME': str(home),
-               'HERMES_BACKUP_ROOT': str(backup_root), 'TMPDIR': str(tmp_path)}
-        run = subprocess.run(['bash', str(producer)], env=env, capture_output=True,
-                             text=True, timeout=90)
+        run = run_backup(tmp_path, home)
         assert run.returncode == 0, run.stdout + run.stderr
-        artifacts = list(backup_root.glob('hermes-state-????????.tar.gz'))
+        artifacts = complete(tmp_path)
         assert len(artifacts) == 1
         artifact = artifacts[0]
-        assert artifact.stat().st_mode & 0o777 == 0o600
+        assert artifact.stat().st_mode & 0o777 == 0o700
         assert backup_root.stat().st_mode & 0o777 == 0o700
-        with tarfile.open(artifact) as tar:
-            members = {m.name: m for m in tar.getmembers()}
-            assert len(members) == len(tar.getmembers())
-            assert 'state.db' not in members  # published separately as zstd
-            assert not any(n.endswith(('-wal', '-shm')) for n in members)
-            for name, payload in payloads.items():
-                member_file = tar.extractfile(name)
-                assert member_file is not None
-                assert member_file.read() == payload
-            coverage_file = tar.extractfile('backup-coverage.json')
-            assert coverage_file is not None
-            manifest = json.load(coverage_file)
-            assert manifest['session_store']['status'] == 'SNAPSHOT_OK'
-            state_copies = list(backup_root.glob('hermes-state-db-????????.sqlite.zst'))
-            assert [p.name for p in state_copies] == [manifest['session_store']['artifact']]
-            assert state_copies[0].stat().st_mode & 0o777 == 0o600
-            snapshot = tmp_path / 'state-snapshot.db'
-            subprocess.run(['zstd', '-q', '-d', str(state_copies[0]), '-o', str(snapshot)], check=True)
-            restored = tmp_path / 'state-restored.db'
-            with restored.open('xb') as target:
-                os.fchmod(target.fileno(), 0o600)
+        members = {p.relative_to(artifact / 'data').as_posix(): p
+                   for p in (artifact / 'data').rglob('*') if p.is_file()}
+        assert 'state.db' in members
+        assert not any(n.endswith(('-wal', '-shm')) for n in members)
+        for name, payload in payloads.items():
+            assert members[name].read_bytes() == payload
+        manifest = json.loads((artifact / 'backup-coverage.json').read_text())
+        assert manifest['session_store']['status'] == 'SNAPSHOT_OK'
+        snapshot = members['state.db']
+        restored = tmp_path / 'state-restored.db'
+        with restored.open('xb') as target:
+            os.fchmod(target.fileno(), 0o600)
+        with sqlite3.connect(snapshot) as src, sqlite3.connect(restored) as dst:
+            src.backup(dst)
+            assert dst.execute('pragma quick_check').fetchall() == [('ok',)]
+            assert dst.execute('select count(*) from messages').fetchone()[0] == 1
+            assert dst.execute("select count(*) from messages_fts where messages_fts match 'recovery'").fetchone()[0] == 1
+            assert dst.execute("select count(*) from messages_fts where messages_fts match 'uncommitted'").fetchone()[0] == 0
+            dst.execute("insert into messages_fts(messages_fts, rank) values('integrity-check', 1)")
+        assert manifest['session_store']['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
+        assert manifest['producer_sha256'] == hashlib.sha256(producer.read_bytes()).hexdigest()
+        for name in ledgers:
+            member = 'cron/' + name
+            assert member in members, 'scheduled backup omits modern cron ledger: '+name
+            snapshot = members[member]
+            assert snapshot.stat().st_mode & 0o777 == 0o600
+            restored = tmp_path / ('restored-'+name)
             with sqlite3.connect(snapshot) as src, sqlite3.connect(restored) as dst:
                 src.backup(dst)
-                assert dst.execute('pragma quick_check').fetchall() == [('ok',)]
-                assert dst.execute('select count(*) from messages').fetchone()[0] == 1
-                assert dst.execute("select count(*) from messages_fts where messages_fts match 'recovery'").fetchone()[0] == 1
-                assert dst.execute("select count(*) from messages_fts where messages_fts match 'uncommitted'").fetchone()[0] == 0
-                dst.execute("insert into messages_fts(messages_fts, rank) values('integrity-check', 1)")
-            assert manifest['session_store']['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
-            assert manifest['producer_sha256'] == hashlib.sha256(producer.read_bytes()).hexdigest()
-            for name in ledgers:
-                member = 'cron/' + name
-                assert member in members, 'scheduled backup omits modern cron ledger: '+name
-                assert members[member].mode == 0o600
-                snapshot = tmp_path / ('snapshot-'+name)
-                member_file = tar.extractfile(member)
-                assert member_file is not None
-                snapshot.write_bytes(member_file.read())
-                os.chmod(snapshot, 0o600)
-                restored = tmp_path / ('restored-'+name)
-                src = sqlite3.connect('file:'+str(snapshot)+'?mode=ro', uri=True)
-                dst = sqlite3.connect(restored)
-                src.backup(dst)
-                src.close()
                 assert dst.execute('pragma quick_check').fetchone()[0] == 'ok'
                 assert dst.execute('select value from proof').fetchall() == [('committed-in-wal-'+name,)]
-                dst.close()
-                assert manifest['ledgers'][member]['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
-        # Retention: only 2 compressed state.db copies survive a new run.
-        for day in ('20000101', '20000102', '20000103'):
-            (backup_root / ('hermes-state-db-'+day+'.sqlite.zst')).write_bytes(b'old')
-        again = subprocess.run(['bash', str(producer)], env=env, capture_output=True, text=True, timeout=90)
-        assert again.returncode == 0, again.stdout + again.stderr
-        kept = sorted(p.name for p in backup_root.glob('hermes-state-db-*.sqlite.zst'))
-        assert kept == ['hermes-state-db-20000103.sqlite.zst', state_copies[0].name]
-        prior = artifact.read_bytes()
-        # Exact producer with scratch-only statvfs simulation, no live pressure.
-        injection = tmp_path / 'low-space-python'
-        injection.mkdir()
-        (injection / 'sitecustomize.py').write_text(
-            'import os\nfrom types import SimpleNamespace\n'
+            assert manifest['ledgers'][member]['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
+        prior = {p.relative_to(artifact): p.read_bytes() for p in artifact.rglob('*') if p.is_file()}
+        refused = run_backup(tmp_path, home,
             'os.statvfs = lambda p: SimpleNamespace(f_bavail=1, f_frsize=1)\n')
-        refused = subprocess.run(['bash', str(producer)],
-            env={**env, 'PYTHONPATH': str(injection)}, capture_output=True, timeout=90)
-        assert refused.returncode != 0
-        assert b'insufficient private state snapshot/archive headroom' in refused.stderr
-        assert artifact.read_bytes() == prior
+        assert refused.returncode == 75
+        assert 'SKIP insufficient headroom' in refused.stdout
+        assert complete(tmp_path) == [artifact]
         assert not list(backup_root.glob('.snapshot-*'))
-        # Corrupt a required present ledger. Prior good archive survives; no partial publish.
         for conn in connections:
             conn.close()
         connections.clear()
         (home / 'cron' / 'deliveries.db').write_bytes(b'not a sqlite database')
-        failed = subprocess.run(['bash', str(producer)], env=env, capture_output=True, timeout=90)
+        failed = run_backup(tmp_path, home)
         assert failed.returncode != 0
-        assert artifact.read_bytes() == prior
-        assert not list(backup_root.glob('*.partial.*'))
+        assert prior == {p.relative_to(artifact): p.read_bytes() for p in artifact.rglob('*') if p.is_file()}
         assert not list(backup_root.glob('.snapshot-*'))
-        # An outside symlink cannot be chmodded or truncated by output publication.
+        # An outside symlink cannot be chmodded or truncated by basis admission.
         outside = tmp_path / 'outside'
         outside.write_bytes(b'untouched')
         os.chmod(outside, 0o644)
-        artifact.unlink()
-        artifact.symlink_to(outside)
-        refused = subprocess.run(['bash', str(producer)], env=env, capture_output=True, timeout=90)
+        (artifact / 'data/config.yaml').unlink()
+        (artifact / 'data/config.yaml').symlink_to(outside)
+        refused = run_backup(tmp_path, home)
         assert refused.returncode != 0
         assert outside.read_bytes() == b'untouched'
         assert outside.stat().st_mode & 0o777 == 0o644
