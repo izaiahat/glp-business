@@ -58,7 +58,10 @@ def test_stage_uses_retained_capture_and_resolves_declared_alias(tmp_path, monke
                'aliases': [{'render_id': 'shed', 'program_id': 'member'}],
                'registry_program_ids': ['member'], 'source_urls': ['https://provider.example/']}}},
            'therapeutic_taxonomy': {'programs': {'shedrx': {}, 'shed': {'registry_program_id': 'member'}}}}
-    put(tmp_path / 'release/data/program-registry.json', reg)
+    registry = put(tmp_path / 'release/data/program-registry.json', reg)
+    # This fixture has no successful taxonomy refresh; replay its real registry
+    # rather than consulting an unrelated installed provider registry.
+    monkeypatch.setattr(d, 'TAXONOMY_REGISTRY', registry)
     put(tmp_path / 'release/data/provider-pricing-matrix.json', {'providers': {}})
     out = tmp_path / 'out'
     alias = d.stage_program(er, tmp_path / 'release', 'shed', out / 'shed', None, '2026-10-02')
