@@ -10,6 +10,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -206,15 +207,26 @@ def test_current_source_membership_still_refuses_before_capture(replay):
         m.verify_sources(PID, original, m.POLICIES[PID], run)
 
 
-def test_hosted_runner_skips_native_validator(replay, monkeypatch, tmp_path):
-    monkeypatch.setattr(sys.modules[__name__], 'HERMES_MARKER', tmp_path / 'no-hermes')
+@pytest.mark.parametrize('marker_state', ['missing', 'unreadable'])
+def test_hosted_runner_skips_native_validator(replay, monkeypatch, tmp_path, marker_state):
+    monkeypatch.setenv('GITHUB_ACTIONS', 'true')
+    monkeypatch.setenv('RUNNER_ENVIRONMENT', 'github-hosted')
+    marker = tmp_path / 'no-hermes'
+    monkeypatch.setattr(sys.modules[__name__], 'HERMES_MARKER', marker)
     monkeypatch.setattr(sys.modules[__name__], 'NATIVE_ROOT', tmp_path / 'no-validator')
+    real_is_dir = Path.is_dir
+    def marker_is_dir(path):
+        if path == marker and marker_state == 'unreadable':
+            raise PermissionError('host marker inaccessible on hosted runner')
+        return real_is_dir(path)
+    monkeypatch.setattr(Path, 'is_dir', marker_is_dir)
     with pytest.raises(pytest.skip.Exception, match='^host validator only exists on hermes$'):
         test_native_validator_actual_not_stubbed(replay, monkeypatch)
 
 
 @pytest.mark.parametrize('state', ['missing', 'incompatible'])
 def test_hermes_validator_failure_is_not_skipped(replay, monkeypatch, tmp_path, state):
+    monkeypatch.delenv('RUNNER_ENVIRONMENT', raising=False)
     marker = tmp_path / 'hermes'
     marker.mkdir()
     native_root = tmp_path / 'validator'
@@ -233,7 +245,10 @@ def test_hermes_validator_failure_is_not_skipped(replay, monkeypatch, tmp_path, 
 
 
 def test_native_validator_actual_not_stubbed(replay, monkeypatch):
-    if not HERMES_MARKER.is_dir():
+    hosted = (os.environ.get('GITHUB_ACTIONS') == 'true'
+              and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted')
+    # Hosted images can contain an inaccessible /home/ubuntu: do not probe it.
+    if hosted or not HERMES_MARKER.is_dir():
         pytest.skip('host validator only exists on hermes')
     m, receipts, row, run, index = replay
     packaged_root = FIXTURES / 'native-validator'
