@@ -5,6 +5,8 @@ on:
       - scripts/disk_alarm.py
       - tests/test_disk_alarm.py
       - ops/disk-alarm.md
+      - ops/systemd/kael-disk-alarm.service
+      - ops/systemd/kael-disk-alarm.timer
       - .github/workflows/disk-alarm-source.yml
 permissions:
   contents: read

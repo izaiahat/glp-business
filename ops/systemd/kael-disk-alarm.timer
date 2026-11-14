@@ -1,0 +1,9 @@
+[Unit]
+Description=Check root disk space every 15 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00/15:00
+Unit=kael-disk-alarm.service
+
+[Install]
+WantedBy=timers.target

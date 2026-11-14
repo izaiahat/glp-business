@@ -14,10 +14,8 @@ import tempfile
 import time
 
 BUSINESS = Path('/home/ubuntu/business')
-HOME = Path('/home/ubuntu/.hermes')
 STATE = BUSINESS / 'ops/runtime/disk-alarm'
-JOB_ID = '415ec5eba194'
-JOB_SCRIPT = 'glp_release_main_cron.sh'
+LOG = Path('/srv/kael-mailbox/disk-alerts.log')
 CHANNEL = '1487300132054765629'
 OPERATOR = '392067741500309517'
 
@@ -51,30 +49,13 @@ def lock(root):
 
 
 def free_bytes():
-    result = subprocess.run(['/usr/bin/df', '-B1', '--output=avail', str(BUSINESS)],
+    result = subprocess.run(['/usr/bin/df', '-B1', '--output=avail', '/'],
                             check=True, capture_output=True, text=True, timeout=10,
                             env={**os.environ, 'LC_ALL': 'C'})
     rows = result.stdout.splitlines()
     if len(rows) != 2 or not rows[1].strip().isascii() or not rows[1].strip().isdigit():
         raise RuntimeError('invalid df available bytes')
     return int(rows[1])
-
-
-def pause_registry(jobs=None):
-    if jobs is None:
-        # Import only on critical ticks. The ordinary 15-minute path is stdlib + df.
-        sys.path.insert(0, str(HOME / 'hermes-agent'))
-        from cron import jobs
-    with jobs._jobs_lock(require_cross_process=True):
-        before = jobs.get_job(JOB_ID)
-        if not before or before.get('id') != JOB_ID or before.get('script') != JOB_SCRIPT:
-            raise RuntimeError('identified registry build-copy job identity changed')
-        if before.get('enabled') is False and before.get('state') == 'paused':
-            return 'already_paused'
-        result = jobs.pause_job(JOB_ID, reason='Disk alarm: available space below 40 GiB; operator-only resume')
-        if not result or result.get('enabled') is not False or result.get('state') != 'paused':
-            raise RuntimeError('native pause not confirmed')
-        return 'paused'
 
 
 def notify(message):
@@ -90,7 +71,7 @@ def notify(message):
     return {'message_id': receipt['message_id']}
 
 
-def tick(root, available, pause=pause_registry, send=notify):
+def tick(root, available, send=notify, log_path=None):
     """Caller holds singleton lock; callbacks are injectable for offline tests."""
     path = root / 'state.json'
     state = json.loads(path.read_text()) if path.exists() else {'sent': [], 'pending': None}
@@ -100,18 +81,15 @@ def tick(root, available, pause=pause_registry, send=notify):
         # Persistent scheduled-backup gate; no crontab rewrite or active-process stop.
         if not (root / 'backup-paused').exists():
             atomic_json(root / 'backup-paused', observation)
-        try:
-            observation['registry_pause'] = pause()
-        except Exception as exc:
-            observation['pause_error'] = type(exc).__name__
+        observation['backup_pause'] = 'paused'
     state['latest'] = observation
     if current == 'healthy' and state['pending'] is None:
         state['sent'] = []
     should_send = current != 'healthy' and current not in state['sent'] and state['pending'] is None
     if should_send:
         message = (f'<@{OPERATOR}> DISK {current.upper()}: {available / 2**30:.2f} GiB available '
-                   f'on /home/ubuntu/business. Operator + assistant: inspect disk pressure. '
-                   + (f'Backup schedule gated; registry schedule: {observation.get("registry_pause", "PAUSE FAILED")}. '
+                   f'on /. Operator + assistant: inspect disk pressure. '
+                   + ('Backup schedule gated. '
                       if current == 'critical' else 'Below 60 GiB warning; no schedules changed. ')
                    + 'No active jobs stopped; AHS untouched. Pauses never auto-resume.')
         state['pending'] = {'level': current, 'message': message, 'at': observation['at']}
@@ -126,6 +104,10 @@ def tick(root, available, pause=pause_registry, send=notify):
     if state['pending'] is not None:
         observation['delivery_pending'] = True
     atomic_json(path, state)
+    with (log_path or root / 'disk-alerts.log').open('a') as stream:
+        stream.write(json.dumps(observation, sort_keys=True) + '\n')
+        stream.flush()
+        os.fsync(stream.fileno())
     return observation
 
 
@@ -144,9 +126,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['check', 'tick', 'backup'])
     args = parser.parse_args()
-    if os.environ.get('HERMES_HOME', str(HOME)) != str(HOME):
-        raise RuntimeError('default profile only')
-    os.environ['HERMES_HOME'] = str(HOME)
+
     if args.action == 'check':
         available = free_bytes()
         print(json.dumps({'available_bytes': available, 'level': level(available), 'effects': False}))
@@ -156,9 +136,9 @@ def main():
             if args.action == 'backup':
                 child = backup(STATE, free_bytes(), subprocess.Popen)
             else:
-                result = tick(STATE, free_bytes())
+                result = tick(STATE, free_bytes(), log_path=LOG)
                 print(json.dumps(result, sort_keys=True))
-                return int('pause_error' in result or 'delivery_pending' in result)
+                return int('delivery_pending' in result)
     except BlockingIOError:
         print('SKIP disk alarm lock busy')
         return 0

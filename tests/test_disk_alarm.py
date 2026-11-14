@@ -5,7 +5,6 @@ import unittest
 import tempfile
 import json
 from unittest.mock import Mock, patch
-from contextlib import contextmanager
 
 SOURCE = Path(__file__).resolve().parents[1] / 'scripts/disk_alarm.py'
 
@@ -19,55 +18,38 @@ def load():
 
 class DiskAlarmTests(unittest.TestCase):
     def test_exact_thresholds(self):
-        self.assertTrue(SOURCE.is_file(), 'disk alarm producer is missing')
         alarm = load()
         for available, expected in [(60 * 2**30, 'healthy'), (60 * 2**30 - 1, 'warning'),
                                     (40 * 2**30, 'warning'), (40 * 2**30 - 1, 'critical')]:
             with self.subTest(available=available):
                 self.assertEqual(alarm.level(available), expected)
 
-
-    def test_tick_alert_pause_dedupe_and_no_resume(self):
+    def test_tick_logs_alerts_and_pauses_only_backup_without_resume(self):
         alarm = load()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            pause, notify = Mock(return_value='paused'), Mock(return_value={'message_id': '123'})
-            alarm.tick(root, 60 * 2**30, pause, notify)
-            pause.assert_not_called(); notify.assert_not_called()
-            alarm.tick(root, 60 * 2**30 - 1, pause, notify)
-            alarm.tick(root, 40 * 2**30, pause, notify)
-            self.assertEqual(notify.call_count, 1)
-            pause.assert_not_called()
-            alarm.tick(root, 40 * 2**30 - 1, pause, notify)
-            self.assertTrue((root / 'backup-paused').exists())
-            pause.assert_called_once()
+            log = root / 'mailbox-alerts.log'
+            notify = Mock(return_value={'message_id': '123'})
+            with patch.object(alarm.subprocess, 'run', side_effect=AssertionError('no scheduler calls')):
+                for available in (60 * 2**30, 60 * 2**30 - 1, 40 * 2**30,
+                                  40 * 2**30 - 1, 70 * 2**30):
+                    alarm.tick(root, available, notify, log)
+            rows = [json.loads(line) for line in log.read_text().splitlines()]
+            self.assertEqual([row['level'] for row in rows], ['healthy', 'warning', 'warning', 'critical', 'healthy'])
             self.assertEqual(notify.call_count, 2)
-            alarm.tick(root, 70 * 2**30, pause, notify)
             self.assertTrue((root / 'backup-paused').exists())
-            self.assertEqual(pause.call_count, 1)  # no resume function exists
-            self.assertEqual(notify.call_count, 2)
+            self.assertEqual({p.name for p in root.iterdir()}, {'state.json', 'backup-paused', log.name})
+            self.assertNotIn('hermes', SOURCE.read_text().replace('hermes-state-backup.sh', ''))
 
     def test_ambiguous_send_stays_latched_after_recovery(self):
         alarm = load()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             notify = Mock(side_effect=TimeoutError('ambiguous'))
-            pause = Mock(return_value='paused')
-            alarm.tick(root, 50 * 2**30, pause, notify)
-            alarm.tick(root, 70 * 2**30, pause, notify)
-            alarm.tick(root, 30 * 2**30, pause, notify)
+            for available in (50 * 2**30, 70 * 2**30, 30 * 2**30):
+                alarm.tick(root, available, notify)
             self.assertEqual(notify.call_count, 1)
-            pause.assert_called_once()
             self.assertIsNotNone(json.loads((root / 'state.json').read_text())['pending'])
-
-    def test_pause_failure_still_alerts_and_blocks_backup(self):
-        alarm = load()
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            notify = Mock(return_value={'message_id': '123'})
-            result = alarm.tick(root, 30 * 2**30, Mock(side_effect=RuntimeError('native refused')), notify)
-            self.assertIn('pause_error', result)
-            notify.assert_called_once()
             self.assertTrue((root / 'backup-paused').exists())
 
     def test_backup_gate_and_existing_script_only(self):
@@ -77,7 +59,7 @@ class DiskAlarmTests(unittest.TestCase):
             root = Path(directory)
             with self.assertRaises(RuntimeError):
                 alarm.backup(root, 70 * 2**30, launch)
-            alarm.tick(root, 70 * 2**30, Mock(), Mock())
+            alarm.tick(root, 70 * 2**30, Mock())
             alarm.backup(root, 40 * 2**30, launch)
             launch.assert_called_once_with(['/bin/bash', str(alarm.BUSINESS / 'scripts/hermes-state-backup.sh')])
             launch.reset_mock()
@@ -97,10 +79,10 @@ class DiskAlarmTests(unittest.TestCase):
                     self.assertEqual(json.loads((root / 'state.json').read_text())['pending']['message'], message)
                     raise SystemExit('simulated process death')
                 with self.assertRaises(SystemExit):
-                    alarm.tick(root, 50 * 2**30, Mock(), crash)
+                    alarm.tick(root, 50 * 2**30, crash)
             send = Mock()
             with alarm.lock(root):
-                alarm.tick(root, 50 * 2**30, Mock(), send)
+                alarm.tick(root, 50 * 2**30, send)
             send.assert_not_called()
 
     def test_sender_exact_route_and_one_attempt(self):
@@ -115,45 +97,21 @@ class DiskAlarmTests(unittest.TestCase):
                 alarm.notify('message')
             self.assertEqual(run.call_count, 1)
 
-    def test_cli_help_is_read_only(self):
+    def test_timer_and_root_filesystem_read_only(self):
+        alarm = load()
+        base = SOURCE.parents[1]
+        timer = (base / 'ops/systemd/kael-disk-alarm.timer').read_text()
+        service = (base / 'ops/systemd/kael-disk-alarm.service').read_text()
+        self.assertIn('OnCalendar=*-*-* *:00/15:00', timer)
+        self.assertIn('disk_alarm.py tick', service)
+        self.assertNotIn('HERMES_HOME', service)
+        with patch.object(alarm.subprocess, 'run', return_value=Mock(stdout='Avail\n123\n')) as run:
+            self.assertEqual(alarm.free_bytes(), 123)
+            self.assertEqual(run.call_args.args[0], ['/usr/bin/df', '-B1', '--output=avail', '/'])
+        self.assertGreaterEqual(load().free_bytes(), 0)
         import subprocess
-        result = subprocess.run(['python3', '-B', str(SOURCE), '--help'], capture_output=True, text=True, check=True)
-        self.assertIn('{check,tick,backup}', result.stdout)
-
-    def test_real_df_read_only(self):
-        alarm = load()
-        alarm.BUSINESS = SOURCE.parent
-        self.assertGreaterEqual(alarm.free_bytes(), 0)
-
-    def test_native_exact_target_preserves_unrelated_and_active_claim(self):
-        alarm = load()
-        import copy
-        target = {'id': alarm.JOB_ID, 'script': alarm.JOB_SCRIPT, 'enabled': True,
-                  'state': 'scheduled', 'fire_claim': {'execution_id': 'active'}, 'next_run_at': 'later'}
-        unrelated = {'id': 'other', 'name': 'ahs-untouched', 'enabled': True}
-        before = copy.deepcopy(unrelated)
-
-        class Jobs:
-            @contextmanager
-            def _jobs_lock(self, *, require_cross_process):
-                assert require_cross_process
-                yield
-            def get_job(self, job_id):
-                assert job_id == alarm.JOB_ID
-                return copy.deepcopy(target)
-            def pause_job(self, job_id, reason):
-                assert job_id == alarm.JOB_ID and reason
-                target.update(enabled=False, state='paused', paused_reason=reason)
-                return copy.deepcopy(target)
-        jobs = Jobs()
-        alarm.pause_registry(jobs)
-        self.assertEqual(unrelated, before)
-        self.assertEqual(target['fire_claim'], {'execution_id': 'active'})
-        self.assertEqual(target['next_run_at'], 'later')
-        self.assertFalse(target['enabled'])
-        target['script'] = 'unrelated.sh'
-        with self.assertRaises(RuntimeError):
-            alarm.pause_registry(jobs)
+        result = subprocess.run(['python3', '-B', str(SOURCE), 'check'], capture_output=True, text=True, check=True)
+        self.assertFalse(json.loads(result.stdout)['effects'])
 
 
 if __name__ == '__main__':

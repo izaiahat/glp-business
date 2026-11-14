@@ -607,7 +607,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "162f07489fac8d13a42f4a189364c61e8b1cdefda6a77c6fdf346c5556340bd3"
+      "sha256": "183a4fc04b149e941be10028b9d070b85368d60bf759f180c9925c34e94619bf"
     },
     ".hermes.md": {
       "callers": [],
@@ -8299,24 +8299,36 @@
       "callers": [
         "host cron (parent installation only)"
       ],
-      "sha256": "f918852d13c23301849d03efac49ee36f8d304d52fd5d79bfd596d556422e852"
+      "sha256": "d4f85d97932165cd89291e3ca2f0545698e8f27c060de8fac6549973b3f0172e"
     },
     "tests/test_disk_alarm.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/disk-alarm-source.yml"
       ],
-      "sha256": "160075f786aeaef856d8638635f33cf10c9332712f233e9d636732d94a8ac626"
+      "sha256": "ae4a45c86f20f63581726fc22e519bce9b6392331d342e6d7a7a64978e8e5bbc"
     },
     "ops/disk-alarm.md": {
       "kind": "instruction_or_policy",
       "callers": [],
-      "sha256": "39a1b22341fa236acd766cf4078a205141b1dbe0368bbaaa29690616a34c9c4b"
+      "sha256": "69c6c6a0be28e3aabd9e8fedde119abd820671f089f915e060674d92b924b176"
     },
     ".github/workflows/disk-alarm-source.yml": {
       "kind": "repository_control",
       "callers": [],
-      "sha256": "06691856239a5d720ef6a3dd9202ad223336dc25c107efdc4bd54755b116830a"
+      "sha256": "3ff178ffde662a584ef35f7f1aca0bfc20e5a73544b7bd096170be008e1085d2"
+    },
+    "ops/systemd/kael-disk-alarm.service": {
+      "callers": [
+        "ops/systemd/kael-disk-alarm.timer"
+      ],
+      "kind": "repository_control",
+      "sha256": "bc0cde02f12ca6db172ea2e2ccf6b3d9a907b3416f88e67baee9ce49b47e52df"
+    },
+    "ops/systemd/kael-disk-alarm.timer": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "bc5c5f4db35052118ee1d702272a7b9da3958a059543ab0316e3b73eb822ce30"
     }
   },
   "omitted_runtime_inputs": [
@@ -8327,5 +8339,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1217
+  "tracked_count": 1219
 }

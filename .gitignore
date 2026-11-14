@@ -657,3 +657,5 @@
 !/tests/test_host_disk_local_only.py
 !/ops/host-disk-local-only-capability.md
 !/ops/systemd/host-disk-cleanup-local-only.conf.example
+!/ops/systemd/kael-disk-alarm.service
+!/ops/systemd/kael-disk-alarm.timer
