@@ -12,6 +12,15 @@ AT = '2026-10-12T03:00:00+00:00'
 LOCALS = re.compile(r'^(?:affiliates?|affiliaterelations|partnerships?|partners?|business|ambassadors|advocates)$', re.I)
 
 
+@pytest.fixture(autouse=True)
+def isolated_campaign_ledger(tmp_path, monkeypatch):
+    import glp_sponsor_campaign as campaign
+    monkeypatch.setattr(campaign, 'ROOT', tmp_path)
+    ledger = tmp_path / 'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl'
+    ledger.parent.mkdir()
+    ledger.write_text('')  # No verification observed; unknown must remain unknown.
+
+
 def hits_from(markup):
     """Minimal stand-in for campaign.public_page_hits: visible text + mailto."""
     text = re.sub(r'<[^>]+>', ' ', markup)

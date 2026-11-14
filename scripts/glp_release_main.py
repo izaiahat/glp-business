@@ -518,6 +518,19 @@ def main(argv=None):
         main_sha = a.sha or site_main_sha()
         report = RUNS / ('main-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
         report.mkdir(parents=False, exist_ok=False)
+        if not a.prepare_only:
+            # Allocation backpressure only: never retire payloads or relax their guards.
+            # Count each main run once, including failed/orphaned runs, under run.lock.
+            retained = sum(1 for run in RUNS.iterdir() if run.name.startswith('main-')
+                           and ((run / 'candidate').is_dir() or (run / 'prepared').is_dir()))
+            if retained >= 24:
+                out = {'status': 'DEFERRED_RETENTION_BACKLOG', 'scope': SCOPE, 'site_main': main_sha,
+                       'retained_build_runs': retained, 'retained_build_cap': 24,
+                       'report': str(report), 'build_executed': False, 'deployed': False,
+                       'run_type': os.environ.get('GLP_RUN_TYPE', 'manual')}
+                job.save(report / 'MAIN-RELEASE-RESULT.json', out)
+                print(json.dumps(out))
+                return 0
         if a.prepare_only:
             pr = merged_pr_for(main_sha)
         else:

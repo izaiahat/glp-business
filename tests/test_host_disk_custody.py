@@ -2,6 +2,14 @@ from pathlib import Path
 import time
 import host_disk_custody as custody
 import host_disk_cold_classes as cold
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_live_home(tmp_path, monkeypatch):
+    home = tmp_path / 'private-hermes'
+    home.mkdir()
+    monkeypatch.setattr(cold, 'LIVE_HOME', home)
 
 
 def test_wide_live_symlink_inventory_has_bounded_memory(tmp_path):

@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import ast
 import copy
+import hashlib
 import importlib.util
 import json
 import os
 import re
+import runpy
 import socket
 import sqlite3
 import tempfile
@@ -61,6 +63,33 @@ def activity_from_capture(capture: str) -> dict[str, Any]:
         "state": state,
         "evidence": {"ready_marker": ready_pos >= 0, "active_marker": active_pos >= 0, "bad_markers": bad},
     }
+
+
+HERMES_MARKER = Path('/home/ubuntu/.hermes/hermes-agent')
+
+
+def maintained_source(relative: str, host: Path) -> str:
+    required = os.environ.get('HERMES_HOST_CHECK') == '1'
+    hosted = (os.environ.get('GITHUB_ACTIONS') == 'true'
+              and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted')
+    if required:
+        assert HERMES_MARKER.is_dir(), f'missing hermes host marker: {HERMES_MARKER}'
+    on_hermes = required or (not hosted and HERMES_MARKER.is_dir())
+    # Only off-host checks may skip unreadable source or use pinned excerpts.
+    try:
+        return host.read_text(encoding="utf-8")
+    except PermissionError as exc:
+        if on_hermes:
+            raise
+        raise unittest.SkipTest(f"unreadable maintained source: {host}: {exc}") from exc
+    except FileNotFoundError:
+        if on_hermes:
+            raise
+        fixture = json.loads(Path(__file__).with_name("hermes_active_work_gate_sources.json").read_text())
+        record = fixture["sources"][relative]
+        text = record["text"]
+        assert hashlib.sha256(text.encode()).hexdigest() == record["excerpt_sha256"]
+        return text
 
 
 def setUpModule():
@@ -255,19 +284,20 @@ class ActiveWorkGateTests(unittest.TestCase):
         self.assertEqual(result["stale_proven"][0]["reason"], "claim_older_than_scheduler_ttl")
 
     def test_claim_ttl_mirror_matches_the_fork_scheduler_literals(self):
-        source = self.mod.FORK_CRON_JOBS_SOURCE
-        if not source.is_file():
-            self.skipTest("fork cron/jobs.py is not present on this host")
-        constants = source.with_name("constants.py")
+        self.assertEqual(self.mod.FORK_CRON_JOBS_SOURCE,
+                         Path("/home/ubuntu/.hermes/hermes-agent/cron/jobs.py"))
+        native = self.mod.FORK_CRON_JOBS_SOURCE.parent
+        source = maintained_source("cron/jobs.py", native / "jobs.py")
+        constants = maintained_source("cron/constants.py", native / "constants.py")
         for name, value, maintained in (
             ("ONESHOT_RUN_CLAIM_TTL_SECONDS", int(self.mod.CRON_CLAIM_TTL_FALLBACK_SECONDS), source),
             ("CLAIM_TTL_INACTIVITY_HEADROOM", self.mod.CRON_CLAIM_TTL_HEADROOM, constants),
             ("_DEFAULT_CRON_INACTIVITY_TIMEOUT", self.mod.DEFAULT_CRON_INACTIVITY_TIMEOUT, source),
         ):
-            match = re.search(rf"^{re.escape(name)} = ([0-9.]+)$", maintained.read_text(encoding="utf-8"), re.MULTILINE)
-            self.assertIsNotNone(match, f"{name} not found in {maintained}")
+            match = re.search(rf"^{re.escape(name)} = ([0-9.]+)$", maintained, re.MULTILINE)
+            self.assertIsNotNone(match, f"{name} not found in maintained source")
             self.assertEqual(float(match.group(1)), float(value), name)
-        self.assertIn("timeout * CLAIM_TTL_INACTIVITY_HEADROOM", source.read_text(encoding="utf-8"))
+        self.assertIn("timeout * CLAIM_TTL_INACTIVITY_HEADROOM", source)
 
     def test_process_registry_blocks_without_emitting_command(self):
         write_proc_stat(self.proc, 777, 888)
@@ -740,20 +770,141 @@ class IdleLifecycleRegistrationTests(unittest.TestCase):
         self.assertEqual(activity_from_capture('SyntaxError:\n─ ready\n❯ pending')['state'], 'error')
 
     def test_portable_classifier_is_exact_maintained_pure_source(self):
-        producer = Path("/home/ubuntu/business/scripts/hermes_tui_continuity.py")
+        producer = SCRIPT.parent / "hermes_tui_continuity.py"
         if not producer.is_file():
-            self.skipTest("host continuity producer absent; portable pure fixture only")
+            producer = Path.home() / "business/scripts/hermes_tui_continuity.py"
+        source = maintained_source("hermes_tui_continuity.py", producer)
         names = {"activity_from_capture", "READY_MARKERS", "ACTIVE_MARKERS", "BAD_MARKERS"}
-        def selected(path):
+        def selected(text):
             nodes = []
-            for node in ast.parse(path.read_text()).body:
+            for node in ast.parse(text).body:
                 name = getattr(node, "name", None)
                 if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
                     name = node.targets[0].id
                 if name in names:
                     nodes.append(ast.dump(node, include_attributes=False))
             return nodes
-        self.assertEqual(selected(producer), selected(Path(__file__)))
+        self.assertEqual(selected(source), selected(Path(__file__).read_text()))
+
+
+class SourcePortabilityTests(unittest.TestCase):
+    def test_hermes_acceptance_entrypoint_enforces_required_host_checks(self):
+        def check(args):
+            self.assertEqual(os.environ.get('HERMES_HOST_CHECK'), '1')
+            root = SCRIPT.parents[1]
+            self.assertIn(str(root / 'tests/test_hermes_active_work_gate.py'), args)
+            self.assertIn(str(root / 'tests/test_glp80_eden_policy.py'), args)
+            return 0
+
+        runner = mock.Mock(main=mock.Mock(side_effect=check))
+        with mock.patch.dict(os.environ, {'HERMES_HOST_CHECK': '0',
+                                         'GITHUB_ACTIONS': 'true',
+                                         'RUNNER_ENVIRONMENT': 'github-hosted'}), \
+             mock.patch.dict('sys.modules', {'pytest': runner}):
+            with self.assertRaises(SystemExit) as exited:
+                runpy.run_path(str(SCRIPT.with_name('check_hermes_host.py')), run_name='__main__')
+        self.assertEqual(exited.exception.code, 0)
+        runner.main.assert_called_once()
+
+    def test_required_missing_marker_rejects_readable_sources(self):
+        records = json.loads(Path(__file__).with_name('hermes_active_work_gate_sources.json').read_text())['sources']
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / 'missing-marker'
+            sources = {}
+            for relative, record in records.items():
+                source = root / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text(record['text'])
+                host = (Path.home() / 'business/scripts' / relative if relative == 'hermes_tui_continuity.py'
+                        else Path('/home/ubuntu/.hermes/hermes-agent') / relative)
+                sources[host] = source
+            original_read = Path.read_text
+
+            def read(path, *args, **kwargs):
+                return original_read(sources.get(path, path), *args, **kwargs)
+
+            with mock.patch.dict(os.environ, {'HERMES_HOST_CHECK': '1',
+                                             'GITHUB_ACTIONS': 'true',
+                                             'RUNNER_ENVIRONMENT': 'github-hosted'}), \
+                 mock.patch(__name__ + '.HERMES_MARKER', marker), \
+                 mock.patch.object(Path, 'read_text', read):
+                def run_checks():
+                    result = unittest.TestResult()
+                    unittest.TestSuite([
+                        ActiveWorkGateTests('test_claim_ttl_mirror_matches_the_fork_scheduler_literals'),
+                        IdleLifecycleRegistrationTests('test_portable_classifier_is_exact_maintained_pure_source'),
+                    ]).run(result)
+                    self.assertEqual(result.testsRun, 2)
+                    self.assertEqual(result.errors, [])
+                    self.assertEqual(result.skipped, [])
+                    return result
+
+                missing = run_checks()
+                self.assertEqual(len(missing.failures), 2)
+                for _, failure in missing.failures:
+                    self.assertIn(f'missing hermes host marker: {marker}', failure)
+                marker.mkdir()
+                readable = run_checks()
+                self.assertTrue(readable.wasSuccessful(), readable.failures)
+
+    def test_source_portability_never_skips_hermes_failures(self):
+        host_paths = {
+            Path("/home/ubuntu/.hermes/hermes-agent/cron/jobs.py"),
+            Path("/home/ubuntu/.hermes/hermes-agent/cron/constants.py"),
+            Path.home() / "business/scripts/hermes_tui_continuity.py",
+        }
+        original_stat, original_read = Path.stat, Path.read_text
+        for on_hermes, required, marker_exists, error in (
+            (False, False, False, FileNotFoundError),
+            (False, False, False, PermissionError),
+            (True, False, True, PermissionError),
+            (True, True, True, PermissionError),
+            (True, True, True, FileNotFoundError),
+        ):
+            with self.subTest(on_hermes=on_hermes, required=required,
+                              marker_exists=marker_exists, error=error.__name__):
+                def stat(path, *args, **kwargs):
+                    if path in host_paths:
+                        raise error(2 if error is FileNotFoundError else 13, "host source unavailable", str(path))
+                    return original_stat(path, *args, **kwargs)
+
+                def read(path, *args, **kwargs):
+                    if path in host_paths:
+                        raise error(2 if error is FileNotFoundError else 13, "host source unavailable", str(path))
+                    return original_read(path, *args, **kwargs)
+
+                suite = unittest.TestSuite([
+                    ActiveWorkGateTests("test_claim_ttl_mirror_matches_the_fork_scheduler_literals"),
+                    IdleLifecycleRegistrationTests("test_portable_classifier_is_exact_maintained_pure_source"),
+                ])
+                result = unittest.TestResult()
+                original_is_dir = Path.is_dir
+                def is_dir(path):
+                    if path == Path('/home/ubuntu/.hermes/hermes-agent'):
+                        return marker_exists
+                    return original_is_dir(path)
+
+                env = {'HERMES_HOST_CHECK': '1' if required else '',
+                       'GITHUB_ACTIONS': 'true',
+                       'RUNNER_ENVIRONMENT': '' if on_hermes and not required else 'github-hosted'}
+                with mock.patch.dict(os.environ, env), \
+                     mock.patch.object(Path, "is_dir", is_dir), \
+                     mock.patch.object(Path, "stat", stat), mock.patch.object(Path, "read_text", read):
+                    suite.run(result)
+                self.assertEqual(result.testsRun, 2)
+                if on_hermes:
+                    self.assertFalse(result.wasSuccessful())
+                    self.assertEqual(len(result.errors) + len(result.failures), 2)
+                    self.assertEqual(result.skipped, [])
+                else:
+                    self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
+                    if error is PermissionError:
+                        self.assertEqual(len(result.skipped), 2)
+                        self.assertTrue(all("unreadable maintained source" in reason
+                                            for _, reason in result.skipped))
+                    else:
+                        self.assertEqual(result.skipped, [])
 
 
 class WaitForIdleTests(unittest.TestCase):

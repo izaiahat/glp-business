@@ -337,23 +337,17 @@ def test_stale_tmp_entries_older_than_24h_removed_young_and_pinned_kept(tmp_path
     assert (root / 'young-build').exists() and (root / 'com.google.Chrome.abc').exists()
 
 
-def test_idle_scratch_child_listed_by_scanner_is_still_idle(tmp_path, monkeypatch):
+def test_idle_scratch_child_listed_by_scanner_is_still_idle(tmp_path, monkeypatch, isolated_scratch_namespace):
     """Regression: dir atime bumped by the pruner's own listing refused every scratch entry."""
-    scratch = Path('/home/ubuntu/.hermes/cache/scratch')
-    if not scratch.is_dir():
-        return
-    p = Path(subprocess.check_output(['mktemp', '-d', '-p', str(scratch), 'autoprune-test-XXXX'], text=True).strip())
-    try:
-        (p / 'sub').mkdir(); (p / 'sub/f').write_text('x'); shift(monkeypatch, 2)
-        listed = REAL_TIME() + 2 * 86400  # a scanner listed the dirs 'now' (relatime moves dir atime)
-        for d in (p, p / 'sub'):
-            os.utime(d, (listed, os.lstat(d).st_mtime))
-        monkeypatch.setattr(large, 'lsof_inactive', lambda q: True)
-        monkeypatch.setattr(m, 'live_symlink_targets', lambda: set())
-        row = m.idle_scratch(API(), [p], pins=(), dry_run=True, deadline=time.monotonic() + 30)[0]
-        assert row['status'] == 'ELIGIBLE', row
-    finally:
-        subprocess.run(['rm', '-rf', str(p)])
+    p = isolated_scratch_namespace / 'autoprune-test'
+    (p / 'sub').mkdir(parents=True); (p / 'sub/f').write_text('x'); shift(monkeypatch, 2)
+    listed = REAL_TIME() + 2 * 86400  # a scanner listed the dirs 'now' (relatime moves dir atime)
+    for d in (p, p / 'sub'):
+        os.utime(d, (listed, os.lstat(d).st_mtime))
+    monkeypatch.setattr(large, 'lsof_inactive', lambda q: True)
+    monkeypatch.setattr(m, 'live_symlink_targets', lambda: set())
+    row = m.idle_scratch(API(), [p], pins=(), dry_run=True, deadline=time.monotonic() + 30)[0]
+    assert row['status'] == 'ELIGIBLE', row
 
 
 def test_cold_report_archive_refuses_open_pr_or_linear_reference(tmp_path, monkeypatch):
@@ -407,7 +401,7 @@ def test_low_free_trigger_launches_only_below_threshold(tmp_path):
     assert t['main'](str(fake), fraction=0.10) == ''
 
 
-def test_bare_scratch_and_tmp_references_do_not_pin_every_child(tmp_path, monkeypatch):
+def test_bare_scratch_and_tmp_references_do_not_pin_every_child(tmp_path, monkeypatch, isolated_scratch_namespace):
     """Regression: a reference to the scratch root itself refused all 300 idle entries."""
     import host_disk_large_sweep as sweep
     bus = tmp_path / 'business'; root = bus / 'reports/ops/glp347-pallas-20261007'; root.mkdir(parents=True)
@@ -417,8 +411,8 @@ def test_bare_scratch_and_tmp_references_do_not_pin_every_child(tmp_path, monkey
     monkeypatch.setattr(sweep, 'BUS', bus)
     report = tmp_path / 'report'; report.mkdir()
     pins = set(sweep.references(report))
-    assert Path('/home/ubuntu/.hermes/cache/scratch') not in pins and Path('/tmp') not in pins
-    assert Path('/home/ubuntu/.hermes/cache/scratch/keep-me-x') in pins
+    assert isolated_scratch_namespace not in pins and Path('/tmp') not in pins
+    assert isolated_scratch_namespace / 'keep-me-x' in pins
 
 
 def test_bare_registry_root_reference_does_not_pin_every_run(tmp_path, monkeypatch):

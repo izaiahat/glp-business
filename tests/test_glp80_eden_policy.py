@@ -1,13 +1,16 @@
 """Authentic four-page Eden replay. No main, locks, live fetch or registry write.
 
-Portable checks exercise the registered producer's verify_sources/support path.
-The optional host check exercises its unchanged actual Node validator, not a
-stub. The one-row native projection is a labelled fixture, never live adoption.
+Portable checks exercise the registered producer's verify_sources/support path
+and authenticate packaged site source. Native validation uses the installed
+host validator on hermes; elsewhere it is explicitly skipped. Missing or
+incompatible host source on hermes fails without fallback.
+The one-row native projection is a labelled fixture, never live adoption.
 """
 import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -18,6 +21,9 @@ import pytest
 BASE = Path(__file__).resolve().parents[1]
 REL = Path('site-system/flagship-v2/candidates/glp34-provider-families-20260912')
 SOURCE = BASE / REL / 'scripts/refresh-therapeutic-taxonomy.py'
+# Independent of the validator: its removal on hermes must still fail hard.
+HERMES_MARKER = Path('/home/ubuntu/.hermes/hermes-agent')
+NATIVE_ROOT = Path('/home/ubuntu/business') / REL
 FIXTURES = BASE / 'tests/fixtures/glp80-eden'
 PID = 'eden-xentraffic-offer-3051'
 URLS = [
@@ -201,13 +207,101 @@ def test_current_source_membership_still_refuses_before_capture(replay):
         m.verify_sources(PID, original, m.POLICIES[PID], run)
 
 
-def test_native_validator_actual_not_stubbed(replay):
+@pytest.mark.parametrize('marker_state', ['missing', 'unreadable'])
+def test_hosted_runner_skips_native_validator(replay, monkeypatch, tmp_path, marker_state):
+    monkeypatch.delenv('HERMES_HOST_CHECK', raising=False)
+    monkeypatch.setenv('GITHUB_ACTIONS', 'true')
+    monkeypatch.setenv('RUNNER_ENVIRONMENT', 'github-hosted')
+    marker = tmp_path / 'no-hermes'
+    monkeypatch.setattr(sys.modules[__name__], 'HERMES_MARKER', marker)
+    monkeypatch.setattr(sys.modules[__name__], 'NATIVE_ROOT', tmp_path / 'no-validator')
+    real_is_dir = Path.is_dir
+    def marker_is_dir(path):
+        if path == marker and marker_state == 'unreadable':
+            raise PermissionError('host marker inaccessible on hosted runner')
+        return real_is_dir(path)
+    monkeypatch.setattr(Path, 'is_dir', marker_is_dir)
+    with pytest.raises(pytest.skip.Exception, match='^host validator only exists on hermes$'):
+        test_native_validator_actual_not_stubbed(replay, monkeypatch)
+
+
+@pytest.mark.parametrize('state', ['marker_missing', 'marker_unreadable', 'missing', 'incompatible'])
+def test_hermes_validator_failure_is_not_skipped(replay, monkeypatch, tmp_path, state):
+    # Explicit host admission must override even inherited hosted-runner flags.
+    monkeypatch.setenv('HERMES_HOST_CHECK', '1')
+    monkeypatch.setenv('GITHUB_ACTIONS', 'true')
+    monkeypatch.setenv('RUNNER_ENVIRONMENT', 'github-hosted')
+    marker = tmp_path / 'hermes'
+    if state != 'marker_missing':
+        marker.mkdir()
+    if state == 'marker_unreadable':
+        real_is_dir = Path.is_dir
+        def marker_is_dir(path):
+            if path == marker:
+                raise PermissionError('host marker inaccessible on hermes')
+            return real_is_dir(path)
+        monkeypatch.setattr(Path, 'is_dir', marker_is_dir)
+    native_root = tmp_path / 'validator'
+    monkeypatch.setattr(sys.modules[__name__], 'HERMES_MARKER', marker)
+    monkeypatch.setattr(sys.modules[__name__], 'NATIVE_ROOT', native_root)
+    if state == 'incompatible':
+        provenance = json.loads((FIXTURES / 'native-validator/provenance.json').read_text())
+        for relative in provenance['files']:
+            target = native_root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text('{}' if target.suffix == '.json' else 'export {};')
+    expected = (PermissionError if state == 'marker_unreadable' else
+                ValueError if state == 'incompatible' else AssertionError)
+    message = ('host marker inaccessible' if state == 'marker_unreadable' else
+               'missing hermes host marker' if state == 'marker_missing' else
+               'missing installed validator dependency' if state == 'missing' else 'export')
+    with pytest.raises(expected, match=message):
+        try:
+            test_native_validator_actual_not_stubbed(replay, monkeypatch)
+        except pytest.skip.Exception as exc:
+            pytest.fail(f'hermes validation must fail, not skip: {exc}')
+
+
+def test_native_validator_actual_not_stubbed(replay, monkeypatch):
+    hosted = (os.environ.get('GITHUB_ACTIONS') == 'true'
+              and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted')
+    required = os.environ.get('HERMES_HOST_CHECK') == '1'
+    # Hosted images can contain an inaccessible /home/ubuntu: do not probe it,
+    # unless the caller explicitly requires installed Hermes host validation.
+    if required:
+        assert HERMES_MARKER.is_dir(), f'missing hermes host marker: {HERMES_MARKER}'
+    elif hosted or not HERMES_MARKER.is_dir():
+        pytest.skip('host validator only exists on hermes')
     m, receipts, row, run, index = replay
-    native_root = Path('/home/ubuntu/business') / REL
-    native = native_root / 'src/therapeutic-taxonomy.mjs'
-    if not native.is_file():
-        pytest.skip('host-only native source; portable CI runs authentic support replay')
+    packaged_root = FIXTURES / 'native-validator'
+    provenance = json.loads((packaged_root / 'provenance.json').read_text())
+    assert provenance['commit'] == 'e13e058810a56a4fc92bf19bab1f0a57e4f8f351'
+    assert set(provenance['files']) == {
+        'src/therapeutic-taxonomy.mjs', 'src/provider-dynamic-profiles.mjs',
+        'data/money-page-specs.json', 'data/quiz-config.json',
+    }
+    for relative, item in provenance['files'].items():
+        raw = (packaged_root / relative).read_bytes()
+        assert digest(raw) == item['sha256']
+        assert hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == item['git_blob']
+    native_root = NATIVE_ROOT
+    for relative in provenance['files']:
+        assert (native_root / relative).is_file(), f'missing installed validator dependency: {native_root / relative}'
     m.ROOT = native_root
+    # Freeze only this child Node process to the retained capture's replay date.
+    # The producer and native validator execute unchanged, including stale refusal.
+    clock = run / 'fixture-clock.mjs'
+    clock.write_text("const RealDate = Date; globalThis.Date = class extends RealDate {"
+                     "constructor(...args) { super(...(args.length ? args : ['2026-10-02T00:00:00Z'])); }"
+                     "static now() { return RealDate.parse('2026-10-02T00:00:00Z'); }};\n")
+    native_run = subprocess.run
+    calls = []
+    def replay_run(args, **kwargs):
+        assert args[:2] == ['node', '--input-type=module']
+        assert kwargs['cwd'] == native_root
+        calls.append(args)
+        return native_run([args[0], '--import', str(clock), *args[1:]], **kwargs)
+    monkeypatch.setattr(m, 'subprocess', types.SimpleNamespace(run=replay_run))
     result = collect(replay)
     registry = json.loads((FIXTURES / 'native-input.json').read_text())
     original = registry['therapeutic_taxonomy']['programs'][PID]
@@ -233,3 +327,4 @@ def test_native_validator_actual_not_stubbed(replay):
     stale['therapeutic_taxonomy']['programs'][PID]['verified_as_of'] = '2026-08-30'
     with pytest.raises(ValueError, match='therapeutic_taxonomy_evidence_stale'):
         m.validate(stale, [PID])
+    assert len(calls) == 2  # Both admission and refusal ran the real Node validator.

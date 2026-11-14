@@ -44,8 +44,9 @@ class MicrosoftReportClient:
         return self.blob
 
 
-def test_microsoft_provider_nil_download_is_not_numeric_zero(monkeypatch):
+def test_microsoft_provider_nil_download_is_not_numeric_zero(monkeypatch, tmp_path):
     module = load_module()
+    monkeypatch.setattr(module, 'LATEST', tmp_path / 'latest.json')
     client = MicrosoftReportClient()
     monkeypatch.setattr(module, 'microsoft_client', lambda: client)
     row = module.collect_microsoft()

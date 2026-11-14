@@ -1,0 +1,27 @@
+{
+  "description": "Authenticated unchanged maintained native validator and required configs; offline test dependency only, not installation or clinical/release authority.",
+  "repository": "https://github.com/izaiahat/glp-site-candidate",
+  "commit": "e13e058810a56a4fc92bf19bab1f0a57e4f8f351",
+  "files": {
+    "src/therapeutic-taxonomy.mjs": {
+      "git_blob": "48c519f796dc88a3fa95ff420c3fade4c8f672df",
+      "sha256": "74c0971af532c170a8ea3c4b136c95882de0e05f05498432b2453eb4ec733503",
+      "source_url": "https://github.com/izaiahat/glp-site-candidate/blob/e13e058810a56a4fc92bf19bab1f0a57e4f8f351/src/therapeutic-taxonomy.mjs"
+    },
+    "src/provider-dynamic-profiles.mjs": {
+      "git_blob": "44623052e891a559e66405d07244141e7656628d",
+      "sha256": "36907fd5b3984446651e3466415394e034f9eef74ecbf3d3aeae9bddd894a15d",
+      "source_url": "https://github.com/izaiahat/glp-site-candidate/blob/e13e058810a56a4fc92bf19bab1f0a57e4f8f351/src/provider-dynamic-profiles.mjs"
+    },
+    "data/money-page-specs.json": {
+      "git_blob": "93d62127ffdc5910f36ffd1d7b5ce385ec9bcbd5",
+      "sha256": "9d5578c5e29486ff31beabe5c374cdc3040ec673bb4242a1a0578dcc43822d72",
+      "source_url": "https://github.com/izaiahat/glp-site-candidate/blob/e13e058810a56a4fc92bf19bab1f0a57e4f8f351/data/money-page-specs.json"
+    },
+    "data/quiz-config.json": {
+      "git_blob": "fd638ef3cc0579687b4b3ce291fecbcc12df1288",
+      "sha256": "f16b0a970d11761fe3b151ba7a393cadfe58cfaccf3766f9ec7f052d87dfddf6",
+      "source_url": "https://github.com/izaiahat/glp-site-candidate/blob/e13e058810a56a4fc92bf19bab1f0a57e4f8f351/data/quiz-config.json"
+    }
+  }
+}
