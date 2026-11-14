@@ -10,8 +10,11 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def isolated_scheduler_custody(monkeypatch):
+def isolated_scheduler_custody(tmp_path, monkeypatch):
     import host_disk_custody
+    home = tmp_path / 'private-hermes'
+    home.mkdir()
+    monkeypatch.setattr(m, 'LIVE_HOME', home)
     monkeypatch.setattr(host_disk_custody, 'collect', lambda: set())
 
 
@@ -31,7 +34,7 @@ def test_reference_metadata_drift_vetoes_effects(tmp_path):
     assert guarded.last_reference_veto==str(source)
 
 
-def test_absolute_scratch_reference_in_large_txt_is_protected(tmp_path,monkeypatch):
+def test_absolute_scratch_reference_in_large_txt_is_protected(tmp_path,monkeypatch,isolated_scratch_namespace):
     bus=tmp_path/'business'
     root=bus/'reports/ops/glp347-pallas-20261007';root.mkdir(parents=True)
     (bus/'ops').mkdir()
@@ -41,7 +44,7 @@ def test_absolute_scratch_reference_in_large_txt_is_protected(tmp_path,monkeypat
     monkeypatch.setattr(sweep,'BUS',bus)
     report=tmp_path/'report';report.mkdir()
     pins=sweep.references(report)
-    assert Path(path) in pins
+    assert isolated_scratch_namespace / 'r8-test-custody-absent' in pins
     assert str(root/'ACK.txt') in json.loads((report/'references.json').read_text())['reference_source_sha256']
 
 

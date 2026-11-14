@@ -50,6 +50,8 @@ def test_saved_taxonomy_capture_becomes_hash_bound_packet_input(tmp_path, suffix
 
 def test_stage_uses_retained_capture_and_resolves_declared_alias(tmp_path, monkeypatch):
     d = load('daily_evidence_refresh')
+    # Bind before the first stage call, including the no-supplement phase.
+    monkeypatch.setattr(d, 'SUPPLEMENTS', tmp_path / 'supplements')
     er = d.load(ROOT / 'tools/glp/evidence_refresh.py', 'stage_engine')
     reg = {'programs': [{'program_id': 'member', 'review_slug': 'shed'}],
            'provider_dynamic_profiles': {'profiles': {'shedrx': {
@@ -71,7 +73,6 @@ def test_stage_uses_retained_capture_and_resolves_declared_alias(tmp_path, monke
     row = d.stage_program(er, tmp_path / 'release', 'shedrx', out / 'shedrx', None, '2026-10-02')
     assert row['capture_count'] == 1
     assert row['capture_outcome'] == 'IMPORTED_RETAINED_TAXONOMY_CAPTURE'
-    monkeypatch.setattr(d, 'SUPPLEMENTS', tmp_path / 'supplements')
     body = tmp_path / 'supplement.txt'
     body.write_text('Fixture provider page')
     caps = {'extra': {'source_url': 'https://provider.example/',

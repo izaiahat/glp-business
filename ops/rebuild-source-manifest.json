@@ -4556,7 +4556,7 @@
         "all pytest workflows (fixture-only ledger isolation)"
       ],
       "kind": "test",
-      "sha256": "48a6318a54d00d5cede32fb14de3880a4d9d8f94612c943f88a1002b77ac3d84"
+      "sha256": "c2d76b9c282d3a62e212d9af54087e130db15abb92624a49e7bba18d7b1fbc4d"
     },
     "tests/finch_cabx_acceptance.py": {
       "callers": [
@@ -6012,7 +6012,7 @@
         "GLP80 daily evidence review"
       ],
       "kind": "test",
-      "sha256": "ee222918c6025c65640a52b2d011c65eb6309c6dc461a6d23bd0ac9b9c8ecbb0"
+      "sha256": "77f5a6c66da59e5907b4226273677fb6d853737f80dafc3443407a4df97722b7"
     },
     "tests/test_glp80_eden_policy.py": {
       "callers": [
@@ -6606,14 +6606,14 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "12c77b36d7fe7e8e89bc5e01072805e5ee8c771bfab495026d6f65ebac60ad21"
+      "sha256": "7be645c65c59650acdcf95364bbe75d22f7ed889d1a1dd42820bcc27b83041d0"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "test",
-      "sha256": "7435aecd89777505fa97bf5b0d7d12d69f0bbadd6727d5e3bf0f3b1fda0ca04e"
+      "sha256": "2871e639ae6625572e6612cb4852a9871968e77e93a0b73b3213c10258999bec"
     },
     "tests/test_host_health_audit.py": {
       "callers": [
@@ -7412,7 +7412,7 @@
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "test",
-      "sha256": "c391513243444f016902190f242283fb9e1db160645671170789e84292bfd19a"
+      "sha256": "afff9008fbbf5ff8df847c6aadfb266a82a4eadbfce47dd5c957b827663d10df"
     },
     "tests/test_host_disk_report_caches.py": {
       "callers": [
