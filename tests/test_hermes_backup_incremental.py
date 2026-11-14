@@ -95,6 +95,31 @@ def test_runtime_rsync_headroom_refusal_reaps_child(tmp_path):
     home = tmp_path / 'home'
     home.mkdir()
     (home / 'config.yaml').write_bytes(b'a' * 2_000_000)
+    # Real inherited permissive default ACL, without requiring acl CLI packages.
+    import struct
+    root = tmp_path / 'backups'
+    root.mkdir()
+    os.setxattr(root, 'system.posix_acl_default', struct.pack('<I', 2) + b''.join(
+        struct.pack('<HHI', tag, 7, 0xffffffff) for tag in (1, 4, 32)))
+    permission_probe = (
+        'import subprocess, pathlib\n'
+        '_popen = subprocess.Popen\n'
+        'def popen(*a, **k):\n'
+        '    p = _popen(*a, **k)\n'
+        '    original_poll = p.poll\n'
+        '    def poll():\n'
+        '        for f in pathlib.Path(os.environ["HERMES_BACKUP_ROOT"]).glob(".snapshot-*/data/**/.*"):\n'
+        '            if f.is_file() and f.stat().st_size > 0:\n'
+        '                assert f.stat().st_mode & 0o777 == 0o600, "non-private first bytes"\n'
+        '                pathlib.Path(os.environ["TMPDIR"], "first-byte-observed").touch()\n'
+        '        return original_poll()\n'
+        '    p.poll = poll\n'
+        '    return p\n'
+        'subprocess.Popen = popen\n')
+    private = run_backup(tmp_path, home, permission_probe)
+    assert private.returncode == 0, private.stdout + private.stderr
+    assert (tmp_path / 'first-byte-observed').exists()
+    prior = complete(tmp_path)
     # Drop reported space only after the real rsync child starts.
     refused = run_backup(tmp_path, home,
         'import subprocess\n'
@@ -105,7 +130,7 @@ def test_runtime_rsync_headroom_refusal_reaps_child(tmp_path):
         '    return p\n'
         'subprocess.Popen = popen\n')
     assert refused.returncode == 75, refused.stdout + refused.stderr
-    assert not complete(tmp_path)
+    assert complete(tmp_path) == prior
     assert not list((tmp_path / 'backups').glob('.snapshot-*'))
 
 
