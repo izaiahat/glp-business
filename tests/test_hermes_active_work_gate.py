@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -17,6 +18,36 @@ from typing import Any
 from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/hermes_active_work_gate.py"
+SOURCE_FIXTURES = Path(__file__).resolve().parent / "fixtures/active-work-source"
+
+
+def authenticated_source(name):
+    """Checked-in exact source excerpts, plus live equality when on the host."""
+    record = json.loads((SOURCE_FIXTURES / "SOURCE.json").read_text())[name]
+    path = SOURCE_FIXTURES / name
+    raw = path.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == record["excerpt_sha256"]
+    # Hosted runners must not probe another user's absolute home. The fixture
+    # still exercises every source comparison below; nothing is skipped in CI.
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        live = Path(record["source_path"])
+        try:
+            text = live.read_text()
+        except (FileNotFoundError, PermissionError):
+            text = None
+        if text is not None:
+            names = set(record["names"])
+            def selected(text):
+                nodes = []
+                for node in ast.parse(text).body:
+                    key = getattr(node, "name", None)
+                    if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+                        key = node.targets[0].id
+                    if key in names:
+                        nodes.append(ast.dump(node, include_attributes=False))
+                return nodes
+            assert selected(text) == selected(raw.decode())
+    return path
 
 # Portable fixture: exact pure classifier/constants from the uncurated continuity
 # producer, not a fake idle result or a production adapter. No relaunch code is
@@ -255,10 +286,8 @@ class ActiveWorkGateTests(unittest.TestCase):
         self.assertEqual(result["stale_proven"][0]["reason"], "claim_older_than_scheduler_ttl")
 
     def test_claim_ttl_mirror_matches_the_fork_scheduler_literals(self):
-        source = self.mod.FORK_CRON_JOBS_SOURCE
-        if not source.is_file():
-            self.skipTest("fork cron/jobs.py is not present on this host")
-        constants = source.with_name("constants.py")
+        source = authenticated_source("cron_jobs.py")
+        constants = authenticated_source("cron_constants.py")
         for name, value, maintained in (
             ("ONESHOT_RUN_CLAIM_TTL_SECONDS", int(self.mod.CRON_CLAIM_TTL_FALLBACK_SECONDS), source),
             ("CLAIM_TTL_INACTIVITY_HEADROOM", self.mod.CRON_CLAIM_TTL_HEADROOM, constants),
@@ -268,6 +297,20 @@ class ActiveWorkGateTests(unittest.TestCase):
             self.assertIsNotNone(match, f"{name} not found in {maintained}")
             self.assertEqual(float(match.group(1)), float(value), name)
         self.assertIn("timeout * CLAIM_TTL_INACTIVITY_HEADROOM", source.read_text(encoding="utf-8"))
+
+    def test_hosted_fixtures_never_read_absolute_host_sources(self):
+        original = Path.read_text
+        def guarded(path, *args, **kwargs):
+            if str(path) in {
+                "/home/ubuntu/.hermes/hermes-agent/cron/jobs.py",
+                "/home/ubuntu/.hermes/hermes-agent/cron/constants.py",
+                "/home/ubuntu/business/scripts/hermes_tui_continuity.py",
+            }:
+                raise AssertionError("host source read on a hosted runner")
+            return original(path, *args, **kwargs)
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), mock.patch.object(Path, "read_text", guarded):
+            for name in ("cron_jobs.py", "cron_constants.py", "hermes_tui_continuity.py"):
+                self.assertTrue(authenticated_source(name).is_file())
 
     def test_process_registry_blocks_without_emitting_command(self):
         write_proc_stat(self.proc, 777, 888)
@@ -740,9 +783,7 @@ class IdleLifecycleRegistrationTests(unittest.TestCase):
         self.assertEqual(activity_from_capture('SyntaxError:\n─ ready\n❯ pending')['state'], 'error')
 
     def test_portable_classifier_is_exact_maintained_pure_source(self):
-        producer = Path("/home/ubuntu/business/scripts/hermes_tui_continuity.py")
-        if not producer.is_file():
-            self.skipTest("host continuity producer absent; portable pure fixture only")
+        producer = authenticated_source("hermes_tui_continuity.py")
         names = {"activity_from_capture", "READY_MARKERS", "ACTIVE_MARKERS", "BAD_MARKERS"}
         def selected(path):
             nodes = []
