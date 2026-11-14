@@ -1,7 +1,8 @@
 """Authentic four-page Eden replay. No main, locks, live fetch or registry write.
 
 Portable checks exercise the registered producer's verify_sources/support path
-and unchanged actual Node validator from authenticated packaged site source.
+and authenticate packaged site source. Native validation uses the installed
+host validator; missing or incompatible host source fails without fallback.
 The one-row native projection is a labelled fixture, never live adoption.
 """
 import copy
@@ -203,17 +204,20 @@ def test_current_source_membership_still_refuses_before_capture(replay):
 
 def test_native_validator_actual_not_stubbed(replay, monkeypatch):
     m, receipts, row, run, index = replay
-    native_root = FIXTURES / 'native-validator'
-    provenance = json.loads((native_root / 'provenance.json').read_text())
+    packaged_root = FIXTURES / 'native-validator'
+    provenance = json.loads((packaged_root / 'provenance.json').read_text())
     assert provenance['commit'] == 'e13e058810a56a4fc92bf19bab1f0a57e4f8f351'
     assert set(provenance['files']) == {
         'src/therapeutic-taxonomy.mjs', 'src/provider-dynamic-profiles.mjs',
         'data/money-page-specs.json', 'data/quiz-config.json',
     }
     for relative, item in provenance['files'].items():
-        raw = (native_root / relative).read_bytes()
+        raw = (packaged_root / relative).read_bytes()
         assert digest(raw) == item['sha256']
         assert hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == item['git_blob']
+    native_root = Path('/home/ubuntu/business') / REL
+    for relative in provenance['files']:
+        assert (native_root / relative).is_file(), f'missing installed validator dependency: {native_root / relative}'
     m.ROOT = native_root
     # Freeze only this child Node process to the retained capture's replay date.
     # The producer and native validator execute unchanged, including stale refusal.
@@ -225,6 +229,7 @@ def test_native_validator_actual_not_stubbed(replay, monkeypatch):
     calls = []
     def replay_run(args, **kwargs):
         assert args[:2] == ['node', '--input-type=module']
+        assert kwargs['cwd'] == Path('/home/ubuntu/business') / REL
         calls.append(args)
         return native_run([args[0], '--import', str(clock), *args[1:]], **kwargs)
     monkeypatch.setattr(m, 'subprocess', types.SimpleNamespace(run=replay_run))

@@ -65,12 +65,13 @@ def activity_from_capture(capture: str) -> dict[str, Any]:
 
 
 def maintained_source(relative: str, host: Path) -> str:
-    # Reduced checkouts omit these producers. Never skip their source contracts:
-    # use authentic, manifest-pinned excerpts when the host source is unavailable.
-    # Readable host sources still catch drift, rather than comparing two mirrors.
+    # Missing source may use a pinned portable excerpt. An installed but
+    # unreadable source cannot claim parity with that excerpt.
     try:
         return host.read_text(encoding="utf-8")
-    except (FileNotFoundError, PermissionError):
+    except PermissionError as exc:
+        raise unittest.SkipTest(f"unreadable maintained source: {host}: {exc}") from exc
+    except FileNotFoundError:
         fixture = json.loads(Path(__file__).with_name("hermes_active_work_gate_sources.json").read_text())
         record = fixture["sources"][relative]
         text = record["text"]
@@ -270,7 +271,9 @@ class ActiveWorkGateTests(unittest.TestCase):
         self.assertEqual(result["stale_proven"][0]["reason"], "claim_older_than_scheduler_ttl")
 
     def test_claim_ttl_mirror_matches_the_fork_scheduler_literals(self):
-        native = Path.home() / ".hermes/hermes-agent/cron"
+        self.assertEqual(self.mod.FORK_CRON_JOBS_SOURCE,
+                         Path("/home/ubuntu/.hermes/hermes-agent/cron/jobs.py"))
+        native = self.mod.FORK_CRON_JOBS_SOURCE.parent
         source = maintained_source("cron/jobs.py", native / "jobs.py")
         constants = maintained_source("cron/constants.py", native / "constants.py")
         for name, value, maintained in (
@@ -772,10 +775,10 @@ class IdleLifecycleRegistrationTests(unittest.TestCase):
 
 
 class SourcePortabilityTests(unittest.TestCase):
-    def test_source_contracts_run_without_access_to_host_sources(self):
+    def test_missing_source_uses_fixture_but_unreadable_source_is_skipped(self):
         host_paths = {
-            Path.home() / ".hermes/hermes-agent/cron/jobs.py",
-            Path.home() / ".hermes/hermes-agent/cron/constants.py",
+            Path("/home/ubuntu/.hermes/hermes-agent/cron/jobs.py"),
+            Path("/home/ubuntu/.hermes/hermes-agent/cron/constants.py"),
             Path.home() / "business/scripts/hermes_tui_continuity.py",
         }
         original_stat, original_read = Path.stat, Path.read_text
@@ -799,8 +802,13 @@ class SourcePortabilityTests(unittest.TestCase):
                 with mock.patch.object(Path, "stat", stat), mock.patch.object(Path, "read_text", read):
                     suite.run(result)
                 self.assertEqual(result.testsRun, 2)
-                self.assertEqual(result.skipped, [])
                 self.assertTrue(result.wasSuccessful(), result.errors + result.failures)
+                if error is PermissionError:
+                    self.assertEqual(len(result.skipped), 2)
+                    self.assertTrue(all("unreadable maintained source" in reason
+                                        for _, reason in result.skipped))
+                else:
+                    self.assertEqual(result.skipped, [])
 
 
 class WaitForIdleTests(unittest.TestCase):
