@@ -2,7 +2,8 @@
 
 Portable checks exercise the registered producer's verify_sources/support path
 and authenticate packaged site source. Native validation uses the installed
-host validator; missing or incompatible host source fails without fallback.
+host validator on hermes; elsewhere it is explicitly skipped. Missing or
+incompatible host source on hermes fails without fallback.
 The one-row native projection is a labelled fixture, never live adoption.
 """
 import copy
@@ -19,6 +20,9 @@ import pytest
 BASE = Path(__file__).resolve().parents[1]
 REL = Path('site-system/flagship-v2/candidates/glp34-provider-families-20260912')
 SOURCE = BASE / REL / 'scripts/refresh-therapeutic-taxonomy.py'
+# Independent of the validator: its removal on hermes must still fail hard.
+HERMES_MARKER = Path('/home/ubuntu/.hermes/hermes-agent')
+NATIVE_ROOT = Path('/home/ubuntu/business') / REL
 FIXTURES = BASE / 'tests/fixtures/glp80-eden'
 PID = 'eden-xentraffic-offer-3051'
 URLS = [
@@ -202,7 +206,35 @@ def test_current_source_membership_still_refuses_before_capture(replay):
         m.verify_sources(PID, original, m.POLICIES[PID], run)
 
 
+def test_hosted_runner_skips_native_validator(replay, monkeypatch, tmp_path):
+    monkeypatch.setattr(sys.modules[__name__], 'HERMES_MARKER', tmp_path / 'no-hermes')
+    monkeypatch.setattr(sys.modules[__name__], 'NATIVE_ROOT', tmp_path / 'no-validator')
+    with pytest.raises(pytest.skip.Exception, match='^host validator only exists on hermes$'):
+        test_native_validator_actual_not_stubbed(replay, monkeypatch)
+
+
+@pytest.mark.parametrize('state', ['missing', 'incompatible'])
+def test_hermes_validator_failure_is_not_skipped(replay, monkeypatch, tmp_path, state):
+    marker = tmp_path / 'hermes'
+    marker.mkdir()
+    native_root = tmp_path / 'validator'
+    monkeypatch.setattr(sys.modules[__name__], 'HERMES_MARKER', marker)
+    monkeypatch.setattr(sys.modules[__name__], 'NATIVE_ROOT', native_root)
+    if state == 'incompatible':
+        provenance = json.loads((FIXTURES / 'native-validator/provenance.json').read_text())
+        for relative in provenance['files']:
+            target = native_root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text('{}' if target.suffix == '.json' else 'export {};')
+    expected = AssertionError if state == 'missing' else ValueError
+    message = 'missing installed validator dependency' if state == 'missing' else 'export'
+    with pytest.raises(expected, match=message):
+        test_native_validator_actual_not_stubbed(replay, monkeypatch)
+
+
 def test_native_validator_actual_not_stubbed(replay, monkeypatch):
+    if not HERMES_MARKER.is_dir():
+        pytest.skip('host validator only exists on hermes')
     m, receipts, row, run, index = replay
     packaged_root = FIXTURES / 'native-validator'
     provenance = json.loads((packaged_root / 'provenance.json').read_text())
@@ -215,7 +247,7 @@ def test_native_validator_actual_not_stubbed(replay, monkeypatch):
         raw = (packaged_root / relative).read_bytes()
         assert digest(raw) == item['sha256']
         assert hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == item['git_blob']
-    native_root = Path('/home/ubuntu/business') / REL
+    native_root = NATIVE_ROOT
     for relative in provenance['files']:
         assert (native_root / relative).is_file(), f'missing installed validator dependency: {native_root / relative}'
     m.ROOT = native_root
@@ -229,7 +261,7 @@ def test_native_validator_actual_not_stubbed(replay, monkeypatch):
     calls = []
     def replay_run(args, **kwargs):
         assert args[:2] == ['node', '--input-type=module']
-        assert kwargs['cwd'] == Path('/home/ubuntu/business') / REL
+        assert kwargs['cwd'] == native_root
         calls.append(args)
         return native_run([args[0], '--import', str(clock), *args[1:]], **kwargs)
     monkeypatch.setattr(m, 'subprocess', types.SimpleNamespace(run=replay_run))
