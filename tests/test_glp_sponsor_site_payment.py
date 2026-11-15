@@ -40,8 +40,17 @@ def fixture(tmp_path):
     return order,site
 
 
-def observe(tmp_path, monkeypatch, order, site, invoice=None, report=None):
+def observe(tmp_path, monkeypatch, order, site, invoice=None, report=None, *, fresh_at=AT):
+    import types
     import glp_sponsor_site_payment as bridge
+    # The post-GET admission clock belongs to this dated synthetic placement.
+    # Keep the real second admission check, including its expiry refusal.
+    class Frozen(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fresh_at
+    monkeypatch.setattr(bridge, 'dt', types.SimpleNamespace(
+        datetime=Frozen, timezone=dt.timezone, timedelta=dt.timedelta))
     monkeypatch.setattr(bridge,'eligible_hosts',lambda state,at:{'example.invalid'})
     client=fake_client(monkeypatch,invoice or invoice_fixture(order),report or report_fixture(order))
     monkeypatch.setattr(paypal,'PayPalClient',lambda:client)
@@ -56,6 +65,16 @@ def test_real_observer_path_not_copied_paid_flag(tmp_path,monkeypatch):
     assert result['order_reference']==order['order_id']
     assert result['transaction_ids']==[TX]
     # Observer writes no financial records or inventory, even on a positive result.
+    assert 'payment_readiness' not in json.loads((tmp_path/'orders.json').read_text())[order['order_id']]
+
+
+@pytest.mark.parametrize('fresh_at', [
+    AT + dt.timedelta(hours=719),
+    AT + dt.timedelta(hours=720),
+])
+def test_real_observer_refuses_placement_expiring_during_get(tmp_path, monkeypatch, fresh_at):
+    order, site = fixture(tmp_path)
+    assert observe(tmp_path, monkeypatch, order, site, fresh_at=fresh_at)['payment_verified'] is False
     assert 'payment_readiness' not in json.loads((tmp_path/'orders.json').read_text())[order['order_id']]
 
 

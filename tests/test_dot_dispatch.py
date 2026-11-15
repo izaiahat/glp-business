@@ -15,6 +15,10 @@ class DispatchTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
         self.root = Path(self.tmp.name) / 'tickets'
+        # Hash the actual checked-out consumer bytes, never an installed host copy.
+        binding = patch.object(d, 'ROOT', Path(__file__).resolve().parents[1])
+        binding.start()
+        self.addCleanup(binding.stop)
         self.message = {'id': '1559999999999999999', 'channel_id': d.DOTS['rook']['channel'],
                         'content': '', 'author': {'id': d.SENDER},
                         'mentions': [{'id': d.DOTS['rook']['user']}], 'attachments': []}

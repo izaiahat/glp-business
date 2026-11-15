@@ -1,0 +1,28 @@
+name: disk-alarm-source
+on:
+  pull_request:
+    paths:
+      - scripts/disk_alarm.py
+      - scripts/hermes-state-backup.sh
+      - tests/test_disk_alarm.py
+      - ops/disk-alarm.md
+      - ops/systemd/kael-disk-alarm.service
+      - ops/systemd/kael-disk-alarm.timer
+      - .github/workflows/disk-alarm-source.yml
+permissions:
+  contents: read
+jobs:
+  disk-alarm-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact-head disk alarm regressions (no live effects)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_disk_alarm.py -v

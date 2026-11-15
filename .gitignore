@@ -25,6 +25,7 @@
 !/scripts/glp_surface_unification.py
 !/tests/
 /tests/*
+!/tests/hermes_active_work_gate_sources.json
 !/tests/test_glp_affiliate_postback_n8n_sync.py
 !/tests/test_glp93_review_projection.py
 !/tests/test_glp93_surface_inputs.py
@@ -61,6 +62,11 @@
 !/.github/workflows/
 /.github/workflows/*
 !/.github/workflows/maintenance-pause-cursor-race.yml
+# No-agent disk alarm: source only, no runtime state
+!/.github/workflows/disk-alarm-source.yml
+!/scripts/disk_alarm.py
+!/tests/test_disk_alarm.py
+!/ops/disk-alarm.md
 !/tests/test_maintenance_pause_cursor_race.py
 !/tests/test_maintenance_post_pause_completion.py
 !/tests/test_glp85_cj_reporting_identity.py
@@ -651,3 +657,5 @@
 !/tests/test_host_disk_local_only.py
 !/ops/host-disk-local-only-capability.md
 !/ops/systemd/host-disk-cleanup-local-only.conf.example
+!/ops/systemd/kael-disk-alarm.service
+!/ops/systemd/kael-disk-alarm.timer

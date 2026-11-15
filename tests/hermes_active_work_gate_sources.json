@@ -1,0 +1,37 @@
+{
+  "description": "Exact AST source excerpts from maintained producers, not substitutes for runtime code. Full source digests record extraction provenance; CI compares literals and classifier ASTs without importing scheduler or relaunch code. Available host sources remain the preferred drift oracle.",
+  "sources": {
+    "cron/jobs.py": {
+      "source_path": "/home/ubuntu/.hermes/hermes-agent/cron/jobs.py",
+      "source_sha256": "c13df26739566522997333b4936bb0f26c8fcfbf561e1790d0aad45efe3016cc",
+      "names": [
+        "ONESHOT_RUN_CLAIM_TTL_SECONDS",
+        "_DEFAULT_CRON_INACTIVITY_TIMEOUT",
+        "_oneshot_run_claim_ttl_seconds"
+      ],
+      "excerpt_sha256": "19b4147eb4627bb69500958a450eefa73a2857dd86306c449ac78c7bd1570c67",
+      "text": "ONESHOT_RUN_CLAIM_TTL_SECONDS = 1800\n\n_DEFAULT_CRON_INACTIVITY_TIMEOUT = 600.0\n\ndef _oneshot_run_claim_ttl_seconds() -> float:\n    \"\"\"One-shot running-claim TTL from ``HERMES_CRON_TIMEOUT``: unset/invalid → 600s → 1800s;\n    ``0`` (unlimited) → the fixed floor; positive N → ``max(N * headroom, floor)``.\"\"\"\n    raw = cron_env_setting(\"HERMES_CRON_TIMEOUT\").strip()\n    try:\n        timeout = float(raw) if raw else _DEFAULT_CRON_INACTIVITY_TIMEOUT\n    except (ValueError, TypeError):\n        timeout = _DEFAULT_CRON_INACTIVITY_TIMEOUT\n    if timeout <= 0:\n        return float(ONESHOT_RUN_CLAIM_TTL_SECONDS)\n    return max(timeout * CLAIM_TTL_INACTIVITY_HEADROOM, float(ONESHOT_RUN_CLAIM_TTL_SECONDS))\n"
+    },
+    "cron/constants.py": {
+      "source_path": "/home/ubuntu/.hermes/hermes-agent/cron/constants.py",
+      "source_sha256": "50add58fba846c8d39d9061117541f49fd9f5b1d2bc6c4f49b76773862f8db72",
+      "names": [
+        "CLAIM_TTL_INACTIVITY_HEADROOM"
+      ],
+      "excerpt_sha256": "4baf71f2f6b4544b34fa9496ebfcf4bdd44d57cd76a0fff4731728ffbb0746a6",
+      "text": "CLAIM_TTL_INACTIVITY_HEADROOM = 3\n"
+    },
+    "hermes_tui_continuity.py": {
+      "source_path": "/home/ubuntu/business/scripts/hermes_tui_continuity.py",
+      "source_sha256": "51fa11caef9aaf5cca3fdb3a4c9a3f35e10d31aa511cf88c91740d466237d697",
+      "names": [
+        "ACTIVE_MARKERS",
+        "BAD_MARKERS",
+        "READY_MARKERS",
+        "activity_from_capture"
+      ],
+      "excerpt_sha256": "22c746ab57949b83269ae2070e0bd9c27b8887450d01700e9e6bbc7177b66540",
+      "text": "READY_MARKERS = (\" ready │\", \"─ ready\", \"│ ready \", \" ready ─\")\n\nACTIVE_MARKERS = (\"esc to interrupt\", \"Running tool\", \"Thinking…\", \"Working…\")\n\nBAD_MARKERS = (\n    \"error: session not found\",\n    \"[Hermes TUI exited rc=\",\n    \"Traceback (most recent call last)\",\n    \"SyntaxError:\",\n    \"missing state DB\",\n)\n\ndef activity_from_capture(capture: str) -> dict[str, Any]:\n    lines = [line.rstrip() for line in capture.splitlines() if line.strip()]\n    tail = \"\\n\".join(lines[-8:])\n    bad = [marker for marker in BAD_MARKERS if marker.lower() in tail.lower()]\n    ready_pos = max((tail.rfind(marker) for marker in READY_MARKERS), default=-1)\n    active_pos = max((tail.lower().rfind(marker.lower()) for marker in ACTIVE_MARKERS), default=-1)\n    pending = False\n    placeholders = {\n        'Ask me anything…', 'Try \"explain this codebase\"', 'Try \"write a test for…\"',\n        'Try \"refactor the auth module\"', 'Try \"/help\" for commands',\n        'Try \"fix the lint errors\"', 'Try \"how does the config loader work?\"',\n    }\n    prompts = [line.strip()[1:].strip() for line in lines[-8:] if line.strip().startswith(('❯', '›'))]\n    if prompts:\n        pending = bool(prompts[-1] and prompts[-1] not in placeholders)\n    if bad:\n        state = \"error\"\n    elif pending:\n        state = \"pending_input\"\n    elif ready_pos >= 0 and ready_pos > active_pos:\n        state = \"idle_ready\"\n    elif active_pos >= 0:\n        state = \"active\"\n    else:\n        state = \"unknown\"\n    return {\n        \"state\": state,\n        \"evidence\": {\"ready_marker\": ready_pos >= 0, \"active_marker\": active_pos >= 0, \"bad_markers\": bad},\n    }\n"
+    }
+  }
+}

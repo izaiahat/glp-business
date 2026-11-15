@@ -1,10 +1,23 @@
 import datetime as dt
 import json
 import sys
+import pytest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import glp_firecrawl_jobs as jobs  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolated_job_ledger(tmp_path, monkeypatch):
+    path = tmp_path / 'operations.jsonl'
+    path.write_text('')
+    monkeypatch.setattr(jobs, 'LEDGER', path)
+    # These defaults captured LEDGER at import. Bind the real accounting readers
+    # and Budget constructor as well as the global; do not mock their results.
+    monkeypatch.setattr(jobs.spent_today, '__defaults__', (path, None))
+    monkeypatch.setattr(jobs.spent_by_caller, '__defaults__', (path,))
+    monkeypatch.setattr(jobs.Budget.__init__, '__defaults__', (None, path, jobs.FLOOR))
 
 
 class FakeClient:

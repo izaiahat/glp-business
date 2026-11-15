@@ -12,12 +12,32 @@ import importlib.util
 import pytest
 
 
-@pytest.mark.skipif(not Path('/home/ubuntu/.hermes/state.db').exists(), reason='live-host integration')
 def test_audit_produces_fresh_local_report_without_external_effects(tmp_path):
+    import sqlite3
     assert SCRIPT.exists(), 'replace legacy Opus/autofix/email with a local audit producer'
-    result = subprocess.run([sys.executable, str(SCRIPT), '--report-dir', str(tmp_path)],
+    home = tmp_path / 'fixture-home'
+    home.mkdir()
+    with sqlite3.connect(home / 'state.db') as db:
+        db.execute('CREATE TABLE fixture (id INTEGER PRIMARY KEY)')
+    (home / 'cron').mkdir()
+    (home / 'cron/jobs.json').write_text('{"jobs": []}')
+    (home / 'cache').mkdir()
+    (home / 'cache/delegation-host-budget.json').write_text('[]')
+    before = {p: p.read_bytes() for p in home.rglob('*') if p.is_file()}
+    # Execute the checkout's actual CLI/parser/writer in a child, rebinding only
+    # the home input; no dependency on a host DB and no live integration skip.
+    bootstrap = (
+        "import importlib.util, pathlib, sys; "
+        "spec = importlib.util.spec_from_file_location('audit_fixture', sys.argv[1]); "
+        "module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); "
+        "module.HOME = pathlib.Path(sys.argv.pop(2)); sys.argv.pop(0); "
+        "raise SystemExit(module.main())"
+    )
+    result = subprocess.run([sys.executable, '-c', bootstrap, str(SCRIPT), str(home),
+                             '--report-dir', str(tmp_path)],
                             text=True, capture_output=True, timeout=15)
     assert result.returncode == 0, result.stderr
+    assert {p: p.read_bytes() for p in home.rglob('*') if p.is_file()} == before
     latest = json.loads((tmp_path / 'LATEST.json').read_text())
     assert latest['schema'] == 'glp-host-health-audit-v1'
     assert latest['effects'] == {'process_signals': 0, 'db_writes': 0,

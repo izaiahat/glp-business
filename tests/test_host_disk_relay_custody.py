@@ -47,6 +47,9 @@ def test_member_inventory_retains_ledger_and_open_issue_paths(tmp_path,monkeypat
     assert tmp_path/'ops/gpt6pro-relay' in pins
 
 def test_historical_run_member_sets_are_not_retired(tmp_path,monkeypatch):
+    home = tmp_path / 'hermes'
+    home.mkdir()
+    monkeypatch.setattr(cold, 'LIVE_HOME', home)
     cases={
       'large-full-20261014T004733Z':['pro-admission-repair-20261007/EXACT-DISPOSITION.json','pro244-live-completion/ACCT1-PREFLIGHT.json'],
       'large-full-20261014T040350Z':['pro247-corrective-completion-20261007/DISPOSITION-FACTS.json','pro247-corrective-completion-20261007/DISTINCT-PREFLIGHT.json','pro-model-diagnosis-20261007/OBSERVATION.json']}

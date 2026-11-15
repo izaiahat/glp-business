@@ -1,0 +1,2748 @@
+{
+  "analytics_answer_values": false,
+  "candidate_derivation": "Candidates and matching rules are derived by scripts/glp_surface_unification.py from each provider's own published evidence in data/program-content-ledger.json. priority_score is the merit score computed at build by src/merit-ranking.mjs, so the quiz and the comparison page cannot disagree on rank.",
+  "candidates": [
+    {
+      "display_name": "Found",
+      "held_route": "/go/found-health?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 78,
+      "program_id": "found-health",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/found-health",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "insurance-support",
+          "coaching",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Published insurance-check support and ongoing check-ins align with insurance-navigation or coaching priorities; coverage is not guaranteed."
+    },
+    {
+      "display_name": "yourEra",
+      "held_route": "/go/yourera-program?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 76,
+      "program_id": "yourera-program",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/yourera-program",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "price",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Published self-pay pricing and free-shipping terms align with price-focused research; compounded drugs are not FDA-approved."
+    },
+    {
+      "display_name": "Trimi",
+      "held_route": "/go/trimi-glp-1?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 75,
+      "program_id": "trimi-glp-1",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/trimi-glp-1",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "price",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Published annual-plan pricing and overnight-shipping terms align with price-focused research; annual commitment is a key limitation."
+    },
+    {
+      "display_name": "Shed",
+      "held_route": "/go/shedrx?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 71,
+      "program_id": "shedrx",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/shedrx",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "insurance-support",
+          "coaching",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Published provider-led care and coaching plus cash-pay or insurance pathways align with support-focused research; coverage is not guaranteed."
+    },
+    {
+      "display_name": "HealthRX",
+      "held_route": "/go/healthrx?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 87,
+      "program_id": "healthrx",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/healthrx",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "price",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Published pricing, physician-review workflow, and HSA/FSA terms align with self-pay research; the lowest cited rate is tied to a 12-month plan."
+    },
+    {
+      "display_name": "Try Ageless",
+      "held_route": "/go/try-ageless?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 81,
+      "program_id": "try-ageless",
+      "promotion_authorized": false,
+      "research_fact_ref": "program-content-ledger.json#/programs/try-ageless",
+      "research_fact_status": "SOURCE_REPORTED_TRYAGELESS_ONLY",
+      "rules": {
+        "goal": [
+          "price",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "The Try Ageless campaign publishes product- and term-specific self-pay prices; $159/month is a $1,908 annual-plan equivalent for tirzepatide sublingual oral drops, not a monthly checkout total. Compounded drugs are not FDA-approved."
+    },
+    {
+      "display_name": "Wellorithm",
+      "held_route": "/go/wellorithm?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 73,
+      "program_id": "wellorithm",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/wellorithm",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "price",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Published $147 starting price and service-area details align with self-pay price research; later-month and dose-dependent totals require confirmation."
+    },
+    {
+      "display_name": "Enhance.MD",
+      "held_route": "/go/enhance-md?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 66,
+      "program_id": "enhance-md",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/enhance-md",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "price",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Published first-month and recurring prices align with self-pay price research; the $112 first month rises to a stated $212/month."
+    },
+    {
+      "display_name": "Serena Health",
+      "held_route": "/go/serena-health?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 69,
+      "program_id": "serena-health",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/serena-health",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "price",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Publishes per-formulation prices across injectable and sublingual options, which fits price and medication-form research; no insurance billing is stated."
+    },
+    {
+      "display_name": "Gala GLP-1",
+      "held_route": "/go/gala-health?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 65,
+      "program_id": "gala-health",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/gala-health",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "price",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Published flat $179/month all-dose pricing fits self-pay price research; the rate is described with a yearly subscription commitment."
+    },
+    {
+      "display_name": "Oak Longevity",
+      "held_route": "/go/oak-weight-loss-program?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 62,
+      "program_id": "oak-weight-loss-program",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/oak-weight-loss-program",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "self-pay",
+          "unsure",
+          "prefer-not-to-say"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Describes both semaglutide and tirzepatide options with published shipping details; conflicting price metadata means checkout verification is required."
+    },
+    {
+      "display_name": "MadeMed",
+      "held_route": "/go/mademed?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "mademed",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/mademed",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "MadeMed publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "telos rx",
+      "held_route": "/go/telos-rx?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "telos-rx",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/telos-rx",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "telos rx publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Strut Health",
+      "held_route": "/go/strut-health?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "strut-health",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/strut-health",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "coaching",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Strut Health publishes ongoing clinical support, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "TRT Nation",
+      "held_route": "/go/trt-nation?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "trt-nation",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/trt-nation",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "TRT Nation publishes a comparable monthly price, its dispensing pharmacy chain, a shipping timeframe and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Coivas",
+      "held_route": "/go/coivas?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "coivas",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/coivas",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "coaching",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Coivas publishes ongoing clinical support, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Sprout Health",
+      "held_route": "/go/sprout-health?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "sprout-health",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/sprout-health",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Sprout Health publishes a comparable monthly price, its dispensing pharmacy chain, a shipping timeframe and cancellation terms. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "MangoRx",
+      "held_route": "/go/mangorx?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "mangorx",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/mangorx",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "MangoRx publishes its dispensing pharmacy chain, a shipping timeframe and cancellation terms. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Direct Meds",
+      "held_route": "/go/direct-meds?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "direct-meds",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/direct-meds",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Direct Meds publishes its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "SHED",
+      "held_route": "/go/shed?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "shed",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/shed",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "SHED publishes a comparable monthly price, its dispensing pharmacy chain and cancellation terms. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Measured",
+      "held_route": "/go/measured?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "measured",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/measured",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "coaching",
+          "insurance-support",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Measured publishes active insurance support, ongoing clinical support, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "DrHouse",
+      "held_route": "/go/drhouse?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "drhouse",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/drhouse",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "insurance-support",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "DrHouse publishes active insurance support, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "BiltRx",
+      "held_route": "/go/biltrx?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "biltrx",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/biltrx",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "medicare-medicaid",
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "BiltRx publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe and cancellation terms. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "OrderlyMeds",
+      "held_route": "/go/orderlymeds?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "orderlymeds",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/orderlymeds",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "OrderlyMeds publishes a comparable monthly price, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "MyDrHank",
+      "held_route": "/go/mydrhank?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "mydrhank",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/mydrhank",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "MyDrHank publishes a comparable monthly price, more than one medication format and its dispensing pharmacy chain. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "GobyMeds",
+      "held_route": "/go/gobymeds?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "gobymeds",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/gobymeds",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "GobyMeds publishes more than one medication format, its dispensing pharmacy chain, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Live Vital Launch",
+      "held_route": "/go/live-vital-launch?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "live-vital-launch",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/live-vital-launch",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Live Vital Launch publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "CoreAge Rx GLP-1",
+      "held_route": "/go/coreage-rx-glp-1-1632?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "coreage-rx-glp-1-1632",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/coreage-rx-glp-1-1632",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "insurance-support",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "CoreAge Rx GLP-1 publishes active insurance support, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Bodybuilding.com GLP-1 & Longevity",
+      "held_route": "/go/bodybuilding-com-glp-1-longevity-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "bodybuilding-com-glp-1-longevity-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/bodybuilding-com-glp-1-longevity-review",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "insurance-support",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Bodybuilding.com GLP-1 & Longevity publishes active insurance support, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "SkinnyRx - #1 GLP Weight Loss Provider",
+      "held_route": "/go/skinnyrx-1-glp-weight-loss-provider-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "skinnyrx-1-glp-weight-loss-provider-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/skinnyrx-1-glp-weight-loss-provider-review",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "SkinnyRx - #1 GLP Weight Loss Provider publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "RxSpan MD Telehealth Program",
+      "held_route": "/go/rxspan-md-telehealth-program-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "rxspan-md-telehealth-program-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/rxspan-md-telehealth-program-review",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "RxSpan MD Telehealth Program publishes its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Pallas Health – GLP-1 Weight Loss & NAD",
+      "held_route": "/go/pallas-health-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "pallas-health-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/pallas-health-review",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Pallas Health – GLP-1 Weight Loss & NAD publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Wellmedr",
+      "held_route": "/go/wellmedr-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "wellmedr-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/wellmedr-review",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Wellmedr publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "DudeMeds",
+      "held_route": "/go/dudemeds-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "dudemeds-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/dudemeds-review",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "DudeMeds publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Nu Image Medical",
+      "held_route": "/go/nu-image-medical-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "nu-image-medical-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/nu-image-medical-review",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Nu Image Medical publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Synergy Rx",
+      "held_route": "/go/synergy-rx-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "synergy-rx-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/synergy-rx-review",
+      "research_fact_status": "GOVERNED_PRIMARY_SOURCE_NORMALIZED",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Synergy Rx publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Breeze Meds",
+      "held_route": "/go/breeze-meds-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "breeze-meds-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/breeze-meds-review",
+      "research_fact_status": "SOURCE_REPORTED_WITH_OMISSIONS",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Breeze Meds publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Care Bare Rx GLP1",
+      "held_route": "/go/care-bare-rx-glp1-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "care-bare-rx-glp1-review",
+      "promotion_authorized": false,
+      "research_fact_ref": "provider-facts-backfill-20260830.json#/programs/care-bare-rx-glp1-review",
+      "research_fact_status": "SOURCE_REPORTED_WITH_OMISSIONS",
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "unknown_render_action": "OMIT",
+      "why_match": "Care Bare Rx GLP1 publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "altRx",
+      "held_route": "/go/altrx-glp1-us-cps?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "altrx-glp1-us-cps",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "altRx publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Novi",
+      "held_route": "/go/novi-weight-loss-glp-1?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "novi-weight-loss-glp-1",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Novi publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Curex",
+      "held_route": "/go/curex-glp-1?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "curex-glp-1",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Curex publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Ro",
+      "held_route": "/go/ro-wegovy-glp1-quiz-us-cpl?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "ro-wegovy-glp1-quiz-us-cpl",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Ro publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Eden",
+      "held_route": "/go/eden-xentraffic-offer-3051?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "eden-xentraffic-offer-3051",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Eden publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "FuturHealth",
+      "held_route": "/go/futurhealth-wegovy-pillform?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "futurhealth-wegovy-pillform",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "FuturHealth publishes a comparable monthly price, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Lttl",
+      "held_route": "/go/lttl-glp-landing-page-2?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "lttl-glp-landing-page-2",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Lttl publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Enhanced",
+      "held_route": "/go/enhanced-tirzepatide-funnel-b?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "enhanced-tirzepatide-funnel-b",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "coaching",
+          "insurance-support",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Enhanced publishes active insurance support, ongoing clinical support, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Sunlight.com",
+      "held_route": "/go/sunlight-glp1?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "sunlight-glp1",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "insurance-support",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Sunlight.com publishes active insurance support, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "JoinSkinny",
+      "held_route": "/go/joinskinny-semaglutide-glp-1-us?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "joinskinny-semaglutide-glp-1-us",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "insurance-support",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "commercial-insurance",
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "JoinSkinny publishes active insurance support, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "LevelsRx",
+      "held_route": "/go/levelsrx-extra-cpa-home-page?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "levelsrx-extra-cpa-home-page",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "coaching",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "LevelsRx publishes ongoing clinical support, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Refills",
+      "held_route": "/go/refills?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "refills",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Refills publishes its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "TMates",
+      "held_route": "/go/tmates-xentraffic-offer-3154?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "tmates-xentraffic-offer-3154",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "TMates publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "TrimRX",
+      "held_route": "/go/trimrx-xentraffic-offer-3014?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "trimrx-xentraffic-offer-3014",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "coaching",
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "TrimRX publishes ongoing clinical support, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Yucca Health",
+      "held_route": "/go/yucca-health-xentraffic-offer-3117?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "yucca-health-xentraffic-offer-3117",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Yucca Health publishes its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Longevity Meds",
+      "held_route": "/go/longevity-meds-glp-1-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "longevity-meds-glp-1-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Longevity Meds publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "SnagRX",
+      "held_route": "/go/snagrx?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "snagrx",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "SnagRX publishes a comparable monthly price, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "HumeCare+",
+      "held_route": "/go/humecare-data-driven-glp-1-weight-loss-system?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "humecare-data-driven-glp-1-weight-loss-system",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "HumeCare+ publishes a comparable monthly price, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "G-Plans",
+      "held_route": "/go/g-plan?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "g-plan",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "G-Plans publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "JRNYS",
+      "held_route": "/go/jrnys-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "jrnys-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "JRNYS publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "MEDVI",
+      "held_route": "/go/medvi-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "medvi-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say",
+          "price"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "MEDVI publishes a comparable monthly price, more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "RightWell",
+      "held_route": "/go/rightwell-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "rightwell-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "RightWell publishes its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Willow",
+      "held_route": "/go/willow-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "willow-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Willow publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Ivim Health",
+      "held_route": "/go/ivim-health-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "ivim-health-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Ivim Health publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "Tyde Wellness",
+      "held_route": "/go/tyde-wellness-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "tyde-wellness-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "Tyde Wellness publishes its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "FeelGood",
+      "held_route": "/go/feelgood-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "feelgood-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "medication-form",
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "FeelGood publishes more than one medication format, its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    },
+    {
+      "display_name": "InstaRx",
+      "held_route": "/go/instarx-review?s=provider-fit.result&v=a",
+      "live_link_allowed": false,
+      "priority_score": 0,
+      "program_id": "instarx-review",
+      "promotion_authorized": false,
+      "rules": {
+        "goal": [
+          "prefer-not-to-say"
+        ],
+        "insurance": [
+          "prefer-not-to-say",
+          "self-pay",
+          "unsure"
+        ]
+      },
+      "source_clearance": true,
+      "staging_eligible": true,
+      "why_match": "InstaRx publishes its dispensing pharmacy chain, a shipping timeframe, cancellation terms and the states it serves. This is a commercial fit on your stated priorities, not a clinical recommendation; verify current terms at the source."
+    }
+  ],
+  "description": "Answer seven quick questions to compare providers by treatment, state, and your selected preferences — free, in about a minute.",
+  "email_capture": {
+    "code_built": true,
+    "consent_version": "glp-lead-v2-20260723",
+    "first_go_live_gate": "normal_operator_gate",
+    "form_action": "/api/leads",
+    "lead_sale_authorized": false,
+    "legal_counsel_gate": false,
+    "message": "The decision tool does not send email or share lead information. Email and provider-sharing features require separate consent and production approval.",
+    "optional_consents": [
+      "email-marketing"
+    ],
+    "optional_lead_matching_consent": "provider-sharing-future-disabled",
+    "required_consents": [
+      "privacy-and-storage",
+      "provider-contact-tcpa"
+    ],
+    "runtime_enabled": false,
+    "send_authorized": false
+  },
+  "empty_state": "No verified provider fits those commercial filters. We will not substitute or guess; verify current terms directly and ask a licensed clinician about medical eligibility.",
+  "golden_vectors": [
+    {
+      "answers": {
+        "bmi_range": "30-plus",
+        "current_meds": "yes",
+        "goal": "price",
+        "insurance": "self-pay",
+        "state": "OR",
+        "timeline": "this-week"
+      },
+      "expected_program_ids": [
+        "snagrx",
+        "humecare-data-driven-glp-1-weight-loss-system",
+        "futurhealth-wegovy-pillform",
+        "yucca-health-xentraffic-offer-3117",
+        "tmates-xentraffic-offer-3154"
+      ],
+      "rationale": "Operator RELEASE2 price-state rule repair: all eligible identities remain reachable in evidence order; missing cash schedules never enter lowest-cost arithmetic. This vector pins the actual supported non-price and insurance/medication/geography intersections after S30 removals.",
+      "vector_id": "price-self-pay"
+    },
+    {
+      "answers": {
+        "bmi_range": "under-27",
+        "current_meds": "no",
+        "goal": "insurance-support",
+        "insurance": "commercial-insurance",
+        "state": "CA",
+        "timeline": "this-month"
+      },
+      "expected_program_ids": [
+        "coreage-rx-glp-1-1632",
+        "drhouse",
+        "sunlight-glp1",
+        "bodybuilding-com-glp-1-longevity-review",
+        "found-health",
+        "enhanced-tirzepatide-funnel-b",
+        "joinskinny-semaglutide-glp-1-us",
+        "measured",
+        "shedrx"
+      ],
+      "rationale": "Operator RELEASE2 price-state rule repair: all eligible identities remain reachable in evidence order; missing cash schedules never enter lowest-cost arithmetic. This vector pins the actual supported non-price and insurance/medication/geography intersections after S30 removals.",
+      "vector_id": "insurance-commercial"
+    },
+    {
+      "answers": {
+        "bmi_range": "prefer-not-to-say",
+        "current_meds": "prefer-not-to-say",
+        "goal": "coaching",
+        "insurance": "commercial-insurance",
+        "state": "WA",
+        "timeline": "researching"
+      },
+      "expected_program_ids": [
+        "found-health",
+        "measured",
+        "shedrx",
+        "enhanced-tirzepatide-funnel-b"
+      ],
+      "rationale": "Operator RELEASE2 price-state rule repair: all eligible identities remain reachable in evidence order; missing cash schedules never enter lowest-cost arithmetic. This vector pins the actual supported non-price and insurance/medication/geography intersections after S30 removals.",
+      "vector_id": "coaching-commercial"
+    },
+    {
+      "answers": {
+        "bmi_range": "27-to-29",
+        "current_meds": "yes",
+        "goal": "medication-form",
+        "insurance": "self-pay",
+        "state": "NY",
+        "timeline": "this-week"
+      },
+      "expected_program_ids": [
+        "coivas",
+        "coreage-rx-glp-1-1632",
+        "instarx-review",
+        "live-vital-launch",
+        "nu-image-medical-review",
+        "orderlymeds",
+        "healthrx",
+        "snagrx",
+        "yourera-program",
+        "biltrx",
+        "breeze-meds-review",
+        "care-bare-rx-glp1-review",
+        "curex-glp-1",
+        "drhouse",
+        "dudemeds-review",
+        "g-plan",
+        "jrnys-review",
+        "lttl-glp-landing-page-2",
+        "mademed",
+        "novi-weight-loss-glp-1",
+        "refills",
+        "skinnyrx-1-glp-weight-loss-provider-review",
+        "strut-health",
+        "sunlight-glp1",
+        "trimrx-xentraffic-offer-3014",
+        "trt-nation",
+        "try-ageless",
+        "wellmedr-review",
+        "willow-review",
+        "trimi-glp-1",
+        "direct-meds",
+        "tyde-wellness-review",
+        "bodybuilding-com-glp-1-longevity-review",
+        "shedrx",
+        "sprout-health",
+        "humecare-data-driven-glp-1-weight-loss-system",
+        "futurhealth-wegovy-pillform",
+        "serena-health",
+        "gala-health",
+        "mydrhank",
+        "wellorithm",
+        "enhanced-tirzepatide-funnel-b",
+        "enhance-md",
+        "oak-weight-loss-program",
+        "tmates-xentraffic-offer-3154",
+        "eden-xentraffic-offer-3051",
+        "feelgood-review",
+        "gobymeds",
+        "ivim-health-review",
+        "joinskinny-semaglutide-glp-1-us",
+        "levelsrx-extra-cpa-home-page",
+        "longevity-meds-glp-1-review",
+        "measured",
+        "pallas-health-review",
+        "ro-wegovy-glp1-quiz-us-cpl",
+        "rxspan-md-telehealth-program-review",
+        "synergy-rx-review",
+        "medvi-review",
+        "altrx-glp1-us-cps",
+        "mangorx"
+      ],
+      "rationale": "Operator RELEASE2 price-state rule repair: all eligible identities remain reachable in evidence order; missing cash schedules never enter lowest-cost arithmetic. This vector pins the actual supported non-price and insurance/medication/geography intersections after S30 removals.",
+      "vector_id": "medication-form-self-pay"
+    },
+    {
+      "answers": {
+        "bmi_range": "30-plus",
+        "current_meds": "no",
+        "goal": "insurance-support",
+        "insurance": "medicare-medicaid",
+        "state": "TX",
+        "timeline": "researching"
+      },
+      "expected_program_ids": [],
+      "rationale": "Operator RELEASE2 price-state rule repair: all eligible identities remain reachable in evidence order; missing cash schedules never enter lowest-cost arithmetic. This vector pins the actual supported non-price and insurance/medication/geography intersections after S30 removals.",
+      "vector_id": "medicare-medicaid-empty"
+    },
+    {
+      "answers": {
+        "bmi_range": "prefer-not-to-say",
+        "current_meds": "prefer-not-to-say",
+        "goal": "prefer-not-to-say",
+        "insurance": "unsure",
+        "state": "prefer-not-to-say",
+        "timeline": "prefer-not-to-say"
+      },
+      "expected_program_ids": [
+        "coreage-rx-glp-1-1632",
+        "healthrx",
+        "snagrx",
+        "drhouse",
+        "sunlight-glp1",
+        "coivas",
+        "instarx-review",
+        "live-vital-launch",
+        "nu-image-medical-review",
+        "orderlymeds",
+        "try-ageless",
+        "bodybuilding-com-glp-1-longevity-review",
+        "found-health",
+        "humecare-data-driven-glp-1-weight-loss-system",
+        "futurhealth-wegovy-pillform",
+        "biltrx",
+        "breeze-meds-review",
+        "care-bare-rx-glp1-review",
+        "curex-glp-1",
+        "dudemeds-review",
+        "g-plan",
+        "joinskinny-semaglutide-glp-1-us",
+        "jrnys-review",
+        "lttl-glp-landing-page-2",
+        "measured",
+        "novi-weight-loss-glp-1",
+        "refills",
+        "rightwell-review",
+        "skinnyrx-1-glp-weight-loss-provider-review",
+        "strut-health",
+        "trimrx-xentraffic-offer-3014",
+        "trt-nation",
+        "wellmedr-review",
+        "willow-review",
+        "yourera-program",
+        "direct-meds",
+        "trimi-glp-1",
+        "tyde-wellness-review",
+        "wellorithm",
+        "shedrx",
+        "sprout-health",
+        "serena-health",
+        "tmates-xentraffic-offer-3154",
+        "eden-xentraffic-offer-3051",
+        "enhanced-tirzepatide-funnel-b",
+        "feelgood-review",
+        "gobymeds",
+        "ivim-health-review",
+        "levelsrx-extra-cpa-home-page",
+        "longevity-meds-glp-1-review",
+        "mydrhank",
+        "pallas-health-review",
+        "ro-wegovy-glp1-quiz-us-cpl",
+        "rxspan-md-telehealth-program-review",
+        "synergy-rx-review",
+        "mademed",
+        "enhance-md",
+        "gala-health",
+        "oak-weight-loss-program",
+        "yucca-health-xentraffic-offer-3117",
+        "altrx-glp1-us-cps",
+        "medvi-review",
+        "mangorx"
+      ],
+      "rationale": "Operator RELEASE2 price-state rule repair: all eligible identities remain reachable in evidence order; missing cash schedules never enter lowest-cost arithmetic. This vector pins the actual supported non-price and insurance/medication/geography intersections after S30 removals.",
+      "vector_id": "prefer-not-to-say-unsure-top-three"
+    },
+    {
+      "answers": {
+        "bmi_range": "30-plus",
+        "current_meds": "no",
+        "goal": "price",
+        "insurance": "commercial-insurance",
+        "state": "TX",
+        "timeline": "this-month"
+      },
+      "expected_program_ids": [],
+      "rationale": "Operator RELEASE2 price-state rule repair: all eligible identities remain reachable in evidence order; missing cash schedules never enter lowest-cost arithmetic. This vector pins the actual supported non-price and insurance/medication/geography intersections after S30 removals.",
+      "vector_id": "price-commercial-insurance"
+    },
+    {
+      "answers": {
+        "bmi_range": "30-plus",
+        "current_meds": "no",
+        "goal": "price",
+        "insurance": "self-pay",
+        "medication_preference": "tirzepatide",
+        "state": "FL",
+        "timeline": "this-week"
+      },
+      "expected_program_ids": [
+        "snagrx",
+        "tmates-xentraffic-offer-3154",
+        "yucca-health-xentraffic-offer-3117"
+      ],
+      "rationale": "Operator RELEASE2 price-state rule repair: all eligible identities remain reachable in evidence order; missing cash schedules never enter lowest-cost arithmetic. This vector pins the actual supported non-price and insurance/medication/geography intersections after S30 removals.",
+      "vector_id": "price-tirzepatide-cheapest-first"
+    }
+  ],
+  "guided_fallback": {
+    "lede": "No verified provider fits every answer you gave. Rather than show you nothing, here are the closest matches — with exactly what each one does not meet.",
+    "mismatch_prefix": "Does not match your answer"
+  },
+  "h1": "Find your GLP‑1 match.",
+  "matching_policy": {
+    "composition_order": [
+      "source_and_staging_clearance",
+      "all_answered_commercial_rules_intersection",
+      "therapeutic_preference_evidence_intersection",
+      "goal_weighted_rank_score_desc",
+      "published_all_in_cost_asc",
+      "program_id_asc",
+      "take_result_count"
+    ],
+    "empty_result_behavior": "prevent_unanswerable_options_then_guided_closest_matches",
+    "ignored_answers": [
+      "bmi_range",
+      "current_meds",
+      "timeline"
+    ],
+    "medical_answers_used_for_routing": false,
+    "prevented_answers": [
+      "goal",
+      "insurance",
+      "state",
+      "medication_preference"
+    ],
+    "prevention_note": "Filtering is monotone, so an option that empties the candidate set at pick time would empty it on every path through it. Such an option is offered DISABLED with a published reason rather than allowed to dead-end. If every option of a question would be dead, none is disabled and the guided closest-matches fallback explains the result instead.",
+    "ranking_basis": "goal_weighted_profiles_over_evidence_derived_criteria_plus_published_all_in_cost (src/quiz-ranking.mjs; rationale data/quiz-scoring-rationale.json)",
+    "result_count": "all_eligible",
+    "result_scope_reason": "Return all eligible matches in evidence order, rather than permanently hiding unpriced providers below a three-result cap. Missing prices cannot enter the cost lane; non-price attributes and all existing constraints remain.",
+    "routing_answers": [
+      "goal",
+      "insurance",
+      "state",
+      "medication_preference"
+    ],
+    "rule_operator": "AND",
+    "schema": "commercial-priority-matching-v1",
+    "state_routing_note": "geographic availability only, from dated research evidence; never excludes without explicit provider-published evidence (2026-08-06)",
+    "state_used_for_matching": false,
+    "tie_breaker": "published_all_in_cost_asc_then_program_id_asc"
+  },
+  "medication_preference_empty_state": "No verified provider in this comparison currently offers that medication. We will not substitute or guess.",
+  "pass2_flow": {
+    "consent_gate": false,
+    "contact_optional": true,
+    "current_drugs": [
+      {
+        "doses": [
+          "Microdosing",
+          "0.25",
+          "0.5",
+          "1",
+          "1.7",
+          "2.4",
+          "Other"
+        ],
+        "label": "Compounded semaglutide",
+        "value": "SEMAGLUTIDE"
+      },
+      {
+        "doses": [
+          "Microdosing",
+          "2.5",
+          "5",
+          "7.5",
+          "10",
+          "12.5",
+          "15",
+          "Other"
+        ],
+        "label": "Compounded tirzepatide",
+        "value": "TIRZEPATIDE"
+      },
+      {
+        "doses": [
+          "0.25",
+          "0.5",
+          "1",
+          "1.7",
+          "2.4",
+          "Other"
+        ],
+        "label": "Wegovy",
+        "value": "WEGOVY"
+      },
+      {
+        "doses": [
+          "0.25",
+          "0.5",
+          "1",
+          "2",
+          "Other"
+        ],
+        "label": "Ozempic",
+        "value": "OZEMPIC"
+      },
+      {
+        "doses": [
+          "2.5",
+          "5",
+          "7.5",
+          "10",
+          "12.5",
+          "15",
+          "Other"
+        ],
+        "label": "Mounjaro",
+        "value": "MOUNJARO"
+      },
+      {
+        "doses": [
+          "2.5",
+          "5",
+          "7.5",
+          "10",
+          "12.5",
+          "15",
+          "Other"
+        ],
+        "label": "Zepbound",
+        "value": "ZEPBOUND"
+      }
+    ],
+    "current_use_options": [
+      {
+        "label": "Yes",
+        "value": "yes"
+      },
+      {
+        "label": "No",
+        "value": "no"
+      }
+    ],
+    "features": [
+      "Pick Your Pharmacy",
+      "Bulk Medication",
+      "Video Calls",
+      "Messaging Only",
+      "Nutrition Support",
+      "Coaching",
+      "FSA/HSA Payments Accepted"
+    ],
+    "intent_options": [
+      {
+        "form": "COMPOUNDED",
+        "label": "Semaglutide",
+        "ranking_value": "semaglutide",
+        "value": "SEMAGLUTIDE"
+      },
+      {
+        "form": "COMPOUNDED",
+        "label": "Tirzepatide",
+        "ranking_value": "tirzepatide",
+        "value": "TIRZEPATIDE"
+      },
+      {
+        "form": "BRAND",
+        "label": "Ozempic",
+        "ranking_value": "semaglutide",
+        "value": "OZEMPIC"
+      },
+      {
+        "form": "BRAND",
+        "label": "Mounjaro",
+        "ranking_value": "mounjaro",
+        "value": "MOUNJARO"
+      },
+      {
+        "form": "BRAND",
+        "label": "Wegovy",
+        "ranking_value": "wegovy",
+        "value": "WEGOVY"
+      },
+      {
+        "form": "BRAND",
+        "label": "Zepbound",
+        "ranking_value": "zepbound",
+        "value": "ZEPBOUND"
+      },
+      {
+        "form": "BRAND",
+        "label": "Wegovy Pill",
+        "ranking_value": "oral",
+        "value": "WEGOVY_PILL"
+      },
+      {
+        "form": "BOTH",
+        "label": "Not sure",
+        "ranking_value": "not_sure",
+        "value": "NOT_SURE"
+      }
+    ],
+    "no_use_reasons": [
+      "Weight loss",
+      "Diabetes",
+      "Microdosing/Longevity",
+      "Sleep apnea",
+      "Other health concerns"
+    ],
+    "result_count": 3,
+    "schema": "glp-provider-fit-pass2-v1"
+  },
+  "path": "/quiz/provider-fit/",
+  "phase4_flow": {
+    "compact_matcher": {
+      "dose_optional": true,
+      "dose_options": {
+        "SEMAGLUTIDE": [
+          "New Patient",
+          "0.25",
+          "0.5",
+          "1",
+          "1.7",
+          "2.4",
+          "Not Sure"
+        ],
+        "TIRZEPATIDE": [
+          "New Patient",
+          "2.5",
+          "5",
+          "7.5",
+          "10",
+          "12.5",
+          "15",
+          "Not Sure"
+        ]
+      },
+      "medication_options": [
+        {
+          "family": "SEMAGLUTIDE",
+          "form": "COMPOUNDED",
+          "label": "Compounded semaglutide",
+          "value": "SEMAGLUTIDE"
+        },
+        {
+          "family": "TIRZEPATIDE",
+          "form": "COMPOUNDED",
+          "label": "Compounded tirzepatide",
+          "value": "TIRZEPATIDE"
+        },
+        {
+          "drug": "OZEMPIC",
+          "family": "SEMAGLUTIDE",
+          "form": "BRAND_NAME",
+          "label": "Ozempic or Wegovy",
+          "route": "/ozempic/",
+          "value": "OZEMPIC_WEGOVY"
+        },
+        {
+          "drug": "MOUNJARO",
+          "family": "TIRZEPATIDE",
+          "form": "BRAND_NAME",
+          "label": "Mounjaro or Zepbound",
+          "route": "/mounjaro/",
+          "value": "MOUNJARO_ZEPBOUND"
+        },
+        {
+          "drug": "WEGOVY_PILL",
+          "family": "SEMAGLUTIDE",
+          "form": "COMPOUNDED",
+          "label": "Wegovy Pill",
+          "route": "/wegovy-pill/",
+          "value": "WEGOVY_PILL"
+        }
+      ]
+    },
+    "contact": {
+      "analytics_answer_values": false,
+      "email_label": "Email me Clinic Scout price updates (optional)",
+      "newsletter_consent_source": "/subscribe-bottom-sheet/",
+      "newsletter_consent_version": "glp-newsletter-v1-20260822",
+      "newsletter_endpoint": "/api/newsletter-subscribe",
+      "optional": true,
+      "provider_sharing": false
+    },
+    "current_drugs": [
+      {
+        "doses": [
+          "Microdosing",
+          "0.25",
+          "0.5",
+          "1",
+          "1.7",
+          "2.4",
+          "Other"
+        ],
+        "family": "SEMAGLUTIDE",
+        "label": "Compounded semaglutide",
+        "value": "SEMAGLUTIDE"
+      },
+      {
+        "doses": [
+          "Microdosing",
+          "2.5",
+          "5",
+          "7.5",
+          "10",
+          "12.5",
+          "15",
+          "Other"
+        ],
+        "family": "TIRZEPATIDE",
+        "label": "Compounded tirzepatide",
+        "value": "TIRZEPATIDE"
+      },
+      {
+        "doses": [
+          "0.25",
+          "0.5",
+          "1",
+          "1.7",
+          "2.4",
+          "Other"
+        ],
+        "family": "SEMAGLUTIDE",
+        "label": "Wegovy",
+        "value": "WEGOVY"
+      },
+      {
+        "doses": [
+          "0.25",
+          "0.5",
+          "1",
+          "2",
+          "Other"
+        ],
+        "family": "SEMAGLUTIDE",
+        "label": "Ozempic",
+        "value": "OZEMPIC"
+      },
+      {
+        "doses": [
+          "2.5",
+          "5",
+          "7.5",
+          "10",
+          "12.5",
+          "15",
+          "Other"
+        ],
+        "family": "TIRZEPATIDE",
+        "label": "Mounjaro",
+        "value": "MOUNJARO"
+      },
+      {
+        "doses": [
+          "2.5",
+          "5",
+          "7.5",
+          "10",
+          "12.5",
+          "15",
+          "Other"
+        ],
+        "family": "TIRZEPATIDE",
+        "label": "Zepbound",
+        "value": "ZEPBOUND"
+      }
+    ],
+    "current_use_options": [
+      {
+        "label": "Yes",
+        "value": "yes"
+      },
+      {
+        "label": "No",
+        "value": "no"
+      }
+    ],
+    "features": [
+      {
+        "label": "Pick Your Pharmacy",
+        "value": "PICK_YOUR_PHARMACY"
+      },
+      {
+        "label": "Bulk Medication",
+        "value": "BULK_MEDICATION"
+      },
+      {
+        "label": "Video Calls",
+        "value": "VIDEO_CALLS"
+      },
+      {
+        "label": "Messaging Only",
+        "value": "MESSAGING_ONLY"
+      },
+      {
+        "label": "Nutrition Support",
+        "value": "NUTRITION_SUPPORT"
+      },
+      {
+        "label": "Coaching",
+        "value": "COACHING"
+      },
+      {
+        "label": "FSA/HSA Payments Accepted",
+        "value": "FSA_HSA"
+      }
+    ],
+    "intent_options": [
+      {
+        "form": "COMPOUNDED",
+        "label": "Semaglutide",
+        "ranking_value": "semaglutide",
+        "value": "SEMAGLUTIDE"
+      },
+      {
+        "form": "COMPOUNDED",
+        "label": "Tirzepatide",
+        "ranking_value": "tirzepatide",
+        "value": "TIRZEPATIDE"
+      },
+      {
+        "form": "BRAND_NAME",
+        "label": "Ozempic",
+        "ranking_value": "semaglutide",
+        "route": "/ozempic/",
+        "value": "OZEMPIC"
+      },
+      {
+        "form": "BRAND_NAME",
+        "label": "Mounjaro",
+        "ranking_value": "mounjaro",
+        "route": "/mounjaro/",
+        "value": "MOUNJARO"
+      },
+      {
+        "form": "BRAND_NAME",
+        "label": "Wegovy",
+        "ranking_value": "wegovy",
+        "route": "/wegovy/",
+        "value": "WEGOVY"
+      },
+      {
+        "form": "BRAND_NAME",
+        "label": "Zepbound",
+        "ranking_value": "zepbound",
+        "route": "/zepbound/",
+        "value": "ZEPBOUND"
+      },
+      {
+        "form": "COMPOUNDED",
+        "label": "Wegovy Pill",
+        "ranking_value": "oral",
+        "route": "/wegovy-pill/",
+        "value": "WEGOVY_PILL"
+      },
+      {
+        "form": "BOTH",
+        "label": "Not sure",
+        "ranking_value": "not_sure",
+        "value": "NOT_SURE"
+      }
+    ],
+    "jurisdictions": [
+      {
+        "code": "AL",
+        "name": "Alabama"
+      },
+      {
+        "code": "AK",
+        "name": "Alaska"
+      },
+      {
+        "code": "AZ",
+        "name": "Arizona"
+      },
+      {
+        "code": "AR",
+        "name": "Arkansas"
+      },
+      {
+        "code": "CA",
+        "name": "California"
+      },
+      {
+        "code": "CO",
+        "name": "Colorado"
+      },
+      {
+        "code": "CT",
+        "name": "Connecticut"
+      },
+      {
+        "code": "DC",
+        "name": "District of Columbia"
+      },
+      {
+        "code": "DE",
+        "name": "Delaware"
+      },
+      {
+        "code": "FL",
+        "name": "Florida"
+      },
+      {
+        "code": "GA",
+        "name": "Georgia"
+      },
+      {
+        "code": "HI",
+        "name": "Hawaii"
+      },
+      {
+        "code": "ID",
+        "name": "Idaho"
+      },
+      {
+        "code": "IL",
+        "name": "Illinois"
+      },
+      {
+        "code": "IN",
+        "name": "Indiana"
+      },
+      {
+        "code": "IA",
+        "name": "Iowa"
+      },
+      {
+        "code": "KS",
+        "name": "Kansas"
+      },
+      {
+        "code": "KY",
+        "name": "Kentucky"
+      },
+      {
+        "code": "LA",
+        "name": "Louisiana"
+      },
+      {
+        "code": "ME",
+        "name": "Maine"
+      },
+      {
+        "code": "MD",
+        "name": "Maryland"
+      },
+      {
+        "code": "MA",
+        "name": "Massachusetts"
+      },
+      {
+        "code": "MI",
+        "name": "Michigan"
+      },
+      {
+        "code": "MN",
+        "name": "Minnesota"
+      },
+      {
+        "code": "MS",
+        "name": "Mississippi"
+      },
+      {
+        "code": "MO",
+        "name": "Missouri"
+      },
+      {
+        "code": "MT",
+        "name": "Montana"
+      },
+      {
+        "code": "NE",
+        "name": "Nebraska"
+      },
+      {
+        "code": "NV",
+        "name": "Nevada"
+      },
+      {
+        "code": "NH",
+        "name": "New Hampshire"
+      },
+      {
+        "code": "NJ",
+        "name": "New Jersey"
+      },
+      {
+        "code": "NM",
+        "name": "New Mexico"
+      },
+      {
+        "code": "NY",
+        "name": "New York"
+      },
+      {
+        "code": "NC",
+        "name": "North Carolina"
+      },
+      {
+        "code": "ND",
+        "name": "North Dakota"
+      },
+      {
+        "code": "OH",
+        "name": "Ohio"
+      },
+      {
+        "code": "OK",
+        "name": "Oklahoma"
+      },
+      {
+        "code": "OR",
+        "name": "Oregon"
+      },
+      {
+        "code": "PA",
+        "name": "Pennsylvania"
+      },
+      {
+        "code": "PR",
+        "name": "Puerto Rico"
+      },
+      {
+        "code": "RI",
+        "name": "Rhode Island"
+      },
+      {
+        "code": "SC",
+        "name": "South Carolina"
+      },
+      {
+        "code": "SD",
+        "name": "South Dakota"
+      },
+      {
+        "code": "TN",
+        "name": "Tennessee"
+      },
+      {
+        "code": "TX",
+        "name": "Texas"
+      },
+      {
+        "code": "UT",
+        "name": "Utah"
+      },
+      {
+        "code": "VT",
+        "name": "Vermont"
+      },
+      {
+        "code": "VA",
+        "name": "Virginia"
+      },
+      {
+        "code": "WA",
+        "name": "Washington"
+      },
+      {
+        "code": "WV",
+        "name": "West Virginia"
+      },
+      {
+        "code": "WI",
+        "name": "Wisconsin"
+      },
+      {
+        "code": "WY",
+        "name": "Wyoming"
+      }
+    ],
+    "no_use_reasons": [
+      {
+        "label": "Weight loss",
+        "value": "WEIGHT_LOSS"
+      },
+      {
+        "label": "Diabetes",
+        "value": "DIABETES"
+      },
+      {
+        "label": "Microdosing or longevity research",
+        "value": "MICRODOSING_LONGEVITY"
+      },
+      {
+        "label": "Sleep apnea",
+        "value": "SLEEP_APNEA"
+      },
+      {
+        "label": "Other health concerns",
+        "value": "OTHER_HEALTH_CONCERNS"
+      }
+    ],
+    "positions": [
+      {
+        "id": "treatment",
+        "index": 0
+      },
+      {
+        "id": "reason",
+        "index": 1
+      },
+      {
+        "id": "current-use",
+        "index": 2
+      },
+      {
+        "id": "branch",
+        "index": 3
+      },
+      {
+        "id": "features",
+        "index": 4
+      },
+      {
+        "id": "state",
+        "index": 5
+      },
+      {
+        "id": "contact",
+        "index": 6
+      }
+    ],
+    "schema": "glp-provider-fit-phase4-v1",
+    "situations": [
+      {
+        "label": "I prefer FDA-approved medications only",
+        "value": "FDA_APPROVED_ONLY"
+      },
+      {
+        "label": "I want a balance between quality and cost",
+        "value": "BALANCED_QUALITY_COST"
+      },
+      {
+        "label": "I want the most commonly compared option",
+        "value": "MOST_POPULAR"
+      },
+      {
+        "label": "I want the lowest published cost",
+        "value": "LOWEST_COST"
+      }
+    ]
+  },
+  "questions": [
+    {
+      "id": "bmi_range",
+      "label": "Which broad BMI range are you using for your own research?",
+      "options": [
+        {
+          "label": "Under 27",
+          "value": "under-27"
+        },
+        {
+          "label": "27 to 29",
+          "value": "27-to-29"
+        },
+        {
+          "label": "30 or higher",
+          "value": "30-plus"
+        }
+      ]
+    },
+    {
+      "id": "goal",
+      "label": "What matters most in this comparison?",
+      "options": [
+        {
+          "label": "Price",
+          "value": "price"
+        },
+        {
+          "label": "Insurance support",
+          "value": "insurance-support"
+        },
+        {
+          "label": "Coaching",
+          "value": "coaching"
+        },
+        {
+          "label": "Medication form",
+          "value": "medication-form"
+        }
+      ]
+    },
+    {
+      "id": "medication_preference",
+      "label": "Do you already know which medication you want?",
+      "options": [
+        {
+          "label": "Semaglutide",
+          "value": "semaglutide"
+        },
+        {
+          "label": "Tirzepatide",
+          "value": "tirzepatide"
+        },
+        {
+          "label": "Retatrutide",
+          "value": "retatrutide"
+        },
+        {
+          "label": "Wegovy",
+          "value": "wegovy"
+        },
+        {
+          "label": "Zepbound",
+          "value": "zepbound"
+        },
+        {
+          "label": "Mounjaro",
+          "value": "mounjaro"
+        },
+        {
+          "label": "Oral option",
+          "value": "oral"
+        },
+        {
+          "label": "Injection option",
+          "value": "injectable"
+        },
+        {
+          "label": "I'm not sure yet",
+          "value": "not_sure"
+        }
+      ]
+    },
+    {
+      "id": "current_meds",
+      "label": "Are you currently taking a GLP-1 medication?",
+      "options": [
+        {
+          "label": "Yes",
+          "value": "yes"
+        },
+        {
+          "label": "No",
+          "value": "no"
+        }
+      ]
+    },
+    {
+      "id": "insurance",
+      "label": "How do you expect to pay?",
+      "options": [
+        {
+          "label": "Self-pay",
+          "value": "self-pay"
+        },
+        {
+          "label": "Insurance support",
+          "value": "commercial-insurance"
+        },
+        {
+          "label": "Medicare/Medicaid",
+          "value": "medicare-medicaid"
+        },
+        {
+          "label": "Unsure",
+          "value": "unsure"
+        }
+      ]
+    },
+    {
+      "id": "state",
+      "label": "What state are you in? (Recorded for your checklist; not used to rank results in this version)",
+      "options": []
+    },
+    {
+      "id": "timeline",
+      "label": "When do you want to compare options?",
+      "options": [
+        {
+          "label": "This week",
+          "value": "this-week"
+        },
+        {
+          "label": "This month",
+          "value": "this-month"
+        },
+        {
+          "label": "Just researching",
+          "value": "researching"
+        }
+      ]
+    }
+  ],
+  "result_frame": "providers people with similar stated priorities commonly compare; never eligibility or diagnosis",
+  "retatrutide_empty_state": "No verified provider in this comparison currently offers retatrutide. We will not substitute or guess.",
+  "schema": "glp-clinic-scout-quiz-v1.2-evidence-therapeutic",
+  "state_matching_boundary": {
+    "handling": "State is retained in the ephemeral in-page answer object only. It does not filter or rank providers; verify current state availability on the provider source before enrollment.",
+    "status": "NOT_IMPLEMENTED_IN_MATCHING"
+  },
+  "storage": "ephemeral_page_memory_only",
+  "title": "Which provider fits my priorities? — Clinic Scout staging",
+  "transmit_answers": false,
+  "unavailable_option_copy": {
+    "blocked_by": "No provider in our comparison offers this together with your earlier answer “{answer}”.",
+    "blocked_by_combination": "No provider in our comparison offers this together with your earlier answers.",
+    "none_at_all": "No provider in our comparison publishes this, so we cannot match you to one.",
+    "state_suffix": " — no match with your answers"
+  }
+}

@@ -15,6 +15,8 @@ import glp328_outreach_policy as policy
 def isolated_inbox(tmp_path,monkeypatch):
  monkeypatch.setattr(m,'INBOX_DB',tmp_path/'no-live-inbox.sqlite')
  monkeypatch.setattr(m,'ROOT',tmp_path/'no-live-source')
+ # Synthetic capture timestamps and their consumer must share the fixture clock.
+ monkeypatch.setattr(m,'now',lambda:NOW)
 
 NOW=dt.datetime(2026,10,3,tzinfo=dt.timezone.utc)
 
@@ -255,6 +257,16 @@ def test_disabled_does_not_read_approval(tmp_path,monkeypatch):
  monkeypatch.setattr(m,'STATE',tmp_path)
  assert m.approval_ready({'send_enabled':False}) is False
  with pytest.raises(FileNotFoundError):m.approval_ready({'send_enabled':True})
+
+def test_public_contact_fixture_clock_keeps_expiry_gate(monkeypatch):
+ sheet,discovery,local=inputs()
+ assert len(m.recipients(sheet,discovery,local)['recipients'])==1
+ monkeypatch.setattr(m,'now',lambda:NOW+dt.timedelta(days=31))
+ result=m.recipients(sheet,discovery,local)
+ assert result['recipients']==[]
+ assert result['exclusions'][-1]['status']=='HELD_NOT_PUBLIC'
+ assert discovery['organizations']['example.com']['discovery']['contact_evidence']['captured_at_utc']==NOW.isoformat()
+
 
 def test_registry_suppression_hold_and_business_purpose():
  sheet,discovery,local=inputs()

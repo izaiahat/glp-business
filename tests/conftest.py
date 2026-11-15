@@ -20,6 +20,32 @@ if Path(scripts.__file__).resolve() != ROOT / 'scripts/__init__.py':
 
 
 @pytest.fixture
+def isolated_scratch_namespace(tmp_path, monkeypatch):
+    """Keep literal scratch-path parsing, but resolve it only inside this test."""
+    import host_disk_cold_classes as cold
+    import host_disk_large_sweep as sweep
+
+    canonical = Path('/home/ubuntu/.hermes/cache/scratch')
+    scratch = tmp_path / 'scratch'
+    scratch.mkdir()
+
+    def fixture_path(*parts):
+        path = Path(*parts)
+        # TMPDIR itself may live under the canonical scratch root on the host.
+        if path == tmp_path or tmp_path in path.parents:
+            return path
+        if path == canonical or canonical in path.parents:
+            return scratch / path.relative_to(canonical)
+        return path
+
+    # Rebind only these modules' constructors, not pathlib or filesystem results.
+    # Real stat/symlink, scope, age, payload and reference gates still execute.
+    monkeypatch.setattr(cold, 'Path', fixture_path)
+    monkeypatch.setattr(sweep, 'Path', fixture_path)
+    return scratch
+
+
+@pytest.fixture
 def j7_financial_clock(monkeypatch, request):
     """Keep portal closure, intake freshness and fake browser time coherent."""
     import affiliate_reporting_eden_portal_j7 as eden

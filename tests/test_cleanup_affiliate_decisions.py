@@ -51,6 +51,12 @@ def inbox(tmp_path, monkeypatch):
     for name in ('PRIVATE_ROOT', 'RAW_ROOT', 'ATTACHMENT_ROOT', 'BACKUP_ROOT', 'REPORT_ROOT', 'DAILY_AUDIT_DIR'):
         monkeypatch.setattr(cp, name, tmp_path / name)
     monkeypatch.setattr(supply, 'INTAKE_ROOT', tmp_path / 'supply')
+    # Canonical ingest also consults sponsor enrollment. This affiliate-only
+    # fixture has no enrolled sponsors; never consult a real host ledger.
+    from inbox_control_plane import sponsor_replies
+    sponsor_ledger = tmp_path / 'synthetic-sponsor-ledger.json'
+    sponsor_ledger.write_text('{}')
+    monkeypatch.setattr(sponsor_replies, 'LEDGER_PATH', sponsor_ledger)
     ledger = cp.Ledger(tmp_path / 'inbox.sqlite3')
     mailbox = {
         'mailbox_id': 'glp_ops_gmail', 'venture': 'glp_clinic_scout',

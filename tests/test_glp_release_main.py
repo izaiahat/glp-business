@@ -28,6 +28,77 @@ from test_glp_single_publisher import (
 import glp_affiliate_sync_job as job  # noqa: E402
 
 
+@pytest.mark.parametrize('retained,prepare_only', [(23, False), (24, False), (25, False), (24, True)])
+def test_main_retained_build_cap_before_allocation(tmp_path, monkeypatch, capsys, retained, prepare_only):
+    runs = tmp_path / 'runs'
+    for i in range(retained):
+        # Both timestamp grammars; candidate-only, prepared-only and both count once.
+        stamp = f'20261101T0000{i:02d}' + ('123456' if i % 2 else '') + 'Z'
+        run = runs / ('main-' + stamp)
+        for payload in (('candidate',), ('prepared',), ('candidate', 'prepared'))[i % 3]:
+            (run / payload).mkdir(parents=True)
+    (runs / 'main-receipt-only').mkdir()
+    (runs / 'main-file-not-payload').mkdir()
+    (runs / 'main-file-not-payload/candidate').write_text('not a directory')
+    (runs / 'sync-other/candidate').mkdir(parents=True)
+    before = sorted(str(p.relative_to(runs)) for p in runs.rglob('*'))
+    pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(json.dumps({'release_root': str(tmp_path / 'old')}))
+    monkeypatch.setattr(rm, 'ROOT', tmp_path)
+    monkeypatch.setattr(rm, 'RUNS', runs)
+    monkeypatch.setenv('GLP_RUN_TYPE', 'scheduled')
+    calls = []
+    def forbidden(*a, **kw):
+        raise AssertionError('unexpected external effect or cleanup')
+    monkeypatch.setattr(rm, 'gh_json', forbidden)
+    monkeypatch.setattr(job, 'run', forbidden)
+    monkeypatch.setattr(job, 'retire_main_payloads', forbidden)
+    monkeypatch.setattr(rm.urllib.request, 'urlopen', forbidden)
+    pr = {'url': 'fixture-pr', 'headRefOid': 'fixture-head'}
+    def acceptance(sha):
+        calls.append('acceptance')
+        return {'status': 'ACCEPTED', 'main_sha': sha, 'pr': pr}
+    monkeypatch.setattr(rm, 'ensure_main_acceptance', acceptance)
+    monkeypatch.setattr(rm, 'merged_pr_for', lambda sha: pr)
+    monkeypatch.setattr(rm, 'pointer_head', lambda: ('old-head', 'old-deployment'))
+    monkeypatch.setattr(job, 'rebuild_inputs_complete', lambda p: True)
+    monkeypatch.setattr(job, 'read', lambda p: {})
+    def cache(*a):
+        calls.append('cache')
+        return None
+    monkeypatch.setattr(rm, 'try_identical_inputs', cache)
+    monkeypatch.setattr(rm, 'build_storage_status', lambda: {'blocked': False})
+    monkeypatch.setitem(sys.modules, 'glp_deploy_glp34_authority_v1', SimpleNamespace(read_token=forbidden))
+    monkeypatch.setitem(sys.modules, 'glp_affiliate_release', SimpleNamespace(main_release_base=forbidden))
+    monkeypatch.setattr(rm, 'install_cache_convergence', lambda *a: None)
+    monkeypatch.setattr(job, 'build_gate', forbidden)  # restore main's wrapper after each case
+    def execute(config, report, **kw):
+        calls.append(('execute', kw))
+        (report / 'candidate').mkdir()  # private allocation sentinel, never a real clone/build
+        return {'status': 'FIXTURE_EXECUTE_REACHED'}
+    monkeypatch.setattr(job, 'execute', execute)
+    assert rm.main(['--sha', 'fixture-main'] + (['--prepare-only'] if prepare_only else [])) == 0
+    out = json.loads(capsys.readouterr().out)
+    report = Path(out['report'])
+    assert json.loads((report / 'MAIN-RELEASE-RESULT.json').read_text()) == out
+    if retained >= 24 and not prepare_only:
+        assert out['status'] == 'DEFERRED_RETENTION_BACKLOG'
+        assert out['retained_build_runs'] == retained
+        assert out['retained_build_cap'] == 24
+        assert out['build_executed'] is False and out['deployed'] is False
+        assert out['run_type'] == 'scheduled'
+        assert calls == []  # no acceptance mutation, cache publication/notification, or execute
+        assert sorted(p.name for p in report.iterdir()) == ['MAIN-RELEASE-RESULT.json']
+    else:
+        assert out['status'] == 'FIXTURE_EXECUTE_REACHED'
+        assert calls == ([] if prepare_only else ['acceptance', 'cache']) + [
+            ('execute', {'source_ref': 'fixture-head', 'source_pr': 'fixture-pr',
+                         'publish': not prepare_only, 'source_only': False})]
+        assert (report / 'candidate').is_dir()
+    assert all((runs / name).exists() for name in before)  # existing data never retired
+
+
 def test_rebuild_manifests_are_retained_and_missing_inputs_refuse_skip(tmp_path):
     names = ('artifacts/ops/build-report.json', 'artifacts/ops/price-index-manifest.json',
              'artifacts/ops/wave4-deal-ingestion-manifest.json')
