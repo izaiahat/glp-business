@@ -50,6 +50,8 @@ jobs:
           # Retained pre-admission importer counterexample is read by exact SHA.
           fetch-depth: 0
           persist-credentials: false
+      - name: CBS scheduled retry and Alexandria contracts (offline, exact head)
+        run: python3 -B -m unittest discover -s tests -p test_cbs_scheduled_research.py -v
       - name: Hermes active-work gate (offline proc/tmux fixtures, exact head; no activation)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
