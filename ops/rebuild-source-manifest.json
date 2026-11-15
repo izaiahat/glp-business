@@ -1260,7 +1260,7 @@
         "hermes:7dbca59e9dbb"
       ],
       "kind": "script",
-      "sha256": "1641a13d35806ad94301d665936eddb6f2e70e67f456e248ad416b716b8f3d93"
+      "sha256": "1030ef1741c18d4020157dd7f38fc549850530f7daa16c9e4d721a3ee1c5578d"
     },
     "ops/hermes-cron-scripts/cgroup_headroom_guardian.py": {
       "callers": [

@@ -5,6 +5,9 @@ import io
 import sys
 import types
 import json
+import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -123,6 +126,30 @@ class CBSResearchTest(unittest.TestCase):
         payload['data']['alexandria'][0].update(capability='sports-league-data/schedule', data={'season': 2026, 'week': 9, 'games': []})
         with self.assertRaises(ValueError):
             alexandria.validate_response(payload, 'nfl-com', 'sports-league-data/schedule', DATA)
+
+    @unittest.skipUnless(hasattr(os, 'memfd_create'), 'sealed invocation is Linux-specific')
+    def test_sealed_cron_snapshot_imports_installed_helper_and_stays_idle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.root(directory)
+            scripts = root / 'profile/scripts'
+            scripts.mkdir(parents=True)
+            shutil.copy2(SOURCE / 'cbs_pool_alexandria.py', scripts)
+            (root / 'research_input.py').write_text('def refresh_local(): return {}\n')
+            (root / 'experiment_schedule.py').write_text('def gate(*args): return {"status":"idle"}\n')
+            (root / 'firecrawl_client.py').write_text('class FirecrawlClient: pass\n')
+            text = (SOURCE / 'cbs_pool_research_context.py').read_text().replace(
+                "ROOT = Path('/home/ubuntu/projects/cbs-confidence-pool')", 'ROOT = Path(' + repr(str(root)) + ')')
+            fd = os.memfd_create('synthetic-cbs-cron')
+            try:
+                os.write(fd, text.encode())
+                env = dict(os.environ, HERMES_HOME=str(root / 'profile'))
+                result = subprocess.run([sys.executable, '/proc/self/fd/' + str(fd)],
+                    pass_fds=(fd,), env=env, capture_output=True, text=True, timeout=20)
+            finally:
+                os.close(fd)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIs(json.loads(result.stdout)['wakeAgent'], False)
+            self.assertEqual(json.loads(result.stdout)['status'], 'IDLE')
 
     def test_stdout_wake_gate_is_single_line_json_for_real_cron_parser(self):
         modules = {

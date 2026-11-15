@@ -3,6 +3,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -76,6 +77,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--manual-review', action='store_true', help='Explicit read-only review; does not complete or resurrect a scheduled event')
     args = parser.parse_args()
+    # Sealed cron scripts run from /proc/self/fd, not their installed directory.
+    home = Path(os.environ.get('HERMES_HOME', str(Path.home() / '.hermes')))
+    sys.path.insert(0, str(home / 'scripts'))
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     sys.path.insert(0, str(ROOT))
     sys.path.insert(0, '/home/ubuntu/business/scripts')
