@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "ops/hermes-cron-scripts/cbs_pool_alexandria.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:7dbca59e9dbb"
+      ],
+      "sha256": "473fc8ef03df1e4e6e7c5d1d14b48da62cf3ca7947e8042ca978a26868766c23"
+    },
+    "ops/cbs-confidence-pool/research-job-prompt.txt": {
+      "kind": "config",
+      "callers": [
+        "hermes:7dbca59e9dbb"
+      ],
+      "sha256": "8dcd9565d20d9b7b9da803907d3d51a10eaea73acc147512464cd893b996d03d"
+    },
     "scripts/glp_ship_attempts.py": {
       "kind": "repository_control",
       "callers": [
@@ -1246,7 +1260,7 @@
         "hermes:7dbca59e9dbb"
       ],
       "kind": "script",
-      "sha256": "47054f0a059c72010b6524466ea784c7769c91cb6d7831f11e084e995aa2d933"
+      "sha256": "1641a13d35806ad94301d665936eddb6f2e70e67f456e248ad416b716b8f3d93"
     },
     "ops/hermes-cron-scripts/cgroup_headroom_guardian.py": {
       "callers": [
@@ -8254,5 +8268,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1206
+  "tracked_count": 1208
 }
