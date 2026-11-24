@@ -1,6 +1,26 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/safe_dependency_retention.py": {
+      "kind": "host_control",
+      "callers": ["ops/systemd/kael-safe-dependency-retention.service"],
+      "sha256": "8ca0569e828c46a91596affb7bdc6b563c56cf603d31835dda2c576ff04106f5"
+    },
+    "tests/test_safe_dependency_retention.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "18bfa293109d12abd59ae13a3ae20b252bc39bc2f679f53c2a6aaa2f52d32f2f"
+    },
+    "ops/systemd/kael-safe-dependency-retention.service": {
+      "kind": "systemd_unit",
+      "callers": ["ops/systemd/kael-safe-dependency-retention.timer"],
+      "sha256": "5d4330f8ecb81fb918e0b76f82265db3500b57b71925f849a04c9c9d5b4e685e"
+    },
+    "ops/systemd/kael-safe-dependency-retention.timer": {
+      "kind": "systemd_unit",
+      "callers": ["systemd"],
+      "sha256": "0a02f25fd14d97bb3531b9a44cb2a9e554278781063b34f237a961d34514ee46"
+    },
     "tests/fixtures/glp80-eden/native-validator/provenance.json": {
       "kind": "test_fixture_provenance",
       "callers": [

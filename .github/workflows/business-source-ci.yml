@@ -16,6 +16,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Safe dependency retention (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_safe_dependency_retention.py -v
       - name: GLP73 autonomous article and Alexandria contracts (offline, exact head)
         run: |
           python3 -m unittest discover -s tests -p test_article_source_carrier.py -v
