@@ -465,7 +465,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e8dcbf8957df4e9a07e00fb5e8ffb0c96c49457be545a46eba54ad969d306115"
+      "sha256": "b65b22f05886e2838265a836e977c565909204dc359e399e6cb6f9cd536dc628"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -8359,5 +8359,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1219
+  "tracked_count": 1223
 }
