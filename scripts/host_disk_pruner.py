@@ -298,9 +298,14 @@ def path_identity(path: Path) -> tuple[int, int, int, int, int, int] | None:
 
 def path_is_active_privileged(path: Path) -> bool:
     """Fresh all-UID veto; UNKNOWN/permission errors are active, never deletion."""
-    command=['sudo','-n','/usr/bin/python3','-I',str(Path(__file__).parent/'pruner_process_reference_guard.py'),
+    command=['/usr/bin/python3','-I','-B',str(Path(__file__).parent/'pruner_process_reference_guard.py'),
              str(path),str(os.getpid())]
     result=run(command,cwd=Path('/'),timeout=3)
+    if (result['returncode']==2 and result['stdout_tail'].strip()=='UNKNOWN'
+            and os.geteuid()!=0):
+        # Only this read-only, output-redacted /proc helper may elevate. Never
+        # elevate the cleanup process or treat inaccessible processes as idle.
+        result=run(['sudo','-n',*command],cwd=Path('/'),timeout=3)
     return result['returncode']!=0 or result['stdout_tail'].strip()!='INACTIVE'
 
 
@@ -493,6 +498,66 @@ def remove_worktree(record: WorktreeRecord, *, dry_run: bool) -> dict[str, Any]:
             'skipped': 'tracked_worktree_requires_operator_decision', 'bytes_freed': 0}
 
 
+def remove_dependency_tree(path: Path, expected, *, deadline):
+    """Retire the captured dependency inodes using only no-follow dirfds.
+
+    This replaces the pathname-based subprocess for scheduled dependencies.
+    Process checks are fresh vetoes, not a promise to exclude future builders.
+    New/replaced members and changed ancestors stop retirement with zero credit.
+    """
+    from host_disk_large_classes import checked_directory, mount_id, snapshot
+    rows = {row[0]: tuple(row) for row in expected}
+    def signature(s):
+        return (s.st_dev,s.st_ino,s.st_mode,s.st_size,s.st_mtime_ns,s.st_ctime_ns,s.st_nlink)
+    try:
+        if '.' not in rows:
+            return False
+        with checked_directory(path) as (root, parent, name, validate):
+            mounted = mount_id(root)
+            if signature(os.fstat(root)) != rows['.'][1:]:
+                return False
+            if snapshot(path, deadline)[0] != list(expected):
+                return False
+            # Held handles precede the last live check; no pathname reopen after it.
+            if path_is_active_privileged(path):
+                return False
+            validate()
+            def retire(fd, relative):
+                if time.monotonic() >= deadline: raise TimeoutError('retirement deadline')
+                if mount_id(fd) != mounted: raise ValueError('retirement mount boundary')
+                with os.scandir(fd) as entries:
+                    names = [entry.name for entry in entries]
+                for child_name in names:
+                    if time.monotonic() >= deadline: raise TimeoutError('retirement deadline')
+                    validate()
+                    child_path = str(Path(relative)/child_name) if relative != '.' else child_name
+                    want = rows.get(child_path)
+                    info = os.stat(child_name, dir_fd=fd, follow_symlinks=False)
+                    if want is None or signature(info) != want[1:]:
+                        raise ValueError('retirement member changed')
+                    if stat.S_ISDIR(info.st_mode):
+                        child = os.open(child_name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+                        try:
+                            if signature(os.fstat(child)) != want[1:]: raise ValueError('opened member changed')
+                            retire(child, child_path)
+                            current = os.stat(child_name, dir_fd=fd, follow_symlinks=False)
+                            if (current.st_dev,current.st_ino) != (info.st_dev,info.st_ino): raise ValueError('directory replaced')
+                            validate()
+                            os.rmdir(child_name, dir_fd=fd)
+                        finally: os.close(child)
+                    else:
+                        validate()
+                        if signature(os.stat(child_name, dir_fd=fd, follow_symlinks=False)) != want[1:]:
+                            raise ValueError('unlink member changed')
+                        os.unlink(child_name, dir_fd=fd)
+            retire(root, '.')
+            validate()
+            os.rmdir(name, dir_fd=parent)
+            return True
+    except (OSError, ValueError, TimeoutError):
+        return False
+
+
 def remove_disposable(path: Path, *, deadline=None, as_root=False, expected=None, admission=None):
     """Delete one already-validated allowlisted object, bounded, no shell/globs.
 
@@ -506,27 +571,40 @@ def remove_disposable(path: Path, *, deadline=None, as_root=False, expected=None
         if as_root:
             raise ValueError('expected retirement requires the privileged caller')
         return retire_expected(path, expected, deadline, admission)
-    # Absence is not this invocation's retirement. In particular, an original
-    # renamed away between admission and this helper must never earn byte credit.
+    # Every normal tree now shares the no-follow, held-handle retirement.
+    from host_disk_large_classes import snapshot
+    deadline = deadline if deadline is not None else time.monotonic() + 20
     try:
-        path.lstat()
-    except FileNotFoundError:
+        admitted = path.lstat()
+        if stat.S_ISDIR(admitted.st_mode):
+            if as_root:
+                return False  # Root escalation is authorized only for the two log-file parents below.
+            before, _ = snapshot(path, deadline)
+            return remove_dependency_tree(path, before, deadline=deadline)
+    except (OSError, ValueError, TimeoutError):
         return False
-    timeout = remaining_budget(20 if deadline is None else min(20, max(0.01, deadline-time.monotonic())))
-    command = [sys.executable, '-I', '-c',
-               'import pathlib,shutil,sys; p=pathlib.Path(sys.argv[1]); '
-               'shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()',
-               str(path)]
+    if as_root and (path.parent not in {Path('/var/log/atop'),Path('/var/log/nginx')} or not stat.S_ISREG(admitted.st_mode)):
+        return False
+    timeout = remaining_budget(min(20, max(0.01, deadline-time.monotonic())))
+    # The privileged log-file path also walks ancestors with O_NOFOLLOW and
+    # compares the admitted inode immediately before unlinkat. No shutil/path reopen.
+    code = (
+        'import os,pathlib,sys; p=pathlib.Path(sys.argv[1]); '
+        'fd=os.open("/",os.O_RDONLY|os.O_DIRECTORY); '
+        '\nfor part in p.parts[1:-1]:\n'
+        ' child=os.open(part,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=fd); os.close(fd); fd=child\n'
+        's=os.stat(p.name,dir_fd=fd,follow_symlinks=False); '
+        'assert (s.st_dev,s.st_ino,s.st_ctime_ns)==tuple(map(int,sys.argv[2:])); '
+        'os.unlink(p.name,dir_fd=fd); os.close(fd)'
+    )
+    command = [sys.executable, '-I', '-c', code, str(path), str(admitted.st_dev), str(admitted.st_ino), str(admitted.st_ctime_ns)]
     if as_root:
-        if path.parent not in {Path('/var/log/atop'),Path('/var/log/nginx')} or not path.is_file() or path.is_symlink():
-            return False
         command = ['sudo','-n','/usr/bin/python3',*command[1:]]
     try:
         result = subprocess.run(command, capture_output=True, timeout=timeout)
-        return result.returncode == 0 and not path.exists()
+        return result.returncode == 0
     except subprocess.TimeoutExpired:
-        # Killed/reaped transport plus an absent pathname does not prove our
-        # child retired the admitted inodes. Preserve unknown accounting as zero.
+        # An uncertain timeout never earns removal credit.
         return False
 
 

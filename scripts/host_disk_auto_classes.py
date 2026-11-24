@@ -208,7 +208,15 @@ def external_pins(*, include_worktrees=True):
     return existing_pins(pins - LAYOUT)
 
 
-def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, cutoff=None, check_atime=False, protection=None):
+def reject_dependency_evidence(path, members):
+    """A lockfile never authorizes destruction of embedded business evidence."""
+    for row in members:
+        name = Path(row[0]).name
+        if re.search(r'(^|[-_.])(result|report|receipt|proof|deliverable|evidence|approval|publish)([-_.]|$)', name, re.I):
+            raise ValueError('embedded dependency evidence: ' + row[0])
+
+
+def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, cutoff=None, check_atime=False, protection=None, max_bytes=2*1024**3, max_items=100000):
     """Shared effect path: every existing veto, then a single bounded removal."""
     from host_disk_large_classes import snapshot, lsof_inactive
     from host_disk_payload_guard import reject_database_payloads
@@ -227,7 +235,10 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
             extra_check(p)
         if not m.inactive(api, p):
             raise ValueError('dirty/active')
-        before, amount = snapshot(p, deadline)
+        before, amount = snapshot(p, deadline, max_bytes=max_bytes, max_items=max_items,
+                                  include_directories=rule == 'rebuildable_report_node_modules')
+        if rule == 'rebuildable_report_node_modules':
+            reject_dependency_evidence(p, before)
         reject_database_payloads(p, before)
         for r in before:
             q = p / r[0]; s = q.lstat()
@@ -254,6 +265,12 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
         row['eligible_bytes'] = amount
         if dry_run:
             row['status'] = 'ELIGIBLE'
+        elif rule == 'rebuildable_report_node_modules':
+            print(json.dumps(dict(row, status='RETIREMENT_STARTED', eligible_bytes=amount)), flush=True)
+            if api.remove_dependency_tree(p, before, deadline=deadline):
+                row.update(status='REMOVED', bytes_freed=amount)
+            else:
+                row['status'] = 'PARTIAL_UNKNOWN'
         elif rule == 'stale_tmp_24h' and p.name.startswith('aeo-declared-'):
             retired = api.remove_disposable(p, deadline=deadline, expected=before, admission=admission)
             if isinstance(retired, dict):
@@ -271,10 +288,10 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
     return row
 
 
-def rebuildable_node_modules(api, m, targets, *, pins, deadline, dry_run=True, reports_root=BUS / 'reports'):
-    """node_modules under reports/ that git ignores and never tracks, with a lockfile to rebuild it.
+def rebuildable_node_modules(api, m, targets, *, pins, deadline, dry_run=True, reports_root=BUS / 'reports', max_bytes=2*1024**3, max_items=100000):
+    """Ignored/untracked dependencies, with embedded-evidence and payload vetoes.
 
-    The checkout may be dirty elsewhere; only the ignored dependency tree is removed.
+    The adjacent lockfile is necessary, never sufficient deletion authority.
     """
     def rebuildable(p):
         if reports_root not in p.parents or p.name != 'node_modules':
@@ -292,7 +309,7 @@ def rebuildable_node_modules(api, m, targets, *, pins, deadline, dry_run=True, r
             raise ValueError('dirty/active')
     cutoff = time.time() - 3 * 86400
     return [_guarded_remove(api, m, Path(t), pins, deadline, 'rebuildable_report_node_modules', dry_run,
-                            rebuildable, cutoff) for t in targets if time.monotonic() < deadline]
+                            rebuildable, cutoff, max_bytes=max_bytes, max_items=max_items) for t in targets if time.monotonic() < deadline]
 
 
 def stale_tmp(api, m, *, pins, deadline, dry_run=True, root=TMP, min_age=86400, min_bytes=8 * 1024 ** 2):

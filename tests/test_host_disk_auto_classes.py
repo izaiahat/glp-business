@@ -23,6 +23,9 @@ except ModuleNotFoundError:  # CI checkout: only the sweep's reference scan is e
 
 class API:
     def path_is_active_privileged(self, p): return False
+    def remove_dependency_tree(self, p, expected, *, deadline):
+        import host_disk_pruner
+        return host_disk_pruner.remove_dependency_tree(p, expected, deadline=deadline)
     def remove_disposable(self, p, deadline):
         import shutil
         shutil.rmtree(p); return True

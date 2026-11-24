@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly bounded dependency cleanup
+
+[Timer]
+OnCalendar=*-*-* *:45:00
+Persistent=true
+Unit=kael-safe-dependency-retention.service
+
+[Install]
+WantedBy=timers.target

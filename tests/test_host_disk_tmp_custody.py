@@ -711,7 +711,7 @@ class DeclaredTmpTests(unittest.TestCase):
     def test_unreadable_process_fd_inventory_keeps_directory(self):
         scandir = os.scandir
         def unreadable(path):
-            if Path(path) == self.process / 'fd':
+            if not isinstance(path, int) and Path(path) == self.process / 'fd':
                 raise PermissionError('fixture fd denied')
             return scandir(path)
         with patch.object(os, 'scandir', unreadable):
@@ -773,16 +773,11 @@ class DeclaredTmpTests(unittest.TestCase):
 class DisposableHelperTests(unittest.TestCase):
     """Execute the maintained helper itself; every target belongs to scratch."""
     def setUp(self):
-        import ast
+        import host_disk_pruner as api
         import subprocess
         self.subprocess = subprocess
-        source = CANDIDATE / 'scripts/host_disk_pruner.py'
-        node = next(n for n in ast.parse(source.read_bytes()).body
-                    if isinstance(n, ast.FunctionDef) and n.name == 'remove_disposable')
-        self.helper_globals = dict(Path=Path, time=time, sys=sys, subprocess=subprocess,
-                                   remaining_budget=lambda seconds: seconds)
-        exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), self.helper_globals)
-        self.remove = self.helper_globals['remove_disposable']
+        self.helper_globals = api.__dict__
+        self.remove = api.remove_disposable
         self.fixture = tempfile.TemporaryDirectory(prefix='glp354-real-helper-')
         self.addCleanup(self.fixture.cleanup)
         self.base = Path(self.fixture.name)

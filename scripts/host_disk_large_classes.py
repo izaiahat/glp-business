@@ -6,6 +6,7 @@ reinstallable bytes; exact running 0.162.0 and process-referenced versions stay.
 Caller must hold the existing host cleanup singleton before scheduler adoption.
 """
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import re
 import stat
@@ -16,32 +17,102 @@ CODEX_RELEASES=Path('/home/ubuntu/.codex/packages/app-server-daemon/releases')
 CURRENT='0.162.0-x86_64-unknown-linux-musl'
 VERSION=re.compile(r'0\.(\d+)\.(\d+)-x86_64-unknown-linux-musl\Z')
 
-def snapshot(root,deadline):
-    """No-follow allocated inode inventory, including exact descendant names."""
-    rows=[]; stack=[root]; blocks={}
-    device=root.lstat().st_dev
-    while stack:
-        if time.monotonic()>=deadline: raise TimeoutError('inventory deadline')
-        p=stack.pop(); s=p.lstat()
-        if s.st_dev!=device: raise ValueError('cross-device')
-        if not (stat.S_ISREG(s.st_mode) or stat.S_ISDIR(s.st_mode) or stat.S_ISLNK(s.st_mode)):
-            raise ValueError('special file')
-        if p.suffix in {'.db','.sqlite','.sqlite3','.zst','.tar','.tgz','.gz'} or any(t in p.name.lower() for t in ('backup','recovery','credential','secret')):
-            raise ValueError('protected descendant')
-        rows.append((str(p.relative_to(root)),s.st_dev,s.st_ino,s.st_mode,s.st_size,s.st_mtime_ns,s.st_ctime_ns,s.st_nlink))
-        blocks[(s.st_dev,s.st_ino)]=(s.st_blocks*512,s.st_nlink)
-        if stat.S_ISDIR(s.st_mode):
-            with os.scandir(p) as entries: stack.extend(Path(e.path) for e in entries)
-    # External hardlinks are conservatively counted as zero reclaimable bytes.
-    counts={}
-    for row in rows: counts[(row[1],row[2])]=counts.get((row[1],row[2]),0)+1
-    amount=sum(b for key,(b,n) in blocks.items() if n==1 or counts[key]>=n)
-    return sorted(rows),amount
+def mount_id(fd):
+    """Linux mount identity detects same-device bind mounts too."""
+    for line in Path(f'/proc/self/fdinfo/{fd}').read_text().splitlines():
+        if line.startswith('mnt_id:'):
+            return int(line.split()[1])
+    raise ValueError('mount identity unavailable')
+
+
+@contextmanager
+def checked_directory(path):
+    """Open every ancestor with O_NOFOLLOW; retain handles for final checks."""
+    path = Path(path).absolute()
+    handles = []
+    edges = []
+    try:
+        fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        handles.append(fd)
+        for name in path.parts[1:]:
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                            dir_fd=fd)
+            handles.append(child)
+            info = os.fstat(child)
+            edges.append((fd, name, info.st_dev, info.st_ino))
+            fd = child
+        if not edges or mount_id(fd) != mount_id(edges[-1][0]):
+            raise ValueError('candidate mount boundary')
+        def validate():
+            for parent, name, device, inode in edges:
+                current = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) != (device, inode) or not stat.S_ISDIR(current.st_mode):
+                    raise ValueError('ancestor identity changed')
+        validate()
+        yield fd, edges[-1][0], path.name, validate
+    finally:
+        for fd in reversed(handles):
+            os.close(fd)
+
+
+def snapshot(root, deadline, *, max_items=100000, max_bytes=2*1024**3, include_directories=False):
+    """Descriptor-relative, no-follow inventory; reject every mount boundary."""
+    rows = []; blocks = {}; total = 0
+    root = Path(root)
+    directory = stat.S_ISDIR(root.lstat().st_mode)
+    with checked_directory(root if directory else root.parent) as (root_fd, _, _, validate):
+        device = os.fstat(root_fd).st_dev
+        mounted = mount_id(root_fd)
+        def walk(fd, relative):
+            nonlocal total
+            if time.monotonic() >= deadline: raise TimeoutError('inventory deadline')
+            info = os.fstat(fd)
+            add(relative, info)
+            with os.scandir(fd) as entries:
+                for entry in entries:
+                    if time.monotonic() >= deadline: raise TimeoutError('inventory deadline')
+                    name = str(Path(relative)/entry.name) if relative != '.' else entry.name
+                    s = os.stat(entry.name, dir_fd=fd, follow_symlinks=False)
+                    if stat.S_ISDIR(s.st_mode):
+                        child = os.open(entry.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+                        try:
+                            if mount_id(child) != mounted: raise ValueError('descendant mount boundary')
+                            if (os.fstat(child).st_dev, os.fstat(child).st_ino) != (s.st_dev, s.st_ino):
+                                raise ValueError('inventory identity changed')
+                            walk(child, name)
+                        finally: os.close(child)
+                    else: add(name, s)
+        def add(name, s):
+            nonlocal total
+            if len(rows) >= max_items: raise ValueError('inventory item cap')
+            if s.st_dev != device: raise ValueError('cross-device mount')
+            if not (stat.S_ISREG(s.st_mode) or stat.S_ISDIR(s.st_mode) or stat.S_ISLNK(s.st_mode)):
+                raise ValueError('special file')
+            p = Path(root.name if name == '.' else name)
+            if p.suffix in {'.db','.sqlite','.sqlite3','.zst','.tar','.tgz','.gz'} or any(t in p.name.lower() for t in ('backup','recovery','credential','secret')):
+                raise ValueError('protected descendant')
+            rows.append((name,s.st_dev,s.st_ino,s.st_mode,s.st_size,s.st_mtime_ns,s.st_ctime_ns,s.st_nlink))
+            key = (s.st_dev,s.st_ino)
+            if key not in blocks:
+                total += s.st_blocks*512
+                if total > max_bytes: raise ValueError('inventory byte cap')
+            blocks[key] = (s.st_blocks*512,s.st_nlink)
+        if directory:
+            walk(root_fd, '.')
+        else:
+            add('.', os.stat(root.name, dir_fd=root_fd, follow_symlinks=False))
+        validate()
+    counts = {}
+    for row in rows: counts[(row[1],row[2])] = counts.get((row[1],row[2]),0)+1
+    directory_keys = {(row[1], row[2]) for row in rows if include_directories and stat.S_ISDIR(row[3])}
+    amount = sum(b for key,(b,n) in blocks.items() if key in directory_keys or n==1 or counts[key]>=n)
+    return sorted(rows), amount
 
 def lsof_inactive(path):
     """Required independent live open-file check; unknown/timeout refuses."""
     try:
-        r=subprocess.run(['sudo','-n','lsof','-nP','+D',str(path)],capture_output=True,timeout=15)
+        # The all-UID /proc veto is separate; lsof needs no root access here.
+        r=subprocess.run(['lsof','-nP','+D',str(path)],capture_output=True,timeout=15)
         return r.returncode==1 and not r.stdout and not r.stderr
     except (OSError,subprocess.TimeoutExpired): return False
 
