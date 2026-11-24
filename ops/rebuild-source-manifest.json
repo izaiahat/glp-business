@@ -1,20 +1,30 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/pruner_process_reference_guard.py": {
+      "kind": "host_control",
+      "callers": ["scripts/host_disk_pruner.py"],
+      "sha256": "750208f40d78e421c4601f4be7cd568fb7e53e6d5b47fe1c79f931edfbf2b7fa"
+    },
+    "tests/test_dependency_retirement_safety.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "724be3536c41a4ee233da86a5b66c23d895976c589700960a875bfda5891098a"
+    },
     "scripts/safe_dependency_retention.py": {
       "kind": "host_control",
       "callers": ["ops/systemd/kael-safe-dependency-retention.service"],
-      "sha256": "8ca0569e828c46a91596affb7bdc6b563c56cf603d31835dda2c576ff04106f5"
+      "sha256": "34a3fd8be3cbaeffb1b180ac9685187253802e399a365dcc8f68388c42695a80"
     },
     "tests/test_safe_dependency_retention.py": {
       "kind": "test",
       "callers": [".github/workflows/business-source-ci.yml"],
-      "sha256": "18bfa293109d12abd59ae13a3ae20b252bc39bc2f679f53c2a6aaa2f52d32f2f"
+      "sha256": "11bd5671d3e2b700e3ef5f9dc88b49e0ddb3c30808da21c0c29d83823b83a291"
     },
     "ops/systemd/kael-safe-dependency-retention.service": {
       "kind": "systemd_unit",
       "callers": ["ops/systemd/kael-safe-dependency-retention.timer"],
-      "sha256": "5d4330f8ecb81fb918e0b76f82265db3500b57b71925f849a04c9c9d5b4e685e"
+      "sha256": "367170fd6e95e23d8a75d59e58ff0788ed3680e1594e7fc9ee72d404b1be1904"
     },
     "ops/systemd/kael-safe-dependency-retention.timer": {
       "kind": "systemd_unit",
@@ -465,7 +475,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b65b22f05886e2838265a836e977c565909204dc359e399e6cb6f9cd536dc628"
+      "sha256": "3f9ee3bfa4b09c209746137859725cd97c1649ceda3915c6ae2e6efadc7c23cb"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3719,7 +3729,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "f50756b7e474048fe8a331899e2ba73802f91d9280a6482a6a6e39737754a2cf"
+      "sha256": "4e59bcab4b128993ad9de40627537fa8781e2034772fbc8f548f19cbde8c9123"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3740,7 +3750,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "432b324a2769ebfeed4b187565ecfc5f3248cb8a4653bcaa80a27d6ac6966adc"
+      "sha256": "a24e63592ee3e39b144a592f0d422ffc50f571a247f8022c2b8b22298561b802"
     },
     "scripts/host_disk_large_sweep.py": {
       "callers": [
@@ -3761,7 +3771,7 @@
         "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py"
       ],
       "kind": "script",
-      "sha256": "8f47018564d1e7b9cbc08683a675fab6ac61c57e74b7c244eebff649c52ce30c"
+      "sha256": "58bd764f30328351b33ba532271fff86501d682fe6bf5ba08e6be31683ec8821"
     },
     "scripts/host_disk_reference_guard.py": {
       "callers": [
@@ -6668,7 +6678,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "7be645c65c59650acdcf95364bbe75d22f7ed889d1a1dd42820bcc27b83041d0"
+      "sha256": "ecab4172cb0cc2536d9f5a6c15c2dbc3fde1c7cf0768f906576b7fe2d158ce34"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [
@@ -8359,5 +8369,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1223
+  "tracked_count": 1225
 }

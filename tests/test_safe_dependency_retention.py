@@ -31,23 +31,31 @@ class SafeDependencyRetentionTests(unittest.TestCase):
             with self.assertRaises(TimeoutError):
                 list(m.dependencies(root,time.monotonic()-1))
 
-    def test_actual_caller_delegates_dry_run_and_apply_to_existing_guard(self):
-        import sync_from_repo
+    def test_actual_caller_retires_real_old_ignored_dependencies(self):
+        import subprocess
         import host_disk_auto_classes as auto
+        import host_disk_custody as custody
         import host_disk_cold_classes as cold
         with tempfile.TemporaryDirectory() as d:
-            root=Path(d)
-            (root/'run/node_modules').mkdir(parents=True)
-            lock=root/'singleton'; lock.touch()
-            observed=[]
-            def guarded(api, module, paths, **kwargs):
-                observed.append((paths,kwargs))
-                return [{'status':'ELIGIBLE' if kwargs['dry_run'] else 'REMOVED','bytes_freed':0}]
-            with patch.object(m,'BUS',root),patch.object(m,'ROOTS',(root,)),patch.object(m,'LOCK',lock),patch.object(auto,'external_pins',return_value=()),patch.object(cold,'custody_pins',return_value=()),patch.object(auto,'rebuildable_node_modules',side_effect=guarded):
-                self.assertEqual(m.clean()['bytes_freed'],0)
-                self.assertEqual(m.clean(apply=True)['bytes_freed'],0)
-            self.assertEqual([kwargs['dry_run'] for _,kwargs in observed],[True,False])
-            self.assertTrue((root/'run/node_modules').is_dir())
+            root = Path(d); run = root/'run'; run.mkdir()
+            subprocess.run(['git','init','-q',str(run)], check=True)
+            (run/'.gitignore').write_text('node_modules/\n')
+            (run/'package-lock.json').write_text('{}')
+            modules = run/'node_modules'; modules.mkdir()
+            (modules/'index.js').write_text('reinstallable dependency' * 4096)
+            (run/'RESULT.json').write_text('retained evidence')
+            lock = root/'singleton'; lock.touch()
+            # Isolate reference sources and advance wall time (ctime cannot be
+            # backdated). Process/lsof/identity/payload/deletion gates stay real.
+            with patch.object(m,'BUS',root), patch.object(m,'ROOTS',(root,)), patch.object(m,'LOCK',lock), patch.object(auto,'external_pins',return_value=()), patch.object(custody,'collect',return_value=()), patch.object(cold,'LIVE_HOME',root/'absent-home'), patch.object(time,'time',return_value=time.time()+4*86400):
+                self.assertEqual(m.clean()['rows'][0]['status'], 'ELIGIBLE')
+                self.assertTrue(modules.exists())
+                self.assertEqual(m.clean(apply=True)['rows'][0]['status'], 'REMOVED')
+                self.assertFalse(modules.exists())
+                self.assertEqual((run/'RESULT.json').read_text(), 'retained evidence')
+                modules.mkdir(); (modules/'RESULT.json').write_text('embedded evidence')
+                self.assertEqual(m.clean(apply=True)['rows'][0]['status'], 'REFUSED')
+                self.assertEqual((modules/'RESULT.json').read_text(), 'embedded evidence')
 
     def test_busy_existing_singleton_preserves_all_payloads(self):
         import fcntl

@@ -3,7 +3,11 @@ Description=Bounded regenerable dependency retention (protected reports and back
 
 [Service]
 Type=oneshot
+# Deliberately ubuntu-only: no AHS path/account expansion is authorized.
 User=ubuntu
+TimeoutStartSec=190
+TimeoutStopSec=5
+KillMode=control-group
 WorkingDirectory=/home/ubuntu/business/host-safe-retention-20261123
 ExecStart=/usr/bin/python3 -B /home/ubuntu/business/host-safe-retention-20261123/scripts/safe_dependency_retention.py --apply
 Nice=19

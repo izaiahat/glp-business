@@ -22,6 +22,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -B -m unittest discover -s tests -p test_safe_dependency_retention.py -v
+          python3 -B -m unittest discover -s tests -p test_dependency_retirement_safety.py -v
       - name: GLP73 autonomous article and Alexandria contracts (offline, exact head)
         run: |
           python3 -m unittest discover -s tests -p test_article_source_carrier.py -v
