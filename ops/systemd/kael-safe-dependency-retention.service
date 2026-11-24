@@ -1,0 +1,12 @@
+[Unit]
+Description=Bounded regenerable dependency retention (protected reports and backups excluded)
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/business/host-safe-retention-20261123
+ExecStart=/usr/bin/python3 -B /home/ubuntu/business/host-safe-retention-20261123/scripts/safe_dependency_retention.py --apply
+Nice=19
+IOSchedulingClass=idle
+StandardOutput=journal
+StandardError=journal
