@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly read-only disk status; daily summary and weekly candidates
+
+[Timer]
+OnCalendar=*-*-* *:25:00
+Persistent=true
+Unit=kael-disk-status.service
+
+[Install]
+WantedBy=timers.target

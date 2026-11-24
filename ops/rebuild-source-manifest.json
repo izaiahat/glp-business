@@ -1,6 +1,32 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/disk_status.py": {
+      "kind": "script",
+      "callers": [
+        "ops/systemd/kael-disk-status.service"
+      ],
+      "sha256": "df4fb07224386e78b7c00e93e37eb0d2ff83782ce1f15413cddd1c42c9be2082"
+    },
+    "tests/test_disk_status.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "5add345c0fbf077b9d3c062184cf6547d978ae7d5f1d0efdb0a66eff99478402"
+    },
+    "ops/systemd/kael-disk-status.service": {
+      "kind": "systemd_source",
+      "callers": [
+        "ops/systemd/kael-disk-status.timer"
+      ],
+      "sha256": "7f36b0a54e5617a6cbbe4cb14537e7714eb648f4cd6c3a2378bea1499d23c881"
+    },
+    "ops/systemd/kael-disk-status.timer": {
+      "kind": "systemd_source",
+      "callers": [],
+      "sha256": "7452ba584316bcc1f7d7208132e01847fb2cb95db8cc17bb906ffbbcd13444be"
+    },
     "tests/fixtures/glp80-eden/native-validator/provenance.json": {
       "kind": "test_fixture_provenance",
       "callers": [
@@ -445,7 +471,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e8dcbf8957df4e9a07e00fb5e8ffb0c96c49457be545a46eba54ad969d306115"
+      "sha256": "957ecd2d8bee8eda38f91872e338f711817c69f6e797a43eb4669b438b62b41b"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -8339,5 +8365,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1219
+  "tracked_count": 1223
 }

@@ -1,0 +1,13 @@
+[Unit]
+Description=Kael read-only root disk status and known-writer growth
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/business
+ExecStart=/usr/bin/python3 -B /home/ubuntu/business/host-disk-monitor-20261123/scripts/disk_status.py
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=20min
+StandardOutput=journal
+StandardError=journal
