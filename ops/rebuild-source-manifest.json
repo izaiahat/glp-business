@@ -9,12 +9,12 @@
     "tests/test_dependency_retirement_safety.py": {
       "kind": "test",
       "callers": [".github/workflows/business-source-ci.yml"],
-      "sha256": "724be3536c41a4ee233da86a5b66c23d895976c589700960a875bfda5891098a"
+      "sha256": "cf5fa8cad4d14e3276f89fe522d3458b490639af3f4ee3cf023ca1863e4549da"
     },
     "scripts/safe_dependency_retention.py": {
       "kind": "host_control",
       "callers": ["ops/systemd/kael-safe-dependency-retention.service"],
-      "sha256": "34a3fd8be3cbaeffb1b180ac9685187253802e399a365dcc8f68388c42695a80"
+      "sha256": "3e069789d4c2566ab54fb61441159bb4fad273c17868719089650d7b7e7077a0"
     },
     "tests/test_safe_dependency_retention.py": {
       "kind": "test",
@@ -3729,7 +3729,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "4e59bcab4b128993ad9de40627537fa8781e2034772fbc8f548f19cbde8c9123"
+      "sha256": "dcaa9fbb933a7d690936345b1d194ab2ba34cb32a2bea277ba936df58e32f875"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3750,7 +3750,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "a24e63592ee3e39b144a592f0d422ffc50f571a247f8022c2b8b22298561b802"
+      "sha256": "0aa13f684ddddfa8fb5f5e1ba6e71fa4e085ca1e327a4ad402c1bdfc24c2bee7"
     },
     "scripts/host_disk_large_sweep.py": {
       "callers": [
@@ -3771,7 +3771,7 @@
         "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py"
       ],
       "kind": "script",
-      "sha256": "58bd764f30328351b33ba532271fff86501d682fe6bf5ba08e6be31683ec8821"
+      "sha256": "e71701094fbcf1b9c0a93feafe237fbc96b57439ad347e193b639e099e550888"
     },
     "scripts/host_disk_reference_guard.py": {
       "callers": [
@@ -8032,7 +8032,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "dc9b0243ef23c48c605bd0dc89027612621be90e845dd0c4b5031905099a42b3"
+      "sha256": "e41c3e04b134df34a49ce26e9126b62b525f7a47f5f013e39cec4ddc938c04fa"
     },
     "tests/test_host_disk_reference_refresh.py": {
       "kind": "test",

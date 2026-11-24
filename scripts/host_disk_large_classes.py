@@ -55,7 +55,7 @@ def checked_directory(path):
             os.close(fd)
 
 
-def snapshot(root, deadline, *, max_items=100000, max_bytes=2*1024**3):
+def snapshot(root, deadline, *, max_items=100000, max_bytes=2*1024**3, include_directories=False):
     """Descriptor-relative, no-follow inventory; reject every mount boundary."""
     rows = []; blocks = {}; total = 0
     root = Path(root)
@@ -104,14 +104,15 @@ def snapshot(root, deadline, *, max_items=100000, max_bytes=2*1024**3):
         validate()
     counts = {}
     for row in rows: counts[(row[1],row[2])] = counts.get((row[1],row[2]),0)+1
-    directory_keys = {(row[1], row[2]) for row in rows if stat.S_ISDIR(row[3])}
+    directory_keys = {(row[1], row[2]) for row in rows if include_directories and stat.S_ISDIR(row[3])}
     amount = sum(b for key,(b,n) in blocks.items() if key in directory_keys or n==1 or counts[key]>=n)
     return sorted(rows), amount
 
 def lsof_inactive(path):
     """Required independent live open-file check; unknown/timeout refuses."""
     try:
-        r=subprocess.run(['sudo','-n','lsof','-nP','+D',str(path)],capture_output=True,timeout=15)
+        # The all-UID /proc veto is separate; lsof needs no root access here.
+        r=subprocess.run(['lsof','-nP','+D',str(path)],capture_output=True,timeout=15)
         return r.returncode==1 and not r.stdout and not r.stderr
     except (OSError,subprocess.TimeoutExpired): return False
 

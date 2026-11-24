@@ -73,9 +73,12 @@ class DependencyRetirementSafetyTests(unittest.TestCase):
         code = '''import pathlib,subprocess,sys,time
 sys.path.insert(0,sys.argv[1])
 import host_disk_large_classes as large
+import host_disk_pruner as api
 source,target,root=map(pathlib.Path,sys.argv[2:])
+expected,_=large.snapshot(root,time.monotonic()+5)
 subprocess.run(['mount','--bind',str(source),str(target)],check=True)
 try:
+    assert not api.remove_dependency_tree(root,expected,deadline=time.monotonic()+5)
     try: large.snapshot(root,time.monotonic()+5)
     except ValueError as error: assert 'mount' in str(error),error
     else: raise AssertionError('same-device bind mount admitted')
@@ -104,6 +107,25 @@ finally: subprocess.run(['umount',str(target)],check=True)
             large.snapshot(self.path, self.deadline, max_bytes=1)
         self.assertTrue((self.path / 'payload.js').is_file())
 
+    def test_activity_checks_use_unprivileged_reads_and_only_escalate_unknown(self):
+        from types import SimpleNamespace
+        with patch.object(large.subprocess, 'run', return_value=SimpleNamespace(returncode=1, stdout=b'', stderr=b'')) as read:
+            self.assertTrue(large.lsof_inactive(self.path))
+            self.assertEqual(read.call_args.args[0], ['lsof','-nP','+D',str(self.path)])
+        inactive = {'returncode':0, 'stdout_tail':'INACTIVE'}
+        unknown = {'returncode':2, 'stdout_tail':'UNKNOWN'}
+        with patch.object(api, 'run', return_value=inactive) as read:
+            self.assertFalse(api.path_is_active_privileged(self.path))
+            self.assertEqual(read.call_count, 1)
+            self.assertEqual(read.call_args.args[0][:3], ['/usr/bin/python3','-I','-B'])
+        with patch.object(api.os, 'geteuid', return_value=1000), patch.object(api, 'run', side_effect=[unknown, inactive]) as read:
+            self.assertFalse(api.path_is_active_privileged(self.path))
+            first, second = [call.args[0] for call in read.call_args_list]
+            self.assertEqual(second, ['sudo','-n',*first])
+            self.assertTrue(first[3].endswith('/pruner_process_reference_guard.py'))
+        with patch.object(api.os, 'geteuid', return_value=1000), patch.object(api, 'run', side_effect=[unknown, unknown]):
+            self.assertTrue(api.path_is_active_privileged(self.path))
+
     def test_partial_deletion_log_survives_later_discovery_timeout(self):
         import contextlib
         import io
@@ -112,14 +134,17 @@ finally: subprocess.run(['umount',str(target)],check=True)
         def discover(*args):
             yield self.path
             raise TimeoutError('discovery incomplete')
-        def remove(*args, **kwargs):
-            return [{'path':str(self.path),'status':'REMOVED','bytes_freed':12}]
+        subprocess.run(['git','init','-q',str(self.parent)], check=True)
+        (self.parent/'.gitignore').write_text('node_modules/\n')
+        (self.parent/'package-lock.json').write_text('{}')
         stream = io.StringIO()
         import host_disk_cold_classes as cold
-        with patch.object(retention,'BUS',root), patch.object(retention,'ROOTS',(root,)), patch.object(retention,'LOCK',lock), patch.object(retention,'dependencies',side_effect=discover), patch.object(auto,'external_pins',return_value=()), patch.object(cold,'custody_pins',return_value=()), patch.object(auto,'rebuildable_node_modules',side_effect=remove), contextlib.redirect_stdout(stream):
+        import host_disk_custody as custody
+        with patch.object(retention,'BUS',root), patch.object(retention,'ROOTS',(root,)), patch.object(retention,'LOCK',lock), patch.object(retention,'dependencies',side_effect=discover), patch.object(auto,'external_pins',return_value=()), patch.object(custody,'collect',return_value=()), patch.object(cold,'LIVE_HOME',root/'absent-home'), patch.object(time,'time',return_value=time.time()+4*86400), contextlib.redirect_stdout(stream):
             with self.assertRaises(TimeoutError): retention.clean(apply=True)
+        self.assertFalse(self.path.exists())
         self.assertIn('"status": "REMOVED"', stream.getvalue())
-        self.assertIn('"bytes_freed": 12', stream.getvalue())
+        self.assertIn('"bytes_freed":', stream.getvalue())
 
     def test_registered_entry_has_hard_time_limit_for_reference_collection(self):
         def slow():

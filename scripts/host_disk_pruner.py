@@ -298,9 +298,14 @@ def path_identity(path: Path) -> tuple[int, int, int, int, int, int] | None:
 
 def path_is_active_privileged(path: Path) -> bool:
     """Fresh all-UID veto; UNKNOWN/permission errors are active, never deletion."""
-    command=['sudo','-n','/usr/bin/python3','-I',str(Path(__file__).parent/'pruner_process_reference_guard.py'),
+    command=['/usr/bin/python3','-I','-B',str(Path(__file__).parent/'pruner_process_reference_guard.py'),
              str(path),str(os.getpid())]
     result=run(command,cwd=Path('/'),timeout=3)
+    if (result['returncode']==2 and result['stdout_tail'].strip()=='UNKNOWN'
+            and os.geteuid()!=0):
+        # Only this read-only, output-redacted /proc helper may elevate. Never
+        # elevate the cleanup process or treat inaccessible processes as idle.
+        result=run(['sudo','-n',*command],cwd=Path('/'),timeout=3)
     return result['returncode']!=0 or result['stdout_tail'].strip()!='INACTIVE'
 
 

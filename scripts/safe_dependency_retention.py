@@ -99,7 +99,8 @@ def clean(*, apply=False, budget=180):
                     attempted += 1
                     try:
                         from host_disk_large_classes import snapshot
-                        members, amount = snapshot(path, deadline, max_items=remaining_items, max_bytes=remaining_bytes)
+                        members, amount = snapshot(path, deadline, max_items=remaining_items,
+                                                   max_bytes=remaining_bytes, include_directories=True)
                         remaining_items -= len(members)
                         # Reserve the whole candidate before any partial retirement.
                         remaining_bytes -= amount

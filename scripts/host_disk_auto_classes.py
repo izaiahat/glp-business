@@ -235,7 +235,8 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
             extra_check(p)
         if not m.inactive(api, p):
             raise ValueError('dirty/active')
-        before, amount = snapshot(p, deadline, max_bytes=max_bytes, max_items=max_items)
+        before, amount = snapshot(p, deadline, max_bytes=max_bytes, max_items=max_items,
+                                  include_directories=rule == 'rebuildable_report_node_modules')
         if rule == 'rebuildable_report_node_modules':
             reject_dependency_evidence(p, before)
         reject_database_payloads(p, before)
